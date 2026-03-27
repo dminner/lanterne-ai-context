@@ -874,6 +874,84 @@ Enable with: localStorage.DEBUG_FLAGS = '{"HAZARD_DEBUG":true}' then reload and 
 
 ---
 
+## Source File: docs/04-execution/exec-006-phase0-smoke-tests.md
+
+# Phase 0 — Smoke Tests & Performance Baselines
+
+## Fixtures
+
+| Fixture | File | Purpose |
+|---------|------|---------|
+| Short urban hazard | `public/demo/fixture-urban-hazard.gpx` | ~15mi KC MO, dense crossings/bridges, stress hazard detection |
+| Long rural | `public/demo/fixture-long-rural.gpx` | ~200mi KS Flint Hills, worker serialization budget, guardrails |
+| History-loaded | `public/demo/fixture-history-loaded.gpx` | ~40mi Lawrence KS loop, rehydration/cache hit/re-analyze |
+| Detour-edit | `public/demo/fixture-detour-edit.gpx` | ~25mi Topeka out-and-back, detour drag/save/delta-panel |
+
+## Smoke Test Paths
+
+### 1. GPX Upload → Analyze → Save
+1. Upload `fixture-urban-hazard.gpx`
+2. Wait for analysis to complete (score panel renders)
+3. Open left drawer, verify score + grade visible
+4. Save to history
+5. **Pass:** Route appears in history list with correct name
+
+### 2. Manual Create → Analyze → Save
+1. Enter route create mode
+2. Place 3+ waypoints (~5mi route)
+3. Finish drawing → analysis begins
+4. Wait for completion
+5. Save to history
+6. **Pass:** Route saved, can be re-loaded
+
+### 3. History Load → Re-analyze
+1. Load `fixture-history-loaded.gpx`, analyze, save
+2. Open history, click the saved route
+3. Verify polyline renders on map
+4. Trigger re-analyze
+5. **Pass:** New score renders, no ghost state from previous analysis
+
+### 4. Detour Save
+1. Upload `fixture-detour-edit.gpx`, analyze
+2. Click on the high-traffic middle segment
+3. Drag a detour waypoint to create alternate route
+4. Verify delta panel shows score comparison
+5. Save detour
+6. **Pass:** Detour saved to history, delta panel values correct
+
+## Hard Performance Budgets
+
+| Metric | Budget | Module |
+|--------|--------|--------|
+| Cancel acknowledged | ≤ 300ms | `analysis:cancel:latency` |
+| Worker serialization (long-route) | ≤ 80ms | `worker:serialization` |
+| Main-thread long tasks during compute | 0 tasks > 100ms | `PerformanceObserver('longtask')` |
+| Render-to-interactive after done | ≤ 500ms | `render:to-interactive` |
+
+Budget violations emit `[PERF-BUDGET] ⚠` warnings to console.
+
+## Instrumentation Points
+
+All marks defined in `src/lib/refactor-perf-budgets.ts`:
+- `markAnalysisStart()` — called when `analyzeRouteProgressive` loop begins
+- `markAnalysisDone()` — called on `analysis` stage received
+- `markAnalysisCancelRequest()` — called when cancel button tapped
+- `markAnalysisCancelAck()` — called when UI teardown complete
+- `markRenderToInteractiveStart()` — called at analysis done phase
+- `markRenderToInteractiveEnd()` — called on first drawer open after analysis
+- `startLongTaskObserver()` / `stopLongTaskObserver()` — bracketing analysis phase
+
+## Done Criteria
+
+- [ ] 4 fixture files committed to `public/demo/`
+- [ ] 4 smoke paths documented (this file) and manually passing
+- [ ] Perf marks emitting to console during analysis
+- [ ] Budget violations logged as warnings
+- [ ] **No code moved or restructured** — this is baseline only
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
