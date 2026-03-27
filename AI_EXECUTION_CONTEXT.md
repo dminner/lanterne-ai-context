@@ -662,37 +662,287 @@ Route Sources
 
 ## Source File: docs/04-execution/exec-003-current_focus.md
 
-
 # Current Focus
 
-Purpose:
-Prevent idea thrash and keep development focused.
+## Purpose
 
-## Current Priority
+Prevent idea thrash, keep development focused, and make it obvious what is active now versus what is intentionally deferred.
 
-Finalize the **canonical schema and route intelligence foundation**.
+------
 
-## Active Threads
+## Current Priorities
+
+### 1. Canonical schema + route intelligence foundation
+
+Lock the schema and supporting route-intelligence structure tightly enough that ingestion, analysis, and downstream scoring can stop shifting underneath the product.
+
+### 2. Front-end architecture refactor
+
+Move the front end away from page-level state sprawl and toward a cleaner workflow/session model.
+
+Current sub-focus:
+
+- shrink the main page/god component
+- separate workflow/lifecycle ownership from rendering
+- plan workerization for heavy analysis so the app stays usable during loading
+- reduce map monolith / surface sprawl
+- make loading/analysis state part of a coherent workflow model rather than one-off UI patches
+
+Reference thread:
+
+- See bottom section of this doc for remaining steps
+  	
+
+------
+
+## Active Execution Threads
+
+These are the threads that are allowed to drive current work:
 
 - Canonical schema finalization
 - Slice engine implementation
+- Front-end architecture refactor
 - Expedition system state persistence
 - Traffic cohort architecture
 
-## Do Not Start Yet
+------
+
+## Active but Secondary
+
+These matter, but should not steal priority from the current execution threads unless directly required:
+
+- Hazard taxonomy refinement
+- Loader / analysis presentation polish
+- Route review patterning / explainability
+- Comparative traffic context
+
+------
+
+## Explicitly Deferred
+
+Do not start these yet unless they become prerequisites for the current priorities:
 
 - Ride computer advanced features
 - Radar integrations
-- UI polish
-- LLM or voice assistant systems
+- UI polish outside the current front-end refactor
+- LLM / voice assistant systems
+- Broader expedition feature expansion beyond persistence/state hardening
+
+------
 
 ## Success Criteria
 
-When complete:
+This focus window is complete when:
 
-- Canonical schema is stable
-- Slice engine operational
-- RUSA routes can be ingested and analyzed
+- canonical schema is stable enough to stop churn
+- slice engine is operational
+- RUSA routes can be ingested and analyzed cleanly
+- front-end workflow ownership is cleaner and less page-bound
+- the app remains usable during route analysis or has a concrete workerization path underway
+- map/surface state is moving toward a simpler, more governable structure
+
+------
+
+## Completed
+
+### 2026-03-27
+
+- Hardened the route loader to a usable state
+- Added route loading cancel behavior and cleaned up the cancel/reopen loop
+- Reduced “segments worth reviewing” on the Boulder, CO route from 255 instances into 17 pattern buckets
+- Classified those 17 buckets into:
+  - 8 protected bike lanes scored risky
+  - 8 high-speed road exposure patterns
+  - 1 unusual segment break
+- Added 6 hazards to the bottom drawer:
+  - Bad Angles
+  - Traffic
+  - Pinch Points
+  - Descents
+  - No Shoulder
+  - Grates
+- Documented `prod-012` and `prod-013` and explicitly deferred them
+
+### 2026-03-26
+
+- Implemented new hazard tags
+- Added ability to cancel a loading route
+- Hardened expedition mode entry logic
+- Added admin debug setting to show all metal grated bridges
+- Began loader fixes as part of the broader front-end refactor
+
+------
+
+## Working Rules
+
+- Do not let loader polish turn into another isolated UI rabbit hole
+- Do not start advanced ride computer work while core schema / analysis / front-end structure are still unstable
+- Treat front-end refactor as an architecture thread, not a cosmetics thread
+- Only add new active threads if they are true prerequisites or materially block current priorities
+
+# Front-End Work Remaining
+
+## Status
+
+**Completed**
+
+- Phase 0 baseline instrumentation:
+  - fixed GPX fixtures
+  - smoke test definitions
+  - performance markers
+  - perf budget logging
+  - baseline regression harness
+
+**Not yet approved to start**
+
+- Phase 1
+- Phase 2
+- Phase 3
+- Phase 4
+
+These remain blocked until slice-level scoring and OSM ingestion/enrichment stabilize the analysis contracts.
+
+------
+
+# Remaining Front-End Phases
+
+## Phase 1 — Extract Bounded Hooks + Layout Reducer
+
+Purpose: reduce `Index.tsx` from god-component status without changing behavior.
+
+### Planned hook extractions
+
+- `useRouteAcquisition`
+- `useAnalysisSession`
+- `useRoutePersistence`
+- `usePoiManager`
+- `useRideSession`
+
+### Additional Phase 1 work
+
+- introduce `resetRouteSession(reason)` as the single teardown path
+- evolve `LayoutContext.tsx` from boolean bag to reducer
+- introduce `RouteWorkflowState` separate from `MapMode`
+
+### Phase 1 done criteria
+
+- `Index.tsx` reduced to ~800–1000 lines
+- typed public interfaces for all five hooks
+- no cross-domain imports between hooks
+- no direct state mutation across hook boundaries
+- `LayoutContext` reducer replaces standalone drawer/panel booleans
+- all Phase 0 smoke flows still pass
+
+------
+
+## Phase 2 — Worker Boundary
+
+Purpose: move heavy matching/scoring compute off the main thread.
+
+### Planned split
+
+- `route-analysis-core.ts` → pure compute only
+- `route-analysis-io.ts` → fetch/cache/Supabase/orchestration
+- `analysis.worker.ts` → imports only core
+- `analysis-protocol.ts` → typed worker messages
+
+### Compute that moves to worker
+
+- road matching
+- forensic pipeline
+- boundary refinement math
+- safety scoring
+- transition chain computation
+- cue generation
+
+### Work that stays on main thread
+
+- corridor tile fetch
+- cache reads/writes
+- HPMS/DOT fetches
+- railroad crossing detection
+- heatmap-building / UI-facing orchestration
+
+### Phase 2 done criteria
+
+- worker serialization within budget on long-route fixture
+- zero long tasks over budget during compute phase
+- map remains pannable during analysis
+- cancel → worker abort → UI reset stays within budget
+- stale worker results blocked by `sessionId` guard
+- all Phase 0 smoke flows still pass
+
+------
+
+## Phase 3 — RouteMap Decomposition
+
+Purpose: kill the RouteMap monolith and replace prop sprawl with explicit layer boundaries.
+
+### Planned work
+
+- define `MapScene` contract before extraction
+- replace 70+ prop sprawl with scene objects
+- extract layers in this order:
+  1. `useMapCore`
+  2. `useRoutePolyline`
+  3. `useHeatmapLayer`
+  4. `useHazardLayer`
+  5. `useCueLayer`
+  6. `useGpsLayer`
+  7. `usePoiLayer`
+  8. `useDebugLayers`
+
+### Phase 3 done criteria
+
+- `RouteMap.tsx` reduced to ~300–400 lines
+- each layer handles its own cleanup
+- rider-facing hooks contain no admin logic
+- click handlers, tooltips, zoom behavior remain unchanged
+- layer mount order preserves z-order behavior
+- all Phase 0 smoke flows still pass
+
+------
+
+## Phase 4 — Surface Governance + Resilience
+
+Purpose: finish workflow/state cleanup after the structural refactor.
+
+### Planned work
+
+- wire `RouteWorkflowState` into visibility rules
+- audit remaining rogue surface toggles
+- add `failed` and `partial` workflow states
+- add stale reopen / re-analyze recovery behavior
+
+### Phase 4 done criteria
+
+- zero standalone drawer/panel booleans left in `Index.tsx`
+- `failed` state shows retry UI
+- `partial` state shows warning + usable partial results
+- stale reopen detection works
+- all Phase 0 smoke flows still pass
+
+------
+
+## Key Front-End Risks
+
+- Phase 1 is the highest-risk extraction because callbacks in `Index.tsx` cross multiple domains.
+- `usePoiManager` has hidden coupling to route and map-bounds state and must use explicit parameters.
+- worker serialization could become expensive on long routes.
+- RouteMap extraction must preserve explicit Leaflet z-order.
+- Layout reducer migration touches many callback props that currently toggle booleans directly.
+
+------
+
+## Current Decision
+
+Front-end work is limited to **Phase 0 only** until:
+
+- slice-level scoring model is stable
+- OSM ingestion/enrichment contracts are stable
+- route-analysis input/output contracts are frozen
+
+After that, execute front-end Phases 1 → 4 in order.
 
 
 ---

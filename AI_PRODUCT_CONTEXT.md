@@ -1727,3 +1727,2143 @@ pinch point
 
 …use Phosphor as the base language, but compose a Lanterne hazard symbol, not just a naked stock icon. That means regular weight, colored disc/halo, maybe a tiny overlay arrow or grate pattern. Raw stock icons alone will be too polite.
 
+
+---
+
+## Source File: docs/05-product/prod-010-poi_categories.md
+
+# PROD-010 — POI Categories and Mode-Aware Stop Defaults
+
+Status: Draft  
+Owner: Product  
+Last Updated: 2026-03-26
+
+## Purpose
+
+Define Lanterne's rider-facing POI catalog for stops and route-support services, including:
+
+- canonical top-level stop categories
+- launch subcategories
+- category membership rules
+- mode-aware default toggle behavior
+- user override and persistence behavior
+- confidence and truthfulness rules for ambiguous stop types
+
+This document is the product spec for what riders see in the Stops / Layers experience.
+It is not an OSM schema dump.
+
+---
+
+## Product intent
+
+Lanterne should help a rider answer a practical question quickly:
+
+**Where can I get what I need next?**
+
+That need may be:
+
+- water
+- calories
+- caffeine / morale
+- a restroom or shower
+- a place to sleep or handle logistics
+
+The stop system must reflect how long-distance riders actually think, not how map databases happen to classify amenities.
+
+That means:
+
+1. The user-facing taxonomy stays small and legible.
+2. Messy real-world POIs may belong to more than one rider-facing category.
+3. Defaults may change by ride mode.
+4. Riders can override those defaults.
+5. Those overrides persist.
+6. Ambiguous stop types must be represented truthfully rather than implied as guaranteed services.
+
+---
+
+## Core design rules
+
+### 1. Keep the rider-facing taxonomy small
+
+Launch with five top-level stop categories:
+
+- Eat
+- Drink
+- Bio
+- Rest
+- Boost
+- Aid
+
+Do not explode this into a 20-category ontology mess.
+
+### 2. Support multi-category membership
+
+Some POI subcategories are legitimately useful in more than one rider-facing category.
+
+Examples:
+
+- cafe belongs in Food and Boost
+- convenience store belongs in Water and Food
+- grocery belongs in Water and Food
+- gas station belongs in Water and Food
+
+The internal model must support one subcategory being surfaced under multiple parent categories.
+
+### 3. No shadow mode system
+
+POI defaults must attach to the application's canonical ride mode system.
+
+The POI layer must **consume** the main mode/profile identifier already used elsewhere in the product.
+It must not create its own parallel set of mode names or logic.
+
+Working examples may include:
+
+- road / normal
+- randonneur
+- ultra
+- bikepacking_gravel
+
+Whatever the final canonical mode IDs are, POI defaults must key off those exact IDs.
+
+### 4. Defaults are a starting point, not a prison
+
+Every mode has standard subcategory defaults.
+Those defaults are applied automatically when the rider enters that mode.
+But once a rider changes a toggle, that override belongs to them and must persist.
+
+### 5. Be honest about uncertain stop types
+
+Some stop types are useful because riders know they are *often* helpful, not because they are guaranteed.
+
+Examples:
+
+- cemeteries may have exterior spigots or hose access
+- freshwater crossings may provide untreated water access
+
+These belong in the system, but they must never be presented as guaranteed potable water.
+
+---
+
+## Canonical top-level categories
+
+## 1. Eat
+
+Use for calories and meaningful resupply.
+
+Examples surfaced here may include:
+
+- restaurants
+- fast food
+- cafes
+- convenience stores
+- groceries
+
+---
+
+## 2. Drink
+
+Use for places a rider may reasonably seek in order to refill or obtain water.
+
+Examples surfaced here may include:
+
+- public drinking water
+- water taps / fountains
+- convenience stores
+- groceries
+- gas stations
+- cemeteries
+- freshwater crossings
+
+### Water truth rule
+
+Not all Water items have equal confidence.
+
+- public drinking water = high confidence
+- convenience stores / groceries / gas stations = commercial water availability likely
+- cemeteries = possible / situational water source
+- freshwater crossings = possible untreated water source
+
+The UI must preserve that distinction.
+
+---
+
+## 3. Go
+
+Use for bodily maintenance and hygiene.
+
+Examples surfaced here may include:
+
+- public restrooms
+- showers
+- camp shower facilities when clearly tagged
+
+------
+
+## 4. Rest
+
+Use for sleep, recovery, shelter, and practical logistics during long rides.
+
+Examples surfaced here may include:
+
+- hostels
+- lodging
+- shelters where clearly relevant
+- post offices
+
+Post offices belong here because for long-distance riders they are logistics anchors, not because they are literally restful.
+
+---
+
+## 5. Boost
+
+Use for quick caffeine, sugar, morale or psychological lift.
+
+Examples surfaced here may include:
+
+- cafes
+- coffee shops
+- bakeries
+- dessert / ice cream
+- convenience-store snack stops
+
+This category is intentionally rider-centric rather than ontologically pure.
+
+---
+
+## 6. Aid
+
+A combination of health related locations and municipal services. 
+
+Examples surfaced here may include:
+
+- pharmacies
+- hospitals
+- police stations
+- urgen care facitlies
+- fire departments
+
+---
+
+## 
+
+## Launch subcategory registry
+
+The launch model should be defined at the **subcategory** level, not just at the category level.
+
+Suggested launch registry:
+
+| Subcategory ID | Rider label | Parent categories | Notes |
+|---|---|---|---|
+| public_drinking_water | Drinking water | Water | High-confidence potable source |
+| convenience_store | Convenience store | Water, Food, Boost | Commercial resupply / drinks / snacks |
+| grocery | Grocery | Water, Food | Meaningful resupply |
+| gas_station | Gas station | Water, Food | Drinks, snacks, basic commercial stop |
+| cemetery_water_candidate | Cemetery | Water | Possible seasonal / exterior spigot source; not guaranteed |
+| freshwater_crossing | Freshwater crossing | Water | Possible untreated water source |
+| restaurant | Restaurant | Food | Meal stop |
+| fast_food | Fast food | Food | Fast calories |
+| cafe | Cafe / coffee | Food, Boost | Canonical dual-category example |
+| bakery | Bakery | Boost, Food | Short-stop fuel / morale |
+| dessert | Dessert / ice cream | Boost | Psychological lift / sugar stop |
+| public_restroom | Restroom | Bio | Core bodily support |
+| shower | Shower | Bio | Hygiene / recovery |
+| hostel | Hostel | Rest, Bio | Rest anchor; may imply shower but should not auto-assume |
+| lodging | Lodging | Rest | Motel / hotel / inn |
+| shelter | Shelter | Rest | Only when clearly tagged and truly useful |
+| post_office | Post office | Rest | Logistics anchor |
+
+### Deferred from launch
+
+| Subcategory ID | Reason deferred |
+|---|---|
+| bike_shop | OSM quality too unreliable for rider trust |
+| repair_station | Tag coverage inconsistent; evaluate later |
+| pharmacy | Useful, but not essential to v1 stop taxonomy |
+| laundromat | Useful for expedition use, but not a launch-critical stop type |
+
+Bike shops should not be shipped as a first-class stop layer until Lanterne has a better registry and confidence approach.
+
+---
+
+## Confidence classes
+
+Each subcategory must carry a confidence class that controls language, icon treatment, and future note collection.
+
+| Confidence class | Meaning | Examples |
+|---|---|---|
+| confirmed_service | Strongly implied by POI type | drinking water, restroom, grocery |
+| likely_commercial | Commercial source likely but not guaranteed by metadata | convenience store, gas station |
+| rider_inferred | Known rider heuristic; situational | cemetery water candidate |
+| untreated_natural | Natural source may exist but requires rider judgment | freshwater crossing |
+
+### UI rule
+
+Confidence class affects:
+
+- detail-card language
+- optional info tooltip copy
+- future field-note prompts
+- future ranking / filtering
+
+Confidence class does **not** create a separate visible top-level category.
+
+---
+
+## Detail-card copy rules for ambiguous sources
+
+### Cemetery
+
+Use language along the lines of:
+
+> Often a possible seasonal water source due to exterior spigots or hose access. Not guaranteed.
+
+### Freshwater crossing
+
+Use language along the lines of:
+
+> Potential untreated water source. Availability and suitability vary.
+
+Do not label either of these as potable by default.
+
+---
+
+## Mode-aware defaults
+
+## Principle
+
+The rider should not have to reconfigure the stop system every time they switch riding context.
+
+A bikepacking rider and a road rider do not need the same default stop mix.
+
+Therefore:
+
+- defaults are defined per **mode x subcategory**
+- defaults are loaded automatically when a mode becomes active
+- rider overrides are stored per **mode x subcategory**
+- effective state = rider override when present, otherwise mode default
+
+---
+
+## Launch default matrix
+
+The table below is the recommended v1 default behavior.
+
+| Subcategory ID | Road / Normal | Randonneur | Ultra | Bikepacking / Gravel |
+|---|---:|---:|---:|---:|
+| public_drinking_water | on | on | on | on |
+| convenience_store | on | on | on | on |
+| grocery | on | on | on | on |
+| gas_station | on | on | on | on |
+| cemetery_water_candidate | off | on | on | on |
+| freshwater_crossing | off | off | off | on |
+| restaurant | on | on | on | on |
+| fast_food | on | on | on | on |
+| cafe | on | on | on | on |
+| bakery | off | on | on | on |
+| dessert | off | off | off | on |
+| public_restroom | on | on | on | on |
+| shower | off | off | on | on |
+| hostel | off | on | on | on |
+| lodging | off | on | on | on |
+| shelter | off | off | on | on |
+| post_office | off | off | off | on |
+
+### Why these defaults
+
+#### Road / Normal
+
+Prioritize conventional, high-confidence support with minimal map clutter.
+
+#### Randonneur
+
+Expose more survival-oriented support for long self-supported brevets without drifting fully into expedition assumptions.
+
+#### Ultra
+
+Bias toward resilience and recovery support for very long efforts and sleep-deprived contexts.
+
+#### Bikepacking / Gravel
+
+Bias toward remote-resource discovery, logistics, and hygiene because riders are more likely to rely on unconventional or distributed support.
+
+---
+
+## User override behavior
+
+## Effective toggle rule
+
+For each subcategory in the active mode:
+
+```text
+if user_override exists for (user, mode, subcategory):
+    effective_state = user_override.enabled
+else:
+    effective_state = mode_default.enabled
+```
+
+## Persistence rule
+
+Overrides must persist by **mode**.
+
+That means:
+
+- if a rider turns cemeteries on in Bikepacking / Gravel, that preference should persist the next time they return to Bikepacking / Gravel
+- that change should not automatically alter Road / Normal defaults
+
+This keeps the system intelligent without becoming confusing.
+
+## Reset controls
+
+Provide both:
+
+- **Restore defaults for this mode**
+- **Restore defaults for all modes**
+
+Do not make riders manually untangle a mess once they have customized many toggles.
+
+---
+
+## Persistence architecture
+
+## Logged-out rider
+
+Store POI overrides locally on device.
+
+Recommended storage:
+
+- localStorage for simple UI state, or
+- IndexedDB if the app is already centralizing offline/user settings there
+
+Recommended key shape:
+
+```text
+poiPrefs:v1
+```
+
+Recommended payload shape:
+
+```json
+{
+  "mode_preferences": {
+    "road": {
+      "public_drinking_water": true,
+      "cemetery_water_candidate": false
+    },
+    "bikepacking_gravel": {
+      "public_drinking_water": true,
+      "cemetery_water_candidate": true,
+      "freshwater_crossing": true
+    }
+  },
+  "updated_at": "2026-03-26T00:00:00Z"
+}
+```
+
+## Logged-in rider
+
+Persist preferences to the backend and mirror them locally for resilience.
+
+Recommended relational shape:
+
+### `user_poi_preferences`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | uuid | primary key |
+| user_id | uuid | owner |
+| mode_id | text | canonical app mode |
+| subcategory_id | text | registry ID |
+| enabled | boolean | override state |
+| updated_at | timestamptz | last write |
+
+### Behavior
+
+- write-through to backend on change
+- mirror locally for fast boot and offline resilience
+- on login, merge local and server preferences by most recent `updated_at`
+- if merge cannot be resolved cleanly, prefer newest row per `(mode_id, subcategory_id)`
+
+This avoids both data loss and weird cross-device surprises.
+
+---
+
+## Registry model
+
+The product should maintain a canonical POI subcategory registry.
+
+Recommended shape:
+
+### `poi_subcategory_registry`
+
+| Column | Type | Notes |
+|---|---|---|
+| subcategory_id | text | stable key |
+| rider_label | text | UI label |
+| icon_key | text | icon mapping |
+| confidence_class | text | confirmed_service / likely_commercial / rider_inferred / untreated_natural |
+| launch_status | text | launch / deferred / hidden |
+| sort_order | integer | drawer ordering |
+| active | boolean | kill switch |
+
+### `poi_subcategory_category_membership`
+
+| Column | Type | Notes |
+|---|---|---|
+| subcategory_id | text | FK to registry |
+| category_id | text | water / food / boost / bio / rest |
+
+### `poi_mode_defaults`
+
+| Column | Type | Notes |
+|---|---|---|
+| mode_id | text | canonical app mode |
+| subcategory_id | text | FK to registry |
+| default_enabled | boolean | default state |
+| sort_order | integer | optional mode-specific ordering |
+
+This is the cleanest shape because it separates:
+
+- what a POI type is
+- what categories it belongs to
+- how it behaves by mode
+
+Do not hard-code this logic in scattered UI components.
+
+---
+
+## UI behavior
+
+## Stops / Layers drawer
+
+The drawer should present:
+
+1. top-level categories
+2. expandable subcategory lists
+3. visible on/off state for each subcategory
+4. a simple reset action
+5. optional info affordance for ambiguous stop types
+
+## Recommended interaction model
+
+- top-level category toggle controls visibility for the category as a whole
+- expanding the category reveals its subcategory toggles
+- subcategory toggle changes override the default for the active mode only
+- mode switch rehydrates the toggles for that mode immediately
+- user edits should survive app restart and sign-in state changes where possible
+
+## Category toggle behavior
+
+Top-level category toggles should be treated as a convenience layer in the UI, not as the source of truth.
+
+The source of truth remains the subcategory state.
+
+In practice:
+
+- category ON = at least one subcategory enabled, or all enabled if user explicitly turned category on
+- category OFF = all child subcategories disabled for current mode
+- mixed child states should show an indeterminate visual state if supported
+
+Do not let category toggles erase subcategory nuance invisibly.
+
+---
+
+## Map rendering rules
+
+1. Mode defaults affect **which POI types are active**, not how map rendering fundamentally works.
+2. Existing clustering / batching behavior remains intact.
+3. Switching modes should update visible stop layers without requiring app reload.
+4. User overrides should not trigger hidden global resets.
+5. Ambiguous water sources should be visually distinguishable in their card copy even if they share the Water family.
+
+---
+
+## Field notes and future feedback loop
+
+This document does not require full rider field-note implementation to ship v1.
+
+But the stop model should leave room for it.
+
+Best future candidates for confirmation prompts:
+
+- cemetery water candidate
+- freshwater crossing
+- shower
+- hostel
+
+Future prompt example:
+
+- Did you find water here?
+  - Yes
+  - No
+  - Optional note
+
+That future observational layer should strengthen confidence without polluting the canonical POI registry.
+
+---
+
+## Non-goals
+
+This spec does not require:
+
+- bike shops at launch
+- perfect OSM completeness
+- a new independent profile system for POIs
+- server-side POI preference logic before local persistence exists
+- separate top-level categories for uncertain sources
+
+---
+
+## Final decision summary
+
+Lanterne launches with five top-level rider-facing stop categories:
+
+- Water
+- Food
+- Boost
+- Bio
+- Rest
+
+Key launch decisions:
+
+- cemeteries are included in Water as a rider-inferred water candidate
+- freshwater crossings are included in Water as a possible untreated source
+- cafes remain canonical to Food and also appear in Boost
+- showers belong in Bio
+- hostels and post offices belong in Rest
+- bike shops are deferred until data quality improves
+
+POI defaults are mode-aware.
+Those defaults derive from the main application mode system.
+Riders can override any subcategory toggle.
+Those overrides persist by mode and survive app restart.
+
+That gives Lanterne a stop system that is simple on the surface, truthful in the details, and flexible enough to serve very different long-distance riding contexts.
+
+
+---
+
+## Source File: docs/05-product/prod-011-hazard_severity_model.md
+
+# prod-011 — Hazards System
+
+## Purpose
+
+Lanterne’s hazard system exists to surface **concrete rider decision moments**, not to dump every detected anomaly onto the map.
+
+Hazards must help a rider answer:
+
+- Should I pay attention here?
+- Should I slow down here?
+- Is this a place where route geometry or infrastructure meaningfully increases risk?
+
+This system must remain **credible, sparse, and legible**.
+
+If hazards become overly frequent, overly generic, or visually repetitive, riders will stop trusting them.
+
+---
+
+## Core Principle
+
+**Hazard markers represent rider-relevant moments, not raw database observations.**
+
+Lanterne may internally detect many route features, but only a subset should be promoted to rider-facing hazards.
+
+The system therefore has three layers:
+
+1. **Detection**  
+   Raw internal recognition of route features or risk-relevant conditions.
+
+2. **Qualification**  
+   Rules that determine whether a detected feature is meaningful enough to be considered a rider-facing hazard.
+
+3. **Display**  
+   Rules that determine whether a qualified hazard should actually appear on the map at the current zoom and context.
+
+Detection alone is not sufficient for display.
+
+---
+
+## Design Goals
+
+The hazard system must:
+
+- remain sparse enough to preserve trust
+- surface truly meaningful risk moments
+- use consistent visual language
+- avoid cluttering the map
+- distinguish informational POIs from rider warnings
+- favor simple, explainable rules over fragile over-modeling
+
+---
+
+## Non-Goals
+
+The hazard system is **not** intended to:
+
+- represent every route inconvenience
+- encode every turn or maneuver
+- expose all internal hazard detections directly
+- replace broader route-level scoring
+- function as a comprehensive traffic simulation
+
+---
+
+## Visual Language
+
+Hazards use a distinct marker grammar from POIs.
+
+### POIs
+- circular markers
+- neutral styling
+- informational only
+
+### Hazards
+- diamond markers
+- yellow = warning
+- red = acute hazard
+
+This creates a fast visual hierarchy:
+
+- **circle** = information
+- **diamond** = hazard
+- **yellow** = caution
+- **red** = danger
+
+Hazard icons should remain visually restrained and map-native.
+
+Generic exclamation markers may be used as an interim system while the hazard taxonomy stabilizes, but the long-term goal is to use hazard-specific internal symbols where helpful.
+
+---
+
+## Hazard Severity Model
+
+Lanterne uses a deliberately simple rider-facing hazard severity model.
+
+### Warning
+Yellow diamond.
+
+Used for hazards that require rider attention but are not inherently acute in most contexts.
+
+### Acute Hazard
+Red diamond.
+
+Used for hazards where route geometry, infrastructure, or crossing conditions materially elevate rider risk.
+
+### Severity Rule
+
+Hazard severity should be simple, stable, and explainable.
+
+If a rule cannot be easily explained to a rider or implemented consistently, it should not be part of the MVP hazard system.
+
+---
+
+## Display Rules
+
+Not every qualified hazard should appear as an independent map marker.
+
+### 1. Hazard Clustering
+
+Multiple nearby hazards must not create “hazard confetti.”
+
+Within a local route-distance window, only the most important hazard should be shown by default.
+
+Additional nearby hazards should be available through tap / inspect / detail views.
+
+### 2. Minimum Marker Spacing
+
+Hazard markers should only appear as separate markers when they represent distinct rider decision moments.
+
+Back-to-back hazards within a short distance should be suppressed or clustered unless severity escalates.
+
+### 3. Zoom Discipline
+
+At overview zoom levels, the map should show only the most meaningful hazards.
+
+Closer zoom levels may reveal more warnings.
+
+Inspect / admin views may reveal the full internal hazard set.
+
+### 4. Red Must Be Rare
+
+Red markers should remain sparse and high-trust.
+
+If red markers become common, the system loses credibility.
+
+---
+
+## Hazard Taxonomy
+
+The rider-facing hazard system should stay intentionally small.
+
+### Supported Rider-Facing Hazards
+
+- Railroad crossing
+- Angled RR tracks
+- Metal grate bridge
+- Pinch point
+- Service gap
+- Cellular dead zone
+- Remote corridor
+
+Additional hazards may be added later only if they represent a clear rider decision moment and can be explained simply.
+
+---
+
+## Railroad Crossings
+
+Railroad crossings are one of the clearest examples of a meaningful rider-facing hazard.
+
+However, not all railroad crossings are equally risky.
+
+Lanterne therefore distinguishes between:
+
+- **RR Crossing**
+- **Angled RR Tracks**
+
+### Base Detection
+
+Any crossing with railroad track interaction may qualify as an RR crossing.
+
+### Angled RR Tracks
+
+Use this label when the rider’s crossing angle relative to the tracks is less than 50 degrees.
+
+This label is descriptive, not interpretive.
+
+It describes a concrete physical condition rather than editorializing about danger.
+
+### Railroad Crossing Severity
+
+Use a simple angle-based rule:
+
+- crossing angle `< 50°` → **acute hazard** (red)
+- crossing angle `>= 50°` → **warning** (yellow)
+
+This rule is intentionally simple and should not be overcomplicated in the rider-facing system.
+
+### Recommended Display Labels
+
+Examples:
+
+- `RR Crossing`
+- `RR Crossing · Angled RR Tracks`
+- `RR Crossing · Triple-track crossing`
+- `RR Crossing · Angled RR Tracks | angle=48.1°`
+
+Detailed metadata belongs in the tooltip / drawer / inspect layer, not in the always-on map marker itself.
+
+---
+
+## Left-Turn Policy
+
+Generic left-turn markers are disabled.
+
+Reason:
+
+Normal turning movements are too context-dependent to function as reliable standalone rider-facing hazards.
+
+A turn alone does not create a credible physical hazard marker in the same way that:
+
+- angled tracks
+- grate bridges
+- pinch points
+- service gaps
+
+do.
+
+### Future Exception
+
+A future intersection-conflict model may reintroduce a limited class of left-turn exposure hazards only when supported by robust context such as:
+
+- multiple traffic lanes
+- hostile crossing movement
+- lack of refuge
+- limited protection
+- meaningful exposure
+
+Until that model is mature, generic left-turn hazards remain off.
+
+---
+
+## Tooltips and Detail Layer
+
+The map marker should remain simple.
+
+The detail layer is where nuance belongs.
+
+Examples of appropriate detail:
+
+- track count
+- crossing angle
+- no shoulder
+- posted speed
+- nearby surface condition
+- road classification
+- signal presence
+- confidence notes
+
+The marker communicates:
+- warning vs acute
+- hazard location
+
+The detail layer communicates:
+- why it matters
+
+---
+
+## Trust and Restraint
+
+Lanterne’s hazard system must preserve rider trust.
+
+That means:
+
+- no over-emitting
+- no generic maneuver clutter
+- no false sense of precision
+- no inflation of ordinary route conditions into hazards
+
+The system should feel selective and credible.
+
+A rider should come to believe:
+
+> If Lanterne marked this, it is worth noticing.
+
+---
+
+## Product Standard
+
+A hazard should only be shown when it meets all three tests:
+
+### 1. Physical Reality
+Is this a real, concrete condition on the route?
+
+### 2. Rider Relevance
+Does this condition meaningfully affect rider decision-making or safety?
+
+### 3. Display Worthiness
+Is this important enough to deserve one of the limited always-on map markers?
+
+If the answer to any of these is no, it should not appear as a rider-facing hazard marker.
+
+---
+
+## Implementation Guidance
+
+The MVP implementation should prioritize:
+
+- simple threshold logic
+- sparse display rules
+- high marker credibility
+- clustering
+- stable color semantics
+
+Do not prematurely over-model hazard severity.
+
+The system should first become:
+
+- understandable
+- legible
+- trustworthy
+
+before becoming more sophisticated.
+
+---
+
+## Guiding Principle
+
+**Hazards should mark decision moments, not observations.**
+
+Lanterne should feel calm, selective, and credible — not alarmist.
+
+
+---
+
+## Source File: docs/05-product/prod-012-review_surfaces.md
+
+# prod-012 — Review Surfaces
+
+## Purpose
+
+Lanterne exposes route review information differently depending on who is using the system.
+
+A solo rider, an organization-level route editor, and a developer diagnosing internal logic do not need the same level of detail.
+
+This document defines the intent, audience, and display rules for route review surfaces.
+
+The goal is to prevent internal diagnostics from leaking into rider-facing UX.
+
+---
+
+## Core Principle
+
+**Internal granularity, external restraint.**
+
+Lanterne may internally detect, score, and store many route-level observations, anomalies, and hazard signals.
+
+Not all of those belong in every user-facing surface.
+
+Review surfaces must be tailored to the decision-making needs of the audience.
+
+---
+
+## Audience Levels
+
+Lanterne defines three review levels:
+
+1. **Developer / Admin View**
+2. **Power User View**
+3. **User View**
+
+Each level exists for a different purpose.
+
+---
+
+## 1. Developer / Admin View
+
+### Audience
+Internal developers, admins, superusers, and trusted QA operators.
+
+### Purpose
+Expose internal route diagnostics, data contradictions, enrichment issues, model oddities, and debugging signals.
+
+This view exists to help diagnose:
+
+- scoring contradictions
+- hazard over-emission
+- matching issues
+- unusual segment boundaries
+- enrichment anomalies
+- suspicious classification behavior
+- false positives / false negatives
+
+### Characteristics
+This surface may include:
+
+- raw hazard detections
+- anomaly records
+- grouped contradiction patterns
+- segment boundary oddities
+- unusual segment breaks
+- bike facility / score mismatches
+- exposure diagnostics
+- underlying source attributes
+- provenance / OSM tags / internal logic traces
+- suppressed or hidden rider-facing hazards for QA purposes
+
+### Rules
+- This surface is allowed to be dense.
+- This surface is allowed to expose internal logic.
+- This surface is not required to be simple for ordinary riders.
+- This surface should prioritize debugging, validation, and trust-building in the model.
+
+### Examples
+Appropriate developer/admin items include:
+
+- Protected bike lane scored risky
+- Unusual segment break
+- Facility / score mismatch
+- Matching discontinuity
+- Hidden metal grated bridge detections
+- Suppressed hazard clusters
+- Internal contradiction groups
+
+---
+
+## 2. Power User View
+
+### Audience
+Users creating, editing, curating, or managing routes at scale for an organization.
+
+Examples:
+- RUSA route designers
+- route librarians
+- organization-level route managers
+- experienced map editors working across many routes
+
+### Purpose
+Surface route conditions that are meaningful for map design, route curation, and route quality control.
+
+This view should help answer:
+
+- Where are the route’s meaningful exposure corridors?
+- Where are the rider-facing hazards?
+- Which roads may deserve manual spot-checking?
+- Which sections may be questionable for organizational routing standards?
+
+### Characteristics
+This view should be more selective than developer/admin view.
+
+It should emphasize:
+- grouped patterns
+- corridor-level concerns
+- strong rider-relevant exposures
+- severe route warnings
+- route-design-relevant exceptions
+
+It should avoid:
+- raw segment spam
+- low-level internal debugging artifacts
+- vague anomalies with no route-design action
+
+### Inclusion Rules
+Power users should see:
+
+- everything shown to ordinary users
+- any concentrated or grouped route-level hazard pattern
+- any corridor with significant rider exposure
+- any road or route section with **55 mph+ speed limit**
+- any hazard cluster that may alter route design judgment
+- any strong contradiction likely to indicate map truth or route suitability issues
+
+### Exclusion Rules
+Power users should not see by default:
+
+- unusual segment breaks
+- raw matcher oddities
+- ungrouped internal exposure records
+- low-confidence debug-only diagnostics
+- repeated segment-level duplicates of the same issue
+
+### Examples
+Appropriate power-user review items include:
+
+- High-speed exposure corridor
+- Severe crossing cluster
+- 55 mph+ road section
+- Facility / score mismatch cluster
+- Repeated hazard concentration on one corridor
+- Service gap corridor
+- Cellular dead zone corridor
+
+---
+
+## 3. User View
+
+### Audience
+Individual riders.
+
+### Purpose
+Provide a quick, credible surface for rider orientation and hazard awareness.
+
+This view is not for debugging, taxonomy exploration, or route-model inspection.
+
+It should help a rider do two things well:
+
+1. orient themselves quickly on the route
+2. jump into a fast real-world check such as Google Street View
+
+### Characteristics
+This surface must be sparse, simple, and high-trust.
+
+Users should only see rider-relevant hazards that are concrete and meaningful.
+
+The user view is not a diagnostic panel.
+
+### User-Facing Hazard Scope
+Users should see:
+
+- rider-facing hazards
+- meaningful hazard markers
+- location-based warnings worth checking visually
+- quick access to Street View where useful
+
+Users should **not** see:
+
+- left-turn markers
+- regular railroad tracks / ordinary RR crossing markers
+- raw anomalies
+- internal contradiction categories
+- unusual segment breaks
+- low-level scoring logic
+- route-debugging artifacts
+
+### User Intent
+For riders, this surface is primarily:
+
+- a quick way to orient where they are
+- a quick way to inspect a meaningful hazard
+- a quick way to jump into Google Street View
+
+This is not a route-debugging workflow.
+
+---
+
+## Review Surface Hierarchy
+
+### Developer / Admin
+Broadest and deepest surface.
+
+Can include:
+- raw detections
+- grouped diagnostics
+- anomalies
+- contradictions
+- hidden/internal records
+- model oddities
+
+### Power User
+Curated route-design surface.
+
+Can include:
+- grouped exposures
+- grouped hazards
+- corridor-level concerns
+- rider-facing hazards
+- speed-based route concerns
+- route-quality exceptions
+
+### User
+Narrowest and simplest surface.
+
+Can include:
+- rider-facing hazards only
+- sparse, concrete warnings
+- map orientation aids
+- quick Street View access
+
+---
+
+## Hazard Visibility Policy by Audience
+
+### Developer / Admin
+May see:
+- all hazard types
+- clustered and uncluttered views
+- suppressed hazards
+- left-turn detections if still retained internally
+- ordinary RR crossings
+- internal hazard logic
+
+### Power User
+Should see:
+- user-facing hazards
+- severe route hazards
+- grouped hazard patterns
+- meaningful route-design risks
+- 55 mph+ road sections
+- any clustered route concern likely to matter to a route editor
+
+### User
+Should see:
+- hazards only
+- no left turns
+- no regular railroad tracks / ordinary RR crossings
+- no debug-only categories
+
+User-facing hazards should remain sparse and credible.
+
+---
+
+## Review Surface Design Rules
+
+### 1. Distinct audience, distinct logic
+A surface should never expose information simply because it exists internally.
+
+### 2. Group before showing
+If multiple adjacent observations represent one meaningful corridor or issue, show the grouped pattern, not the raw instances.
+
+### 3. Favor actionability
+If the viewer cannot reasonably act on the information, it probably belongs in a deeper layer.
+
+### 4. Preserve trust
+A review surface with too many weak items loses credibility.
+
+### 5. Keep rider view calm
+The rider-facing view should remain selective, simple, and confidence-building.
+
+---
+
+## Current Product Interpretation
+
+At present, many items in “Segments Worth Reviewing” behave like developer/admin diagnostics rather than power-user or rider-facing review items.
+
+Examples include:
+- Protected bike lane scored risky
+- High speed road exposure as repeated raw instances
+- Unusual segment break
+
+These may remain valuable internally, but they should not all surface equally across all audiences.
+
+---
+
+## Product Standard
+
+A review item should only appear on a given surface if it passes both tests:
+
+### Relevance Test
+Is this meaningful to this audience?
+
+### Actionability Test
+Can this audience reasonably do something useful with it?
+
+If the answer to either is no, it should belong in a deeper layer.
+
+---
+
+## Guiding Principle
+
+**Different users need different truths surfaced.**
+
+Lanterne should not expose the same review surface to riders, route curators, and developers.
+
+The system should stay:
+- deep internally
+- selective externally
+- calm for riders
+- useful for editors
+- diagnostic for admins
+
+
+---
+
+## Source File: docs/05-product/prod-013-map_visibility_system.md
+
+# prod-010-map_visibility_system.md
+
+## Status
+Draft
+
+## Purpose
+
+Define the **Map Visibility System** for Lanterne.
+
+This document governs how hazards, POIs, indices, conditions, and future field-note signals are surfaced on the map across different product contexts.
+
+It is **not** a hazard taxonomy document.
+That belongs to hazard policy.
+This document is about **surfacing, visibility, precedence, aggregation, and user control**.
+
+---
+
+## 1. Problem Statement
+
+Lanterne now contains multiple kinds of map-visible intelligence:
+
+- hazard markers
+- POIs / services
+- score and index overlays
+- environmental conditions
+- future field notes / community signals
+- admin/debug inspection layers
+
+These cannot all follow one generic zoom rule.
+
+The old mental model — “POIs appear only when zoomed in enough” — is too crude.
+The newer hazard needs also prove that “hazards” are not one visibility behavior either.
+
+Different things matter in different contexts:
+
+- browsing the map casually
+- planning a ride before a route exists
+- drawing or editing a route
+- reviewing an active route
+- riding with navigation running
+- admin debugging / QA
+
+The system therefore needs a **context-aware visibility engine** rather than scattered, category-specific display hacks.
+
+---
+
+## 2. Design Goals
+
+1. **Future-proof the map layer system** so new categories do not require custom one-off logic.
+2. **Separate calculation truth from presentation behavior.**
+3. **Allow different visibility defaults by context** while preserving canonical category definitions.
+4. **Give riders meaningful control** over map noisiness without turning the app into an unreadable GIS cockpit.
+5. **Support both broad awareness and local detail.**
+6. **Support route-corridor logic** for route planning and route review.
+7. **Support index overlays and threshold warnings** as first-class citizens.
+8. **Support future field notes / confidence-backed community signals** cleanly.
+9. **Support admin inspection modes** without leaking them into the standard rider experience.
+10. **Reduce RouteMap conditional sprawl** by centralizing visibility policy.
+
+---
+
+## 3. Core Product Rule
+
+Lanterne should decide map visibility using four inputs:
+
+1. **What kind of entity is this?**
+2. **What context is the rider in?**
+3. **What has the rider enabled or disabled?**
+4. **At the current scale, should this appear as detail, aggregation, threshold band, or not at all?**
+
+This means visibility is not determined by zoom alone.
+It is determined by **entity class + context + user preferences + scale**.
+
+---
+
+## 4. Entity Families
+
+The visibility system will treat map-visible intelligence as belonging to one of these families.
+
+### 4.1 Hazard
+Discrete hazard-like route signals.
+
+Examples:
+- angled railroad tracks
+- metal grate bridges
+- regular railroad crossings
+- no-shoulder bridges
+- pinch points
+- covered bridge cautions
+- future narrow underpasses / cattle guards / similar
+
+### 4.2 POI
+Discrete services, resources, and destinations.
+
+Examples:
+- water
+- food
+- cafes
+- gas
+- convenience stores
+- lodging
+- bike shops
+- hospitals
+- post offices
+- showers
+
+### 4.3 Index Overlay
+Derived route or segment intelligence rendered as overlay, threshold band, or hotspot layer.
+
+Examples:
+- safety risk threshold areas
+- remoteness hotspots
+- fatigue hotspots
+- descent risk hotspots
+- future service scarcity warnings
+
+### 4.4 Condition Overlay
+Ride-time contextual overlays.
+
+Examples:
+- wind impact zones
+- precipitation concern zones
+- heat / cold alerts
+- light / glare windows
+
+### 4.5 Note / Observation Layer
+Future rider-contributed or system-curated notes.
+
+Examples:
+- field note: seasonal cemetery spigot confirmed
+- field note: bridge deck slippery when wet
+- field note: store permanently closed
+- confidence-backed community signal
+
+### 4.6 Debug Overlay
+Internal-only inspection layers.
+
+Examples:
+- raw hazard detections
+- rejected hazard candidates
+- clustering boundaries
+- route corridor bounds
+- suppression reasons
+- fetched-but-hidden entities
+
+---
+
+## 5. View Contexts
+
+The same category may surface differently depending on what the rider is doing.
+
+### 5.1 Browse
+No active route. Rider is scanning the map, exploring geography, or loosely scouting options.
+
+### 5.2 Plan
+Rider is drawing a new route or editing a route candidate.
+This is more route-aware than Browse but less locked than full route review.
+
+### 5.3 Route Review
+A route exists and is being inspected as a whole.
+This is where corridor-wide aggregation matters most.
+
+### 5.4 Ride
+On-bike / live navigation / glanceable mode.
+Noise must be reduced aggressively.
+High-salience things matter most.
+
+### 5.5 Admin Debug
+Internal inspection mode.
+This context may bypass normal suppression, show raw layers, and expose reasoning / diagnostics.
+
+---
+
+## 6. Visibility Outcomes
+
+For any category in any context, the system should resolve to one of a small set of render outcomes.
+
+### 6.1 Hidden
+Not shown.
+May still be calculated or fetched.
+
+### 6.2 Aggregate Bubble / Cluster
+Shown as a count bubble, cluster, density marker, or corridor bubble.
+Used when broad awareness matters more than exact pinpointing.
+
+### 6.3 Individual Marker
+Shown as discrete points.
+Used when zoom/detail level supports precise inspection.
+
+### 6.4 Threshold Overlay
+Shown as highlighted route slices, shaded segments, or threshold breach regions.
+Used mainly for index overlays and some conditions.
+
+### 6.5 Analysis Only
+Not shown as a map layer by default.
+Available in explanations, summaries, comparisons, or details panels.
+
+### 6.6 Debug Detail
+Shown only in admin/debug contexts.
+
+---
+
+## 7. Hazard Surfacing Classes
+
+Hazards are not one display behavior.
+They split into four surfacing classes.
+
+### 7.1 Global Persistent Hazards
+Important enough to be represented even without an active route.
+
+Examples:
+- angled railroad tracks
+- metal grate bridges
+
+Behavior:
+- eligible in Browse, Plan, Route Review, Ride
+- may appear off-route
+- broad zooms use cluster / aggregate presentation
+- closer zooms may reveal individual markers
+- user can still disable them
+
+### 7.2 Route-Persistent Hazards
+Important mainly in relation to a current or drafted route.
+
+Examples:
+- standard railroad crossings
+- no-shoulder bridges
+- pinch-point bridges
+- covered bridge cautions
+
+Behavior:
+- usually not shown globally in casual browse
+- shown when relevant to draft route or active route corridor
+- broad route view uses route-bubble aggregation
+- closer zooms reveal individual markers
+
+### 7.3 Analysis-Only Hazards
+Affect scoring or explanation but do not normally appear as persistent map markers.
+
+Examples:
+- left-turn exposure
+- subtle maneuver penalties
+- intersection complexity penalties
+
+Behavior:
+- contribute to analysis and explanation
+- may appear in route explanation drawer, comparisons, or diagnostics
+- not part of default map clutter
+
+### 7.4 Optional Detail Hazards
+Valid to surface, but likely default-off due to noise.
+
+Examples:
+- some maneuver classes
+- lower-severity caution markers
+- future advanced hazard categories
+
+Behavior:
+- available to users who want a richer map
+- typically exposed through advanced toggles or presets
+- never hard-coded out of the system entirely
+
+---
+
+## 8. POI Surfacing Classes
+
+POIs should behave differently in different contexts.
+
+### 8.1 Browse POIs
+Used when the rider is casually exploring or scouting.
+
+Behavior:
+- if the user enables a category, broad-zoom aggregate awareness is allowed
+- individual markers should still depend on detail level / zoom
+- the system should not assume “no route = show nothing”
+- the rider may pan around the map looking for food, water, lodging, etc.
+
+Design rule:
+**Browse supports aggregate awareness, not raw clutter.**
+
+### 8.2 Plan POIs
+Used while drawing or editing a route.
+
+Behavior:
+- stronger emphasis on route-proximate relevance than Browse
+- broader corridor and look-ahead logic than Ride
+- good context for showing lodging / resupply opportunities well beyond current viewport
+- broad route or draft view should show bubbles across the candidate route
+
+### 8.3 Route Corridor POIs
+Used when a route is fully engaged / reviewed.
+
+Behavior:
+- if a POI category is enabled, the system should consider the entire active route corridor
+- broad zoom shows route-level aggregate bubbles / counts
+- closer zoom reveals individual markers
+- distant corridor POIs should not disappear just because the viewport is broad
+
+Design rule:
+**In route contexts, relevance is corridor-based, not purely viewport-based.**
+
+### 8.4 Ride POIs
+Used during active navigation.
+
+Behavior:
+- only a small subset should matter by default
+- favor high-utility categories such as water, food, lodging, bailout options, maybe bike shop / medical depending on mode
+- reduce noise aggressively
+- surface only near-route, near-future, or explicitly requested items
+
+---
+
+## 9. Index Overlay Surfacing
+
+Indices are first-class map entities.
+They should not be treated as fake POIs.
+
+### 9.1 Supported Index Overlay Modes
+
+#### Gradient Overlay
+Continuous route or road coloring.
+Useful for heatmap-like experiences.
+
+#### Threshold Warning Overlay
+Only show where an index crosses a threshold.
+Examples:
+- remoteness over threshold
+- danger above threshold
+- descent risk above threshold
+
+#### Hotspot Overlay
+Show only meaningful clusters / hotspots / notable stretches.
+
+#### Summary Only
+Visible in drawer or route summary but not on the map.
+
+### 9.2 Initial Candidate Index Layers
+- safety risk threshold
+- remoteness threshold
+- fatigue threshold
+- descent risk threshold
+- future service scarcity / bailout scarcity layer
+
+### 9.3 Product Rule
+Indices keep their canonical meaning.
+What changes is:
+- prominence
+- default visibility
+- thresholding
+- explanation
+- ordering by context / mode
+
+---
+
+## 10. Condition Overlay Surfacing
+
+Conditions are contextual and should usually appear more selectively than stable route truth.
+
+Examples:
+- wind impact zones
+- precipitation concern windows
+- glare warnings
+- light transitions
+
+Behavior:
+- often threshold-based rather than always-on
+- strong candidate for Ride and Route Review contexts
+- should remain visually lighter than the core hazard / route layer unless severe
+
+---
+
+## 11. Field Notes and Observation Surfacing
+
+Future field notes should plug into this system cleanly.
+
+### 11.1 Note Types
+- rider field note
+- verified field note
+- stale / low-confidence note
+- system-curated note
+
+### 11.2 Likely Surfacing Rules
+- not all notes should be always visible
+- notes may aggregate at broad zoom
+- notes may appear only when relevant to a category the rider has enabled
+- notes may require confidence / recency rules before surfacing prominently
+
+### 11.3 Design Rule
+Notes are not the same thing as canonical hazards or POIs.
+They need their own family so future confidence and freshness systems do not contaminate the core entity model.
+
+---
+
+## 12. User Control Model
+
+Riders should be able to tune map noisiness, but the product should not throw them into a 50-toggle cockpit by default.
+
+### 12.1 Rider Controls
+Users may control:
+- which POI categories are on
+- which hazard categories are on
+- which overlays are on
+- whether they want a minimal vs rich map
+- advanced threshold settings for selected overlays later
+
+### 12.2 Presets
+The product should support presets such as:
+- Minimal
+- Planning
+- Hazard Aware
+- Services / Resupply
+- Expedition
+- Custom
+
+### 12.3 Rule
+Defaults come from context.
+Overrides come from user preferences.
+Presets provide fast, understandable bundles.
+
+---
+
+## 13. Visibility Precedence Rules
+
+The system must resolve visibility in a stable order.
+
+### 13.1 Precedence Order
+
+1. **Entity existence**
+   - does the system actually have this entity / overlay available?
+2. **Context eligibility**
+   - is this category valid in the current context?
+3. **User toggle / preset state**
+   - has the rider enabled or disabled it?
+4. **Admin override**
+   - if admin/debug is active, should normal suppression be bypassed?
+5. **Fetch scope**
+   - viewport, local radius, route corridor, or broader cached geography?
+6. **Render mode selection**
+   - hidden, aggregate, marker, threshold overlay, summary only
+7. **Scale / density constraints**
+   - cluster, cap, or refine into detail
+8. **Final style priority**
+   - ensure one layer does not visually destroy another
+
+### 13.2 Important Rule
+Fetch scope and render scope are separate decisions.
+
+Example:
+- a route POI category may fetch the full route corridor
+- render broad bubbles at wide zoom
+- and render individual markers only when zoomed in
+
+This separation is required to prevent future dead ends.
+
+---
+
+## 14. Fetch Scopes
+
+The visibility engine should support these fetch scopes.
+
+### 14.1 Viewport
+Current visible map only.
+
+### 14.2 Local Radius
+A user-centered or map-centered radius for local browsing.
+
+### 14.3 Route Corridor
+Entire route corridor for active or drafted route.
+
+### 14.4 Cached Regional / Tile Scope
+Used mainly for aggregate browse awareness or precomputed cluster data.
+This should be handled carefully for performance.
+
+---
+
+## 15. Aggregation Rules
+
+Aggregation is not just a performance hack.
+It is the main way the map stays readable.
+
+### 15.1 When to Aggregate
+- broad zooms
+- dense categories
+- route-wide review contexts
+- browse contexts with category awareness turned on
+
+### 15.2 Aggregation Types
+- map cluster bubble
+- category count badge
+- route corridor bubble
+- hotspot grouping
+- threshold band
+
+### 15.3 Product Rule
+The system should prefer **truthful awareness over false precision** at broad scale.
+
+---
+
+## 16. Context Defaults
+
+These are product defaults, not hard locks.
+
+### 16.1 Browse
+Default emphasis:
+- minimal clutter
+- aggregate hazard awareness for globally persistent hazards
+- aggregate POI awareness if user enables categories
+- no route-only hazard spam
+- indices mostly off unless intentionally enabled
+
+### 16.2 Plan
+Default emphasis:
+- route drafting support
+- route-proximate hazards
+- route-proximate POIs
+- some broader look-ahead for lodging / resupply categories
+- selected overlays helpful for decision-making
+
+### 16.3 Route Review
+Default emphasis:
+- corridor-wide hazards and POIs
+- score explanation support
+- overlay toggles meaningful here
+- broad route bubbles at large zoom, detail on zoom-in
+
+### 16.4 Ride
+Default emphasis:
+- glanceability
+- near-future relevance
+- major warnings
+- minimal clutter
+- keep most optional details suppressed unless explicitly requested
+
+### 16.5 Admin Debug
+Default emphasis:
+- show why things are visible or hidden
+- raw markers allowed
+- raw detections allowed
+- suppression reasons visible
+- cluster and fetch diagnostics available
+
+---
+
+## 17. Technical Architecture Shape
+
+This system should be implemented as a **visibility engine**, not scattered conditional logic inside individual map components.
+
+### 17.1 Canonical Category Registry
+Each category should define:
+- key
+- entity family
+- surfacing class / default policy
+- supported contexts
+- whether user-toggleable
+- whether aggregate-capable
+- whether threshold-capable
+- allowed fetch scopes
+- default context presets
+
+### 17.2 Context Resolver
+A centralized resolver should determine effective visibility using:
+- category config
+- current context
+- user prefs
+- active route state
+- zoom / density / viewport
+- admin flags
+
+### 17.3 Output of Resolver
+The resolver should produce something like:
+- shouldFetch
+- fetchScope
+- shouldRender
+- renderMode
+- aggregateOrDetail
+- suppressionReason(s)
+
+### 17.4 Suppression Reason Logging
+Especially in admin mode, the system should record why an entity did not show.
+
+Examples:
+- category disabled
+- invalid in context
+- no fetched entities
+- route not active
+- under zoom threshold for detail
+- aggregated instead of detailed
+- density cap applied
+- threshold not met
+
+This is essential for QA and future sanity.
+
+---
+
+## 18. Non-Goals
+
+This system does **not** define:
+- the full hazard taxonomy
+- the scoring formulas
+- the remoteness model
+- note confidence algorithms
+- clustering algorithm internals
+- styling specifics for every icon
+
+It defines **how already-defined intelligence gets surfaced**.
+
+---
+
+## 19. Acceptance Criteria
+
+This system is correct when:
+
+1. New categories can be added without writing one-off visibility hacks.
+2. Hazards no longer all behave like one category.
+3. POIs no longer depend on a single simplistic zoom rule.
+4. Browse, Plan, Route Review, Ride, and Admin Debug can each have distinct defaults.
+5. Route corridor POIs can remain visible in aggregate even when zoomed far out.
+6. Index overlays can be surfaced without pretending they are POI markers.
+7. Future field notes can plug in without warping hazard or POI logic.
+8. Users can tune map density without needing to micromanage every layer by default.
+9. Admin mode can explain why something did or did not render.
+10. RouteMap complexity decreases or at minimum stops growing through special-case branches.
+
+---
+
+## 20. Recommended Next Steps
+
+1. Convert this document into a canonical registry + resolver design.
+2. Refactor existing hazard and POI logic into that system.
+3. Add admin suppression-reason inspection.
+4. Wire a first index overlay using the same engine.
+5. Add rider presets after the engine exists.
+6. Add field-note surfacing only after the family model exists.
+
+---
+
+## 21. Simplified Mental Model
+
+```text
+Everything visible on the map is an entity.
+Every entity belongs to a family.
+Every family supports a set of policies.
+The current context chooses defaults.
+The user can override many of them.
+The engine decides whether to hide, aggregate, detail-render, or threshold-render.
+Zoom influences the final form, but it does not decide visibility by itself.
+```
+
+---
+
+## 22. Mermaid Flowchart
+
+```mermaid
+flowchart TD
+    A[Map entity candidate] --> B{Entity family?}
+    B -->|Hazard| C[Hazard policy path]
+    B -->|POI| D[POI policy path]
+    B -->|Index overlay| E[Index policy path]
+    B -->|Condition overlay| F[Condition policy path]
+    B -->|Field note / observation| G[Note policy path]
+    B -->|Debug overlay| H[Debug policy path]
+
+    C --> I{Current context?}
+    D --> I
+    E --> I
+    F --> I
+    G --> I
+    H --> I
+
+    I -->|Browse| J[Load browse defaults]
+    I -->|Plan| K[Load planning defaults]
+    I -->|Route Review| L[Load route-review defaults]
+    I -->|Ride| M[Load ride defaults]
+    I -->|Admin Debug| N[Load admin defaults]
+
+    J --> O[Apply user preset + category toggles]
+    K --> O
+    L --> O
+    M --> O
+    N --> O
+
+    O --> P{Admin override active?}
+    P -->|Yes| Q[Allow debug bypasses]
+    P -->|No| R[Normal policy path]
+
+    Q --> S[Resolve fetch scope]
+    R --> S
+
+    S -->|Viewport| T[Fetch visible area only]
+    S -->|Local radius| U[Fetch browse radius]
+    S -->|Route corridor| V[Fetch full active/draft route corridor]
+    S -->|Regional cached tiles| W[Fetch aggregate regional data]
+
+    T --> X{Any entities returned?}
+    U --> X
+    V --> X
+    W --> X
+
+    X -->|No| Y[Hidden + log suppression reason]
+    X -->|Yes| Z{Render policy outcome?}
+
+    Z -->|Analysis only| AA[Do not render on map; surface in explanation layer]
+    Z -->|Threshold overlay| AB[Render threshold band / hotspot overlay]
+    Z -->|Aggregate| AC[Render cluster / bubble / corridor aggregate]
+    Z -->|Detail| AD[Render individual markers]
+    Z -->|Debug detail| AE[Render raw debug layer]
+
+    AC --> AF{Zoom/density allow detail expansion?}
+    AD --> AG[Apply style priority + draw]
+    AB --> AG
+    AE --> AG
+    AA --> AH[Done]
+    Y --> AH
+
+    AF -->|No| AI[Keep aggregate view]
+    AF -->|Yes| AJ[Expand to detail markers]
+
+    AI --> AG
+    AJ --> AG
+    AG --> AK[Visible on map]
+```
+
+---
+
+## 23. Example Precedence Scenarios
+
+### Scenario A — Browse + Metal Grate Bridges On
+- family: hazard
+- class: global persistent
+- context: browse
+- result: aggregate bubbles at broad zoom, individual markers when zoomed in enough
+
+### Scenario B — Browse + Lodging On
+- family: POI
+- context: browse
+- result: aggregate awareness allowed, but raw marker spam suppressed
+
+### Scenario C — Route Review + Lodging On
+- family: POI
+- context: route review
+- fetch scope: full route corridor
+- result: route bubbles across whole route, individual markers on zoom-in
+
+### Scenario D — Route Review + Left-Turn Exposure
+- family: hazard
+- class: analysis-only
+- result: explanation layer only unless future advanced-detail toggle explicitly enables map surfacing
+
+### Scenario E — Ride + Remoteness Threshold Overlay
+- family: index overlay
+- context: ride
+- result: only threshold breaches shown, not full noisy overlay
+
+### Scenario F — Admin Debug + Metal Grate Bridge QA
+- family: hazard
+- context: admin debug
+- result: raw markers may be forced on, aggregation may be bypassed, suppression reasons visible
+
+---
+
+## 24. Final Product Rule
+
+Lanterne should not ask:
+
+> “At what zoom do we show this?”
+
+It should ask:
+
+> “In this context, for this kind of thing, with this rider preference state, what is the right form of visibility?”
+
+That is the durable system.
+
+
+---
+
+## Source File: docs/05-product/prod-013-map_visibility_system_flowchart.md
+
+# prod-010-map_visibility_system_flowchart.md
+
+```mermaid
+flowchart TD
+    A[Map entity candidate] --> B{Entity family?}
+    B -->|Hazard| C[Hazard policy path]
+    B -->|POI| D[POI policy path]
+    B -->|Index overlay| E[Index policy path]
+    B -->|Condition overlay| F[Condition policy path]
+    B -->|Field note / observation| G[Note policy path]
+    B -->|Debug overlay| H[Debug policy path]
+
+    C --> I{Current context?}
+    D --> I
+    E --> I
+    F --> I
+    G --> I
+    H --> I
+
+    I -->|Browse| J[Load browse defaults]
+    I -->|Plan| K[Load planning defaults]
+    I -->|Route Review| L[Load route-review defaults]
+    I -->|Ride| M[Load ride defaults]
+    I -->|Admin Debug| N[Load admin defaults]
+
+    J --> O[Apply user preset + category toggles]
+    K --> O
+    L --> O
+    M --> O
+    N --> O
+
+    O --> P{Admin override active?}
+    P -->|Yes| Q[Allow debug bypasses]
+    P -->|No| R[Normal policy path]
+
+    Q --> S[Resolve fetch scope]
+    R --> S
+
+    S -->|Viewport| T[Fetch visible area only]
+    S -->|Local radius| U[Fetch browse radius]
+    S -->|Route corridor| V[Fetch full active/draft route corridor]
+    S -->|Regional cached tiles| W[Fetch aggregate regional data]
+
+    T --> X{Any entities returned?}
+    U --> X
+    V --> X
+    W --> X
+
+    X -->|No| Y[Hidden + log suppression reason]
+    X -->|Yes| Z{Render policy outcome?}
+
+    Z -->|Analysis only| AA[Do not render on map; surface in explanation layer]
+    Z -->|Threshold overlay| AB[Render threshold band / hotspot overlay]
+    Z -->|Aggregate| AC[Render cluster / bubble / corridor aggregate]
+    Z -->|Detail| AD[Render individual markers]
+    Z -->|Debug detail| AE[Render raw debug layer]
+
+    AC --> AF{Zoom/density allow detail expansion?}
+    AD --> AG[Apply style priority + draw]
+    AB --> AG
+    AE --> AG
+    AA --> AH[Done]
+    Y --> AH
+
+    AF -->|No| AI[Keep aggregate view]
+    AF -->|Yes| AJ[Expand to detail markers]
+
+    AI --> AG
+    AJ --> AG
+    AG --> AK[Visible on map]
+```
+
