@@ -5099,6 +5099,151 @@ Persist the journey. Bound the working set. Do not confuse session recovery with
 
 ---
 
+## Source File: docs/02-architecture/design/ds-015-safety_scoring_model.md
+
+## Lanterne Safety Score — Complete Formula
+
+### Plain English Summary
+
+Each segment of your route gets a danger score based on **how fast cars go** (60% weight), **how much traffic there is** (30%), and **railroad crossings** (10%). That raw danger is then *reduced* by bike infrastructure (protected lanes cut risk by 75%) and shoulders (up to 28% reduction). Left turns at intersections *add* penalty. All segment risks are summed, divided by total miles to get **Risk Per Mile**, then squeezed through a curve that maps it to a **0–100 Safety Score** and a letter grade.
+
+A safe, protected bike path = 100. A high-speed, high-traffic road with no infrastructure = closer to 0.
+
+------
+
+### Step 1 — Per-Segment Raw Risk
+
+```
+RawRisk = (W_SPEED × SpeedFactor + W_TRAFFIC × TrafficFactor + W_RAIL × RailCrossings) × SegmentMiles
+```
+
+| Weight               | Component            | Value                                                        |
+| -------------------- | -------------------- | ------------------------------------------------------------ |
+| **W_SPEED = 0.60**   | speedRiskFactor(mph) | Piecewise-linear: 0→0, 12→0.1, 20→0.5, 25→1.0, 30→2.0, 35→3.0, 40→4.0, 45→5.0, 50→6.0, 55→7.0 (cap) |
+| **W_TRAFFIC = 0.30** | trafficFactor        | Tier: low=0.70, medium=1.0, high=1.70, unknown=0.90. **OR** continuous AADT curve if real data exists (0.40 at <500 AADT → 2.50 cap at 80k+) |
+| **W_RAIL = 0.10**    | railRisk(crossings)  | 1 point per crossing                                         |
+
+**Safe paths** (cycleways, separated paths): risk = 0, skip all further steps.
+
+------
+
+### Step 2 — Bike Infrastructure Multiplier
+
+```
+RiskAfterInfra = RawRisk × InfraFactor
+```
+
+| Facility                    | Multiplier |
+| --------------------------- | ---------- |
+| Protected track             | **0.25**   |
+| Buffered lane               | **0.40**   |
+| Painted lane                | **0.70**   |
+| Shared lane / Shoulder only | **0.90**   |
+| None / Unknown              | **1.00**   |
+
+**High-speed floor**: If speed ≥ 40 mph, InfraFactor cannot drop below **0.50** (even a protected track on a 45 mph road still carries meaningful risk).
+
+------
+
+### Step 3 — Shoulder Factor (Multiplicative)
+
+```
+RiskAfterShoulder = RiskAfterInfra × ShoulderFactor
+```
+
+Only applies at speeds **> 25 mph**:
+
+| Condition                    | Factor   |
+| ---------------------------- | -------- |
+| No shoulder                  | **1.00** |
+| Shoulder present             | **0.85** |
+| Wide shoulder (≥ 2.4m / 8ft) | **0.72** |
+
+------
+
+### Step 4 — Left-Turn Penalty (Additive)
+
+```
+LeftTurnPenalty = W_LEFT_TURN × min(count × 0.15, 1.0) × LaneCountFactor
+```
+
+| Constant               | Value                           |
+| ---------------------- | ------------------------------- |
+| W_LEFT_TURN            | **0.21**                        |
+| Per-event penalty      | **0.15**                        |
+| Penalty cap            | **1.0** (max ~6-7 turns matter) |
+| Lane factor: ≤2 lanes  | **1.0×**                        |
+| Lane factor: 3-4 lanes | **1.3×**                        |
+| Lane factor: 5+ lanes  | **1.6×**                        |
+
+------
+
+### Step 5 — Segment Risk Points
+
+```
+RiskPoints = max(0, RiskAfterShoulder + LeftTurnPenalty)
+```
+
+------
+
+### Step 6 — Route Rollup
+
+```
+TotalRisk = Σ(all segment RiskPoints)
+RiskPerMile = TotalRisk / TotalRouteMiles
+```
+
+**Rollup method**: Simple sum then divide — length-proportional because each segment's raw risk is already multiplied by its length.
+
+------
+
+### Step 7 — Logistic Normalization
+
+```
+SafetyScore = 100 / (1 + e^(1.4 × (RPM - 2.5)))
+```
+
+| Parameter | Value                                    |
+| --------- | ---------------------------------------- |
+| Midpoint  | **2.5 RPM** (score ≈ 50 here)            |
+| Steepness | **1.4**                                  |
+| Floor RPM | < 0.05 → score forced to **100**         |
+| Output    | Clamped to **0–100**, rounded to integer |
+
+------
+
+### Step 8 — Letter Grades
+
+| Score | Grade  |
+| ----- | ------ |
+| 97+   | **A+** |
+| 93–96 | **A**  |
+| 90–92 | **A-** |
+| 87–89 | **B+** |
+| 83–86 | **B**  |
+| 80–82 | **B-** |
+| 77–79 | **C+** |
+| 73–76 | **C**  |
+| 70–72 | **C-** |
+| 67–69 | **D+** |
+| 63–66 | **D**  |
+| 60–62 | **D-** |
+| < 60  | **F**  |
+
+------
+
+### Legacy Shoulder Credit (still in code, secondary to shoulder factor)
+
+A subtractive credit also exists but is dominated by the multiplicative shoulder factor above:
+
+- **0.10 per side per mile**, bonus +0.10/mi if width ≥ 1.5m
+- **Capped at 40%** of raw risk
+
+This credit is computed but the multiplicative factor (Step 3) does the heavy lifting.
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
@@ -9798,3 +9943,245 @@ One route. One expedition. Many bounded windows. Many live sessions.
 
 The rider's journey stays whole even when the analysis working set does not.
 
+
+---
+
+## Source File: docs/03-adrs/adr-035-turn_event_canonical_vs_history_linking.md
+
+# **Turn Event Persistence — Canonical vs Route History Linking**
+
+**Status:** Accepted (Phase 0 / Builder Mode)
+ **Date:** 2026-03-28
+ **Owner:** Lanterne Core
+
+------
+
+## **1. Context**
+
+Turn event persistence has been successfully implemented with the following flow:
+
+- Route analysis runs client-side
+- Canonical route is resolved via:
+  - imported route match
+  - canonical route match (geometry hash)
+  - name fallback
+- If no match exists → canonical route row is auto-created
+- Turn events are written to `route_turn_events` using `canonical_route_id`
+
+Example confirmed behavior:
+
+- Canonical route auto-created
+- Prior events deleted
+- 14 turn events written successfully
+
+------
+
+## **2. Problem**
+
+Each turn event row includes:
+
+- `canonical_route_id` ✅ (required, working)
+- `route_history_id` ⚠️ (currently `null`)
+
+Question:
+
+> Should turn events be tied to a specific user route (`route_history_id`), or only to the canonical route?
+
+------
+
+## **3. Decision**
+
+### **Primary Relationship**
+
+Turn events are **anchored to canonical routes**, not user route history.
+
+```
+route_turn_events
+  → canonical_route_id (required)
+  → route_history_id (optional / nullable)
+```
+
+### **Rule**
+
+- `canonical_route_id` = **required**
+- `route_history_id` = **nullable, optional provenance only**
+
+------
+
+## **4. Rationale**
+
+### 4.1 Canonical route is the true identity
+
+A route’s geometry defines its identity.
+
+Turn events are:
+
+- derived from geometry
+- stable across users
+- reusable across analyses
+
+Therefore:
+
+> Turn events belong to the canonical route, not to a specific user.
+
+This aligns with the broader system principle:
+
+- route identity (geometry)
+- analysis outputs
+- user ownership
+
+are **separate concerns** 
+
+------
+
+### 4.2 Avoid premature coupling
+
+Making `route_history_id` required would:
+
+- force persistence to wait for `saveRoute()`
+- break anonymous / pre-save analysis
+- tightly couple analysis to user flows
+- increase failure points
+
+This violates the current architecture:
+
+> Analysis should run independently of user persistence 
+
+------
+
+### 4.3 Turn events are analysis artifacts
+
+Turn events are:
+
+- deterministic outputs of route analysis
+- comparable across runs
+- tied to analysis version, not user
+
+They behave more like:
+
+- segment data
+- scoring outputs
+
+than user-owned records
+
+------
+
+## **5. Current Implementation (Accepted)**
+
+### Behavior
+
+- Resolve or create `canonical_routes` row
+- Delete prior turn events for that canonical route
+- Insert new turn events
+- Write:
+
+```
+{
+  "canonical_route_id": "...",
+  "route_history_id": null,
+  ...
+}
+```
+
+### Guarantees
+
+- Canonical route always exists before insert
+- Turn events always attach to canonical route
+- No dependency on user save flow
+
+------
+
+## **6. Future Enhancement (Not Required Now)**
+
+### Goal
+
+Allow optional linkage to the specific route instance that produced the analysis.
+
+### Required Change
+
+Update `saveRoute()`:
+
+```
+return { id: routeHistoryId, ... }
+```
+
+Then pass through:
+
+```
+persistTurnEvents(canonicalRouteId, turnEvents, routeHistoryId)
+```
+
+### Result
+
+```
+canonical_route_id → always present
+route_history_id   → present when available, null otherwise
+```
+
+------
+
+## **7. When to Implement Route History Linking**
+
+Only implement when one of the following becomes necessary:
+
+- UI: “open this saved route and show its exact turn events”
+- Debugging: trace which analysis run produced which events
+- Versioning: compare multiple analyses of same route
+- User-specific derived routes need distinct event sets
+
+Until then:
+
+> Do not prioritize this work.
+
+------
+
+## **8. Anti-Patterns (Do Not Do)**
+
+❌ Require `route_history_id` for insert
+ ❌ Block turn persistence on `saveRoute()`
+ ❌ Treat turn events as user-owned data
+ ❌ Duplicate turn events per user instead of per route
+
+------
+
+## **9. Architectural Position**
+
+This decision reinforces:
+
+- Canonical-first architecture
+- Shared analysis artifacts
+- Separation of identity vs ownership vs computation
+
+It is consistent with:
+
+- route identity separation
+- analysis reuse across users
+- future versioned analysis model 
+
+------
+
+## **10. Current Status**
+
+✅ Turn persistence working
+ ✅ Canonical route auto-create working
+ ✅ Canonical linkage correct
+ ⚠️ Route history linkage intentionally deferred
+
+------
+
+## **11. Next Step**
+
+Do **not** touch this further right now.
+
+Move to:
+
+- canonical route dedup validation
+- rerun idempotency check
+- slice-level scoring / OSM ingestion work
+
+------
+
+## **One-line summary**
+
+> Turn events belong to the route, not the user.
+>  User linkage is optional metadata, not a requirement.
