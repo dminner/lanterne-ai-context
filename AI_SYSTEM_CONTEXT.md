@@ -1963,7 +1963,7 @@ When a new implementation area opens → check whether it needs an ADR first.
 
 ---
 
-## Source File: docs/02-architecture/design/ds-001-route-intelligence-pipeline-spec.md
+## Source File: docs/02-architecture/design/ds-001-route_intelligence_pipeline_spec.md
 
 # DS-001 — Route Intelligence Pipeline Spec
 
@@ -2284,7 +2284,7 @@ Lanterne transforms route geometry into a layered understanding of what the road
 
 ---
 
-## Source File: docs/02-architecture/design/ds-002-analysis-rollup-spec.md
+## Source File: docs/02-architecture/design/ds-002-analysis_rollup_spec.md
 
 # DS-002 — Analysis Rollup Spec
 
@@ -2371,7 +2371,7 @@ Rollups must preserve important route character rather than smoothing everything
 
 ---
 
-## Source File: docs/02-architecture/design/ds-003-ride-timeline-model-spec.md
+## Source File: docs/02-architecture/design/ds-003-ride_timeline_model_spec.md
 
 # DS-003 — Ride Timeline Model Spec
 
@@ -2472,7 +2472,7 @@ Conditions must reflect when the rider actually arrives at each part of the rout
 
 ---
 
-## Source File: docs/02-architecture/design/ds-004-osm-variable-registry-spec.md
+## Source File: docs/02-architecture/design/ds-004-osm_variable_registry_spec.md
 
 # DS-004 — OSM Variable Registry Spec
 
@@ -2661,7 +2661,7 @@ OSM data must be interpreted consistently across the entire system. Variables ar
 
 ---
 
-## Source File: docs/02-architecture/design/ds-005-canonical-route-schema-spec.md
+## Source File: docs/02-architecture/design/ds-005-canonical_route_schema_spec.md
 
 # DS-005 — Canonical Route Schema Spec
 
@@ -2981,7 +2981,7 @@ The database should reflect the real structure of the product — not collapse i
 
 ---
 
-## Source File: docs/02-architecture/design/ds-006-route-canonicalization-spec.md
+## Source File: docs/02-architecture/design/ds-006-route_canonicalization_spec.md
 
 # DS-006 — Route Canonicalization Spec
 
@@ -3169,7 +3169,7 @@ The canonical route represents the experienced road corridor, not the file artif
 
 ---
 
-## Source File: docs/02-architecture/design/ds-007-route-slice-generation-spec.md
+## Source File: docs/02-architecture/design/ds-007-route_slice_generation_spec.md
 
 # DS-007 — Route Slice Generation Spec
 
@@ -3282,7 +3282,7 @@ Slices represent meaningful changes in the riding experience rather than arbitra
 
 ---
 
-## Source File: docs/02-architecture/design/ds-008-route-corridor-model-spec.md
+## Source File: docs/02-architecture/design/ds-008-route_corridor_model_spec.md
 
 # DS-008 — Route Corridor Model Spec
 
@@ -3376,7 +3376,7 @@ The corridor represents the experienced road environment, not a mathematical lin
 
 ---
 
-## Source File: docs/02-architecture/design/ds-009-route-corridor-fingerprint-spec.md
+## Source File: docs/02-architecture/design/ds-009-route_corridor_fingerprint_spec.md
 
 # DS-009 — Route Corridor Fingerprint Spec
 
@@ -3487,7 +3487,7 @@ Fingerprints are a gate before identity, not identity itself. Use them to elimin
 
 ---
 
-## Source File: docs/02-architecture/design/ds-010-slice-analysis-cache-spec.md
+## Source File: docs/02-architecture/design/ds-010-slice_analysis_cache_spec.md
 
 # DS-010 — Slice Analysis Cache Spec
 
@@ -3619,7 +3619,7 @@ The cache is what makes Lanterne fast after first analysis. Fetch once, cache, r
 
 ---
 
-## Source File: docs/02-architecture/design/ds-011-ride-time-situational-awareness-interface-spec.md
+## Source File: docs/02-architecture/design/ds-011-ride_time_situational_awareness_interface_spec.md
 
 # DS-011 — Ride-Time Situational Awareness Interface Spec
 
@@ -3846,7 +3846,7 @@ glanceability > precision
 
 ---
 
-## Source File: docs/02-architecture/design/ds-012-ride-computer-tile-system-spec.md
+## Source File: docs/02-architecture/design/ds-012-ride_computer_tile_system_spec.md
 
 # DS-012 — Ride Computer Tile System Spec
 
@@ -4111,7 +4111,7 @@ Not: a weaker Garmin clone.
 
 ---
 
-## Source File: docs/02-architecture/design/ds-013-comparative-traffic-context-schema-spec.md
+## Source File: docs/02-architecture/design/ds-013-comparative_traffic_context_schema_spec.md
 
 # DS-013 — Comparative Traffic Context Schema Spec
 
@@ -4655,7 +4655,7 @@ They change what Lanterne **knows**, **compares**, and can eventually **explain*
 
 ---
 
-## Source File: docs/02-architecture/design/ds-014-route-expedition-state-and-windowed-analysis-spec.md
+## Source File: docs/02-architecture/design/ds-014-route_expedition_state_and_windowed_analysis_spec.md
 
 # DS-014 — Route Expedition State and Windowed Analysis Spec
 
@@ -5256,7 +5256,7 @@ When conflicts appear, architecture documents reflect the current system. ADRs p
 
 ---
 
-## Source File: docs/03-adrs/adr-001-route-acquisition-model.md
+## Source File: docs/03-adrs/adr-001-route_acquisition_model.md
 
 # ADR-001 — Route Acquisition Model
 
@@ -5318,7 +5318,7 @@ Route acquisition labels should reflect what the rider is doing, not where the d
 
 ---
 
-## Source File: docs/03-adrs/adr-002-vault-concept.md
+## Source File: docs/03-adrs/adr-002-vault_concept.md
 
 # ADR-002 — Vault Concept
 
@@ -5385,7 +5385,7 @@ The Vault is Lanterne's native route library. It is curated, not crowd-sourced, 
 
 ---
 
-## Source File: docs/03-adrs/adr-003-mode-aware-vault-filtering.md
+## Source File: docs/03-adrs/adr-003-mode_aware_vault_filtering.md
 
 # ADR-003 — Mode-Aware Vault Filtering
 
@@ -5447,7 +5447,7 @@ The Vault should feel like it understands what kind of riding you are planning. 
 
 ---
 
-## Source File: docs/03-adrs/adr-004-rider-field-notes-deferred.md
+## Source File: docs/03-adrs/adr-004-rider_field_notes_deferred.md
 
 # ADR-004 — Rider Field Notes (Deferred)
 
@@ -5517,7 +5517,7 @@ Field Notes are observations, not conversations. When the time comes, build them
 
 ---
 
-## Source File: docs/03-adrs/adr-005-route-analysis-model.md
+## Source File: docs/03-adrs/adr-005-route_analysis_model.md
 
 # ADR-005 — Route Analysis Model
 
@@ -5577,7 +5577,7 @@ Analyze small. Display aggregated. Never let display granularity determine analy
 
 ---
 
-## Source File: docs/03-adrs/adr-006-safety-definition.md
+## Source File: docs/03-adrs/adr-006-safety_definition.md
 
 # ADR-006 — Safety Definition
 
@@ -5651,7 +5651,7 @@ Safety means motor vehicle risk. Everything else is a different question with a 
 
 ---
 
-## Source File: docs/03-adrs/adr-007-index-families.md
+## Source File: docs/03-adrs/adr-007-index_families.md
 
 # ADR-007 — Index Families
 
@@ -5733,7 +5733,7 @@ Keep index families separate. Mixing safety with comfort produces neither a safe
 
 ---
 
-## Source File: docs/03-adrs/adr-008-environmental-light-system.md
+## Source File: docs/03-adrs/adr-008-environmental_light_system.md
 
 # ADR-008 — Environmental Light System
 
@@ -5796,7 +5796,7 @@ Light conditions should be communicated visually and intuitively. Riders glancin
 
 ---
 
-## Source File: docs/03-adrs/adr-009-sun-and-moonlight.md
+## Source File: docs/03-adrs/adr-009-sun_and_moonlight.md
 
 # ADR-009 — Sun and Moonlight Visualization
 
@@ -5868,7 +5868,7 @@ For riders spending nights on the road, the moon is infrastructure. Model it acc
 
 ---
 
-## Source File: docs/03-adrs/adr-010-sun-glare-detection.md
+## Source File: docs/03-adrs/adr-010-sun_glare_detection.md
 
 # ADR-010 — Sun Glare Detection
 
@@ -5956,7 +5956,7 @@ Sun glare is a driver behavior problem that creates a cyclist safety problem. La
 
 ---
 
-## Source File: docs/03-adrs/adr-011-route-slice-model.md
+## Source File: docs/03-adrs/adr-011-route_slice_model.md
 
 # ADR-011 — Route Slice Model
 
@@ -6119,7 +6119,7 @@ The rider does not experience a route as a single average condition. They experi
 
 ---
 
-## Source File: docs/03-adrs/adr-012-predicted-vs-experienced-conditions.md
+## Source File: docs/03-adrs/adr-012-predicted_vs_experienced_conditions.md
 
 # ADR-012 — Predicted vs Experienced Conditions
 
@@ -6222,7 +6222,7 @@ What was predicted before the ride and what was experienced during the ride are 
 
 ---
 
-## Source File: docs/03-adrs/adr-013-personalized-emergency-alerts.md
+## Source File: docs/03-adrs/adr-013-personalized_emergency_alerts.md
 
 # ADR-013 — Personalized Emergency Alert Model
 
@@ -6319,7 +6319,7 @@ An alert that doesn't tell the rider when and where the danger applies is just n
 
 ---
 
-## Source File: docs/03-adrs/adr-014-ride-narrative-event-model.md
+## Source File: docs/03-adrs/adr-014-ride_narrative_event_model.md
 
 # ADR-014 — Ride Narrative Event Model
 
@@ -6413,7 +6413,7 @@ A brevet is not a data file. Capture the story of the ride, not just the movemen
 
 ---
 
-## Source File: docs/03-adrs/adr-015-route-vulnerability-feature-model.md
+## Source File: docs/03-adrs/adr-015-route_vulnerability_feature_model.md
 
 # ADR-015 — Route Vulnerability Feature Model
 
@@ -6550,7 +6550,7 @@ Route vulnerability features should be specific, explainable, spatially local, a
 
 ---
 
-## Source File: docs/03-adrs/adr-016-ride-session-data-model.md
+## Source File: docs/03-adrs/adr-016-ride_session_data_model.md
 
 # ADR-016 — Ride Session Data Model
 
@@ -6719,7 +6719,7 @@ The goal is to preserve the **experience** of the ride, not just the movement of
 
 ---
 
-## Source File: docs/03-adrs/adr-017-local-osm-derived-data-strategy.md
+## Source File: docs/03-adrs/adr-017-local_osm_derived_data_strategy.md
 
 # ADR-017 — Local OSM-Derived Data Strategy
 
@@ -6853,7 +6853,7 @@ Lanterne should own its derived map intelligence rather than relying on live ext
 
 ---
 
-## Source File: docs/03-adrs/adr-018-server-cached-slice-analysis-model.md
+## Source File: docs/03-adrs/adr-018-server_cached_slice_analysis_model.md
 
 # ADR-018 — Server-Cached Slice Analysis Model
 
@@ -6966,7 +6966,7 @@ The server owns the canonical route intelligence model. Clients focus on visuali
 
 ---
 
-## Source File: docs/03-adrs/adr-019-route-corridor-and-proximity-rules.md
+## Source File: docs/03-adrs/adr-019-route_corridor_and_proximity_rules.md
 
 ADR-019 — Route Corridor & Proximity Rules
 
@@ -7351,7 +7351,7 @@ These are different questions and should not be forced into one radius.
 
 ---
 
-## Source File: docs/03-adrs/adr-020-atomic-analysis-unit.md
+## Source File: docs/03-adrs/adr-020-atomic_analysis_unit.md
 
 - # ADR-020 — Atomic Route Analysis Unit
 
@@ -7450,7 +7450,7 @@ These are different questions and should not be forced into one radius.
 
 ---
 
-## Source File: docs/03-adrs/adr-021-osm-variable-registry.md
+## Source File: docs/03-adrs/adr-021-osm_variable_registry.md
 
 ADR-021 — OSM Variable Registry
 
@@ -7568,7 +7568,7 @@ The registry is the contract between raw map data and route intelligence.
 
 ---
 
-## Source File: docs/03-adrs/adr-022-phase-1-enum-registry.md
+## Source File: docs/03-adrs/adr-022-phase_1_enum_registry.md
 
 ADR-022 — Phase 1 Enum Registry
 
@@ -7778,7 +7778,7 @@ Fake precision is worse than an honest enum.
 
 ---
 
-## Source File: docs/03-adrs/adr-023-observed-conditions-layers.md
+## Source File: docs/03-adrs/adr-023-observed_conditions_layers.md
 
 ## ADR-023 — Predicted vs Observed Condition Layers
 
@@ -7823,7 +7823,7 @@ Separating the two prevents:
 
 ---
 
-## Source File: docs/03-adrs/adr-024-ride-timeline-plans.md
+## Source File: docs/03-adrs/adr-024-ride_timeline_plans.md
 
 ADR-024 — Ride Timeline Plans
 
@@ -7911,7 +7911,7 @@ A pacing model that cannot be interrupted is not a model for long-distance ridin
 
 ---
 
-## Source File: docs/03-adrs/adr-025-fatigue-index-as-extensible.md
+## Source File: docs/03-adrs/adr-025-fatigue_index_as_extensible.md
 
 ADR-025 — Fatigue Index as Extensible Model Family
 
@@ -7999,7 +7999,7 @@ Output versioning is required.
 
 ---
 
-## Source File: docs/03-adrs/adr-026-canonical-route-identity.md
+## Source File: docs/03-adrs/adr-026-canonical_route_identity.md
 
 ADR-026 — Canonical Route Identity
 
@@ -8146,7 +8146,7 @@ The canonical route is the experienced corridor, not the file artifact.
 
 ---
 
-## Source File: docs/03-adrs/adr-027-lantern-screen-model.md
+## Source File: docs/03-adrs/adr-027-lantern_screen_model.md
 
 ADR-027 — Lantern Screen Model
 
@@ -8247,7 +8247,7 @@ The interaction model is stable; the content adapts to context.
 
 ---
 
-## Source File: docs/03-adrs/adr-028-field-note-confirmation-model.md
+## Source File: docs/03-adrs/adr-028-field_note_confirmation_model.md
 
 ADR-028 — Field Note Confirmation Model
 
@@ -8367,7 +8367,7 @@ Independent verification is the only honest basis for trust signals.
 
 ---
 
-## Source File: docs/03-adrs/adr-029-ride-time-situational-awareness-mode.md
+## Source File: docs/03-adrs/adr-029-ride_time_situational_awareness_mode.md
 
 ADR-029 — Ride-Time Situational Awareness Mode
 
@@ -8547,7 +8547,7 @@ Not: how many metrics can we display?
 
 ---
 
-## Source File: docs/03-adrs/adr-030-ride-mode-power-and-sensor-architecture.md
+## Source File: docs/03-adrs/adr-030-ride_mode_power_and_sensor_architecture.md
 
 ADR-030 — Ride Mode Display, Power, and Sensor Architecture
 
@@ -8745,7 +8745,7 @@ The lantern is the anchor. Screens are the content. Power is a first-class conce
 
 ---
 
-## Source File: docs/03-adrs/adr-031-model-multi-day-events-as-ordered-references-onto-canonical-geometry.md
+## Source File: docs/03-adrs/adr-031-model_multi_day_events_as_ordered_references_onto_canonical_geometry.md
 
 # ADR-031: Model Multi-Day Events as Ordered References onto Canonical Geometry
 
@@ -9040,7 +9040,7 @@ The system will not allow event packaging to redefine what a canonical route is.
 
 ---
 
-## Source File: docs/03-adrs/adr-032-comparative-traffic-context-and-segment-cohorts.md
+## Source File: docs/03-adrs/adr-032-comparative_traffic_context_and_segment_cohorts.md
 
 ADR-032 — Comparative Traffic Context and Segment Cohorts
 
@@ -9349,7 +9349,7 @@ These are different questions and must stay that way.
 
 ---
 
-## Source File: docs/03-adrs/adr-033-canonical-segment-identity.md
+## Source File: docs/03-adrs/adr-033-canonical_segment_identity.md
 
 ADR-033 — Canonical Segment Identity and Route-to-Canonical Mapping
 
@@ -9665,7 +9665,7 @@ Map drift creates lineage, not silent mutation.
 
 ---
 
-## Source File: docs/03-adrs/adr-034-master-route-expeditions-and-windowed-analysis.md
+## Source File: docs/03-adrs/adr-034-master_route_expeditions_and_windowed_analysis.md
 
 # ADR-034 — Master Route Expeditions and Windowed Long-Route Analysis
 
