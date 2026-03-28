@@ -723,10 +723,32 @@ These matter, but should not steal priority from the current execution threads u
 Do not start these yet unless they become prerequisites for the current priorities:
 
 - Ride computer advanced features
+
 - Radar integrations
+
 - UI polish outside the current front-end refactor
+
 - LLM / voice assistant systems
+
 - Broader expedition feature expansion beyond persistence/state hardening
+
+- More robust loading sequence pulled from new scoring pipeline
+
+  - Route: Port Orange - Ormond Loop Length: 100km Points: 2534 Fetching corridor from Overpass... Roads: 32986 Detecting junctions... Junction points: 678 / 2534 Crossing highway distribution: {  tertiary: 216,  residential: 524,  secondary: 51,  unclassified: 62,  tertiary_link: 4,  primary: 64,  secondary_link: 5,  primary_link: 3,  cycleway: 11 }
+
+  - with headings
+
+  - **Tracing route geometry**
+     *2,534 route points mapped*
+
+    **Fetching surrounding road network**
+     *33,129 nearby roads analyzed*
+
+    **Detecting intersections and turns**
+     *678 plausible junctions identified*
+
+    **Scoring maneuver complexity**
+     *25 left-turn maneuvers, 13 major left turns*
 
 ------
 
