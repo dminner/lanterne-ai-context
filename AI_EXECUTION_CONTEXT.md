@@ -678,7 +678,7 @@ Lock the schema and supporting route-intelligence structure tightly enough that 
 
 ​	https://chatgpt.com/g/g-p-69a5a40f6d9c81919302f52ccc4cdd32-lanterne/c/69c7cb36-6418-832f-b4aa-63876cd873d0
 
-### 2. Safety Scoring Model Hardening
+### 2. Safety Scoring Model Hardening: DS15 & Lovable Prompt
 
 Deep Reserach: https://chatgpt.com/c/69c7cee2-bb58-8330-8cc5-eea6a0d6f96c
 CGPT Pro (AFTER RESEARCH IS DONE: 

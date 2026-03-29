@@ -5799,7 +5799,7 @@ Add when data allow:
 - protected / permitted turn behavior when reliably available
 
 ### D. Regime-specific parameter sets
-Use different parameter families for:
+Different parameter families are to be used for:
 - rural two-lane
 - rural multilane
 - suburban arterial
@@ -5810,8 +5810,8 @@ Road class and urbanicity should help choose regimes or priors.
 They should **not** become another raw additive danger term.
 
 ### E. Live traffic context as an overlay
-Time-of-day traffic can become an optional contextual modifier when the rider supplies a start time.
-It should remain separate from the canonical baseline score.
+Time-of-day traffic becomes an optional contextual modifier when the rider supplies a start time.
+It will remain separate from the canonical baseline score.
 
 ---
 
@@ -5825,7 +5825,7 @@ The right posture is:
 - CMF-shaped where appropriate
 - honest about being a relative route-planning score unless locally calibrated
 
-Do **not** claim nationwide crash-frequency prediction.
+We do **not** claim nationwide crash-frequency prediction.
 That would be bullshit.
 
 ---
