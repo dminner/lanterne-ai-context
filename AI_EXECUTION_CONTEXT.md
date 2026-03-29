@@ -1227,6 +1227,25 @@ You can't focus on everything all at once, and not everything needs to be decide
 
 # Debugging Logs
 
+### Boundary Marker Catalog
+
+All debug boundary markers rendered in Truth Mode / Transition Debug:
+
+| Color | Hex | Source Object | Semantic Meaning | Rider-Facing? |
+|-------|-----|--------------|------------------|---------------|
+| Orange (hollow) | `#ff8800` | `truthBoundaryDebug` | Coarse PASS-1 boundary (sampled grid position) | Evidence only |
+| Magenta (filled) | `#ff00ff` | `truthBoundaryDebug` | Refined PASS-2 boundary (moved from coarse) | Evidence only |
+| Cyan/Teal (dashed) | `#00cccc` | `truthBoundaryDebug` | Fallback (refinement kept coarse position) | Evidence only |
+| Green | `#00ff00` | `transitionChainDiag` | OSM intersection candidate (shared node) | Evidence only |
+| Red | `#ff0000` | `transitionChainDiag` | Matcher flip point (PASS-1 winner changed) | Evidence only |
+| Cyan | `#00ffff` | `transitionChainDiag` | Corrected boundary (transition-chain final) | Evidence only |
+| Red (small) | `#ff0000` | heatmap debug | Truth boundary tick (scoring segment edge) | Internal |
+| Cyan (medium) | `#00ffff` | heatmap debug | Merge boundary tick (display segment edge) | Internal |
+
+**Important**: None of these markers are automatically rider-facing cuts. The `boundary-resolver.ts` module filters all evidence into a `resolvedCuts` set using road-identity change, anti-fragmentation, and confidence rules.
+
+Enable boundary resolver logs: `localStorage.DEBUG_FLAGS = '{"BOUNDARY_DEBUG":true}'`
+
 ### Hazards
 
 Enable with: localStorage.DEBUG_FLAGS = '{"HAZARD_DEBUG":true}' then reload and re-analyze.
