@@ -5099,7 +5099,7 @@ Persist the journey. Bound the working set. Do not confuse session recovery with
 
 ---
 
-## Source File: docs/02-architecture/design/ds-015-safety_scoring_model.md
+## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v1.md
 
 ## Lanterne Safety Score — Complete Formula
 
@@ -5240,6 +5240,1269 @@ A subtractive credit also exists but is dominated by the multiplicative shoulder
 - **Capped at 40%** of raw risk
 
 This credit is computed but the multiplicative factor (Step 3) does the heavy lifting.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v2.md
+
+# DS-015 — Safety Scoring Model
+
+Status: Proposed update  
+Updated: 2026-03-28  
+Supersedes: prior `ds-015-safety_scoring_model.md`
+
+---
+
+## 1. Purpose
+
+This document defines the production scoring model for Lanterne's headline **Safety Score**.
+
+It replaces the earlier formula that blended:
+- speed
+- traffic
+- rail crossings
+- infrastructure mitigation
+- shoulder credit
+- left-turn penalty
+- route-level logistic normalization
+
+The updated model keeps the original product philosophy intact:
+
+**Safety remains narrow.**
+
+Lanterne's headline Safety Score is about:
+
+> the relative expected harm from a bicyclist being struck by a motor vehicle,
+> combining strike likelihood and likely injury severity.
+
+This document defines:
+- what ships now in Phase 0 / Phase 1
+- what is intentionally deferred
+- how future versions should evolve
+- a Lovable-ready implementation prompt for the current phase
+
+---
+
+## 2. Decision Summary
+
+### Keep
+- narrow Safety Score
+- absolute score semantics within the model (not region-curved)
+- small internal slices as the atomic analysis unit
+- speed and traffic as the core signal
+- multiplicative mitigation rather than additive “credits”
+- route-level rollup based on mean risk per mile
+
+### Change
+- remove rail crossings and other non-motor-vehicle micro-hazards from the headline Safety Score
+- remove the legacy additive shoulder credit
+- replace flat left-turn penalties with **crossing-conflict event penalties**
+- stop treating “safe path” as automatic zero risk
+- remove the hard `RPM < 0.05 => SafetyScore = 100` rule
+- add a **critical stretch** backstop so short dangerous sections are not washed out
+- separate canonical baseline score from optional live/contextual modifiers
+
+### Defer
+- truck exposure
+- driveway/access density
+- intersection control/phasing details when not reliably available
+- jurisdiction-calibrated SPFs
+- live time-of-day traffic as part of the canonical score
+- rider-volume / safety-in-numbers effects
+
+---
+
+## 3. Score Semantics
+
+### 3.1 What the score is
+
+The headline Safety Score is a:
+
+> **relative expected motor-vehicle harm per mile**
+
+It is:
+- a comparative route-planning score
+- absolute within Lanterne's internal model
+- intended for route comparison and hotspot detection
+
+It is **not**:
+- an actuarial probability of being hit
+- a claim of true crash frequency
+- a kitchen-sink “danger” score
+- a blended score of weather, fatigue, remoteness, descent, and surface
+
+### 3.2 What the score should communicate to riders
+
+Plain English meaning:
+
+> How risky is the motor-vehicle environment on this route, and how bad is the likely outcome if something goes wrong?
+
+### 3.3 Absolute score vs relative context
+
+The headline score must remain **absolute** within the model.
+
+Comparative regional context may be shown later in explanations, but it must **not** rescale the score itself.
+
+A dangerous road does not become safer because it is typical for its region.
+
+---
+
+## 4. Explicit Non-Goals
+
+The following do **not** belong in the headline Safety Score for this phase:
+- remoteness
+- fatigue
+- surface quality by default
+- descent risk by default
+- weather
+- precipitation
+- wind
+- temperature
+- light / glare / darkness
+- moonlight
+- service access
+- non-motor-vehicle micro-hazards such as rail flangeways, cattle guards, grates, and similar hazards
+
+These may matter a lot to riders. They remain important. They are just not part of the narrow headline Safety Score.
+
+---
+
+## 5. Current Production Model (Phase 0 / Phase 1)
+
+## 5.1 Atomic analysis unit
+
+Safety is computed on **small internal slices** of the route, not on large visual segments.
+
+Display segments may still be aggregated for readability, but scoring must happen on internal truth slices.
+
+---
+
+## 5.2 Current phase output contract
+
+For every analyzed route, the scoring engine should return at least:
+
+- `safety_score` (0–100)
+- `safety_grade` (A+ to F)
+- `risk_per_mile_mean`
+- `risk_per_mile_worst_1km`
+- `critical_stretch_band`
+- `confidence_safety_score` (`high` / `medium` / `low`)
+- `score_model_version`
+- `score_breakdown`
+- `hazard_summary` (separate from headline score)
+
+---
+
+## 5.3 Current phase formula overview
+
+The current production model has three parts:
+
+1. **Continuous segment risk**  
+   Speed + traffic, scaled by distance
+
+2. **Operating-space modifiers**  
+   Infrastructure and shoulder, applied conservatively and without double counting
+
+3. **Crossing-conflict event penalties**  
+   Discrete penalties for the crossings and turns that actually create motor-vehicle conflict
+
+Then the route rollup combines:
+- distance-weighted mean risk per mile
+- worst rolling 1 km risk per mile
+
+The mean drives the base score.
+The worst rolling stretch prevents bullshit perfect scores.
+
+---
+
+## 5.4 Continuous segment core
+
+### Core formula
+
+```text
+BaseContinuousRisk = SliceMiles × (
+  0.60 × SpeedFactor +
+  0.40 × TrafficFactor
+)
+```
+
+### Phase 0 / Phase 1 rule
+
+For this phase, Lanterne should **reuse the existing speed-risk curve** to avoid unnecessary churn, but reinterpret it honestly as a severity-heavy expected-harm proxy rather than pretending it is a calibrated crash model.
+
+### SpeedFactor
+
+Retain the current piecewise-linear mapping for now:
+
+| Speed environment | SpeedFactor |
+|---|---:|
+| 0 mph | 0.0 |
+| 12 mph | 0.1 |
+| 20 mph | 0.5 |
+| 25 mph | 1.0 |
+| 30 mph | 2.0 |
+| 35 mph | 3.0 |
+| 40 mph | 4.0 |
+| 45 mph | 5.0 |
+| 50 mph | 6.0 |
+| 55+ mph | 7.0 cap |
+
+### TrafficFactor
+
+Use AADT when available. If AADT is not available, use the existing traffic-tier logic as a fallback.
+
+For this phase:
+- keep the current AADT curve / tiering behavior where already implemented
+- change **unknown traffic** from optimistic to conservative
+
+#### Tier fallback
+
+| Tier | TrafficFactor |
+|---|---:|
+| low | 0.70 |
+| medium | 1.00 |
+| high | 1.70 |
+| unknown | **1.10** |
+
+### Important note
+
+The canonical baseline score should **not** include live time-of-day traffic adjustments.
+
+Since time-of-day traffic already exists in the implementation, it will be a refactored **separate contextual overlay** or alternate view of the score, not the default canonical baseline.
+
+---
+
+## 5.5 Fully separated paths are not zero
+
+The previous model treated safe paths as `risk = 0` and skipped the rest of scoring.
+
+That rule is removed.
+
+### New rule
+
+For fully separated path slices:
+
+```text
+PathBaselineRisk = 0.05 × SliceMiles
+```
+
+Then still apply any relevant **crossing-conflict events** at road crossings or re-entry points.
+
+Interpretation:
+- ordinary separated path mileage should score as very low risk
+- it should not become mathematically perfect
+- conflict points must still matter
+
+---
+
+## 5.6 Operating-space modifiers
+
+Operating space should reduce risk conservatively.
+It must not be counted three different ways.
+
+### Rule 1 — no more additive shoulder credit
+
+The legacy subtractive shoulder credit is removed.
+
+### Rule 2 — shoulder is not baked into infra categories
+
+For this phase, infrastructure and shoulder are handled separately **but only when they are truly distinct**.
+
+### Infrastructure factor
+
+Use these conservative multipliers for the current phase:
+
+| Facility class | InfraFactor |
+|---|---:|
+| fully separated / protected track | 0.50 |
+| buffered bike lane | 0.68 |
+| painted bike lane | 0.82 |
+| no dedicated bike facility | 1.00 |
+
+### Shoulder factor
+
+Shoulder only applies when:
+- `facility class = no dedicated bike facility`
+- speed environment is `>= 30 mph`
+
+Otherwise:
+
+```text
+ShoulderFactor = 1.00
+```
+
+When shoulder applies:
+
+| Shoulder condition | ShoulderFactor |
+|---|---:|
+| no usable shoulder | 1.00 |
+| usable shoulder | 0.88 |
+| wide usable shoulder (>= 8 ft / 2.4 m) | 0.78 |
+
+### Combined segment risk after operating-space mitigation
+
+```text
+ContinuousRiskAfterSpace = BaseContinuousRisk × InfraFactor × ShoulderFactor
+```
+
+### Important current-phase simplification
+
+For this phase:
+- sharrows / shared-lane markings do **not** count as bike infrastructure
+- “shoulder only” is not an infra class
+- shoulders live only in `ShoulderFactor`
+
+This is deliberate. It avoids bullshit overlap.
+
+---
+
+## 5.7 Crossing-conflict event penalties
+
+The flat additive left-turn penalty is replaced.
+
+### Why
+
+A turn is not automatically dangerous.
+What matters is the motor-vehicle conflict context:
+- speed
+- traffic exposure
+- crossing width / lane count
+- whether the event is actually a crossing-path conflict
+
+### Current phase event model
+
+A **crossing-conflict event** is a route transition that forces the rider into a meaningful motor-vehicle conflict zone.
+
+Examples:
+- left turn across motor traffic
+- major crossing of a higher-speed road
+- route transition across a multi-lane roadway
+- re-entry from path or frontage condition into a motor roadway crossing
+
+### Gating rule
+
+Do **not** penalize every tiny local intersection.
+
+Only create an event penalty when at least one of these is true:
+- speed environment of the crossed / entered road is `>= 30 mph`
+- traffic tier is `medium` or `high`
+- lanes crossed is `>= 3`
+
+### Event penalty formula
+
+```text
+CrossingConflictPenalty = 0.12 × SpeedGate × TrafficGate × WidthGate
+```
+
+Where:
+
+#### SpeedGate
+
+| Speed environment | SpeedGate |
+|---|---:|
+| < 30 mph | 1.00 |
+| 30–39 mph | 1.25 |
+| 40+ mph | 1.60 |
+
+#### TrafficGate
+
+| Traffic context | TrafficGate |
+|---|---:|
+| low | 1.00 |
+| medium | 1.20 |
+| high | 1.50 |
+| unknown | 1.25 |
+
+#### WidthGate
+
+| Lanes crossed / conflict width proxy | WidthGate |
+|---|---:|
+| 1–2 lanes | 1.00 |
+| 3–4 lanes | 1.25 |
+| 5+ lanes | 1.50 |
+
+### Event modeling rules
+
+- Count each unique crossing event once
+- Model events on topology / transition truth, not display segment boundaries
+- Do not use a per-segment cap that can be bypassed by segmentation
+- If control type is not reliably known, do **not** invent fake precision for it in this phase
+
+### Route-level event risk
+
+```text
+TotalCrossingConflictRisk = Σ(all unique CrossingConflictPenalty events)
+```
+
+---
+
+## 5.8 Hazards stay separate
+
+The following remain in a **separate hazard layer** and are excluded from the headline Safety Score for this phase:
+
+- rail crossings
+- cattle guards
+- metal grate bridges
+- metal plate bridges
+- no-shoulder bridges
+- single-lane underpasses
+- covered bridges
+- other non-motor-vehicle micro-hazards
+
+These will still be surfaced aggressively in the UI.
+
+They just will not contaminate the narrow motor-vehicle strike score.
+
+---
+
+## 5.9 Route rollup
+
+### Total route risk
+
+```text
+TotalRouteRisk = Σ(ContinuousRiskAfterSpace across all slices)
+               + Σ(CrossingConflictPenalty across all events)
+```
+
+### Mean risk per mile
+
+```text
+MeanRPM = TotalRouteRisk / TotalRouteMiles
+```
+
+This remains the primary route comparison metric.
+
+### Critical stretch risk
+
+Also compute:
+
+```text
+Worst1kmRPM = max rolling 1 km window of route risk, normalized per mile
+```
+
+This is not cosmetic.
+This is the anti-washout guardrail.
+
+---
+
+## 5.10 Score normalization
+
+For this phase, keep the current logistic presentation curve to minimize churn:
+
+```text
+BaseSafetyScore = 100 / (1 + e^(1.4 × (MeanRPM - 2.5)))
+```
+
+Rules:
+- clamp to 0–100
+- round to integer for the rider-facing score
+- **remove the forced-100 floor entirely**
+
+### Critical-stretch cap
+
+After computing `BaseSafetyScore`, apply a cap based on `Worst1kmRPM`:
+
+| Worst1kmRPM band | Max allowed SafetyScore |
+|---|---:|
+| < 2.5 | no cap |
+| 2.5 to < 3.5 | 89 |
+| 3.5 to < 4.5 | 79 |
+| 4.5 to < 5.5 | 69 |
+| >= 5.5 | 59 |
+
+### Final score
+
+```text
+FinalSafetyScore = min(BaseSafetyScore, CriticalStretchCap)
+```
+
+This preserves a mean-based route score while preventing obvious pinch points from disappearing.
+
+---
+
+## 5.11 Letter grades
+
+Keep the current grade mapping for this phase to avoid unnecessary UI churn.  
+
+| Score | Grade |
+|---|---|
+| 97+ | A+ |
+| 93–96 | A |
+| 90–92 | A- |
+| 87–89 | B+ |
+| 83–86 | B |
+| 80–82 | B- |
+| 77–79 | C+ |
+| 73–76 | C |
+| 70–72 | C- |
+| 67–69 | D+ |
+| 63–66 | D |
+| 60–62 | D- |
+| < 60 | F |
+
+---
+
+## 5.12 Confidence and missing-data posture
+
+The current model must stop hiding uncertainty.
+
+### Route-level confidence output
+
+Return:
+
+```text
+confidence_safety_score = high | medium | low
+```
+
+### Suggested current-phase heuristic
+
+- `high`: >= 80% of route miles have direct or strong inferred speed + traffic + facility coverage
+- `medium`: 50% to < 80%
+- `low`: < 50%
+
+Also return a simple gap breakdown:
+- `unknown_speed_miles`
+- `unknown_traffic_miles`
+- `unknown_facility_miles`
+
+This is not academic garnish. It is trust protection.
+
+---
+
+## 5.13 Current-phase summary in one line
+
+The current production score is:
+
+> **speed-heavy, traffic-grounded, operating-space-mitigated, conflict-aware, hazard-separated, and protected against short-danger washout**
+
+---
+
+## 6. Future Model Path (Phase 1+ / Phase 2 / Research)
+
+The next versions should improve scientific credibility without turning the runtime model into a giant monster.
+
+## 6.1 Highest-value additions
+
+### A. Truck / heavy-vehicle exposure
+Add as a severity-weighted modifier once data quality is good enough.
+
+### B. Access / driveway density
+Add as a likelihood modifier, especially for town segments and corridor transitions.
+
+### C. Better intersection context
+Add when data allow:
+- signal vs stop control
+- turn-lane presence
+- channelization
+- crossing distance
+- protected / permitted turn behavior when reliably available
+
+### D. Regime-specific parameter sets
+Use different parameter families for:
+- rural two-lane
+- rural multilane
+- suburban arterial
+- urban arterial
+- separated corridor
+
+Road class and urbanicity should help choose regimes or priors.
+They should **not** become another raw additive danger term.
+
+### E. Live traffic context as an overlay
+Time-of-day traffic can become an optional contextual modifier when the rider supplies a start time.
+It should remain separate from the canonical baseline score.
+
+---
+
+## 6.2 Scientific benchmarking posture
+
+Future versions should be benchmarked against accepted roadway-safety structure, not marketed as something they are not.
+
+The right posture is:
+- HSM-informed
+- NCHRP-1064-benchmarked
+- CMF-shaped where appropriate
+- honest about being a relative route-planning score unless locally calibrated
+
+Do **not** claim nationwide crash-frequency prediction.
+That would be bullshit.
+
+---
+
+## 6.3 Future structural direction
+
+The long-term model should converge toward two explicit subsystems:
+
+### Segment module
+Continuous risk along the roadway:
+- speed environment
+- motor-vehicle flow
+- operating space
+- truck exposure
+- access density
+
+### Intersection / conflict module
+Discrete crossing and turning risk:
+- crossing width
+- major/minor flow
+- control type
+- turn-lane presence
+- facility continuity through the node
+
+### Separate hazard layer
+Non-motor-vehicle hazards:
+- rail
+- cattle guards
+- bridges
+- grates
+- underpasses
+- other micro-hazards
+
+This is the credible architecture.
+
+---
+
+## 6.4 Calibration rules for later
+
+Future calibration should:
+- use jurisdiction-specific crash + inventory data where available
+- compare model behavior against accepted screening frameworks
+- tune logistic curve parameters to real route corpora
+- never hide weak evidence behind fake decimal precision
+
+## 6.5 Benchmark posture for external credibility
+
+When Lanterne explains or defends the model to agencies, researchers, or advocacy organizations, the benchmark set should be framed like this:
+
+- **Backbone:** HSM-style predictive structure and NCHRP Research Report 1064 / NCHRP 17-84 as the primary benchmarking reference for bicycle segment and intersection methods
+- **Intersection / conflict structure:** FHWA Bike ISI style movement logic and PBCAT-style crash-type framing
+- **Treatment-effect sanity checks:** FHWA / CMF Clearinghouse style facility-effect literature, used conservatively
+- **Severity anchor:** speed-based injury-severity relationships
+
+Important: Lanterne should say the production score is **benchmarked against** these frameworks, not that it is a full locally calibrated SPF implementation.
+
+---
+
+## 7. Implementation Rules
+
+1. Keep the headline score narrow.  
+2. Keep the score absolute within the model.  
+3. Keep hazards separate unless they directly represent motor-vehicle strike pathways.  
+4. Do not double-count shoulder, speed, or lane context.  
+5. Use multiplicative mitigation more than additive credit logic.  
+6. Discrete events must be modeled as events, not as per-mile exposure.  
+7. Preserve canonical baseline score separately from contextual overlays.  
+8. Prefer honest relative scoring over fake probability claims.  
+9. If data are missing, surface confidence instead of optimistic defaults.  
+10. Never let a route with a nasty short connector auto-score as perfect.
+
+---
+
+## 8. Data / Storage Recommendations
+
+At minimum, scoring results should carry:
+
+```text
+score_model_version
+safety_score
+safety_grade
+risk_per_mile_mean
+risk_per_mile_worst_1km
+critical_stretch_band
+confidence_safety_score
+score_breakdown_json
+hazard_summary_json
+```
+
+Recommended breakdown structure:
+
+```json
+{
+  "continuous_core": {
+    "speed_component": 0,
+    "traffic_component": 0
+  },
+  "operating_space": {
+    "infra_factor": 1.0,
+    "shoulder_factor": 1.0
+  },
+  "crossing_conflicts": {
+    "event_count": 0,
+    "total_penalty": 0
+  },
+  "hazards": {
+    "included_in_score": false,
+    "summary": []
+  },
+  "confidence": {
+    "band": "medium",
+    "unknown_speed_miles": 0,
+    "unknown_traffic_miles": 0,
+    "unknown_facility_miles": 0
+  }
+}
+```
+
+---
+
+## 9. Lovable-Ready Prompt — Current Phase Implementation
+
+Copy/paste prompt below.
+
+---
+
+**Prompt start**
+
+You are updating Lanterne's Safety Score from the current V2 model to a narrower, more defensible V3 model.
+
+Read these project docs first and treat ADRs / product principles as binding:
+- `PRODUCT_PRINCIPLES.md`
+- `ANALYSIS_MODEL.md`
+- `SCORE_CALCULATION.md`
+- `SYSTEM_GUIDE.md`
+- `adr-032-comparative-traffic-context-and-segment-cohorts.md`
+- `ds-015-safety_scoring_model.md` (replace with the new model below)
+
+## Goal
+
+Implement a production-practical Safety Score that represents:
+
+> relative expected motor-vehicle harm per mile for a bicyclist
+
+This is still a narrow score.
+It is not a kitchen-sink danger score.
+
+## Hard constraints
+
+Do not add these to the headline Safety Score:
+- weather
+- wind
+- temperature
+- light / darkness / glare
+- remoteness
+- fatigue
+- surface quality by default
+- descent risk by default
+- rail and other non-motor-vehicle micro-hazards
+
+Do not region-curve the score.
+Do not claim crash probability.
+Do not keep the forced perfect-score floor.
+
+## Required scoring changes
+
+### 1. Remove rail and micro-hazards from the headline Safety Score
+
+- Remove rail crossings from the raw safety formula.
+- Keep rail and other hazards in a separate hazard summary / UI layer.
+- Do not apply bike infra or shoulder mitigation to rail or other hazard events.
+
+### 2. Keep speed and traffic as the only continuous core for this phase
+
+Use:
+
+```text
+BaseContinuousRisk = SliceMiles × (
+  0.60 × SpeedFactor +
+  0.40 × TrafficFactor
+)
+```
+
+For this phase:
+- reuse the existing speed-risk curve already in the codebase
+- reuse existing AADT / traffic-tier logic where present
+- change `unknown traffic` fallback to `1.10`
+
+### 3. Remove the legacy additive shoulder credit
+
+Delete or zero out the subtractive shoulder credit path.
+There should be no remaining additive shoulder credit in the score.
+
+### 4. Split bike facility mitigation from shoulder mitigation without overlap
+
+Use these infra multipliers:
+
+| facility | factor |
+|---|---:|
+| fully separated / protected track | 0.50 |
+| buffered bike lane | 0.68 |
+| painted bike lane | 0.82 |
+| no dedicated bike facility | 1.00 |
+
+Shoulder applies only when:
+- facility class is `no dedicated bike facility`
+- speed environment is `>= 30 mph`
+
+Shoulder factors:
+
+| shoulder | factor |
+|---|---:|
+| no usable shoulder | 1.00 |
+| usable shoulder | 0.88 |
+| wide usable shoulder >= 8 ft / 2.4 m | 0.78 |
+
+Combined continuous risk after mitigation:
+
+```text
+ContinuousRiskAfterSpace = BaseContinuousRisk × InfraFactor × ShoulderFactor
+```
+
+Important current-phase simplifications:
+- sharrows do not count as bike infrastructure
+- “shoulder only” is not an infra class
+- shoulders live only in `ShoulderFactor`
+
+### 5. Remove “safe path = 0 risk”
+
+For fully separated path slices, use:
+
+```text
+PathBaselineRisk = 0.05 × SliceMiles
+```
+
+Still apply crossing-conflict events at road crossings and re-entry points.
+
+### 6. Replace left-turn penalty with crossing-conflict event penalties
+
+Do not keep the old flat left-turn penalty.
+
+Create a topology/event-based penalty that fires only when a route transition creates a meaningful motor-vehicle conflict zone.
+
+A crossing-conflict event should be penalized only when at least one is true:
+- speed environment of crossed / entered road is `>= 30 mph`
+- traffic tier is `medium` or `high`
+- lanes crossed is `>= 3`
+
+Use:
+
+```text
+CrossingConflictPenalty = 0.12 × SpeedGate × TrafficGate × WidthGate
+```
+
+With:
+
+SpeedGate:
+- `< 30 mph => 1.00`
+- `30–39 mph => 1.25`
+- `40+ mph => 1.60`
+
+TrafficGate:
+- `low => 1.00`
+- `medium => 1.20`
+- `high => 1.50`
+- `unknown => 1.25`
+
+WidthGate:
+- `1–2 lanes => 1.00`
+- `3–4 lanes => 1.25`
+- `5+ lanes => 1.50`
+
+Rules:
+- count each unique event once
+- model on truth transitions, not display segments
+- do not use a per-segment cap that segmentation can bypass
+- if control type is missing, do not invent extra multipliers for it in this phase
+
+### 7. Keep route mean risk-per-mile but add critical-stretch protection
+
+Compute:
+
+```text
+TotalRouteRisk = Σ(ContinuousRiskAfterSpace) + Σ(CrossingConflictPenalty)
+MeanRPM = TotalRouteRisk / TotalRouteMiles
+Worst1kmRPM = max rolling 1 km window risk normalized per mile
+```
+
+Keep the existing logistic presentation curve for now:
+
+```text
+BaseSafetyScore = 100 / (1 + e^(1.4 × (MeanRPM - 2.5)))
+```
+
+But remove the hard `RPM < 0.05 => 100` rule.
+
+Apply this cap using `Worst1kmRPM`:
+
+| Worst1kmRPM | max score |
+|---|---:|
+| < 2.5 | no cap |
+| 2.5 to < 3.5 | 89 |
+| 3.5 to < 4.5 | 79 |
+| 4.5 to < 5.5 | 69 |
+| >= 5.5 | 59 |
+
+Then:
+
+```text
+FinalSafetyScore = min(BaseSafetyScore, CriticalStretchCap)
+```
+
+Keep the existing grade bands for now.
+
+### 8. Separate canonical baseline score from live/contextual traffic
+
+If `traffic-time.ts` is currently part of the default Safety Score path, refactor it so:
+- canonical baseline Safety Score does **not** depend on start time
+- live/time-of-day traffic becomes a separate contextual overlay or alternate score mode later
+
+Do not block this task on building the overlay UI.
+Just stop baking live traffic into the canonical baseline.
+
+### 9. Add confidence output
+
+Return:
+- `confidence_safety_score`
+- `unknown_speed_miles`
+- `unknown_traffic_miles`
+- `unknown_facility_miles`
+- `risk_per_mile_mean`
+- `risk_per_mile_worst_1km`
+- `critical_stretch_band`
+- `score_model_version`
+
+Use a simple heuristic for confidence:
+- `high` if >= 80% route miles have direct or strong inferred speed + traffic + facility coverage
+- `medium` if 50% to < 80%
+- `low` if < 50%
+
+## Implementation expectations
+
+Update the actual scoring code, not just docs.
+
+Likely files involved:
+- `src/lib/safety-scoring.ts`
+- `src/lib/hazards.ts`
+- `src/lib/traffic-time.ts`
+- any score breakdown / result typing files
+- any UI components that render score explanation / metrics
+- route-cache payload shape if needed
+
+Also update docs so they match the real implementation:
+- `ds-015-safety_scoring_model.md`
+- `SCORE_CALCULATION.md`
+- any score explanation docs that now contradict the model
+
+## Non-goals for this task
+
+Do not add:
+- truck exposure
+- driveway density
+- intersection signal phasing
+- protected/permitted turn logic
+- regional normalization
+- weather/light integration
+- rider popularity / safety-in-numbers
+- a giant calibration framework
+
+Those belong to later phases.
+
+## Acceptance criteria
+
+1. Rail and other micro-hazards are no longer in the headline Safety Score.  
+2. Legacy additive shoulder credit is gone.  
+3. Score no longer has `safe path = 0` behavior.  
+4. Score no longer has the forced perfect-score floor.  
+5. Left-turn penalty is replaced by event-based crossing-conflict logic.  
+6. A short dangerous stretch can cap the final score via `Worst1kmRPM`.  
+7. Canonical baseline score does not depend on live time-of-day traffic.  
+8. Result payload includes confidence and critical-stretch outputs.  
+9. Updated docs match the shipped behavior.  
+10. Keep the system narrow and explainable.
+
+## Deliverables
+
+Return:
+- code changes
+- updated docs
+- a short migration note explaining what changed from V2 to V3
+- any assumptions you had to make where data are incomplete
+
+**Prompt end**
+
+---
+
+## 10. Final practical note
+
+This version is intentionally not pretending to be the final scientific answer.
+
+It is the strongest production move for the current phase because it fixes the biggest trust-killers first:
+- scope leakage
+- double counting
+- segmentation artifacts
+- false-perfect routes
+- fake precision where data are weak
+
+That is the right trade.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v2_lovable_prompt.md
+
+You are updating Lanterne's Safety Score from the current V2 model to a narrower, more defensible V3 model.
+
+Read these project docs first and treat ADRs / product principles as binding:
+- `PRODUCT_PRINCIPLES.md`
+- `ANALYSIS_MODEL.md`
+- `SCORE_CALCULATION.md`
+- `SYSTEM_GUIDE.md`
+- `adr-032-comparative-traffic-context-and-segment-cohorts.md`
+- `ds-015-safety_scoring_model.md` (replace with the new model below)
+
+## Goal
+
+Implement a production-practical Safety Score that represents:
+
+> relative expected motor-vehicle harm per mile for a bicyclist
+
+This is still a narrow score.
+It is not a kitchen-sink danger score.
+
+## Hard constraints
+
+Do not add these to the headline Safety Score:
+- weather
+- wind
+- temperature
+- light / darkness / glare
+- remoteness
+- fatigue
+- surface quality by default
+- descent risk by default
+- rail and other non-motor-vehicle micro-hazards
+
+Do not region-curve the score.
+Do not claim crash probability.
+Do not keep the forced perfect-score floor.
+
+## Required scoring changes
+
+### 1. Remove rail and micro-hazards from the headline Safety Score
+
+- Remove rail crossings from the raw safety formula.
+- Keep rail and other hazards in a separate hazard summary / UI layer.
+- Do not apply bike infra or shoulder mitigation to rail or other hazard events.
+
+### 2. Keep speed and traffic as the only continuous core for this phase
+
+Use:
+
+```text
+BaseContinuousRisk = SliceMiles × (
+  0.60 × SpeedFactor +
+  0.40 × TrafficFactor
+)
+```
+
+For this phase:
+- reuse the existing speed-risk curve already in the codebase
+- reuse existing AADT / traffic-tier logic where present
+- change `unknown traffic` fallback to `1.10`
+
+### 3. Remove the legacy additive shoulder credit
+
+Delete or zero out the subtractive shoulder credit path.
+There should be no remaining additive shoulder credit in the score.
+
+### 4. Split bike facility mitigation from shoulder mitigation without overlap
+
+Use these infra multipliers:
+
+| facility | factor |
+|---|---:|
+| fully separated / protected track | 0.50 |
+| buffered bike lane | 0.68 |
+| painted bike lane | 0.82 |
+| no dedicated bike facility | 1.00 |
+
+Shoulder applies only when:
+- facility class is `no dedicated bike facility`
+- speed environment is `>= 30 mph`
+
+Shoulder factors:
+
+| shoulder | factor |
+|---|---:|
+| no usable shoulder | 1.00 |
+| usable shoulder | 0.88 |
+| wide usable shoulder >= 8 ft / 2.4 m | 0.78 |
+
+Combined continuous risk after mitigation:
+
+```text
+ContinuousRiskAfterSpace = BaseContinuousRisk × InfraFactor × ShoulderFactor
+```
+
+Important current-phase simplifications:
+- sharrows do not count as bike infrastructure
+- “shoulder only” is not an infra class
+- shoulders live only in `ShoulderFactor`
+
+### 5. Remove “safe path = 0 risk”
+
+For fully separated path slices, use:
+
+```text
+PathBaselineRisk = 0.05 × SliceMiles
+```
+
+Still apply crossing-conflict events at road crossings and re-entry points.
+
+### 6. Replace left-turn penalty with crossing-conflict event penalties
+
+Do not keep the old flat left-turn penalty.
+
+Create a topology/event-based penalty that fires only when a route transition creates a meaningful motor-vehicle conflict zone.
+
+A crossing-conflict event should be penalized only when at least one is true:
+- speed environment of crossed / entered road is `>= 30 mph`
+- traffic tier is `medium` or `high`
+- lanes crossed is `>= 3`
+
+Use:
+
+```text
+CrossingConflictPenalty = 0.12 × SpeedGate × TrafficGate × WidthGate
+```
+
+With:
+
+SpeedGate:
+- `< 30 mph => 1.00`
+- `30–39 mph => 1.25`
+- `40+ mph => 1.60`
+
+TrafficGate:
+- `low => 1.00`
+- `medium => 1.20`
+- `high => 1.50`
+- `unknown => 1.25`
+
+WidthGate:
+- `1–2 lanes => 1.00`
+- `3–4 lanes => 1.25`
+- `5+ lanes => 1.50`
+
+Rules:
+- count each unique event once
+- model on truth transitions, not display segments
+- do not use a per-segment cap that segmentation can bypass
+- if control type is missing, do not invent extra multipliers for it in this phase
+
+### 7. Keep route mean risk-per-mile but add critical-stretch protection
+
+Compute:
+
+```text
+TotalRouteRisk = Σ(ContinuousRiskAfterSpace) + Σ(CrossingConflictPenalty)
+MeanRPM = TotalRouteRisk / TotalRouteMiles
+Worst1kmRPM = max rolling 1 km window risk normalized per mile
+```
+
+Keep the existing logistic presentation curve for now:
+
+```text
+BaseSafetyScore = 100 / (1 + e^(1.4 × (MeanRPM - 2.5)))
+```
+
+But remove the hard `RPM < 0.05 => 100` rule.
+
+Apply this cap using `Worst1kmRPM`:
+
+| Worst1kmRPM | max score |
+|---|---:|
+| < 2.5 | no cap |
+| 2.5 to < 3.5 | 89 |
+| 3.5 to < 4.5 | 79 |
+| 4.5 to < 5.5 | 69 |
+| >= 5.5 | 59 |
+
+Then:
+
+```text
+FinalSafetyScore = min(BaseSafetyScore, CriticalStretchCap)
+```
+
+Keep the existing grade bands for now.
+
+### 8. Separate canonical baseline score from live/contextual traffic
+
+If `traffic-time.ts` is currently part of the default Safety Score path, refactor it so:
+- canonical baseline Safety Score does **not** depend on start time
+- live/time-of-day traffic becomes a separate contextual overlay or alternate score mode later
+
+Do not block this task on building the overlay UI.
+Just stop baking live traffic into the canonical baseline.
+
+### 9. Add confidence output
+
+Return:
+- `confidence_safety_score`
+- `unknown_speed_miles`
+- `unknown_traffic_miles`
+- `unknown_facility_miles`
+- `risk_per_mile_mean`
+- `risk_per_mile_worst_1km`
+- `critical_stretch_band`
+- `score_model_version`
+
+Use a simple heuristic for confidence:
+- `high` if >= 80% route miles have direct or strong inferred speed + traffic + facility coverage
+- `medium` if 50% to < 80%
+- `low` if < 50%
+
+## Implementation expectations
+
+Update the actual scoring code, not just docs.
+
+Likely files involved:
+- `src/lib/safety-scoring.ts`
+- `src/lib/hazards.ts`
+- `src/lib/traffic-time.ts`
+- any score breakdown / result typing files
+- any UI components that render score explanation / metrics
+- route-cache payload shape if needed
+
+Also update docs so they match the real implementation:
+- `ds-015-safety_scoring_model.md`
+- `SCORE_CALCULATION.md`
+- any score explanation docs that now contradict the model
+
+## Non-goals for this task
+
+Do not add:
+- truck exposure
+- driveway density
+- intersection signal phasing
+- protected/permitted turn logic
+- regional normalization
+- weather/light integration
+- rider popularity / safety-in-numbers
+- a giant calibration framework
+
+Those belong to later phases.
+
+## Acceptance criteria
+
+1. Rail and other micro-hazards are no longer in the headline Safety Score.  
+2. Legacy additive shoulder credit is gone.  
+3. Score no longer has `safe path = 0` behavior.  
+4. Score no longer has the forced perfect-score floor.  
+5. Left-turn penalty is replaced by event-based crossing-conflict logic.  
+6. A short dangerous stretch can cap the final score via `Worst1kmRPM`.  
+7. Canonical baseline score does not depend on live time-of-day traffic.  
+8. Result payload includes confidence and critical-stretch outputs.  
+9. Updated docs match the shipped behavior.  
+10. Keep the system narrow and explainable.
+
+## Deliverables
+
+Return:
+- code changes
+- updated docs
+- a short migration note explaining what changed from V2 to V3
+- any assumptions you had to make where data are incomplete
 
 
 ---
