@@ -6734,12 +6734,24 @@ Return:
 
 ## Source File: docs/02-architecture/design/ds-016-experience_policy_layer.md
 
-Bluntly: do **not** solve this by sprinkling more local `if` statements into `RouteMap`, drawers, orb handlers, and map cards. Your own brief says this needs to be a **layered policy model**, not one giant machine, and your current UI state is already split across `LayoutContext`, `LanternState`, `Orb Control Router`, and `Map Card Store`, with one drawer still sitting outside centralized governance. That is exactly the profile of an app that needs one behavior brain above the components.
+#Experience Policy layer
+2026-03-31
 
-The non-negotiables are already fixed in your docs: active ride is map-first; mode is separate from structure; push is first-class; expedition is the durable parent for multi-push journeys; public route pages are launch scope; launch rider input is constrained to structured speed/shoulder/caution observations; and new durable systems should center on `canonical_route_id`. The freshest Project Map and DS-014 also lock in the important runtime split: **stable** route intelligence stays separate from **contextual** ride-time intelligence, and **durable expedition truth** stays separate from **transient live session state**. Resume logic must consult durable expedition state first.
+## Launch Packet Companion Note
 
-One honest caveat: the brief names several source docs that were not present in the retrieved set here, especially `EXEC-008 v2`, `DS-012`, `ADR-036`, `ADR-028`, and `PROD-010/012/014`. So I’m treating tile roster specifics, POI taxonomy specifics, and some push-intelligence copy specifics as **recommended launch policy**, not immutable sourced truth. The architecture below is still production-ready.
+This document is one part of the Lanterne launch packet.
 
+Companion documents:
+1. EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
+2. EXEC-008 v2 — Master Implementation Manual
+3. DS-016 — Experience Policy Layer
+4. Lanterne Launch Packet — Index and Companion Guide
+
+Use this document for its primary job only:
+- Program Plan = architecture and system boundaries
+- Implementation Manual = execution order, SQL, prompts, verification
+- DS-016 = runtime behavior, prompts, routing, and state policy
+- Launch Packet Index = reading order, ownership, and packet framing
 ------
 
 # 1. Executive summary
