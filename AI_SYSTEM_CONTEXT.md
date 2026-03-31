@@ -6734,7 +6734,8 @@ Return:
 
 ## Source File: docs/02-architecture/design/ds-016-experience_policy_layer.md
 
-#Experience Policy layer
+# Experience Policy layer #
+
 2026-03-31
 
 ## Launch Packet Companion Note
