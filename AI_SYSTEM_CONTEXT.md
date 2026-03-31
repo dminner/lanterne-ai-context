@@ -6507,6 +6507,861 @@ Return:
 
 ---
 
+## Source File: docs/02-architecture/design/ds-016-experience_policy_layer.md
+
+Bluntly: do **not** solve this by sprinkling more local `if` statements into `RouteMap`, drawers, orb handlers, and map cards. Your own brief says this needs to be a **layered policy model**, not one giant machine, and your current UI state is already split across `LayoutContext`, `LanternState`, `Orb Control Router`, and `Map Card Store`, with one drawer still sitting outside centralized governance. That is exactly the profile of an app that needs one behavior brain above the components.
+
+The non-negotiables are already fixed in your docs: active ride is map-first; mode is separate from structure; push is first-class; expedition is the durable parent for multi-push journeys; public route pages are launch scope; launch rider input is constrained to structured speed/shoulder/caution observations; and new durable systems should center on `canonical_route_id`. The freshest Project Map and DS-014 also lock in the important runtime split: **stable** route intelligence stays separate from **contextual** ride-time intelligence, and **durable expedition truth** stays separate from **transient live session state**. Resume logic must consult durable expedition state first.
+
+One honest caveat: the brief names several source docs that were not present in the retrieved set here, especially `EXEC-008 v2`, `DS-012`, `ADR-036`, `ADR-028`, and `PROD-010/012/014`. So I’m treating tile roster specifics, POI taxonomy specifics, and some push-intelligence copy specifics as **recommended launch policy**, not immutable sourced truth. The architecture below is still production-ready.
+
+------
+
+# 1. Executive summary
+
+The **Experience Policy Layer** is Lanterne’s behavioral operating system.
+
+It answers, at every moment:
+
+- what state the rider/app is in
+- what information deserves attention now
+- what surface gets first claim on that information
+- what is interruptive vs passive
+- what is durable truth vs session fluff
+- what can be dismissed, snoozed, retried, or blocked
+
+It should sit **above** component state and **below** rendering.
+
+It should **not** own:
+
+- route scoring
+- GPS matching internals
+- pixel layout
+- route geometry storage
+- the actual drawer components
+
+It **should** own:
+
+- runtime context classification
+- prompt arbitration
+- surface routing
+- suppression/calmness
+- resume/recovery behavior
+- input eligibility rules
+- mode and audience presentation defaults
+
+The right model is **layered**, not monolithic:
+
+1. **Domain policy layer**
+    Durable enums, contracts, identities, push/expedition/window rules.
+2. **Runtime orchestration layer**
+    Computes the current experience state from route, ride, GPS, analysis, connectivity, and expedition state.
+3. **Prompt/caption arbitration layer**
+    Chooses whether the rider gets a blocking prompt, elevated prompt, passive caption, chip, or nothing.
+4. **Surface adapter layer**
+    Translates policy decisions into:
+   - map emphasis
+   - lantern state
+   - tile order/emphasis
+   - drawer defaults
+   - review surface defaults
+   - public page badges/actions
+
+That gets you the goal from the brief: roughly 80% of launch behavior leaves ad hoc component conditionals and becomes durable policy.
+
+A concrete runtime output should look like this:
+
+```
+type ExperienceDecision = {
+  runtimeContext: RuntimeContext;
+  primarySurfaces: SurfaceId[];
+  secondarySurfaces: SurfaceId[];
+  activePrompt: PromptDecision | null;
+  activeCaption: CaptionDecision | null;
+  lanternState: LanternAttentionState;
+  tileProfile: TileProfileDecision;
+  defaultDrawer: DrawerId | null;
+  reviewEntryPoint: ReviewEntryPoint | null;
+  blockedActions: ActionId[];
+  badges: BadgeDecision[];
+};
+```
+
+------
+
+# 2. Canonical axes
+
+## 2.1 Core axes
+
+| Axis                           | Values                                                       | Rule                                                         |
+| ------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `mode`                         | `rando`, `ultra_endurance`, `road`                           | Presentation/defaults only. Never decides structure.         |
+| `structure`                    | `single_push`, `expedition`                                  | Journey form. Never inferred from mode.                      |
+| `audience_role`                | `user`, `power_user`, `admin_debug`                          | Access depth and diagnostics only. Never changes score truth. |
+| `runtime_context`              | `no_route`, `planning`, `analyzing`, `ready`, `active_ride`, `paused_break`, `review`, `public_page` | Top-level behavior context.                                  |
+| `ride_state`                   | `not_started`, `armed`, `active_on_route`, `active_off_route`, `paused_short`, `paused_break`, `resume_pending`, `completed`, `abandoned` | Rider execution state.                                       |
+| `analysis_state`               | `none`, `analyzing`, `ready_fresh`, `ready_stale`, `partial`, `failed` | Actionability and freshness of analysis.                     |
+| `expedition_state`             | `none`, `planned`, `active`, `paused`, `completed`, `abandoned` | Durable multi-push truth.                                    |
+| `window_state`                 | `none`, `planned`, `queued`, `analyzing`, `ready`, `active`, `completed`, `failed`, `stale` | Active detailed-analysis window state.                       |
+| `connectivity_state`           | `online`, `degraded`, `offline`                              | Controls retries, queueing, and warning style.               |
+| `gps_state`                    | `denied`, `unavailable`, `acquiring`, `locked_weak`, `locked_good` | Controls start/resume eligibility and confidence.            |
+| `resume_state`                 | `not_applicable`, `eligible`, `mismatch`, `gps_pending`, `blocked` | Recovery/resume behavior.                                    |
+| `review_depth`                 | `summary`, `standard`, `deep`, `diagnostic`                  | Controls detail exposure.                                    |
+| `note_input_eligibility_state` | `ineligible`, `planning_only`, `stop_only`, `break_only`, `review_only`, `manual_only`, `queued` | Controls structured input access.                            |
+| `guidance_state`               | `none`, `on_plan`, `drifting_plan`, `drifting_constraint`, `recovery_required` | Push-intelligence severity state.                            |
+
+## 2.2 Illegal couplings
+
+These are banned:
+
+- `mode` must not select `single_push` vs `expedition`
+- `mode` must not alter Safety Score semantics
+- `audience_role` must not alter route truth or scoring
+- `analysis_state` must not be inferred from drawer visibility
+- `resume_state` must not be inferred from UI memory alone
+- `public_page` must not expose live ride state by default
+- `window_state` must not be reused as route identity
+- `route_history_id` must not be the long-term center of new durable policy logic when `canonical_route_id` exists
+
+## 2.3 Durable vs transient ownership
+
+### Durable
+
+Lives in domain/persistence:
+
+- canonical route identity
+- push plan
+- expedition record
+- expedition window records
+- last confirmed route mile / point index
+- structured observation records
+- analysis freshness/completeness metadata
+- public page publish state
+
+### Transient
+
+Lives in runtime/session:
+
+- current camera position
+- current open drawer
+- current second-by-second timer tick
+- ephemeral caption visibility
+- gesture routing
+- momentary lantern animation
+- non-durable tile ordering state
+
+That matches the docs: expedition state is durable, live session state is transient; stable analysis and contextual ride-time analysis are separate; and the product should not turn into a data cockpit.
+
+------
+
+# 3. Surface inventory
+
+| Surface                  | Primary in                | Role                                                         | Auto-open allowed?    | Policy owner        |
+| ------------------------ | ------------------------- | ------------------------------------------------------------ | --------------------- | ------------------- |
+| **Map**                  | active ride, planning     | Spatial truth, progress, hazards, route shape, position, corridor/window context | Yes                   | map adapter         |
+| **Lantern stack**        | active ride               | Single synthesized attention object                          | Yes                   | lantern adapter     |
+| **Ride computer tiles**  | active ride               | Glanceable execution metrics and immediate guidance          | Yes                   | tile adapter        |
+| **Drawers**              | planning, break, review   | Deep dive, explanation, edits, route detail, score explanation | Yes outside motion    | drawer adapter      |
+| **Review surfaces**      | review                    | Structured summary, comparison, reconciliation, confidence context | Yes                   | review adapter      |
+| **Public route page**    | public page               | Durable shareable route view                                 | N/A                   | public-page adapter |
+| **Prompt/caption layer** | all contexts              | Interruptive choice, elevated heads-up, passive context      | Yes                   | prompt arbiter      |
+| **Modal/overlay**        | recovery/destructive-only | Blocking decisions only                                      | Yes, strictly limited | prompt arbiter      |
+
+## Surface primacy by runtime context
+
+| Runtime context | Primary surfaces           | Secondary surfaces                   |
+| --------------- | -------------------------- | ------------------------------------ |
+| `no_route`      | map, acquisition controls  | none                                 |
+| `planning`      | map + drawer               | caption, chips                       |
+| `analyzing`     | map + analysis progress    | lantern pulse, caption               |
+| `ready`         | map + drawer               | review CTA, chips                    |
+| `active_ride`   | map + lantern + ride tiles | drawers only by user or stop context |
+| `paused_break`  | drawer + map               | lantern, tiles                       |
+| `review`        | review surface + map       | drawers                              |
+| `public_page`   | public route page          | embedded map                         |
+
+### Hard rule
+
+During `active_ride`, drawers are never the center of gravity unless:
+
+- rider is stopped or in break context
+- a blocking recovery decision is required
+- rider explicitly opens the drawer
+
+That comes straight from the brief and should not be negotiated away later.
+
+------
+
+# 4. Top-level state model
+
+This should be implemented as **four cooperating policy machines**, not one god machine.
+
+## 4.1 Route context machine
+
+- `no_route_loaded`
+- `route_loaded_planning`
+- `route_loaded_analyzing`
+- `route_loaded_ready`
+- `public_route_page`
+
+## 4.2 Ride execution machine
+
+- `not_started`
+- `armed`
+- `active`
+- `paused_short`
+- `paused_break`
+- `resume_pending`
+- `completed`
+- `abandoned`
+
+## 4.3 Analysis machine
+
+- `none`
+- `analyzing`
+- `ready_fresh`
+- `ready_stale`
+- `partial`
+- `failed`
+
+## 4.4 Expedition/window machine
+
+- `no_expedition`
+- `expedition_planned`
+- `expedition_active`
+- `expedition_paused`
+- `expedition_completed`
+- `window_planned`
+- `window_queued`
+- `window_analyzing`
+- `window_ready`
+- `window_active`
+- `window_failed`
+- `window_stale`
+
+## 4.5 Combined user-visible states
+
+### A. No route loaded
+
+Sub-states:
+
+- home idle
+- acquisition open (`Route To`, `Draw`, `Open`)
+- public page entry
+
+### B. Route loaded / planning
+
+Sub-states:
+
+- unanalyzed route
+- analyzed editable route
+- push planning
+- expedition planning
+- pre-ride conditions review
+- share prep
+
+### C. Analyzing
+
+Sub-states:
+
+- full-route analysis
+- window analysis
+- degraded/retrying
+- partial-ready pending completion
+
+### D. Analyzed / ready
+
+Sub-states:
+
+- ready fresh
+- ready stale
+- ready partial
+- ready with publish/share available
+- ready with low confidence badge
+
+### E. Active ride
+
+Sub-states:
+
+- on route / stable
+- drifting vs plan
+- drifting vs hard constraint
+- off-route
+- approaching stop
+- approaching window boundary
+- recovery required
+
+### F. Paused / break
+
+Sub-states:
+
+- short pause
+- planned stop
+- unplanned break
+- overnight / long stop
+- resume check
+
+### G. Review
+
+Sub-states:
+
+- segment review
+- route review
+- push review
+- expedition review
+- end-of-push reconciliation
+- post-share review
+
+### H. Failed / partial / stale
+
+Sub-states:
+
+- analysis failed
+- analysis partial
+- window failed
+- stale route analysis
+- stale window analysis
+- degraded connectivity
+
+------
+
+# 5. Transition model
+
+## Transition principles
+
+1. **Route truth first**
+    Route/execution transitions never depend on drawer state.
+2. **Resume truth first**
+    Resume always checks durable expedition state before session memory.
+3. **Actionability first**
+    `partial` and `stale` can still be usable; `failed` is not.
+4. **Interrupt only for decisions**
+    Informational changes become chips/captions unless the rider must choose.
+5. **Motion demotes detail**
+    While moving, explanation slides down from drawer -> tile/chip/caption.
+
+## Primary transitions
+
+| From                        | Trigger                           | Guard                                              | Side effects                                                 | To                                                  | Surfaces affected                     |
+| --------------------------- | --------------------------------- | -------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------- | ------------------------------------- |
+| `no_route_loaded`           | route opened/imported/drawn       | route parse succeeds                               | create route context, clear stale prompts                    | `route_loaded_planning`                             | map, top controls                     |
+| `route_loaded_planning`     | analyze requested                 | route valid, budgets acceptable                    | start analysis progress, clear share CTA                     | `route_loaded_analyzing`                            | map, analysis progress, lantern pulse |
+| `route_loaded_analyzing`    | analysis success                  | complete enough for use                            | persist analysis metadata, compute badges                    | `route_loaded_ready`                                | map, drawer, chips                    |
+| `route_loaded_analyzing`    | analysis partial                  | partial usable                                     | persist partial state, attach confidence warning             | `route_loaded_ready(partial)`                       | map, chip, review                     |
+| `route_loaded_analyzing`    | analysis fail                     | no usable result                                   | persist failure state                                        | `failed`                                            | map, drawer, retry CTA                |
+| `route_loaded_ready`        | push plan saved                   | route exists                                       | persist push/expedition config                               | `armed`                                             | planner/review                        |
+| `armed`                     | start ride                        | route usable; if expedition, expedition row exists | start live session, write `started/resumed`, initialize tiles | `active_ride`                                       | map, lantern, tiles                   |
+| `active_ride`               | manual pause or stop criteria met | none                                               | write sparse checkpoint; recalc stop state                   | `paused_break` or `paused_short`                    | drawer may become primary             |
+| `paused_break`              | resume                            | GPS acceptable or manual override                  | write resume event, restore primary ride surfaces            | `active_ride`                                       | map, lantern, tiles                   |
+| any expedition state        | app reopen                        | open expedition exists                             | consult durable expedition state first                       | `resume_pending` / `eligible` / `mismatch`          | resume card/prompt                    |
+| `resume_pending`            | GPS mismatch detected             | materially far from saved progress                 | block silent resume                                          | `resume_mismatch`                                   | blocking prompt                       |
+| `active_ride`               | preload threshold crossed         | `detail_mode='windowed'`                           | queue next window                                            | `window_queued`                                     | passive chip/caption                  |
+| `active_ride`               | next window ready                 | queued window complete                             | mark ready                                                   | `window_ready`                                      | chip only                             |
+| `active_ride`               | window boundary reached           | next window ready                                  | activate next window, write event                            | `window_active(next)`                               | passive caption, map continuity       |
+| `active_ride`               | window boundary reached           | next window not ready                              | degrade confidently, surface recovery state                  | `window_failed/stale`                               | lantern + tile + chip/prompt          |
+| `active_ride`               | push completed                    | route/push end met                                 | write completion event                                       | `review(push)`                                      | review surface                        |
+| `review(push)`              | reconciliation saved              | expedition exists and incomplete                   | update next push assumptions                                 | `route_loaded_ready` or `expedition_active_planned` | review + planner                      |
+| `route_loaded_ready/review` | publish/share                     | owner + shareable analysis                         | create/update public page state                              | `public_route_page(owner)`                          | public page                           |
+| `public_route_page`         | owner opens planner               | owner rights                                       | restore private planning context                             | `route_loaded_planning`                             | map + drawer                          |
+
+## Recovery-specific transitions
+
+DS-014 already gives you the hard resume contract:
+
+- GPS near saved progress -> one-tap resume
+- GPS materially far -> mismatch prompt, no silent resume
+- GPS unavailable -> still restore context, but don’t invent certainty
+
+That should be treated as immutable behavior, not optional polish.
+
+------
+
+# 6. Surface routing rules
+
+This is where random local decisions go to die.
+
+## 6.1 Routing matrix
+
+| Info / need                         | First surface                         | Second surface        | Never first during motion |
+| ----------------------------------- | ------------------------------------- | --------------------- | ------------------------- |
+| live position / off-route state     | map                                   | lantern               | drawer                    |
+| push pace / cutoff / required speed | ride tile                             | lantern               | drawer                    |
+| synthesized ride attention state    | lantern                               | tile                  | modal                     |
+| upcoming cue / turn                 | map + tile                            | caption               | drawer                    |
+| hazard ahead                        | map highlight + lantern               | tile                  | modal unless blocking     |
+| score explanation                   | drawer                                | review surface        | lantern                   |
+| score confidence / missing-data     | chip/tile badge                       | review drawer         | blocking modal            |
+| stale analysis / stale window       | chip -> prompt only if action blocked | drawer                | repeated toast            |
+| stop planning / stop editing        | drawer                                | map                   | modal                     |
+| stop skipped                        | tile/caption                          | drawer                | full-page review          |
+| resume mismatch                     | blocking overlay/modal                | map                   | passive chip              |
+| approaching window boundary         | caption or tile chip                  | drawer                | modal                     |
+| public share invitation             | review surface / public page          | drawer                | active ride prompt        |
+| structured note request             | caption -> sheet at stop              | review surface        | forced modal in motion    |
+| diagnostics                         | debug drawer                          | review diagnostic tab | rider-facing lantern      |
+
+## 6.2 Surface routing laws
+
+1. **Map owns spatial truth**
+    Location, route progress, segment highlights, hazards, off-route, and window boundaries start on the map.
+2. **Lantern owns synthesis**
+    One sentence of rider-state meaning. Not data soup.
+3. **Tiles own execution**
+    Pace, constraint gap, next stop/window/cue, immediate route-intelligence snippets.
+4. **Drawers own explanation and edit**
+    If the rider needs to understand *why* or *change something*, that belongs in a drawer or review surface.
+5. **Captions own calm context**
+    Useful, non-blocking, low-friction context.
+6. **Modals own blocked decisions only**
+    Mismatch, destructive actions, impossible-to-continue ambiguity.
+7. **Public page owns durable sharing**
+    Not live ride state, not private stop plan, not debug.
+
+------
+
+# 7. Prompt and caption policy
+
+## 7.1 Prompt tiers
+
+| Tier       | Meaning                                                      | Examples                                     |
+| ---------- | ------------------------------------------------------------ | -------------------------------------------- |
+| `blocking` | rider must choose before the system can proceed safely/coherently | resume mismatch                              |
+| `urgent`   | action materially affects execution now                      | severe cutoff drift, unusable next window    |
+| `elevated` | rider should act soon, but ride can continue                 | stop skipped, approaching boundary with risk |
+| `passive`  | informational, calm                                          | share CTA, confidence chip, heads-up caption |
+
+Only one `blocking` prompt may exist at a time.
+
+## 7.2 Launch prompt table
+
+| Prompt / caption                    | Fires when                                                   | Must not fire when                                           | Tone                           | Urgency                                | Suppress / repeat                                 | Dismissal                                   | Follow-up                                  |
+| ----------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------ | -------------------------------------- | ------------------------------------------------- | ------------------------------------------- | ------------------------------------------ |
+| **Resume mismatch**                 | open expedition + current GPS materially far from last confirmed route progress | GPS unavailable; no open expedition                          | direct, factual                | blocking                               | persists until resolved; no stack                 | no blind dismiss; choose path               | resume saved point / reposition / planning |
+| **Stop skipped**                    | planned stop/control passed beyond tolerance without confirmation | stop optional; rider in complex high-attention nav moment; mismatch unresolved | calm, matter-of-fact           | elevated                               | once per stop unless rider changes status         | `mark skipped`, `still stopping`, `later`   | update stop plan and remaining stop budget |
+| **Push drift / behind plan**        | projected finish or key checkpoint slips beyond configured plan threshold | no rider plan exists; within first warm-up window; drift unchanged since recent snooze | prescriptive, transparent      | passive -> urgent by severity          | repeat only on escalation tier or cooldown expiry | snooze to next stop/break or timed cooldown | open push guidance drawer                  |
+| **Approaching window boundary**     | `detail_mode='windowed'` and boundary/preload threshold crossed | full mode; next boundary already acknowledged and status unchanged | heads-up                       | passive if next ready; elevated if not | once per boundary unless readiness changes        | dismiss until state changes                 | open window status chip/drawer             |
+| **Stale route/window recovery**     | active or viewed analysis is stale/failed/needs refresh      | rider already accepted same stale state this session and nothing changed | plain, confidence-aware        | passive unless action blocked          | sticky chip, not spammy                           | `use as-is`, `refresh`, `later`             | queue refresh or continue degraded         |
+| **Score confidence / missing-data** | low confidence, missing key inputs, partial analysis         | already visible as same chip and user hasn’t changed context | transparent, not apologetic    | passive                                | persistent badge; no repeated toast               | session-hide only                           | open “why confidence is lower”             |
+| **Speed limit confirmation**        | structured input enabled + recent traversed segment has conflicting/weak speed data + rider in eligible context | rider moving; same corridor recently asked; no route context | brief, observational           | passive                                | corridor + time cooldown                          | `yes`, `no`, `unsure`, `later`              | queue structured observation               |
+| **Shoulder confirmation**           | same pattern as above for shoulder uncertainty               | same exclusions                                              | brief, observational           | passive                                | same corridor + time cooldown                     | same                                        | queue structured observation               |
+| **Caution marker flow**             | rider manually invokes or accepts optional stop-context suggestion | rider moving                                                 | structured, minimal            | passive                                | no auto-repeat                                    | complete / cancel                           | write structured caution marker            |
+| **Public route share prompt**       | owner has fresh-enough route and no active publish flow; usually after ready/review | active motion; stale/failed analysis; already dismissed for this route version | invitational, not growth-hacky | passive                                | once per meaningful route version                 | `not now`                                   | open publish sheet/page                    |
+
+## 7.3 Prompt threshold defaults
+
+These should live in config, not components.
+
+Recommended launch defaults:
+
+- `resume_mismatch_distance_miles`: configurable, conservative
+- `drift_plan_mild_minutes`: 15
+- `drift_plan_severe_minutes`: 30
+- `constraint_drift_urgent_minutes`: 10
+- `stop_skipped_tolerance_miles`: 0.5 or stop-window-based
+- `note_request_cooldown_hours`: 24
+- `note_request_cooldown_miles_same_corridor`: 10
+- `boundary_preload_trigger_miles`: use expedition default (`25`)
+- `stale_chip_only_age_days`: configurable
+- `stale_blocking_age_days_for_share`: configurable
+
+------
+
+# 8. Input request policy
+
+Launch rule: **structured inputs only**. No open-ended Field Notes at launch.
+
+## 8.1 Policy table
+
+| Input                         | Eligibility                                                  | Safety constraints                           | Mode sensitivity                                             | Context sensitivity            | Opt-in only?              | During motion?                               | Initiator surface                              | Store / queue / retry                                        |
+| ----------------------------- | ------------------------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------ | ------------------------------ | ------------------------- | -------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------ |
+| **Speed limit confirmation**  | recent traversed segment with low/conflicting speed confidence | never ask while moving                       | strongest value in `rando` / `road`; valid everywhere        | planning, stop, break, review  | yes                       | no                                           | caption -> sheet, review drawer, admin tool    | write local queue immediately; sync with route context, route mile, lat/lon, point index |
+| **Shoulder confirmation**     | same as above for shoulder uncertainty                       | never ask while moving                       | strongest value in `rando` / `road`; valid everywhere        | planning, stop, break, review  | yes                       | no                                           | caption -> sheet, review drawer                | same queue model                                             |
+| **Structured caution marker** | manual rider action only at launch                           | never allow while moving                     | strongest value in `ultra_endurance` / `rando`; valid everywhere | stop, break, review, planning  | effectively yes           | no                                           | map long-press sheet, break drawer, review CTA | queue structured marker with bounded type/severity/position  |
+| **Stop confirmation**         | active planned stop/control reached within tolerance         | must prefer stopped / near-stopped contexts  | strongest in `rando`; still valid in `ultra_endurance`       | active ride, break             | no if planned stops exist | low-speed or stopped only                    | tile CTA, stop sheet                           | write immediate session state + durable stop event if expedition/push exists |
+| **Stop skipped handling**     | planned stop/control passed without confirmation             | no blocking modal while rider is moving fast | strongest in `rando`; useful in `ultra_endurance`            | active ride -> review fallback | no                        | no blocking; passive only until slow/stopped | tile/caption -> drawer/review                  | update stop status and guidance budgets                      |
+
+## 8.2 Storage contract
+
+Each launch input should capture:
+
+- `canonical_route_id` when available
+   fallback: current route record id
+- `push_id` / `expedition_id` if present
+- `window_index` if windowed
+- `route_mile`
+- `point_index` if known
+- `lat`, `lon`
+- `source_context` (`planning`, `stop`, `break`, `review`)
+- `created_at`
+- `sync_state` (`pending`, `synced`, `failed`)
+- `idempotency_key`
+
+## 8.3 Retry model
+
+- Write locally first
+- Sync in background if online
+- If sync fails, keep pending
+- Surface pending state only in review/debug or subtle owner UI
+- Never hammer rider mid-ride about sync failure unless it blocks a safety-critical transition
+
+------
+
+# 9. Mode-specific policy differences
+
+Shared law first: **same route truth, same Safety Score semantics, same stable/contextual split across all modes.** Only prominence, copy, defaults, and review framing change.
+
+## 9.1 Launch differences
+
+| Dimension           | `rando`                                                 | `ultra_endurance`                                           | `road`                                               |
+| ------------------- | ------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
+| planner framing     | official start/close and control logic are prominent    | push continuity and carry-forward state are prominent       | route analysis and route comparison are prominent    |
+| tile emphasis       | pace vs close, next control/stop, remaining stop budget | push drift, remoteness/light, next window/break, continuity | safety ahead, cue, effort/fatigue, simplified pace   |
+| lantern emphasis    | “on plan / behind plan / close-risk”                    | “stable / drifting / recovery required / boundary risk”     | “clear / caution / hazard ahead”                     |
+| copy style          | brevet-aware, constraint-aware                          | push-aware, continuity-aware                                | route-quality and risk-aware                         |
+| stop logic          | stronger stop/control awareness                         | stronger optional break/sleep reconciliation                | lighter stop behavior unless rider enabled push plan |
+| review emphasis     | stop behavior, cutoff behavior, control timing          | push reconciliation, continuity, drift carry-forward        | route comparison, risk explanation, hazard summary   |
+| public page framing | route + eventish utility if owner wants it              | route + expedition-capable credibility, but no live state   | route-analysis-forward                               |
+| POI default bias*   | resupply/control-first                                  | resupply/sleep/continuity-first                             | lighter convenience/café/water-first                 |
+
+\* Exact POI ordering should be finalized against `PROD-010`, which was not retrieved here.
+
+## 9.2 Hard no-fake-differences rule
+
+Do **not** invent analytical mode differences that change truth.
+ Examples of things mode must **not** do:
+
+- change Safety Score meaning
+- reinterpret the same shoulder differently
+- make stale data acceptable in one mode but not another
+- silently disable expedition logic because the mode is `road`
+
+------
+
+# 10. Audience-role policy differences
+
+| Dimension                   | `user`                             | `power_user`                            | `admin_debug`                                       |
+| --------------------------- | ---------------------------------- | --------------------------------------- | --------------------------------------------------- |
+| default review depth        | `summary` / `standard`             | `standard` / `deep`                     | `diagnostic` available                              |
+| score explanation           | plain-English, bounded             | richer breakdown, “why” depth           | raw diagnostics, contradictions, cache/version data |
+| hazard visibility           | actionable only                    | more surrounding context                | full raw hazard/debug views                         |
+| confidence display          | simple badge and short explanation | badge + why + freshness/version details | raw contributing reasons, thresholds, cache lineage |
+| stale/partial details       | concise explanation                | explicit stale/partial reasons          | full failure reasons and retry state                |
+| prompt logs                 | hidden                             | optional recent prompt history          | full suppression/arbitration log                    |
+| window/expedition internals | mostly hidden                      | status visible                          | full event stream and window states                 |
+| public page tools           | owner-only simple controls         | richer publish controls                 | diagnostics overlay, moderation/admin actions       |
+
+## Audience rule
+
+`admin_debug` is a **privileged overlay**, not a different rider experience.
+ Nothing in admin/debug may leak into normal rider-facing or public-facing defaults.
+
+------
+
+# 11. Public route page policy
+
+Public route pages are launch scope, but they are **durable route pages**, not live ride dashboards. 
+
+## 11.1 Public page states
+
+- `private_unpublished`
+- `owner_preview`
+- `public_fresh`
+- `public_stale`
+- `public_partial`
+- `public_unavailable`
+
+## 11.2 What each viewer sees
+
+### Visitor
+
+Sees:
+
+- route title / description
+- canonical route map
+- stable analysis summary
+- major hazard / caution summary
+- analysis version badge
+- freshness badge
+- confidence badge if not high
+- owner-approved route metadata
+
+Does **not** see:
+
+- live GPS
+- current expedition progress
+- private stop plan
+- push drift
+- unresolved owner prompts
+- admin/debug truth
+
+### Owner
+
+Sees visitor view plus:
+
+- publish/unpublish
+- refresh analysis CTA
+- share link controls
+- “open in planner”
+- owner-only stale/partial warnings
+- optional preview of what is public vs private
+
+### Power user / admin
+
+Sees owner view plus:
+
+- version lineage
+- confidence explanation
+- partial reasons
+- diagnostics overlay (gated)
+
+## 11.3 Shareable vs private
+
+| Data                                      | Default                                                      |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| route geometry                            | shareable                                                    |
+| stable route analysis                     | shareable                                                    |
+| stable hazards summary                    | shareable                                                    |
+| analysis version / freshness / confidence | shareable                                                    |
+| route conditions snapshot                 | shareable only if owner explicitly publishes a dated snapshot |
+| live ride position                        | private                                                      |
+| active push state                         | private                                                      |
+| actual stop behavior                      | private                                                      |
+| admin/debug diagnostics                   | private                                                      |
+
+## 11.4 Public page captions and prompts
+
+- `public_stale`: “Analysis may be outdated.”
+   Owner gets refresh CTA. Visitor gets informational badge only.
+- `public_partial`: “Some sections were analyzed with lower confidence.”
+   Visitor sees badge + short explainer; owner sees refresh CTA.
+- `share_ready`: owner-only passive CTA in planning/review/public preview.
+   Never during active motion.
+
+## 11.5 Owner actions
+
+- publish
+- unpublish
+- refresh analysis
+- open planner
+- regenerate share snapshot
+- choose stable public summary fields
+- view share preview
+
+No public crowd-notes workflow at launch.
+
+------
+
+# 12. Anti-spam / calmness rules
+
+1. **One interruptive prompt at a time.**
+2. **Resume mismatch beats everything.**
+3. **During motion, prefer tile/chip/caption over drawer/modal.**
+4. **Low-value prompts never interrupt active ride.**
+5. **Confidence and freshness warnings default to chips, not popups.**
+6. **Same corridor should not get repeated speed/shoulder asks aggressively.**
+7. **Dismissed prompts only return on material state change or cooldown expiry.**
+8. **Prompt escalation requires actual severity escalation, not just time passing.**
+9. **Public share prompts never fire in motion.**
+10. **Do not show rider-facing debug truth.**
+11. **If a prompt is missed in motion, convert it into break/review work, not repeated harassment.**
+12. **Every prompt must answer three things fast:** why now, what choice exists, what changes next.
+13. **No stacked drawers + modals + captions circus.** One foreground attention channel.
+14. **Calm beats clever.** If a rule is technically smart but rider-noisy, demote it.
+
+------
+
+# 13. State tables
+
+## 13.1 Runtime behavior matrix
+
+| State                 | Trigger                        | Guard                       | Action                                     | Surface                         | Next state                          |
+| --------------------- | ------------------------------ | --------------------------- | ------------------------------------------ | ------------------------------- | ----------------------------------- |
+| `no_route_loaded`     | user opens/imports/draws route | route valid                 | create route context                       | map + acquisition controls      | `planning.unanalyzed`               |
+| `planning.unanalyzed` | analyze tapped                 | route valid                 | start analysis, clear stale prompts        | map + analysis progress         | `analyzing`                         |
+| `analyzing`           | analysis complete              | fresh enough                | persist metadata, compute badges           | map + drawer                    | `ready.fresh`                       |
+| `analyzing`           | analysis complete              | usable but incomplete       | persist partial + confidence               | map + chip + review             | `ready.partial`                     |
+| `analyzing`           | analysis failed                | none                        | surface retry/recovery                     | map + drawer                    | `failed.analysis`                   |
+| `ready.*`             | push plan saved                | none                        | persist plan/expedition                    | planner / review                | `armed`                             |
+| `armed`               | ride started                   | route usable                | write start event, initialize ride profile | map + lantern + tiles           | `active_ride`                       |
+| `active_ride`         | drift threshold crossed        | plan exists                 | update guidance state                      | tile + lantern + caption/prompt | `active_ride.drifting`              |
+| `active_ride`         | planned stop reached           | stop exists                 | expose stop confirmation CTA               | tile + stop sheet               | `active_ride.stop_context`          |
+| `active_ride`         | pause detected/manual pause    | none                        | write sparse checkpoint                    | drawer + map                    | `paused_break` or `paused_short`    |
+| `paused_break`        | resume tapped                  | GPS okay or manual override | write resume event                         | map + lantern + tiles           | `active_ride`                       |
+| `resume_pending`      | GPS near saved progress        | open expedition             | offer one-tap resume                       | resume card                     | `resume_eligible`                   |
+| `resume_pending`      | GPS far from saved progress    | open expedition             | block silent resume                        | mismatch overlay                | `resume_mismatch`                   |
+| `active_ride`         | preload trigger crossed        | windowed mode               | queue next window                          | tile/caption                    | `window.queued`                     |
+| `window.queued`       | next window analyzed           | none                        | mark ready                                 | chip                            | `window.ready`                      |
+| `window.ready`        | boundary crossed               | next window ready           | activate next window                       | map + caption                   | `window.active(next)`               |
+| `active_ride`         | boundary crossed               | next window not ready       | degrade and recover                        | lantern + tile + prompt/chip    | `window.failed_or_stale`            |
+| `active_ride`         | push completed                 | push end reached            | write completion, freeze guidance state    | review surface                  | `review.push`                       |
+| `review.push`         | reconciliation saved           | expedition continues        | update next assumptions                    | review + planner                | `ready` / `expedition_planned_next` |
+| `ready/review`        | owner publishes                | shareable analysis exists   | update public page state                   | public page preview             | `public_page.owner`                 |
+
+## 13.2 Prompt arbitration matrix
+
+| State               | Trigger                 | Guard                      | Action                           | Surface                 | Next state                           |
+| ------------------- | ----------------------- | -------------------------- | -------------------------------- | ----------------------- | ------------------------------------ |
+| `resume_pending`    | mismatch                | GPS materially far         | show blocking mismatch prompt    | overlay/modal           | `resume_mismatch`                    |
+| `active_ride`       | stop passed unconfirmed | stop exists                | show stop-skipped prompt/caption | tile/caption            | `active_ride.stop_resolution_needed` |
+| `active_ride`       | plan drift mild         | plan exists                | passive drift caption            | tile + lantern          | `active_ride.drifting_plan`          |
+| `active_ride`       | constraint drift severe | hard constraint exists     | urgent drift prompt              | lantern + tile + prompt | `active_ride.recovery_required`      |
+| `active_ride`       | boundary near           | windowed mode              | heads-up caption                 | tile/caption            | `active_ride.boundary_heads_up`      |
+| `ready/review`      | low confidence          | confidence below threshold | show sticky chip                 | chip + drawer detail    | `ready.low_confidence`               |
+| `planning/review`   | share eligible          | owner + fresh enough       | passive share CTA                | review/public page      | state unchanged                      |
+| `stop/break/review` | input eligible          | request cooldown clear     | offer structured observation     | caption -> sheet        | state unchanged                      |
+
+------
+
+# 14. Open questions / recommended deferrals
+
+| Item                                                     | Launch call                              | Why                                                          | Blocks MVP?                                    |
+| -------------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------ | ---------------------------------------------- |
+| full Field Notes                                         | defer                                    | launch brief already constrains inputs to structured observations | no                                             |
+| public crowd contributions on route pages                | defer                                    | spam/governance mess on day one                              | no                                             |
+| exact ride computer tile roster from `DS-012`            | finalize before UI build                 | policy can define categories now, but not final tile IDs/order blindly | yes for final Lovable UI, no for policy engine |
+| exact POI category ordering from `PROD-010`              | finalize before mode polish              | mode defaults need taxonomy truth                            | no for core engine                             |
+| exact review surface structure from `PROD-012`           | finalize before review UI build          | policy can define entry points now                           | no for core engine                             |
+| exact push-intelligence copy from `ADR-036` / `PROD-014` | validate before copy freeze              | behavior spec can stand without final copy deck              | no                                             |
+| automatic caution suggestion                             | defer                                    | too noisy before you have good confidence logic              | no                                             |
+| cross-device live session sync                           | defer                                    | DS-014 explicitly keeps this out of v1                       | no                                             |
+| power-based required watts guidance                      | keep hook, hide unless real model exists | don’t fake physiology                                        | no                                             |
+| public live ride sharing                                 | defer                                    | violates calmness/privacy and complicates public-page contract | no                                             |
+| exact drift thresholds                                   | config, not code constants               | needs field tuning                                           | no                                             |
+| exact mismatch tolerance                                 | config, tuned after dogfooding           | route geometry/GPS reality will vary                         | no                                             |
+
+------
+
+# Recommended file/module breakdown
+
+Do this as a clean runtime layer, not as drawer logic with a fancy name.
+
+## Domain / contracts
+
+- `src/lib/experience-policy/axes.ts`
+  - all enums and illegal-coupling rules
+- `src/lib/experience-policy/types.ts`
+  - `ExperienceSnapshot`, `ExperienceDecision`, `PromptDecision`, `SurfaceDecision`
+- `src/lib/experience-policy/config.ts`
+  - thresholds, cooldowns, gating flags
+- `src/lib/experience-policy/mode-profiles.ts`
+  - `rando`, `ultra_endurance`, `road` defaults
+- `src/lib/experience-policy/audience-profiles.ts`
+  - `user`, `power_user`, `admin_debug`
+
+## Runtime orchestration
+
+- `src/lib/experience-policy/runtime-snapshot.ts`
+  - normalize current app/domain state into one snapshot
+- `src/lib/experience-policy/runtime-machine.ts`
+  - compute `runtime_context`, `ride_state`, `analysis_state`, `resume_state`, `guidance_state`
+- `src/lib/experience-policy/resume-policy.ts`
+  - DS-014 resume contract
+  - mismatch detection
+  - one-tap resume vs manual reposition
+- `src/lib/experience-policy/window-policy.ts`
+  - window preload, boundary behavior, stale/failed window handling
+
+## Prompt / caption layer
+
+- `src/lib/experience-policy/prompt-policy.ts`
+  - per-prompt fire/guard/suppress rules
+- `src/lib/experience-policy/prompt-arbiter.ts`
+  - single foreground prompt selection
+  - severity resolution
+  - cooldown handling
+- `src/lib/experience-policy/prompt-history.ts`
+  - suppression ledger / snooze ledger
+
+## Surface routing
+
+- `src/lib/experience-policy/surface-routing.ts`
+  - information-to-surface mapping
+- `src/lib/experience-policy/review-routing.ts`
+  - review entry point selection
+- `src/lib/experience-policy/public-page-policy.ts`
+  - visitor/owner/admin public page badges, prompts, allowed actions
+
+## Input policy
+
+- `src/lib/experience-policy/input-policy.ts`
+  - eligibility rules for speed/shoulder/caution/stop requests
+- `src/lib/experience-policy/input-queue.ts`
+  - local-first queue and sync retry
+
+## UI adapters
+
+- `src/adapters/experience/map-adapter.ts`
+- `src/adapters/experience/lantern-adapter.ts`
+- `src/adapters/experience/tile-adapter.ts`
+- `src/adapters/experience/drawer-adapter.ts`
+- `src/adapters/experience/public-page-adapter.ts`
+
+These adapters should read `ExperienceDecision` and push state into existing UI systems:
+
+- `LayoutContext`
+- `LanternState`
+- `Orb Control Router`
+- `Map Card Store`
+
+They should **not** recompute policy.
+
+## Hook
+
+- `src/hooks/useExperienceRuntime.ts`
+  - one hook to compute snapshot + decision + dispatch adapter outputs
+
+------
+
+# Lovable implementation plan
+
+## First
+
+Build the **policy skeleton** only.
+
+That means:
+
+- enums
+- runtime snapshot
+- runtime machine
+- prompt arbiter
+- surface routing
+- adapter interfaces
+
+Do **not** start with UI polish. Give the app one brain first.
+
+## Second
+
+Wire **expedition/window/resume** behavior to DS-014.
+
+That means:
+
+- durable expedition reads
+- resume eligibility
+- mismatch flow
+- window preload / boundary / stale handling
+
+This is the hardest launch behavior and the one most likely to rot if left local.
+
+## Third
+
+Wire **launch prompts, structured input requests, and public page behavior**.
+
+That means:
+
+- drift
+- stop skipped
+- stale/confidence chips
+- speed/shoulder/caution input eligibility
+- owner share prompts
+- audience-depth differences
+
+Then start deleting local conditional logic from `RouteMap`, drawers, and ride overlays.
+
+That’s the right order. Not because it’s pretty. Because it keeps you from building a haunted house of conditionals and calling it architecture.
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
