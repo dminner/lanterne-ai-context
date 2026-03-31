@@ -3867,3 +3867,587 @@ flowchart TD
     AG --> AK[Visible on map]
 ```
 
+
+---
+
+## Source File: docs/05-product/prod-014-lanterne_push_intelligence - Lovable Prompt.md
+
+> - Build a production-grade **Push Intelligence subsystem** for Lanterne.
+>
+>   This is not a UI feature.
+>   This is a **bounded domain module** that must be clean, testable, and extensible.
+>
+>   ------
+>
+>   # 🔴 Core Objective
+>
+>   Enable riders to:
+>
+>   - plan a push
+>   - execute a push
+>   - track actual vs plan
+>   - project forward outcomes
+>   - receive prescriptive guidance
+>
+>   This system must remain **radically transparent** and must never collapse into a single opaque “ETA.”
+>
+>   ------
+>
+>   # 🔴 Core Design Principle (NON-NEGOTIABLE)
+>
+>   The system must always keep these four layers separate:
+>
+>   1. **Official Constraints**
+>   2. **Rider Plan**
+>   3. **Actual Ride State**
+>   4. **Guidance / Projection**
+>
+>   These must exist as separate typed objects and must never be merged into one combined state.
+>
+>   ------
+>
+>   # 🔴 Architecture Requirements (CRITICAL)
+>
+>   Treat this as an **enterprise-style bounded domain module**.
+>
+>   ## Separation of concerns
+>
+>   - Business logic MUST NOT exist in React components
+>   - Projection math MUST live in pure functions
+>   - Database access MUST be isolated in repositories
+>   - Planner mode and ride mode MUST use the same engine
+>   - No duplication of timing logic across files
+>
+>   ## Required layers
+>
+>   ### 1. Domain Layer (types + contracts)
+>
+>   Defines all core objects:
+>
+>   - Push
+>   - OfficialConstraints
+>   - PushPlan
+>   - PushRunState
+>   - RiderModel
+>   - Stop
+>   - ProjectionOutput
+>
+>   ### 2. Engine Layer (pure logic)
+>
+>   All calculations:
+>
+>   - projection
+>   - required speed
+>   - required watts
+>   - stop budget
+>   - gap calculations
+>
+>   Pure functions only:
+>
+>   - no side effects
+>   - no DB
+>   - no UI
+>
+>   ### 3. Runtime Layer (orchestration)
+>
+>   Handles:
+>
+>   - GPS updates (~15–30 sec cadence)
+>   - event handling
+>   - state transitions
+>   - recalculation triggers
+>
+>   ### 4. Repository Layer
+>
+>   Handles:
+>
+>   - Supabase reads/writes
+>   - push state
+>   - events
+>   - snapshots
+>
+>   No DB calls outside this layer.
+>
+>   ### 5. Adapter Layer
+>
+>   Maps:
+>
+>   - route slices → engine input
+>   - cues → engine input
+>   - rider samples → rider model
+>   - future Strava data → rider samples
+>
+>   ### 6. UI Layer (consumer only)
+>
+>   - renders data
+>   - dispatches actions
+>   - no calculations
+>
+>   ------
+>
+>   # 🔴 Required Folder Structure
+>
+>   ```text
+>   src/lib/push-intelligence/
+>     domain/
+>       types.ts
+>       official-constraints.ts
+>       push-plan.ts
+>       push-state.ts
+>       rider-model.ts
+>       stop.ts
+>       projection.ts
+>   
+>     engine/
+>       project-push.ts
+>       compute-speed.ts
+>       compute-watts.ts
+>       compute-gap.ts
+>       compute-stop-budget.ts
+>   
+>     runtime/
+>       reducer.ts
+>       event-handlers.ts
+>       recalculation-policy.ts
+>   
+>     repos/
+>       pushes-repo.ts
+>       push-plans-repo.ts
+>       push-events-repo.ts
+>       projection-repo.ts
+>   
+>     adapters/
+>       route-adapter.ts
+>       cue-adapter.ts
+>       rider-adapter.ts
+>   
+>     selectors/
+>       get-finish-cushion.ts
+>       get-required-effort.ts
+>       get-stop-budget.ts
+>   
+>     tests/
+>       projection.test.ts
+>       stop-logic.test.ts
+>       reconciliation.test.ts
+>   ```
+>
+>   ------
+>
+>   # 🔴 Core Entities
+>
+>   ## Push
+>
+>   - id
+>   - route_id
+>   - start_mile
+>   - end_mile
+>   - type
+>   - status
+>
+>   ## Official Constraints
+>
+>   - official_start_time
+>   - official_finish_time OR ruleset
+>   - control points (optional)
+>
+>   ## Push Plan (versioned)
+>
+>   - planned_departure_time
+>   - pace_basis (plan / rider_model / hybrid)
+>   - planned_flat_speed
+>   - rider_model_id
+>   - performance_basis_default (last_60_min)
+>
+>   ## Stops
+>
+>   - index
+>   - label
+>   - mile
+>   - planned_duration
+>   - anchor_type
+>
+>   ## Push Run State
+>
+>   - current_mile
+>   - moving_time
+>   - stopped_time
+>   - recent_speed (last 60 min)
+>   - active_stop
+>
+>   ## Projection Output
+>
+>   - finish_eta
+>   - gap_to_plan
+>   - gap_to_cutoff
+>   - required_speed
+>   - required_watts (optional)
+>   - stop_budget
+>   - explanation
+>
+>   ------
+>
+>   # 🔴 Core Logic
+>
+>   ## Projection Engine (PURE FUNCTION)
+>
+>   Inputs:
+>
+>   - route slices (distance + grade)
+>   - rider model
+>   - plan
+>   - actual state
+>   - stops
+>
+>   Steps:
+>
+>   1. Compute baseline speed per segment
+>      - terrain-adjusted
+>      - rider-specific if available
+>   2. Adjust with observed performance
+>      - default: last 60 min
+>   3. Simulate forward
+>      - accumulate time
+>      - inject stop durations
+>   4. Output:
+>      - finish ETA
+>      - cue ETAs
+>      - gap to plan
+>      - gap to cutoff
+>      - required speed
+>      - required watts (if available)
+>      - stop budget
+>
+>   ------
+>
+>   # 🔴 Recalculation Triggers
+>
+>   Recompute ONLY when:
+>
+>   - GPS update (15–30 sec cadence)
+>   - stop start
+>   - stop end
+>   - stop skipped
+>   - plan changed
+>   - ride start
+>   - ride end
+>
+>   DO NOT recompute continuously.
+>
+>   ------
+>
+>   # 🔴 Stop Logic
+>
+>   - detect or confirm stop start
+>   - track stop duration
+>   - on resume → update projections
+>
+>   If rider skips stop:
+>   Prompt:
+>
+>   - move stop forward
+>   - remove stop
+>   - ignore
+>
+>   ------
+>
+>   # 🔴 Rider Model
+>
+>   Rev 1:
+>
+>   Inputs:
+>
+>   - distance
+>   - moving time
+>   - elevation
+>   - optional watts
+>
+>   Outputs:
+>
+>   - flat speed
+>   - terrain slowdown curve
+>
+>   If watts available:
+>
+>   - compute required watts
+>
+>   If not:
+>
+>   - DO NOT fabricate
+>
+>   ------
+>
+>   # 🔴 UI Integration
+>
+>   Expose data as objects:
+>
+>   - finish_cushion
+>   - required_speed
+>   - required_watts
+>   - stop_budget
+>   - next_control_cushion
+>
+>   UI tiles consume these.
+>
+>   Do NOT hardcode UI logic in engine.
+>
+>   ------
+>
+>   # 🔴 Defaults
+>
+>   - performance basis: last 60 min
+>   - primary metric: finish cushion
+>   - fallback: flat speed
+>   - fallback stops: none
+>
+>   ------
+>
+>   # 🔴 Constraints
+>
+>   - All outputs must be explainable
+>   - No hidden blending of plan vs actual
+>   - No fake precision
+>   - Must work with intermittent GPS
+>   - Must degrade gracefully
+>
+>   ------
+>
+>   # 🔴 Quality Bar
+>
+>   - deterministic outputs for same inputs
+>   - unit-testable logic
+>   - no DB calls in components
+>   - no projection logic in UI
+>   - single source of truth per concept
+>
+>   ------
+>
+>   # 🔴 Extensibility (REQUIRED)
+>
+>   Must support future:
+>
+>   - Strava ingestion (rider samples)
+>   - multi-push expedition logic
+>   - power sensor integration
+>   - tile-based UI expansion
+>
+>   These must plug in via adapters, NOT rewrite engine logic.
+>
+>   ------
+>
+>   # 🔴 Deliverables
+>
+>   Implement:
+>
+>   1. database schema integration
+>   2. pure projection engine
+>   3. runtime reducer
+>   4. stop handling logic
+>   5. projection snapshot system
+>   6. clean API for UI consumption
+>
+>   ------
+>
+>   # 🔴 Final Rule
+>
+>   This system must answer:
+>
+>   > “What happens if I keep going like this, and what should I do next?”
+>
+>   Not:
+>
+>   > “What numbers can we show on a screen?”
+
+---
+
+## Source File: docs/05-product/prod-014-lanterne_push_intelligence.md
+
+# PROD-014 — Lanterne Push Intelligence
+
+## Lanterne now understands the ride, not just the route
+
+Lanterne was built to answer a simple question:
+
+**What is this road actually like?**
+
+We broke routes into truth:
+
+- traffic
+- support
+- remoteness
+- surface
+- environmental conditions
+
+That helped riders understand what they were getting into before they left home.
+
+But once the ride begins, a different question takes over:
+
+**Am I still going to make it?**
+
+Until now, no tool has answered that well.
+
+Cycling computers show what already happened:
+
+- speed
+- distance
+- power
+- heart rate
+
+They do not tell you what happens next.
+
+------
+
+## Introducing Push Intelligence
+
+Lanterne now models a ride as a **push**.
+
+A push is a block of execution:
+
+- a 200K
+- a 600K
+- a 1200K
+- a day in a multi-day crossing
+- a “ride until I crack” effort
+
+Instead of treating a ride as one long average, Lanterne now understands:
+
+- what you planned
+- what actually happened
+- what the rules demand
+- what happens next
+
+------
+
+## What Lanterne shows you now
+
+Before the ride:
+
+- When you’ll hit each cue
+- When you’ll finish
+- How much room you have before the cutoff
+- How many stops you can afford
+- How hard you’ll need to ride
+
+During the ride:
+
+- Your projected finish time
+- Your gap to your plan
+- Your gap to the cutoff
+- The pace you need from here
+- The effort you need from here (watts, if you ride with power)
+- How much time you can still afford to stop
+
+After each stop:
+
+- What it cost you
+- Whether it matters
+- What changed
+
+------
+
+## Not just tracking — guidance
+
+Lanterne does not just tell you what is happening.
+
+It tells you what to do.
+
+If you’re slipping:
+
+- how much faster you need to ride
+
+If you’re ahead:
+
+- how much time you can spend
+
+If you’re on the edge:
+
+- whether you need to change the plan
+
+------
+
+## Stops are part of the ride
+
+Stops aren’t noise.
+
+They’re where rides are won or lost.
+
+Lanterne lets you:
+
+- plan stops
+- track them live
+- adjust them on the fly
+
+If you skip a stop:
+
+> “Still planning to stop before the next control?”
+
+If you take too long:
+
+> “That cost you 12 minutes. You’re now 18 minutes behind plan.”
+
+No guessing. No pretending.
+
+------
+
+## Built for how riders actually ride
+
+Some riders think in speed.
+
+Some riders think in watts.
+
+Lanterne supports both.
+
+If you ride with power, you’ll see:
+
+- the effort you need to hold
+- not just the speed you’ll end up with
+
+Because serious riders don’t chase mph.
+They manage effort.
+
+------
+
+## Multi-day rides, finally handled properly
+
+Lanterne doesn’t force you to pretend a 20-day ride is one giant effort.
+
+It breaks rides into pushes.
+
+After each push, it helps you decide:
+
+- Keep the original goal?
+- Tighten the next pushes?
+- Or adjust the plan and be honest about it?
+
+No silent changes. No fake optimism.
+
+------
+
+## Built for the real world
+
+Lanterne works with:
+
+- intermittent GPS
+- imperfect plans
+- missed stops
+- changing conditions
+
+It doesn’t assume perfection.
+
+It shows you the truth, and helps you decide what to do next.
+
+------
+
+## The next step
+
+Lanterne started as route intelligence.
+
+Now it becomes ride intelligence.
+
+Because the question isn’t just:
+
+> “What is this road?”
+
+It’s:
+
+> “What happens if I keep going like this?”

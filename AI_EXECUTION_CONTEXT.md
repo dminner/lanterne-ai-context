@@ -676,7 +676,7 @@ Prevent idea thrash, keep development focused, and make it obvious what is activ
 
 Lock the schema and supporting route-intelligence structure tightly enough that ingestion, analysis, and downstream scoring can stop shifting underneath the product.
 
-​	https://chatgpt.com/g/g-p-69a5a40f6d9c81919302f52ccc4cdd32-lanterne/c/69c7cb36-6418-832f-b4aa-63876cd873d0
+https://chatgpt.com/g/g-p-69a5a40f6d9c81919302f52ccc4cdd32-lanterne/c/69c7cb36-6418-832f-b4aa-63876cd873d0
 
 ### 2. Safety Scoring Model Hardening: DS15 & Lovable Prompt
 
@@ -783,7 +783,8 @@ Current sub-focus:
 Reference thread:
 
 - See bottom section of this doc for remaining steps
-  	
+
+### 5. Cue points formatting - The RWGPS-imported cues flow through as **nativeCues** (type GpxCuePoint[]) into resolveCues(), which outputs them as **cuePoints** — that's what CueMarkerLayer receives as its prop to render the markers on the map.
 
 ------
 
@@ -1653,6 +1654,2245 @@ Front-end work is limited to **Phase 0 only** until:
 - route-analysis input/output contracts are frozen
 
 After that, execute front-end Phases 1 → 4 in order.
+
+
+---
+
+## Source File: docs/04-execution/exec-008-drawer refactor_plan_and_implementation_spec.md
+
+# EXEC-008 — UI/Domain Refactor Program
+
+Status: Draft  
+Owner: Derek Minner  
+Scope: Cross-surface UI architecture refactor for Lanterne  
+Related: Map Visibility System, Push Intelligence, Vault expansion, scoring overhaul, unified drawer architecture
+
+---
+
+## 1. Purpose
+
+This document defines the go-forward refactor program for Lanterne's UI and adjacent domain architecture.
+
+The immediate trigger is the drawer-handle / drawer-shell problem, but the real issue is broader:
+
+- drawer behavior is not unified
+- too much product logic lives inside `RouteMap.tsx` and individual drawers
+- multiple systems that should become first-class domains are still embedded inside UI surfaces
+- upcoming product work will otherwise worsen the architecture rather than improve it
+
+This refactor is therefore not a cosmetic cleanup.
+It is a structural program to:
+
+1. reduce blast radius in the main map surface
+2. centralize product logic by system boundary
+3. make future features land in domain modules rather than drawer-local hacks
+4. enforce consistent motion, sizing, layering, and state ownership across all drawers
+5. create a stable foundation for Vault, Push Intelligence, hazard/POI visibility, and future scoring work
+
+---
+
+## 2. Why this needs to happen now
+
+This is the right moment because every major drawer is about to change anyway:
+
+- **Top drawer**: Vault expansion, including organizations/collections like RUSA, Bikepacking.com, and future curated collections
+- **Right drawer**: Cue Sheet expansion and Push Intelligence / ride-execution systems
+- **Bottom drawer**: hazard / POI / layer visibility refactor
+- **Left drawer**: safety scoring overhaul and future score explanation changes
+
+If these all land into the existing architecture, the main map file and drawer surfaces will become even more coupled and harder to reason about.
+
+The goal of EXEC-008 is to force those changes through clean seams instead of letting each feature deepen the monolith.
+
+---
+
+## 3. Executive decision
+
+Lanterne will move from **drawer-owned feature logic** and **map-surface conditional sprawl** to a model based on:
+
+- centralized domain/state modules
+- shared drawer shell primitives
+- registry/resolver systems for map-visible intelligence
+- drawers as presentation surfaces that consume shared domain data
+- map as a composition/render surface, not the policy brain for the product
+
+In plain English:
+
+- the drawers stop owning the world
+- the map stops being the app's nervous system
+- feature systems become modular and reusable across multiple surfaces
+
+---
+
+## 4. Core refactor principles
+
+### 4.1 Drawers are shells, not feature brains
+
+A drawer should own:
+
+- layout
+- open/closed/peek/full state presentation
+- local UI affordances
+- local scroll and tab state
+
+A drawer should **not** own:
+
+- canonical business data
+- feature truth
+- visibility policy
+- scoring logic
+- cue derivation
+- route collection semantics
+
+### 4.2 RouteMap becomes a renderer/composer
+
+`RouteMap.tsx` should move toward owning:
+
+- map container composition
+- layer mounting
+- event wiring
+- interaction handoff
+
+It should move away from owning:
+
+- visibility rules
+- feature category policy
+- drawer policy
+- domain-specific derivations
+- duplicated feature state
+
+### 4.3 Domain logic lives by future product boundary
+
+The right extraction seams are not "misc helper files." They are future systems:
+
+- Vault
+- Cue Sheet / Route Guidance
+- Push Intelligence
+- Hazard / POI / visibility policy
+- Scoring / score explanation
+- Drawer shell / motion system
+
+### 4.4 One system, many surfaces
+
+If a system is expected to appear in multiple places later, it should not live inside one drawer now.
+
+Examples:
+
+- cue data should not be "owned by the right drawer"
+- map visibility should not be "owned by RouteMap"
+- Vault collections should not be "owned by the top drawer"
+- score explanation should not be "owned by the left drawer"
+
+### 4.5 Registry + resolver over special-case branching
+
+Wherever categories/policies are expanding, use:
+
+- canonical registry/config
+- centralized resolver
+- typed outputs
+
+Do not keep adding `if / else` feature branches inside map and drawer components.
+
+### 4.6 Desktop rails are fixed; map is elastic
+
+Desktop drawers use fixed pixel dimensions.
+The map expands/contracts around them.
+Desktop drawer sizing should not vary with screen percentage except for explicit safety breakpoints.
+
+### 4.7 Mobile interaction is gesture-first
+
+On mobile, drawer shells should support JS-driven gesture behavior with unified snap logic.
+Handles must be physically part of the shell and never separate floating siblings.
+
+---
+
+## 5. Program scope
+
+EXEC-008 includes five parallel refactor tracks.
+
+### Track A — Drawer Shell System
+Build the shared drawer primitive and motion/state model.
+
+### Track B — Vault Domain Extraction
+Move top-drawer route collections and future organizations into a real Vault domain.
+
+### Track C — Cue / Guidance / Push Domain Extraction
+Move cue and ride-execution logic out of the right drawer into shared route-guidance and push-intelligence domains.
+
+### Track D — Map Visibility / Hazard / POI Extraction
+Implement the map visibility system as registry + resolver and remove ad hoc visibility logic from RouteMap and bottom drawer surfaces.
+
+### Track E — Score / Score Explanation Extraction
+Prepare left-drawer scoring overhaul by centralizing score state, explanation payloads, and versioned score presentation contracts.
+
+---
+
+## 6. Target architecture
+
+## 6.1 UI shell layer
+
+Proposed modules:
+
+- `src/ui/drawers/DrawerShell.tsx`
+- `src/ui/drawers/DrawerHandle.tsx`
+- `src/ui/drawers/useDrawerMotion.ts`
+- `src/ui/drawers/drawer-store.ts`
+- `src/ui/drawers/drawer-registry.ts`
+- `src/ui/drawers/drawer-constants.ts`
+
+Responsibilities:
+
+- fixed vs responsive sizing
+- snap points
+- gesture physics
+- shell transforms
+- desktop/mobile behavior
+- attached handles
+- shell layering
+
+## 6.2 Domain layer
+
+Proposed modules:
+
+- `src/domain/vault/*`
+- `src/domain/cues/*`
+- `src/domain/push/*`
+- `src/domain/map-visibility/*`
+- `src/domain/pois/*`
+- `src/domain/hazards/*`
+- `src/domain/scoring/*`
+- `src/domain/route-review/*`
+
+Responsibilities:
+
+- typed data models
+- selectors and derivations
+- canonical payload shaping
+- resolver logic
+- shared state contracts across surfaces
+
+## 6.3 Map composition layer
+
+Proposed modules:
+
+- `src/map/RouteMap.tsx` (reduced)
+- `src/map/layers/*`
+- `src/map/controllers/*`
+- `src/map/selectors/*`
+
+Responsibilities:
+
+- consume resolved layer outputs
+- mount render layers
+- wire map interactions to shared state
+- avoid category policy logic in component branches
+
+## 6.4 Drawer surface layer
+
+Proposed modules:
+
+- `src/features/vault/VaultDrawerView.tsx`
+- `src/features/cues/CueDrawerView.tsx`
+- `src/features/analysis/ScoreDrawerView.tsx`
+- `src/features/map-layers/RouteLayersDrawerView.tsx`
+
+Responsibilities:
+
+- present domain data
+- dispatch UI actions
+- own local tabs/scroll only
+
+---
+
+## 7. Stage plan
+
+## Stage 0 — Inventory and freeze rules
+
+### Goal
+Define ownership before moving code.
+
+### Deliverables
+
+- canonical module ownership map
+- list of existing drawer-owned feature logic to migrate
+- route map responsibility audit
+- no-new-special-cases rule for drawer logic
+
+### Rules
+
+- no new feature-specific drawer hacks while EXEC-008 is active
+- all new work must target its future domain boundary where possible
+
+---
+
+## Stage 1 — Drawer shell foundation
+
+### Goal
+Make detached handles structurally impossible.
+
+### Work
+
+- create unified `DrawerShell`
+- create shared drawer state store
+- create desktop fixed rail sizing tokens
+- implement mobile gesture engine
+- migrate one side drawer first
+- migrate bottom lantern shell
+- remove separate handle movement logic
+
+### Acceptance criteria
+
+- one transform per shell
+- handle lives inside shell
+- no pixel drift
+- no separate bounce behavior
+- desktop drawer dimensions fixed in px
+- map expands/contracts instead
+
+---
+
+## Stage 2 — Extract route guidance / cues from right drawer
+
+### Goal
+Make cues a shared route-guidance domain.
+
+### Work
+
+Create:
+
+- `src/domain/cues/types.ts`
+- `src/domain/cues/selectors.ts`
+- `src/domain/cues/store.ts`
+- `src/domain/cues/derivations.ts`
+- `src/domain/cues/presentation.ts`
+
+Optional paired push modules:
+
+- `src/domain/push/types.ts`
+- `src/domain/push/store.ts`
+- `src/domain/push/selectors.ts`
+
+Move out of right drawer:
+
+- cue sorting/grouping
+- current/next cue derivation
+- route-progress-linked cue state
+- future timing/projection scaffolding
+
+Right drawer becomes:
+
+- cue presentation surface
+- push intelligence presentation surface
+
+Not the place where route guidance truth is authored.
+
+### Why now
+
+Push Intelligence clearly makes ride execution a system, not a drawer-local UI concern.
+
+---
+
+## Stage 3 — Extract hazard / POI / map visibility system from bottom drawer + RouteMap
+
+### Goal
+Implement registry + resolver architecture for map-visible entities.
+
+### Work
+
+Create:
+
+- `src/domain/map-visibility/category-registry.ts`
+- `src/domain/map-visibility/context-resolver.ts`
+- `src/domain/map-visibility/types.ts`
+- `src/domain/map-visibility/presets.ts`
+- `src/domain/map-visibility/suppression.ts`
+- `src/domain/pois/store.ts`
+- `src/domain/hazards/store.ts`
+
+Resolver outputs should include:
+
+- `shouldFetch`
+- `fetchScope`
+- `shouldRender`
+- `renderMode`
+- `aggregateMode`
+- `suppressionReasons`
+
+Move out of bottom drawer / RouteMap:
+
+- ad hoc zoom-dependent visibility logic
+- per-category special casing
+- drawer-local marker logic
+- context logic for browse/plan/review/ride/admin
+
+Bottom drawer becomes:
+
+- a layer control / summary / toggle surface
+- not the owner of category policy
+
+### Why now
+
+The map visibility system is already conceptually defined. It should become executable architecture now rather than a doc that RouteMap ignores.
+
+---
+
+## Stage 4 — Extract Vault domain from top drawer
+
+### Goal
+Support real Vault growth without top-drawer feature sprawl.
+
+### Work
+
+Create:
+
+- `src/domain/vault/types.ts`
+- `src/domain/vault/store.ts`
+- `src/domain/vault/selectors.ts`
+- `src/domain/vault/collections.ts`
+- `src/domain/vault/providers.ts`
+
+Vault model should support:
+
+- native curated collections
+- organizations/providers
+- collection metadata
+- mode-aware filtering
+- route family concepts
+- future provider ingestion
+
+Top drawer becomes:
+
+- browse/open surface for Vault
+- search/filter/switching surface
+
+Not the place where provider semantics are implemented.
+
+### Initial provider examples
+
+- RUSA
+- Bikepacking.com
+- Randonneurs Canada
+- future org-based curated collections
+
+---
+
+## Stage 5 — Extract scoring + score explanation state for left drawer overhaul
+
+### Goal
+Prepare for scoring overhaul without pinning new scoring behavior to left-drawer local state.
+
+### Work
+
+Create:
+
+- `src/domain/scoring/types.ts`
+- `src/domain/scoring/store.ts`
+- `src/domain/scoring/selectors.ts`
+- `src/domain/scoring/explanations.ts`
+- `src/domain/scoring/versioning.ts`
+
+Support:
+
+- score payloads by version
+- explanation cards/sections
+- factor breakdowns
+- confidence/warning payloads
+- future comparison/explanation surfaces outside left drawer
+
+Left drawer becomes:
+
+- score presentation surface
+- explanation surface
+
+Not the owner of score assembly logic.
+
+---
+
+## Stage 6 — Reduce RouteMap to composition surface
+
+### Goal
+Shrink the main file by removing policy and domain logic.
+
+### Work
+
+After Stages 1–5, RouteMap should mostly:
+
+- mount layers
+- consume resolved visibility data
+- consume selected drawer/open state
+- route interactions to shared stores
+- manage map events and composition
+
+Extract remaining clusters such as:
+
+- layer-specific renderers
+- focused marker/entity handling
+- corridor overlays
+- route interaction controllers
+
+### Success definition
+
+The file is smaller because ownership changed, not because helpers were scattered arbitrarily.
+
+---
+
+## 8. Detailed technical boundaries
+
+## 8.1 Drawer state contract
+
+Use typed drawer IDs and shared snap states.
+
+Example:
+
+```ts
+export type DrawerId = 'top' | 'left' | 'right' | 'bottom';
+export type DrawerSnap = 'closed' | 'peek' | 'open' | 'full';
+
+export interface DrawerRuntimeState {
+  id: DrawerId;
+  snap: DrawerSnap;
+  dragging: boolean;
+  measuredSizePx: number;
+  offsetPx: number;
+}
+```
+
+## 8.2 Desktop sizing tokens
+
+```ts
+export const DESKTOP_DRAWER_DIMENSIONS = {
+  leftWidthPx: 360,
+  rightWidthPx: 420,
+  topHeightPx: 88,
+  bottomPeekPx: 92,
+  bottomOpenPx: 340,
+};
+```
+
+Rules:
+
+- desktop drawers use fixed px rails
+- map flexes
+- mobile can use viewport-aware sizing
+
+## 8.3 Cue domain contract
+
+```ts
+export interface RouteCue {
+  id: string;
+  index: number;
+  distanceFromStartM: number;
+  roadName?: string;
+  instruction: string;
+  turnType: string;
+  severity?: 'minor' | 'major';
+}
+
+export interface CueState {
+  cues: RouteCue[];
+  currentCueId?: string;
+  nextCueId?: string;
+  lastPassedCueId?: string;
+}
+```
+
+## 8.4 Push domain contract
+
+```ts
+export interface PushPlan {
+  id: string;
+  routeId: string;
+  pushType: '200k' | '300k' | '400k' | '600k' | '1000k' | '1200k' | 'custom';
+  plannedStartAt?: string;
+  plannedFinishAt?: string;
+}
+
+export interface PushProjection {
+  projectedFinishAt?: string;
+  gapToPlanMin?: number;
+  gapToCutoffMin?: number;
+  requiredMovingSpeedMph?: number;
+  requiredPowerWatts?: number;
+  stopBudgetRemainingMin?: number;
+}
+```
+
+## 8.5 Visibility resolver contract
+
+```ts
+export interface VisibilityDecision {
+  categoryKey: string;
+  shouldFetch: boolean;
+  fetchScope: 'viewport' | 'local_radius' | 'route_corridor' | 'regional_cache';
+  shouldRender: boolean;
+  renderMode: 'hidden' | 'aggregate' | 'marker' | 'threshold_overlay' | 'analysis_only' | 'debug_detail';
+  suppressionReasons: string[];
+}
+```
+
+## 8.6 Vault contract
+
+```ts
+export interface VaultProvider {
+  id: string;
+  slug: string;
+  name: string;
+  type: 'organization' | 'editorial' | 'internal';
+}
+
+export interface VaultCollection {
+  id: string;
+  providerId?: string;
+  slug: string;
+  title: string;
+  mode?: 'road' | 'gravel' | 'mixed';
+  visibility: 'public' | 'private' | 'unlisted';
+}
+```
+
+## 8.7 Score explanation contract
+
+```ts
+export interface ScoreExplanationSection {
+  id: string;
+  title: string;
+  summary: string;
+  severity?: 'info' | 'caution' | 'warning';
+  factors: Array<{
+    key: string;
+    label: string;
+    contribution?: number;
+    explanation?: string;
+  }>;
+}
+```
+
+---
+
+## 9. SQL / schema work
+
+EXEC-008 should keep SQL disciplined.
+Not every extraction needs SQL.
+Only introduce schema where a domain clearly needs persistence or canonical queryability.
+
+## 9.1 Recommended SQL in this phase
+
+### A. Vault provider + collection scaffold
+
+This is worth doing now because Vault is explicitly expanding beyond a simple top-drawer concept.
+
+```sql
+create table if not exists vault_providers (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique,
+  name text not null,
+  provider_type text not null check (provider_type in ('organization', 'editorial', 'internal')),
+  website_url text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists vault_collections (
+  id uuid primary key default gen_random_uuid(),
+  provider_id uuid references vault_providers(id) on delete set null,
+  slug text not null unique,
+  title text not null,
+  description text,
+  mode text check (mode in ('road', 'gravel', 'mixed')),
+  visibility text not null default 'public' check (visibility in ('public', 'private', 'unlisted')),
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_vault_collections_provider_id on vault_collections(provider_id);
+create index if not exists idx_vault_collections_visibility on vault_collections(visibility);
+```
+
+### B. Vault route membership scaffold
+
+```sql
+create table if not exists vault_collection_routes (
+  id uuid primary key default gen_random_uuid(),
+  collection_id uuid not null references vault_collections(id) on delete cascade,
+  canonical_route_id uuid not null references canonical_routes(id) on delete cascade,
+  added_at timestamptz not null default now(),
+  sort_order int not null default 0,
+  unique (collection_id, canonical_route_id)
+);
+
+create index if not exists idx_vault_collection_routes_collection_id on vault_collection_routes(collection_id);
+create index if not exists idx_vault_collection_routes_route_id on vault_collection_routes(canonical_route_id);
+```
+
+### C. Push scaffold
+
+Only do this now if you want persistence to exist immediately rather than keeping push intelligence client-only at first.
+
+```sql
+create table if not exists ride_pushes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  canonical_route_id uuid references canonical_routes(id) on delete set null,
+  route_history_id uuid references route_history(id) on delete set null,
+  push_type text not null,
+  planned_start_at timestamptz,
+  planned_finish_at timestamptz,
+  projected_finish_at timestamptz,
+  status text not null default 'planned' check (status in ('planned', 'active', 'completed', 'abandoned')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_ride_pushes_user_id on ride_pushes(user_id);
+create index if not exists idx_ride_pushes_status on ride_pushes(status);
+```
+
+### D. Optional push stop plan scaffold
+
+```sql
+create table if not exists ride_push_stops (
+  id uuid primary key default gen_random_uuid(),
+  ride_push_id uuid not null references ride_pushes(id) on delete cascade,
+  stop_type text not null,
+  label text,
+  planned_at_distance_m numeric,
+  planned_duration_min numeric,
+  actual_started_at timestamptz,
+  actual_ended_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_ride_push_stops_push_id on ride_push_stops(ride_push_id);
+```
+
+## 9.2 SQL explicitly not required in EXEC-008
+
+Do **not** force schema changes yet for:
+
+- drawer state
+- map visibility resolver
+- cue centralization
+- score explanation centralization
+
+Those should become code/domain refactors first unless a clear persistence requirement emerges.
+
+---
+
+## 10. File and module recommendations
+
+## 10.1 New modules to create
+
+```text
+src/ui/drawers/
+  DrawerShell.tsx
+  DrawerHandle.tsx
+  useDrawerMotion.ts
+  drawer-store.ts
+  drawer-registry.ts
+  drawer-constants.ts
+
+src/domain/vault/
+  types.ts
+  store.ts
+  selectors.ts
+  collections.ts
+  providers.ts
+
+src/domain/cues/
+  types.ts
+  store.ts
+  selectors.ts
+  derivations.ts
+  presentation.ts
+
+src/domain/push/
+  types.ts
+  store.ts
+  selectors.ts
+  projections.ts
+
+src/domain/map-visibility/
+  types.ts
+  category-registry.ts
+  context-resolver.ts
+  presets.ts
+  suppression.ts
+
+src/domain/scoring/
+  types.ts
+  store.ts
+  selectors.ts
+  explanations.ts
+  versioning.ts
+
+src/map/layers/
+  HazardLayer.tsx
+  PoiLayer.tsx
+  CueLayer.tsx
+  RouteOverlayLayer.tsx
+```
+
+## 10.2 Existing files likely to shrink or simplify
+
+- `RouteMap.tsx`
+- bottom drawer files
+- top drawer files
+- cue drawer files
+- score/analysis drawer files
+- ad hoc map layer logic modules
+
+---
+
+## 11. Delivery sequencing recommendation
+
+### Sprint / thread 1
+Drawer shell foundation + desktop fixed rail sizing
+
+### Sprint / thread 2
+Cue domain extraction + right drawer conversion
+
+### Sprint / thread 3
+Map visibility resolver + hazard/POI extraction + bottom drawer conversion
+
+### Sprint / thread 4
+Vault domain extraction + top drawer conversion + SQL rollout
+
+### Sprint / thread 5
+Scoring domain extraction + left drawer conversion + score explanation contracts
+
+### Sprint / thread 6
+RouteMap reduction pass + dead code deletion + test hardening
+
+---
+
+## 12. Testing requirements
+
+### Required code-level tests
+
+- drawer snap resolution logic
+- drawer measurement / breakpoint rules
+- visibility resolver category/context decisions
+- cue selector derivations
+- push projection calculation selectors
+- vault collection/provider selectors
+- score explanation payload shaping
+
+### Required integration smoke paths
+
+- open/close each drawer on desktop
+- swipe each drawer on mobile
+- switch between map contexts without layer drift/regression
+- cue drawer renders from central cue store
+- bottom drawer toggles affect resolver, not local marker hacks
+- top drawer renders provider/collection structure from central domain
+- score drawer renders explanation payloads from central scoring domain
+
+---
+
+## 13. Exit criteria
+
+EXEC-008 is complete when:
+
+1. drawer motion and handle attachment are unified across all drawers
+2. desktop drawers are fixed-size rails
+3. `RouteMap` is no longer the owner of visibility policy
+4. cue data is centrally owned and reusable outside the right drawer
+5. Vault is centrally owned and reusable outside the top drawer
+6. scoring/explanation payloads are centrally owned and reusable outside the left drawer
+7. bottom drawer no longer owns hazard/POI feature truth
+8. the main map file is materially reduced because ownership changed, not because code was shuffled
+9. new feature work lands into domain modules rather than drawer-local hacks
+
+---
+
+## 14. Anti-goals
+
+Do not do the following under the banner of refactoring:
+
+- split files without changing ownership
+- create shallow helper files that still depend on RouteMap state spaghetti
+- move logic into drawers with nicer names
+- invent generic abstractions with no product boundary behind them
+- add SQL for code-only concerns
+
+---
+
+## 15. Practical bottom line
+
+EXEC-008 is the program that turns four upcoming drawer overhauls from a monolith-worsening event into an architecture reset.
+
+Without it:
+- each drawer gets smarter and the system gets dumber
+
+With it:
+- each drawer becomes a clean window into a shared product system
+
+That is the right direction for where Lanterne is headed.
+
+
+
+---
+
+## Source File: docs/04-execution/exec-008-v2-experience_runtime_and_surface_architecture_program.md
+
+# EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
+
+**Status:** Draft v2  
+**Owner:** Derek Minner  
+**Scope:** Master architecture and implementation program for Lanterne’s runtime model, ride surfaces, drawers, review layers, and adjacent domain migrations  
+**Supersedes:** `exec-008-refactor_plan_and_implementation_spec.md`  
+**Related:** DS-012, DS-014, DS-015, ADR-028, ADR-036, PROD-010, PROD-012, PROD-014
+
+---
+
+## 1. Purpose
+
+This document replaces the narrower “drawer refactor” framing with the actual program Lanterne now needs.
+
+The old framing was directionally right but too UI-centric. Lanterne is no longer just dealing with drawer-shell cleanup, RouteMap sprawl, and a few future domain extractions.
+
+The product now clearly spans:
+
+- stable route intelligence
+- narrow but versioned safety scoring
+- review surfaces with audience-aware truth depth
+- ride-time tile and lantern surfaces
+- push-based execution intelligence
+- expedition durability and bounded long-route analysis
+- mode-aware POIs, hazards, and visibility rules
+- future rider-contributed route truth
+- public route surfaces and stronger route history / shareability
+
+The result is a broader architectural need:
+
+> Lanterne requires a shared runtime model with multiple presentation surfaces.
+
+This program exists to ensure that:
+
+1. the map is no longer the app’s god organ
+2. drawers stop owning feature truth
+3. ride mode becomes map-first and runtime-driven
+4. route intelligence and ride intelligence remain separate but composable
+5. push and expedition become durable, legible system concepts
+6. score explanation, review surfaces, POIs, hazards, and cues become centrally owned domains
+7. future growth lands in durable seams instead of spreading conditional logic everywhere
+
+---
+
+## 2. Executive decision
+
+Lanterne will move to an architecture based on:
+
+- a **shared runtime core**
+- a small set of **canonical user-facing modes**
+- a separate **audience role system** for truth depth and admin/debug access
+- **domain-owned feature state** instead of drawer-owned feature logic
+- **surface adapters** for map, drawers, tiles, lantern stack, route pages, and review views
+- **bounded SQL persistence** only where the domain clearly requires durability
+
+In plain English:
+
+- the runtime owns the truth
+- the domains shape the truth
+- the surfaces present the truth
+- the map renders and composes
+- the drawers inspect and control
+- the bike-computer UI becomes the central active-ride access point
+
+---
+
+## 3. Product posture and launch stance
+
+### 3.1 Active ride center of gravity
+
+During an active ride, the primary surface is:
+
+- map
+- lantern stack
+- ride computer tiles
+- push-derived ride intelligence
+
+Drawers are secondary deep-dive surfaces while riding.
+
+During planning, breaks, and review, drawers may become primary exploration surfaces.
+
+### 3.2 Launch visible modes
+
+Lanterne launches with two primary visible modes:
+
+- `rando`
+- `ultra_endurance`
+
+Optional future quiet fallback:
+
+- `road`
+
+Important:
+
+- mode is a presentation and defaults system
+- mode is **not** ride structure truth
+- mode does **not** determine whether a ride is a single push or an expedition
+
+### 3.3 Audience role is distinct from mode
+
+Audience role is a system/internal axis, not a rider-facing toggle.
+
+Expected roles:
+
+- `user`
+- `power_user`
+- `admin_debug`
+
+Mode is rider-facing.
+Role is system-facing.
+
+### 3.4 Vault vs History
+
+- **Vault** remains curated
+- **History** remains personal
+- public route pages / stable route URLs become a separate route-library/public-surface track, not part of Vault
+
+---
+
+## 4. Core architectural principles
+
+### 4.1 Runtime first, surface second
+
+The application’s durable architecture starts with the runtime model, not with drawers.
+
+### 4.2 One truth, many surfaces
+
+Any domain expected to appear in multiple places must not be authored inside one drawer or one map file.
+
+### 4.3 Route intelligence and ride intelligence remain separate
+
+Route intelligence explains what the road is.
+Ride intelligence explains what the ride becomes.
+
+These systems must compose, not collapse into one mushy model.
+
+### 4.4 Push and expedition are structure, not mode
+
+- a push is a first-class execution unit
+- an expedition is a durable journey container that may contain one or more pushes
+- a push may stand alone without an expedition
+- mode never acts as SQL truth for journey structure
+
+### 4.5 Audience controls truth depth
+
+The same internal observation, score, or hazard pattern may surface differently for:
+
+- riders
+- power users / curators
+- admins / developers
+
+### 4.6 Registry and resolver over branching sprawl
+
+Where categories, defaults, visibility, or explanation behavior expand, use:
+
+- canonical registries
+- typed contracts
+- centralized resolvers
+
+### 4.7 SQL only when durability matters
+
+Not every extraction deserves schema work.
+Only persistent identity, progress, preferences, library records, and durable domain truth should go into SQL.
+
+### 4.8 Architecture must stay elastic
+
+The app should feel bespoke for randos at launch without hard-coding randonneuring into every artery.
+
+---
+
+## 5. Canonical axes of the system
+
+Lanterne should explicitly model these as separate axes.
+
+### 5.1 Mode
+
+User-facing presentation and defaults profile.
+
+Launch canonical IDs:
+
+- `rando`
+- `ultra_endurance`
+- `road` (supported centrally, optional/quiet in product at launch)
+
+Mode may affect:
+
+- POI defaults
+- tile defaults
+- copy emphasis
+- ride intelligence emphasis
+- review emphasis
+- visibility presets
+- Vault filtering where relevant
+
+### 5.2 Audience role
+
+System/internal truth-depth axis.
+
+Canonical IDs:
+
+- `user`
+- `power_user`
+- `admin_debug`
+
+Audience may affect:
+
+- review item visibility
+- explanation depth
+- hidden hazard visibility
+- admin diagnostics
+- internal contradictions and provenance rendering
+
+### 5.3 Structure
+
+Ride organization choice.
+
+Canonical IDs:
+
+- `single_push`
+- `expedition`
+
+### 5.4 Runtime units
+
+Canonical durable/runtime concepts:
+
+- `route_session`
+- `ride_runtime`
+- `push`
+- `expedition`
+- `expedition_push_membership`
+
+---
+
+## 6. Target runtime architecture
+
+## 6.1 Runtime core
+
+Proposed runtime modules:
+
+```text
+src/runtime/
+  mode/
+    mode-types.ts
+    mode-registry.ts
+    mode-defaults.ts
+
+  audience/
+    audience-types.ts
+    audience-resolver.ts
+
+  route-session/
+    route-session-types.ts
+    route-session-store.ts
+    route-session-selectors.ts
+    reset-route-session.ts
+
+  ride-runtime/
+    ride-runtime-types.ts
+    ride-runtime-store.ts
+    ride-runtime-selectors.ts
+    ride-runtime-persistence.ts
+
+  expedition/
+    expedition-types.ts
+    expedition-store.ts
+    expedition-selectors.ts
+
+  push/
+    push-types.ts
+    push-store.ts
+    push-selectors.ts
+    push-projections.ts
+
+  observations/
+    observation-types.ts
+    observation-store.ts
+    observation-policy.ts
+    observation-selectors.ts
+```
+
+Responsibilities:
+
+- hold current route session state
+- own active mode and audience role
+- own ride-time runtime state
+- own push and expedition runtime state
+- define reset/orchestration boundaries
+- provide derived signals to surfaces
+
+## 6.2 Domain layer
+
+```text
+src/domain/
+  vault/
+  history/
+  route-library/
+  cues/
+  push/
+  expedition/
+  map-visibility/
+  pois/
+  hazards/
+  scoring/
+  review/
+  observations/
+```
+
+Responsibilities:
+
+- canonical data contracts
+- selectors and derivations
+- registry/resolver logic
+- surface-ready payload shaping
+- versioning where needed
+
+## 6.3 Surface layer
+
+```text
+src/ui/
+  drawers/
+  lantern/
+  tiles/
+  review/
+  route-pages/
+```
+
+Responsibilities:
+
+- shell behavior
+- gestures and motion
+- local tabs/scroll
+- presentation only
+
+## 6.4 Map composition layer
+
+```text
+src/map/
+  RouteMap.tsx
+  layers/
+  controllers/
+  selectors/
+  interactions/
+```
+
+Responsibilities:
+
+- mount layers
+- compose outputs from domain/runtime selectors
+- route interactions to shared stores
+- avoid owning policy truth
+
+---
+
+## 7. Key runtime contracts
+
+## 7.1 Route session
+
+Purpose:
+
+- current route in memory
+- provenance
+- analysis session state
+- route review state
+- route-scoped caches and attachments
+
+Minimum contract:
+
+```ts
+interface RouteSession {
+  routeId?: string;
+  canonicalRouteId?: string;
+  routeHistoryId?: string;
+  provenance: RouteProvenance;
+  structure: 'single_push' | 'expedition';
+  mode: 'rando' | 'ultra_endurance' | 'road';
+  scoreModelVersion?: string;
+  analysisStatus: 'idle' | 'loading' | 'analyzing' | 'done' | 'failed' | 'partial';
+}
+```
+
+## 7.2 Ride runtime
+
+Purpose:
+
+- current ride-time operational state
+- map-first active ride data
+- tile-facing and lantern-facing live signals
+
+Minimum contract:
+
+```ts
+interface RideRuntime {
+  active: boolean;
+  routeSessionId?: string;
+  mode: 'rando' | 'ultra_endurance' | 'road';
+  currentRouteMile?: number;
+  activeWindowIndex?: number;
+  gpsStatus: 'unknown' | 'searching' | 'ready' | 'lost';
+  runtimeStatus: 'planning' | 'riding' | 'paused' | 'reviewing';
+}
+```
+
+## 7.3 Push
+
+Purpose:
+
+- bounded execution block
+- can stand alone or belong to expedition
+- first-class in code and persistence
+
+Minimum contract:
+
+```ts
+interface Push {
+  id: string;
+  canonicalRouteId?: string;
+  routeHistoryId?: string;
+  expeditionId?: string;
+  mode: 'rando' | 'ultra_endurance' | 'road';
+  pushType: 'custom' | '200k' | '300k' | '400k' | '600k' | '1000k' | '1200k' | 'other';
+  structure: 'standalone' | 'expedition_member';
+  status: 'planned' | 'active' | 'paused' | 'completed' | 'abandoned';
+}
+```
+
+## 7.4 Expedition
+
+Purpose:
+
+- durable multi-push journey container
+- source of truth for multi-day continuity
+
+Minimum contract:
+
+```ts
+interface Expedition {
+  id: string;
+  canonicalRouteId?: string;
+  routeHistoryId?: string;
+  status: 'planned' | 'active' | 'paused' | 'completed' | 'abandoned';
+  activePushId?: string;
+  activeWindowIndex?: number;
+}
+```
+
+## 7.5 Observations
+
+Purpose:
+
+- constrained rider-contributed route truth
+- not full open-ended field notes yet
+
+Rider-facing launch label:
+
+- **Pre-Ride Notes**
+
+Internal domain name:
+
+- `observations`
+
+Launch observation classes:
+
+- speed limit confirmation
+- shoulder class confirmation
+- structured caution marker
+
+Future sibling system:
+
+- Field Notes
+
+---
+
+## 8. Surface architecture
+
+## 8.1 Drawer shell system
+
+Drawers become shared shells with:
+
+- fixed desktop rails
+- gesture-first mobile behavior
+- one transform per shell
+- attached handles
+- unified snap logic
+
+Proposed modules:
+
+```text
+src/ui/drawers/
+  DrawerShell.tsx
+  DrawerHandle.tsx
+  useDrawerMotion.ts
+  drawer-store.ts
+  drawer-registry.ts
+  drawer-constants.ts
+```
+
+## 8.2 Ride computer tile system
+
+Tiles are not decorative.
+They become a central ride-time access surface fed by shared runtime and domain selectors.
+
+Proposed modules:
+
+```text
+src/ui/tiles/
+  TileShell.tsx
+  RideComputerGrid.tsx
+  tile-registry.ts
+  tile-selectors.ts
+  tile-persistence.ts
+```
+
+Tile inputs may come from:
+
+- ride runtime
+- push projections
+- cues
+- route progress
+- navigation
+- future environmental overlays
+
+## 8.3 Lantern stack
+
+The lantern remains the global ride-time controller and fast state-clearing / overlay-control surface.
+It must not become a dumping ground for domain logic.
+
+## 8.4 Review surfaces
+
+Review surfaces become audience-aware adapters over shared review/scoring/hazard truth.
+
+Expected families:
+
+- rider review
+- power-user review
+- admin/debug review
+
+## 8.5 Public route surfaces
+
+Add a separate route-page/public-surface layer for:
+
+- stable route URLs
+- route-page rendering
+- score version disclosure
+- shareable public route previews
+- route review and route metadata rendering
+
+---
+
+## 9. Domain programs
+
+## 9.1 Cues / guidance
+
+Goal:
+
+- move cue truth out of the right drawer
+- make cues available to drawer, map, tiles, and future route pages
+
+Modules:
+
+```text
+src/domain/cues/
+  types.ts
+  store.ts
+  selectors.ts
+  derivations.ts
+  presentation.ts
+```
+
+## 9.2 Push
+
+Goal:
+
+- make push first-class in code and persistence
+- expose projections to ride tiles, drawers, and future summaries
+
+Modules:
+
+```text
+src/domain/push/
+  types.ts
+  store.ts
+  selectors.ts
+  projections.ts
+  presentation.ts
+```
+
+## 9.3 Expedition
+
+Goal:
+
+- preserve durable multi-day continuity
+- support bounded windows and resume logic
+
+Modules:
+
+```text
+src/domain/expedition/
+  types.ts
+  store.ts
+  selectors.ts
+  windows.ts
+  resume.ts
+```
+
+## 9.4 Map visibility / hazards / POIs
+
+Goal:
+
+- unify registry + resolver architecture
+- respect mode and audience
+- separate policy from rendering
+
+Modules:
+
+```text
+src/domain/map-visibility/
+  types.ts
+  category-registry.ts
+  context-resolver.ts
+  mode-defaults.ts
+  audience-rules.ts
+  suppression.ts
+
+src/domain/pois/
+  types.ts
+  store.ts
+  registry.ts
+  preferences.ts
+
+src/domain/hazards/
+  types.ts
+  store.ts
+  selectors.ts
+```
+
+## 9.5 Scoring / explanations
+
+Goal:
+
+- keep score assembly, versioning, and explanation contracts out of the left drawer
+- support multiple score versions concurrently
+
+Modules:
+
+```text
+src/domain/scoring/
+  types.ts
+  store.ts
+  selectors.ts
+  explanations.ts
+  versioning.ts
+  confidence.ts
+```
+
+## 9.6 Vault
+
+Goal:
+
+- keep curated collections separate from personal history
+- support providers, organizations, and collection metadata
+
+Modules:
+
+```text
+src/domain/vault/
+  types.ts
+  store.ts
+  selectors.ts
+  collections.ts
+  providers.ts
+```
+
+## 9.7 History / route library / route pages
+
+Goal:
+
+- make personal route history durable and searchable
+- support stable route URLs and public route pages
+- keep personal history separate from curated Vault
+
+Modules:
+
+```text
+src/domain/history/
+  types.ts
+  store.ts
+  selectors.ts
+  search.ts
+
+src/domain/route-library/
+  route-page-types.ts
+  route-page-selectors.ts
+  route-share.ts
+```
+
+## 9.8 Observations / Pre-Ride Notes
+
+Goal:
+
+- future-proof rider truth capture without shipping full Field Notes yet
+- support model correction and structured caution markers
+
+Modules:
+
+```text
+src/domain/observations/
+  types.ts
+  store.ts
+  selectors.ts
+  capture-policy.ts
+  confidence.ts
+  presentation.ts
+```
+
+Launch classes:
+
+- `speed_limit_confirmation`
+- `shoulder_class_confirmation`
+- `structured_caution_marker`
+
+---
+
+## 10. SQL program and sequencing
+
+This sequence is the go-forward order.
+
+## Phase SQL-0 — No-regret groundwork
+
+Do now only if missing:
+
+- ensure new work can reference `canonical_route_id`
+- retain `route_history_id` only as compatibility / provenance linkage where needed
+
+## Phase SQL-1 — Vault scaffold
+
+```sql
+create table if not exists vault_providers (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique,
+  name text not null,
+  provider_type text not null check (provider_type in ('organization', 'editorial', 'internal')),
+  website_url text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists vault_collections (
+  id uuid primary key default gen_random_uuid(),
+  provider_id uuid references vault_providers(id) on delete set null,
+  slug text not null unique,
+  title text not null,
+  description text,
+  mode text check (mode in ('road', 'rando', 'ultra_endurance')),
+  visibility text not null default 'public' check (visibility in ('public', 'private', 'unlisted')),
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists vault_collection_routes (
+  id uuid primary key default gen_random_uuid(),
+  collection_id uuid not null references vault_collections(id) on delete cascade,
+  canonical_route_id uuid not null references canonical_routes(id) on delete cascade,
+  added_at timestamptz not null default now(),
+  sort_order int not null default 0,
+  unique (collection_id, canonical_route_id)
+);
+```
+
+## Phase SQL-2 — Mode-aware user preferences
+
+```sql
+create table if not exists user_poi_preferences (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
+  subcategory_id text not null,
+  enabled boolean not null,
+  updated_at timestamptz not null default now(),
+  unique (user_id, mode_id, subcategory_id)
+);
+
+create table if not exists user_ride_tile_preferences (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
+  layout_json jsonb not null,
+  updated_at timestamptz not null default now(),
+  unique (user_id, mode_id)
+);
+```
+
+## Phase SQL-3 — Push scaffold
+
+```sql
+create table if not exists ride_pushes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  canonical_route_id uuid references canonical_routes(id) on delete set null,
+  route_history_id uuid references route_history(id) on delete set null,
+  expedition_id uuid,
+  push_type text not null,
+  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
+  structure_type text not null check (structure_type in ('standalone', 'expedition_member')),
+  planned_start_at timestamptz,
+  planned_finish_at timestamptz,
+  projected_finish_at timestamptz,
+  status text not null default 'planned' check (status in ('planned', 'active', 'paused', 'completed', 'abandoned')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+## Phase SQL-4 — Expedition revision
+
+Revise expedition persistence so new records are architecturally centered on `canonical_route_id`, with `route_history_id` retained only where compatibility is still needed.
+
+If replacing DS-014 tables is too risky immediately, add forward-compatible columns first, then migrate writes.
+
+## Phase SQL-5 — Route library / public surface scaffold
+
+```sql
+create table if not exists public_route_pages (
+  id uuid primary key default gen_random_uuid(),
+  canonical_route_id uuid not null references canonical_routes(id) on delete cascade,
+  slug text not null unique,
+  visibility text not null default 'private' check (visibility in ('private', 'unlisted', 'public')),
+  title text,
+  summary text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (canonical_route_id)
+);
+```
+
+## Phase SQL-6 — Observations / Pre-Ride Notes scaffold
+
+```sql
+create table if not exists rider_observations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  canonical_route_id uuid references canonical_routes(id) on delete cascade,
+  route_history_id uuid references route_history(id) on delete set null,
+  observation_type text not null check (
+    observation_type in (
+      'speed_limit_confirmation',
+      'shoulder_class_confirmation',
+      'structured_caution_marker'
+    )
+  ),
+  route_mile numeric,
+  point_index integer,
+  lat numeric,
+  lon numeric,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+```
+
+### SQL explicitly deferred
+
+Do **not** introduce schema yet for:
+
+- drawer runtime
+- visibility resolver internals
+- cue centralization itself
+- score explanation shaping itself
+- full open-ended field-note comments
+- media attachments for observations
+
+---
+
+## 11. Execution programs
+
+This architecture is too large to execute as one blob.
+It should be run as three linked programs.
+
+## Program A — Runtime foundation
+
+Goal:
+
+- define the central contracts before surface refactor work deepens
+
+Includes:
+
+- canonical mode system
+- audience role system
+- route session contracts
+- ride runtime contracts
+- push / expedition relationship
+- resetRouteSession orchestration
+- persistence boundaries
+
+### Deliverables
+
+- `src/runtime/*` baseline
+- canonical mode registry
+- audience resolver
+- route session + ride runtime contracts
+- push + expedition contracts
+- migration note for canonical route centering
+
+## Program B — Surface architecture
+
+Goal:
+
+- make the UI consume shared truth instead of authoring it
+
+Includes:
+
+- drawer shell system
+- tile system integration
+- lantern stack cleanup
+- RouteMap reduction
+- review surfaces
+- route pages/public route surfaces
+
+### Deliverables
+
+- shared drawer shell primitives
+- tile registry/selectors
+- map composition cleanup
+- audience-aware review surfaces
+- route page surface contract
+
+## Program C — Domain migrations
+
+Goal:
+
+- move feature truth into durable domains
+
+Includes:
+
+- cues/guidance
+- push
+- expedition
+- map visibility
+- POIs/hazards
+- scoring/explanations
+- Vault
+- history / route library
+- observations / Pre-Ride Notes
+
+### Deliverables
+
+- domain-owned stores/selectors/contracts
+- versioned explanation payloads
+- mode-aware defaults
+- public-vs-curated route separation
+
+---
+
+## 12. Recommended phase order
+
+## Phase 0 — Freeze contracts and baseline harness
+
+Do before deep movement:
+
+- preserve/refine smoke tests and perf instrumentation
+- freeze canonical runtime contracts
+- freeze route-analysis boundaries where possible
+- document no-shadow-mode and no-drawer-owned-truth rules
+
+## Phase 1 — Runtime foundation
+
+- canonical mode system
+- audience role system
+- route session
+- ride runtime
+- push / expedition contracts
+- reset path
+
+## Phase 2 — Drawer shell + tile runtime
+
+- shared drawer shells
+- tile registry and persistence
+- lantern stack cleanup
+- one pilot drawer migration
+
+## Phase 3 — Domain migrations I
+
+- cues / guidance
+- push
+- expedition
+- map visibility
+
+## Phase 4 — Domain migrations II
+
+- POIs / hazards
+- scoring / explanations
+- Vault
+- history / route library
+
+## Phase 5 — RouteMap reduction + review surfaces
+
+- RouteMap becomes composition surface
+- audience-aware review surfaces
+- route page surface
+
+## Phase 6 — Observations / Pre-Ride Notes
+
+- constrained rider truth capture
+- model correction capture policy
+- structured caution markers
+- later bridge to Field Notes
+
+---
+
+## 13. Sequenced Lovable prompts
+
+These are the prompts to run in order. They are intentionally narrow and phase-scoped.
+
+## Prompt 1 — Runtime foundation scaffolding
+
+```text
+You are implementing Program A of EXEC-008 v2 for Lanterne.
+
+Read first:
+- exec-008-v2-experience-runtime-and-surface-architecture-program
+- ds-014-route_expedition_state_and_windowed_analysis_spec.md
+- adr-036-push_based_ride_intelligence.md
+- ds-012-ride_computer_tile_system_spec.md
+- PROJECT_MAP.md
+- DATA_MODEL.md
+- PRODUCT_PRINCIPLES.md
+
+Goal:
+Create the runtime foundation only. Do not refactor drawers yet.
+
+Implement:
+- src/runtime/mode/*
+- src/runtime/audience/*
+- src/runtime/route-session/*
+- src/runtime/ride-runtime/*
+- src/runtime/push/*
+- src/runtime/expedition/*
+
+Hard rules:
+- mode != structure
+- audience role is system-facing, not rider-facing
+- push can stand alone or belong to expedition
+- expedition is the durable parent for multi-push journeys
+- canonical_route_id is the architectural center for new persistence contracts
+- do not invent UI beyond what is necessary to prove the contracts
+
+Return:
+- created files
+- updated type contracts
+- any assumptions and unresolved seams
+```
+
+## Prompt 2 — Drawer shell foundation
+
+```text
+You are implementing the drawer shell program from EXEC-008 v2.
+
+Read first:
+- exec-008-v2-experience-runtime-and-surface-architecture-program
+- current drawer files
+- RouteMap.tsx
+
+Goal:
+Build shared drawer shell primitives and make detached handles structurally impossible.
+
+Implement:
+- src/ui/drawers/DrawerShell.tsx
+- src/ui/drawers/DrawerHandle.tsx
+- src/ui/drawers/useDrawerMotion.ts
+- src/ui/drawers/drawer-store.ts
+- src/ui/drawers/drawer-registry.ts
+- src/ui/drawers/drawer-constants.ts
+
+Hard rules:
+- one transform per shell
+- handles are physically attached to shells
+- desktop uses fixed px rails
+- map expands/contracts around drawers
+- mobile gestures use unified snap logic
+- do not let drawers own domain truth
+
+Return:
+- created files
+- migration approach for first pilot drawer
+- any compatibility shims needed temporarily
+```
+
+## Prompt 3 — Ride tiles and lantern integration
+
+```text
+You are implementing the ride tile integration layer for EXEC-008 v2.
+
+Read first:
+- ds-012-ride_computer_tile_system_spec.md
+- adr-036-push_based_ride_intelligence.md
+- exec-008-v2-experience-runtime-and-surface-architecture-program
+
+Goal:
+Make ride computer tiles a central ride-time presentation surface fed by shared runtime/domain selectors.
+
+Implement:
+- src/ui/tiles/TileShell.tsx
+- src/ui/tiles/RideComputerGrid.tsx
+- src/ui/tiles/tile-registry.ts
+- src/ui/tiles/tile-selectors.ts
+- src/ui/tiles/tile-persistence.ts
+
+Requirements:
+- per-mode defaults
+- durable user layout persistence
+- tiles can consume push-derived signals
+- tiles remain calm and map-first
+- no Garmin clone behavior
+
+Return:
+- created files
+- any local storage or backend persistence assumptions
+- minimal integration plan for current ride mode
+```
+
+## Prompt 4 — Cues and push domain extraction
+
+```text
+You are implementing the cues and push domain extraction program from EXEC-008 v2.
+
+Read first:
+- exec-008-v2-experience-runtime-and-surface-architecture-program
+- adr-036-push_based_ride_intelligence.md
+- existing cue drawer files
+- existing cue derivation logic
+
+Goal:
+Move cue and push truth out of the right drawer and make them reusable by drawers, map, and ride tiles.
+
+Implement:
+- src/domain/cues/*
+- src/domain/push/*
+
+Hard rules:
+- the right drawer becomes a presentation surface only
+- push outputs must be selector-driven and explainable
+- do not collapse official constraints, rider plan, actual ride state, and guidance layer into one opaque ETA
+
+Return:
+- created files
+- migration notes
+- any missing source contracts blocking completion
+```
+
+## Prompt 5 — Map visibility + POI/hazard extraction
+
+```text
+You are implementing the map visibility and stop-system extraction program from EXEC-008 v2.
+
+Read first:
+- exec-008-v2-experience-runtime-and-surface-architecture-program
+- prod-010-poi_categories.md
+- prod-012-review_surfaces.md
+- existing bottom drawer files
+- existing RouteMap.tsx visibility logic
+
+Goal:
+Move visibility policy, POI defaults, and hazard rendering decisions out of RouteMap and the bottom drawer into registry/resolver domains.
+
+Implement:
+- src/domain/map-visibility/*
+- src/domain/pois/*
+- src/domain/hazards/*
+
+Hard rules:
+- use canonical mode IDs
+- respect audience role in truth depth
+- category toggles are convenience UI, not source of truth
+- preserve small rider-facing taxonomy
+- no shadow mode system
+
+Return:
+- created files
+- resolver contract
+- migration notes for current bottom drawer
+```
+
+## Prompt 6 — Scoring and explanation extraction
+
+```text
+You are implementing the scoring domain extraction program from EXEC-008 v2.
+
+Read first:
+- ds-015-safety_scoring_model_v2.md
+- exec-008-v2-experience-runtime-and-surface-architecture-program
+- existing score drawer files
+- existing score explanation/render files
+
+Goal:
+Centralize score payloads, versioning, and explanation contracts so the left drawer becomes a presentation surface only.
+
+Implement:
+- src/domain/scoring/*
+
+Hard rules:
+- support multiple score versions concurrently
+- keep canonical baseline score separate from contextual overlays
+- explanation depth may vary by audience role
+- do not let drawer-local state own score truth
+
+Return:
+- created files
+- versioning strategy
+- migration notes for legacy score payloads
+```
+
+## Prompt 7 — Vault + history + route pages
+
+```text
+You are implementing the Vault, History, and Route Library program from EXEC-008 v2.
+
+Read first:
+- exec-008-v2-experience-runtime-and-surface-architecture-program
+- adr-002-vault-concept.md
+- adr-001-route-acquisition-model.md
+- current history and saved-route files
+
+Goal:
+Keep Vault curated, make History personal and searchable, and establish the contract for stable public route pages.
+
+Implement:
+- src/domain/vault/*
+- src/domain/history/*
+- src/domain/route-library/*
+
+Hard rules:
+- Vault remains curated
+- History remains personal
+- public route pages are a separate surface concern
+- do not merge personal history into Vault
+
+Return:
+- created files
+- route page contract
+- search/share assumptions
+```
+
+## Prompt 8 — Observations / Pre-Ride Notes scaffold
+
+```text
+You are implementing the constrained rider-observation scaffold from EXEC-008 v2.
+
+Read first:
+- exec-008-v2-experience-runtime-and-surface-architecture-program
+- adr-028-field_note_confirmation_model.md
+- ds-015-safety_scoring_model_v2.md
+
+Goal:
+Create the narrow observation system that launches as Pre-Ride Notes, without shipping the full future Field Notes system.
+
+Implement:
+- src/domain/observations/*
+
+Launch scope only:
+- speed_limit_confirmation
+- shoulder_class_confirmation
+- structured_caution_marker
+
+Hard rules:
+- this is not a generic comments system
+- keep inputs structured and high-signal
+- future-proof for confirmations later
+- do not build open-ended rider commentary yet
+
+Return:
+- created files
+- observation payload proposal
+- capture-policy recommendations for active ride UX
+```
+
+---
+
+## 14. Testing and phase gates
+
+### Required code-level tests
+
+- mode registry resolution
+- audience role resolution
+- route session reset behavior
+- drawer snap/state logic
+- tile selector outputs
+- cue derivations
+- push projection selectors
+- visibility resolver decisions
+- POI preference merging
+- score explanation version routing
+
+### Required integration smoke paths
+
+- open/close each drawer on desktop
+- mobile swipe / snap behavior
+- start ride with ride tiles visible
+- cue drawer and ride tiles consume same cue truth
+- score drawer renders from central scoring domain
+- map visibility changes via resolver, not local marker hacks
+- Vault renders curated provider/collection structure
+- history/search route library does not collapse into Vault
+- public route page renders correct score model version
+
+### Required ride-runtime smoke paths
+
+- standalone push launch
+- expedition launch with active window
+- ride resume from durable state
+- tile layout persistence across relaunch
+- POI prefs persist by mode
+- observation capture does not block ride runtime
+
+---
+
+## 15. Exit criteria
+
+EXEC-008 v2 is complete when:
+
+1. the runtime core owns route session, ride runtime, push, and expedition truth
+2. mode and audience role are canonical and reused across systems
+3. drawers are shells, not feature brains
+4. ride tiles are a central active-ride surface fed by shared selectors
+5. RouteMap is materially reduced because ownership changed
+6. score explanation is centrally versioned and not drawer-owned
+7. POI, hazard, and visibility policy are centrally owned and mode-aware
+8. Vault remains curated while History and route pages become stronger separate systems
+9. push is first-class and expedition is the durable multi-push parent
+10. Pre-Ride Notes exist as a constrained observation system without prematurely shipping full Field Notes
+
+---
+
+## 16. Anti-goals
+
+Do not do the following under the banner of this program:
+
+- split files without changing ownership
+- build a second shadow mode system
+- use mode as a proxy for journey structure
+- keep RouteMap as policy brain behind helper-file theater
+- move domain logic from one drawer to another drawer with a nicer name
+- merge Vault and personal history
+- collapse push and expedition into one ambiguous concept
+- ship open-ended note/comment systems too early
+- add SQL for every refactor just because it feels serious
+
+---
+
+## 17. Practical bottom line
+
+This program is the architecture reset that lets Lanterne grow without losing its soul.
+
+It preserves what makes the app feel bespoke for randos while building runtime and domain seams strong enough to support broader ultra-endurance riding later.
+
+If this program is executed well:
+
+- the ride stays map-first
+- the product stays explainable
+- the code stops rotting around the drawers
+- route intelligence and ride intelligence finally live in the same house without sleeping in the same bed
+
 
 
 ---

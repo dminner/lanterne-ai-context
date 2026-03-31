@@ -12541,3 +12541,677 @@ Move to:
 
 > Turn events belong to the route, not the user.
 >  User linkage is optional metadata, not a requirement.
+
+---
+
+## Source File: docs/03-adrs/adr-036-push_based_ride_intelligence.md
+
+# ADR-036 — Push-Based Ride Intelligence
+
+Status: Proposed
+Date: 2026-03-30
+
+Companion ADRs:
+ADR-029 (Ride-Time Situational Awareness Mode)
+ADR-030 (Ride Mode Display, Power, and Sensor Architecture)
+
+Related specs:
+DS-001 (Route Intelligence Pipeline)
+DS-012 (Ride Computer Tile System)
+
+------
+
+## Context
+
+Lanterne currently provides **route intelligence**.
+
+It answers:
+
+- What is this route?
+- How dangerous is it?
+- How remote is it?
+- What conditions will shape it?
+
+However, once a rider begins a ride, a different class of questions emerges:
+
+- Am I still on track?
+- What happens if I keep riding like this?
+- How much time do I have left before I miss the cutoff?
+- What do I need to do right now to stay within my goal?
+
+Existing cycling computers provide instrumentation:
+
+- speed
+- distance
+- power
+- heart rate
+
+They do not provide **forward-looking execution intelligence**.
+
+This creates a gap between:
+
+- understanding a route
+- executing a ride
+
+------
+
+## Decision
+
+Lanterne will introduce a **Push-Based Ride Intelligence system**.
+
+This system models a ride as a sequence of **pushes**, where:
+
+A push is:
+
+> a bounded execution block of riding, typically up to ~1200 km, defined by a start point, end point, and timing constraints.
+
+The push becomes the primary unit for:
+
+- pacing
+- stop planning
+- execution tracking
+- forward projection
+- decision support
+
+------
+
+## Core Model
+
+Each push consists of four distinct layers:
+
+### 1. Official Constraints
+
+These represent reality that does not change:
+
+- official start time (when applicable)
+- official close times or time limits
+- route distance
+- route terrain
+- rule-based adjustments (brevets, ultra events, etc.)
+
+These constraints are **immutable**.
+
+They do not adjust based on rider behavior.
+
+------
+
+### 2. Rider Plan
+
+This represents intent:
+
+- planned moving behavior (speed and/or effort)
+- planned stops (location + duration)
+- optional rider overrides
+- optional terrain-aware assumptions
+
+The plan is:
+
+- editable before and during the ride
+- versioned
+- never silently mutated by the system
+
+------
+
+### 3. Actual Ride State
+
+This represents what has actually happened:
+
+- current route position
+- moving time
+- stopped time
+- recent performance (default: last 60 minutes)
+- confirmed stops
+- skipped stops
+
+This layer is:
+
+- event-driven
+- durable across sessions
+- derived from sparse updates (not continuous logging)
+
+------
+
+### 4. Guidance Layer
+
+This represents forward-looking intelligence:
+
+- projected finish time
+- projected cue/control arrival times
+- gap to plan
+- gap to cutoff
+- required moving speed
+- required average watts (when power data exists)
+- remaining stop budget
+
+This layer is:
+
+- continuously recomputed
+- explicitly derived from the other three layers
+- never treated as a single opaque value
+
+------
+
+## Separation Principle
+
+These four layers must remain separate.
+
+The system must never collapse them into:
+
+> a single “smart ETA”
+
+Every output must be explainable as:
+
+- official reality
+- planned intent
+- actual behavior
+- forward requirement
+
+------
+
+## Rider Model
+
+The system introduces a **rider model**.
+
+The rider model estimates:
+
+- how terrain impacts moving performance
+- optional effort (watts) required for a given outcome
+
+Rev 1 characteristics:
+
+- uses rider-provided sample rides (distance, time, elevation, optional watts)
+- derives a continuous terrain-performance relationship
+- supports both:
+  - speed-based riders
+  - power-based riders
+
+Important constraints:
+
+- no fake precision
+- no inferred watts without actual data
+- all outputs must include confidence
+
+------
+
+## Stop Model
+
+Stops are first-class objects.
+
+Each stop includes:
+
+- location (mile, cue, control, POI)
+- planned duration
+- actual duration (when completed)
+
+System behavior:
+
+- detects or confirms stop start and end
+- updates projections after each stop
+- prompts when planned stops are skipped
+- allows stop relocation or removal
+
+Stops influence:
+
+- elapsed time
+- future projections
+- stop budget calculations
+
+------
+
+## Projection Engine
+
+The projection engine simulates forward from current state.
+
+It:
+
+- uses terrain-aware rider model
+- blends with recent observed performance
+- incorporates planned or actual stops
+- computes arrival times and finish projections
+- evaluates against official constraints
+
+The engine operates on:
+
+- route slices
+- cumulative distance
+- event-driven updates
+
+It does not require:
+
+- continuous GPS tracking
+- second-by-second recomputation
+
+------
+
+## Live Execution Model
+
+Ride mode uses:
+
+- intermittent GPS updates (~15–30 seconds)
+- event-driven recalculation
+
+Recalculation triggers:
+
+- ride start
+- GPS update
+- stop start/end
+- planned stop passed
+- user adjustments
+- push completion
+
+Default live basis:
+
+> last 60 minutes of moving performance
+
+------
+
+## Ride Mode Integration
+
+Push intelligence integrates into the Lantern Stack.
+
+It does not replace the ride computer.
+
+Instead, it provides **data objects** that can be rendered as tiles.
+
+Examples of push-derived signals:
+
+- finish cushion
+- required pace
+- required watts
+- stop budget
+- next control cushion
+
+These are treated as:
+
+> first-class ride-time signals, alongside environmental and navigation signals
+
+This aligns with:
+
+- ADR-029 (situational awareness)
+- ADR-030 (tile-based ride computer architecture)
+
+------
+
+## Expedition Model
+
+An expedition is a sequence of pushes.
+
+Pushes are:
+
+- independently executable
+- linked through shared state
+
+At the end of a push, the system enters a reconciliation moment.
+
+The rider is presented with:
+
+- actual vs planned outcome
+- impact on overall goal
+
+Options include:
+
+- maintain original goal (tighten future pushes)
+- shift goal
+- defer decision
+
+The system must:
+
+- never auto-adjust silently
+- allow optional future push detail levels
+- preserve rider control
+
+------
+
+## Design Principle
+
+Push Intelligence answers:
+
+> “What happens if I keep going like this, and what should I do next?”
+
+Not:
+
+> “What metrics can we display?”
+
+------
+
+## Consequences
+
+Advantages:
+
+- introduces execution intelligence into cycling
+- differentiates from traditional bike computers
+- builds naturally on Lanterne’s existing architecture
+- supports both brevets and expedition riding
+- enables prescriptive guidance
+
+Tradeoffs:
+
+- increases system complexity
+- requires careful UX discipline
+- requires strong separation of concerns to maintain trust
+
+------
+
+## Non-Goals
+
+This ADR does not include:
+
+- full physiological modeling
+- training recommendations
+- calorie or fueling systems
+- full Strava dependency
+- perfect prediction accuracy
+
+------
+
+## Summary
+
+Push-Based Ride Intelligence is the time-domain extension of Lanterne.
+
+Route intelligence answers:
+
+> what the road is
+
+Push intelligence answers:
+
+> what the ride becomes
+
+
+---
+
+## Source File: docs/03-adrs/adr-036b-execution_moments_and_interaction_model.md
+
+## Ride State and Performance Model
+
+Push Intelligence models the rider as a **changing system over time**, not a fixed average.
+
+Performance is not constant across a push.
+It evolves based on:
+- duration
+- terrain
+- stops
+- fueling
+- recovery
+- rider-specific behavior
+
+The system represents this using two layers:
+
+1. **Fatigue curve** (continuous)
+2. **Ride state model** (discrete)
+
+These are internal models that drive projections and guidance.
+They are not directly exposed as raw values.
+
+---
+
+### Fatigue Curve
+
+The fatigue curve represents how performance changes across the push.
+
+It is:
+- anchored to a baseline (plan, rider model, or default)
+- shaped across the duration of the push
+- adjusted by recovery events (stops, rest)
+
+Key characteristics:
+
+- Early push: near-baseline performance
+- Mid push: gradual decline
+- Late push: increased variability and degradation risk
+
+The curve is:
+- simple
+- explainable
+- designed to be replaced by observed data as quickly as possible
+
+It is never treated as precise physiology.
+
+---
+
+### Ride State Model
+
+The ride state model represents the rider’s **current operational condition**.
+
+States:
+
+- Fresh
+- Settling In
+- Settled
+- Fatigued
+- Degraded
+
+These states are:
+
+- dynamic (can move left or right)
+- based on observed behavior vs expected behavior
+- influenced by stops, recovery, and recent performance
+
+They are not strictly distance-based.
+
+---
+
+### State Transitions
+
+The system updates ride state based on:
+
+- sustained deviation from expected pace
+- stop behavior (frequency, duration, recovery quality)
+- recent performance relative to model
+- recovery signals (improved pace after rest or fueling)
+
+Transitions must:
+
+- require sustained evidence (no rapid oscillation)
+- support recovery (movement back toward earlier states)
+- avoid false precision
+
+---
+
+### Recovery
+
+Recovery is explicitly modeled.
+
+After meaningful rest or fueling, the system allows:
+
+- partial return toward earlier states
+- improvement in projected performance
+- narrowing of negative drift
+
+Recovery is:
+
+- inferred from observed behavior
+- optionally reinforced by rider input (future phase)
+
+---
+
+### Instability Detection
+
+The system detects when a rider is no longer behaving like a stable continuation of the push.
+
+This includes:
+
+- sustained underperformance relative to expected pace
+- worsening projections across multiple updates
+- ineffective recovery after stops
+
+When instability is detected:
+
+- projections widen
+- guidance becomes more conditional
+- confidence is reduced
+
+---
+
+### Stop Behavior Model
+
+Stops are part of performance, not noise.
+
+The system models stops as:
+
+- planned (explicit)
+- inferred (observed)
+- prior-based (default when unknown)
+
+Stop behavior influences:
+
+- elapsed time
+- recovery
+- projection accuracy
+
+When no plan exists, the system uses distance-based priors and replaces them with observed behavior as quickly as possible.
+
+---
+
+### Integration with Projection Engine
+
+At any point in the push:
+
+Projected performance is a function of:
+
+- baseline (plan, rider model, or default)
+- fatigue curve position
+- ride state
+- recent observed performance
+- stop behavior
+
+The projection engine uses these to compute:
+
+- arrival times
+- finish time
+- required pace
+- required effort
+
+---
+
+### Design Principle
+
+The system models:
+
+> how the rider is actually evolving over the ride
+
+Not:
+
+> what the rider “should” be doing in theory
+
+
+
+## Execution Moments and Interaction Model (Draft)
+
+Push Intelligence is not continuously conversational.
+
+It does not behave like an assistant that is always speaking.
+It behaves like a system that understands when something meaningful has happened.
+
+Interaction is reserved for **execution moments**.
+
+### Definition
+
+An execution moment is a point in the ride where:
+
+- the rider’s trajectory meaningfully changes, or
+- the rider’s plan diverges from reality, or
+- a decision has material downstream impact
+
+These are the only times Lanterne should:
+- interrupt
+- prompt
+- recommend
+- acknowledge
+
+Outside of these moments, the system should remain quiet and observational.
+
+### Categories of Execution Moments
+
+Execution moments fall into three broad categories:
+
+#### 1. Orientation
+
+Moments where the rider is establishing or recalibrating context.
+
+Examples:
+- push start
+- early ride (first meaningful performance signal)
+
+Goal:
+- ground the rider in reality
+- establish expectations
+
+#### 2. Drift and Correction
+
+Moments where the rider’s behavior diverges from plan or expectation.
+
+Examples:
+- first meaningful stop
+- skipped planned stop
+- sustained pace drift
+- transition into fatigued or degraded state
+- recovery after rest or fueling
+
+Goal:
+- make divergence visible
+- preserve optionality
+- enable correction without forcing it
+
+#### 3. Consequence
+
+Moments where outcomes are now materially affected.
+
+Examples:
+- approaching cutoff thresholds
+- loss of meaningful buffer
+- end-of-push reconciliation
+- expedition carry-forward impact
+
+Goal:
+- clearly show consequences
+- present decisions explicitly
+- never silently adjust outcomes
+
+### Interaction Rules
+
+1. **No constant chatter**
+
+   The system must not provide continuous commentary.
+   It only speaks when something meaningful changes.
+
+2. **No silent mutation**
+
+   The system must never adjust plans, stops, or projections without:
+   - surfacing the change
+   - allowing the rider to confirm or override
+
+3. **Facts first, guidance second**
+
+   All interactions must:
+   - present reality (what changed)
+   - then optionally present guidance (what to do)
+
+4. **Consent-based guidance**
+
+   Prescriptive behavior (recommendations or encouragement) must be optional.
+
+   Riders may enable or disable:
+   - in-ride recommendations
+   - encouragement
+
+   The system must function fully with both disabled.
+
+5. **Explain why, not just what**
+
+   Any meaningful change in projection should include a brief explanation of cause.
+
+   Examples:
+   - pace drift
+   - stop duration
+   - skipped stop
+   - recovery
+
+### Design Principle
+
+Push Intelligence answers:
+
+> “What just changed, and what does it mean for the rest of this push?”
+
+Not:
+
+> “What can we say right now?”
