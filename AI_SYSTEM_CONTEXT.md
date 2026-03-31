@@ -1403,6 +1403,231 @@ Full multi-day event model per ADR-031. `event_routes` is a partial implementati
 
 ---
 
+## Source File: docs/02-architecture/arch-006-experience_policy_layer_index.md
+
+# Lanterne Launch Packet — Index and Companion Guide
+
+**Status:** Draft  
+**Date:** 2026-03-31  
+**Purpose:** Unify the three launch-planning documents into one coherent packet so they can be read and executed as a single system rather than as isolated specs.
+
+---
+
+## What this packet is
+
+This launch packet is the working architecture and implementation stack for Lanterne’s next major build phase.
+
+It is designed to answer three different questions that should not be collapsed into one doc:
+
+1. **What is the architecture and program shape?**  
+2. **How do we implement it in sequence?**  
+3. **How should it actually behave at runtime?**
+
+Those questions map to three companion documents.
+
+---
+
+## Read order
+
+Read these in this order:
+
+### 1. EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
+Read first.
+
+This is the **master architecture/program plan**.
+It defines:
+- the core runtime-first architecture
+- the major system boundaries
+- the separation of mode, audience, and structure
+- the three execution programs
+- the domain tracks
+- the target file/module shape
+- the SQL and Lovable sequencing strategy at a high level
+
+This is the answer to:
+
+> What are we actually building, and how is it organized?
+
+---
+
+### 2. EXEC-008 v2 — Master Implementation Manual
+Read second.
+
+This is the **execution manual**.
+It defines:
+- phase order
+- dependency fences
+- phase goals
+- acceptance criteria
+- exact SQL sequence
+- copy/paste Lovable prompts
+- verification checklist
+- frozen assumptions that should not drift mid-build
+
+This is the answer to:
+
+> In what order do we build this, and what exactly should we run?
+
+---
+
+### 3. DS-016 — Experience Policy Layer
+Read third.
+
+This is the **behavioral operating spec**.
+It defines:
+- canonical axes
+- runtime states and sub-states
+- transition rules
+- prompt/caption logic
+- surface-routing policy
+- input request eligibility
+- mode differences
+- audience-role differences
+- public route page behavior
+- calmness / anti-spam rules
+
+This is the answer to:
+
+> Once the architecture exists, how should the app behave?
+
+---
+
+## How the three docs relate
+
+### EXEC-008 v2 Program Plan
+Owns:
+- system boundaries
+- architecture shape
+- domain decomposition
+- overall sequencing philosophy
+
+Does **not** own:
+- exact SQL migration code
+- final runtime prompt logic
+- detailed launch interaction tables
+
+### Master Implementation Manual
+Owns:
+- execution order
+- exact SQL migration sequence
+- Lovable prompts
+- phase gates
+- build discipline
+
+Does **not** own:
+- final product behavior policy
+- visual design decisions
+- score semantics beyond what other specs already define
+
+### DS-016 Experience Policy Layer
+Owns:
+- runtime behavior model
+- surface routing rules
+- prompt and caption arbitration
+- input request policy
+- mode- and audience-sensitive behavior
+
+Does **not** own:
+- component implementation details
+- SQL migrations
+- scoring formula internals
+- drawer shell physics internals
+
+---
+
+## Quick use guide
+
+### If you are deciding architecture
+Start with:
+- EXEC-008 v2 Program Plan
+
+### If you are about to code or migrate schema
+Start with:
+- Master Implementation Manual
+
+### If you are deciding what should happen in a specific user scenario
+Start with:
+- DS-016 Experience Policy Layer
+
+### If you are handing work to Lovable
+Use:
+- Master Implementation Manual first
+- DS-016 as behavioral guardrails
+
+### If you are reviewing whether something belongs in map, tiles, lantern, drawer, review, or public page
+Use:
+- DS-016 first
+- then confirm architectural fit in EXEC-008 v2
+
+---
+
+## Launch packet principles
+
+Across all three docs, these principles are fixed:
+
+- active ride is map-first
+- drawers are not the center of gravity during motion
+- mode is separate from structure
+- audience role is separate from mode
+- push is first-class
+- expedition is the durable parent for multi-push journeys
+- canonical route identity is the center of new durable systems
+- Vault is curated
+- History is personal
+- public route pages are first-class launch scope
+- Pre-Ride Notes are constrained launch observations, not full Field Notes
+- runtime truth must not be buried inside component-local conditionals
+
+---
+
+## Suggested header block to place at the top of each companion doc
+
+Use this block near the top of each document so the packet stays self-reinforcing:
+
+```md
+## Launch Packet Companion Note
+
+This document is one part of the Lanterne launch packet.
+
+Companion documents:
+1. EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
+2. EXEC-008 v2 — Master Implementation Manual
+3. DS-016 — Experience Policy Layer
+
+Use this document for its primary job only:
+- Program Plan = architecture and system boundaries
+- Implementation Manual = execution order, SQL, prompts, verification
+- DS-016 = runtime behavior, prompts, routing, and state policy
+```
+
+---
+
+## Recommended next move
+
+Use the packet like this:
+
+1. Freeze the three docs as the current launch architecture stack.
+2. Run implementation from the **Master Implementation Manual**.
+3. Use **DS-016** whenever a behavior question appears during implementation.
+4. Update **EXEC-008 v2** only when a genuine architecture decision changes.
+5. Do not let Lovable invent new architecture outside these docs.
+
+---
+
+## Practical bottom line
+
+These three docs now form one coherent launch packet:
+
+- **Program Plan** = what the system is
+- **Implementation Manual** = how to build it
+- **Experience Policy Layer** = how it behaves
+
+That is enough structure to stop building by thread vibes and start building with an actual operating manual.
+
+
+
+---
+
 ## Source File: docs/02-architecture/analysis/anal-001-indices_calculation.md
 
 # Lanterne Indices Calculation
