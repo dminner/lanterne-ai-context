@@ -1617,7 +1617,7 @@ If an index cannot be explained in one sentence to a rider, it should not exist.
 ## Source File: docs/02-architecture/analysis/anal-002-score_calculation.md
 
 # Lanterne Score Calculation
-
+2026-03-24
 ## Purpose
 
 This document explains how rider-facing **scores** are produced from underlying analysis data.
