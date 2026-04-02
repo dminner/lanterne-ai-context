@@ -1628,7 +1628,7 @@ That is enough structure to stop building by thread vibes and start building wit
 
 ---
 
-## Source File: docs/02-architecture/arch-007-route_rendering_architecture.md
+## Source File: docs/02-architecture/arch-007a-lovable_route_rendering_architecture.md
 
 ┌─────────────────────────────────────────────────────────────────┐
 │  STAGE 1 — FILE INPUT                                          │
@@ -1744,6 +1744,241 @@ That is enough structure to stop building by thread vibes and start building wit
 │  Hitbox layer: always from truthSegments (invisible polylines  │
 │  for click detection → road card)                              │
 └─────────────────────────────────────────────────────────────────┘
+
+
+---
+
+## Source File: docs/02-architecture/arch-007b-cgpt_gpx_to_render_pipeline_and_drift_guide.md
+
+# GPX → Render Pipeline and Drift Correction Guide
+
+## Purpose
+
+This document explains:
+
+1. All known stages of the GPX → render pipeline
+2. What issues were previously identified and fixed
+3. Where visual drift originates
+4. Where drift MUST be corrected to avoid repeating mistakes
+
+---
+
+## Pipeline Overview
+
+The system transforms a GPX route into a rendered, scored, and colored map through several stages.
+
+### Stage 0 — Input Acquisition
+- GPX upload
+- RWGPS import
+- route drawing
+
+Output:
+- raw route geometry (user input)
+
+---
+
+### Stage 1 — Normalization
+
+Purpose:
+- standardize geometry
+- remove noise
+- ensure consistent spacing
+
+Key operations:
+- resampling / densification
+- coordinate cleanup
+- interpolation (now unified across sources)
+
+Fixes applied:
+- removed source-dependent normalization differences
+- ensured Strava and RWGPS are treated consistently
+
+---
+
+### Stage 2 — Pass 1 Matching (Truth Generation)
+
+Purpose:
+- map route points onto OSM roads
+- generate "truth runs"
+
+Key outputs:
+- matched road IDs
+- segment boundaries
+- per-run attributes
+
+Known issues addressed:
+- incumbent cascade instability
+- direction-dependent matching
+- reconciliation improvements
+
+Remaining behavior:
+- produces accurate road sequence but not display-aligned boundaries
+
+---
+
+### Stage 3 — Truth Runs
+
+Definition:
+- contiguous segments of the same matched road
+
+Characteristics:
+- exist in densified / analysis space
+- indexed by sample points
+
+Important:
+- NOT aligned to original geometry
+
+---
+
+### Stage 4 — Pass 2 Boundary Reconstruction
+
+Purpose:
+- convert truth runs into display-ready boundaries
+
+THIS IS THE CRITICAL STAGE FOR DRIFT
+
+Responsibilities:
+- map truth transitions to original route geometry
+- determine exact transition locations
+- prepare renderable segments
+
+---
+
+### Stage 5 — Rendering
+
+Purpose:
+- draw colored segments
+- display road names
+
+Consumes:
+- display-aligned segments
+
+Important:
+- renderer should NOT fix geometry errors
+
+---
+
+## Root Cause of Drift
+
+Drift occurs because:
+
+> Boundaries are computed in truth space but rendered in display space
+
+This causes:
+- early transitions
+- late transitions
+- misaligned road names
+
+---
+
+## Correct Model
+
+All visible geometry must be anchored in:
+
+> **Display geometry (original route)**
+
+NOT:
+- densified points
+- truth indices
+
+---
+
+## Where Drift MUST Be Fixed
+
+### Only correct location:
+
+> **Pass 2 Boundary Reconstruction**
+
+NOT:
+- matcher
+- normalization
+- renderer
+
+---
+
+## Correct Boundary Algorithm
+
+For each transition:
+
+1. Identify transition in truth space
+2. Determine approximate location
+3. Project onto original route geometry
+4. Snap to intersection if applicable
+
+
+### Projection
+- use nearest-point projection onto polyline
+- NOT index-based mapping
+
+### Snapping
+- if near intersection
+- snap to node or shared endpoint
+
+---
+
+## What Was Fixed
+
+- normalization parity across sources
+- canonical identity issues (separate concern)
+- token cleanup (B-lite)
+- reconciliation improvements
+
+These improved data quality but did not solve drift
+
+---
+
+## What Was NOT Fixed (by design)
+
+- boundary placement precision
+- display alignment
+
+These belong to Pass 2
+
+---
+
+## Debugging Tools Required
+
+1. Truth mode (densified view)
+2. Display mode (rendered route)
+3. Boundary markers
+4. Intersection visualization
+
+---
+
+## Debug Workflow
+
+1. Load known route
+2. Enable truth mode
+3. Compare truth vs display boundaries
+4. Identify offset
+5. verify projection correctness
+6. verify snapping
+
+---
+
+## Success Criteria
+
+- transitions align exactly with intersections
+- road names switch at intersections
+- no early/late drift
+- consistent across all route types
+
+---
+
+## Anti-Patterns to Avoid
+
+Do NOT:
+- adjust boundaries in renderer
+- apply constant offsets
+- rely on indices
+- "eyeball" fixes
+
+---
+
+## One Sentence Summary
+
+The system correctly identifies roads — drift exists because boundaries are placed in the wrong coordinate space.
+
 
 
 ---
