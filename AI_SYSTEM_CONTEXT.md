@@ -13215,3 +13215,260 @@ Push Intelligence answers:
 Not:
 
 > “What can we say right now?”
+
+---
+
+## Source File: docs/03-adrs/adr_canonical_route_identity_vs_ride_envelope_containment.md
+
+# ADR: Canonical Route Identity vs Ride Envelope Containment
+
+## Status
+Proposed
+
+## Date
+2026-04-01
+
+## Context
+
+Lanterne currently tries to use canonical route matching as the main mechanism for deciding whether an uploaded ride is "the same route." That has proven too brittle for real long-distance cycling behavior.
+
+Recent debugging and instrumentation established several important facts:
+
+- Exact or near-exact matched OSM way sequence is too strict for the equivalence class we care about.
+- Reverse-order uploads, source variance (for example RWGPS vs Strava), midpoint starts, and route-expression differences can all produce different substrates even when a rider would reasonably consider the route the same.
+- Dual-pass reconciliation, endpoint trimming, source normalization parity, and B-lite token cleanup improved the substrate but did not make equality-based canonical matching robust enough for real-world usage.
+- Pass 2 is the wrong seam for this problem. Pass 2 is boundary refinement, not canonical identity or ride association.
+
+At the same time, the actual domain behavior of randonneurs is broader than "upload equals route":
+
+- Riders may start at home and ride 20, 30, or 50 miles to the route.
+- Riders may enter a route at any point.
+- Riders may ride the route in either direction when allowed.
+- Riders may leave course briefly for food, rest, lodging, or other practical reasons.
+- A long uploaded ride may contain the perm without being equal to the perm.
+
+This means the product must serve two truths at once:
+
+1. **Canonical route truth**: the perm itself must remain stable, strict, and geometry-first.
+2. **Rider truth**: a rider can meaningfully have ridden the perm without uploading a route that is geometrically equal to it.
+
+## Problem
+
+The existing equality-based model is trying to answer multiple different questions with one mechanism:
+
+- What is the canonical route?
+- What exactly did the rider upload?
+- Did the uploaded ride include the canonical route?
+- Is this part of a larger expedition?
+
+Those are different questions and should not be collapsed into a single canonical-equality test.
+
+## Decision
+
+Lanterne will adopt a layered model:
+
+### 1. Canonical Route
+The canonical route remains a strict, stable, geometry-first identity object.
+
+This object represents the route itself, not the full variability of how riders may approach, leave, or embed it inside larger rides.
+
+Canonical route identity should remain:
+
+- strict
+- versioned
+- source-independent
+- geometry/corridor-based
+- separate from ride uploads and rider ownership
+
+### 2. Ride Envelope
+An uploaded ride is treated as a **ride envelope**.
+
+A ride envelope represents what the rider actually did that day. It may include:
+
+- ride-to-start miles
+- the canonical route
+- ride-home miles
+- small detours for food, lodging, or practical needs
+- route-expression differences that do not change the core route intent
+
+A ride envelope is not assumed to be a canonical route candidate by equality.
+
+### 3. Containment Association
+Association between a ride envelope and a canonical route is based on **containment**, not equality.
+
+The core question becomes:
+
+**Does this ride envelope contain this canonical route as an ordered subpath of the rider-experienced corridor?**
+
+Containment must support:
+
+- entry at any point on the route
+- traversal in either direction
+- extra prefix and suffix miles without penalty
+- tolerance for small local deviations and connector noise
+- rejection of rides that merely share segments without actually containing the route
+
+### 4. Expedition
+An expedition is a durable higher-order journey layer above ride envelopes and canonical routes.
+
+An expedition may be represented as an ordered series of ride envelopes, each of which may contain one or more canonical routes.
+
+Expedition logic must not replace canonical identity.
+
+## Rationale
+
+This model cleanly separates concerns:
+
+- **Canonical route** answers: what is the route?
+- **Ride envelope** answers: what did the rider actually do?
+- **Containment association** answers: did this ride include that route?
+- **Expedition** answers: how do multiple rides roll up into a durable journey?
+
+This matches both:
+
+- the real rules and behavior of randonneurs
+- Lanterne's broader architectural principle that source, identity, analysis, ride-time context, and rider-facing state should be separate concerns
+
+## Containment Resolver Direction
+
+The containment resolver should not rely on exact token equality.
+
+The intended matching representation is:
+
+- normalized route spine
+- buffered corridor geometry
+- sparse ordered anchor signature
+
+### Why not exact matched way-id sequence?
+Because it is too brittle across:
+
+- reverse direction
+- midpoint entry
+- source normalization differences
+- tiny connector differences
+- fragmented OSM way splits
+- harmless ride-expression changes
+
+### Why not pure overlap only?
+Because overlap alone can over-merge routes that share large common stretches.
+
+### Why normalized spine + corridor + ordered anchors?
+Because together they provide:
+
+- subpath matching
+- tolerance for noise
+- order sensitivity
+- protection against false positives on shared corridors
+
+### Controls
+Controls may serve as high-value anchors, especially for perm-oriented workflows, but controls alone are not sufficient for route identity or containment. They should be treated as important anchor features, not the only rule.
+
+## Data Model Direction
+
+No new top-level shadow object is introduced at this stage.
+
+Instead, the minimum production addition is a first-class association relation between ride envelopes and canonical routes.
+
+### Proposed association model
+A future table or equivalent relation should capture:
+
+- uploaded ride identifier
+- canonical route identifier
+- association type (`exact`, `contains`, `partial_overlap`, `ambiguous`)
+- direction (`forward`, `reverse`)
+- entry fraction
+- exit fraction
+- canonical coverage
+- distance/offset metrics
+- unmatched interior metrics
+- anchor hit metrics
+- confidence
+- resolver version
+- review/ambiguity flags
+
+This preserves strict canonical identity while supporting rider-realistic containment behavior.
+
+## Alternatives Considered
+
+### A. Keep equality-based canonical matching as the main model
+Rejected.
+
+Reason:
+It is too brittle for long-distance cycling behavior and failed repeated real-world equivalence tests.
+
+### B. Loosen canonical identity itself
+Rejected.
+
+Reason:
+This would weaken the route object and blur the distinction between the route and the rider's actual uploaded ride.
+
+### C. Push remaining fixes into Pass 2
+Rejected.
+
+Reason:
+Pass 2 is boundary refinement. This problem belongs in identity, containment, and resolver architecture, not boundary snapping.
+
+### D. Introduce a new shadow canonical object immediately
+Deferred.
+
+Reason:
+A shadow object may still be warranted later, but it risks moving fuzziness into a new matching layer before the containment model has been properly defined. The current decision is to first separate canonical identity from ride containment without inventing a second top-level route identity object.
+
+## Consequences
+
+### Positive
+
+- Preserves strict perm identity.
+- Matches real rider behavior.
+- Handles home-to-route and route-to-home scenarios cleanly.
+- Supports midpoint entry and reverse traversal.
+- Creates a natural foundation for expedition logic.
+- Avoids forcing all uploaded rides into fake equality tests.
+
+### Negative / Risks
+
+- Containment detection is more complex than equality.
+- Shared-corridor false positives must be controlled.
+- Thresholds and confidence need careful tuning.
+- Additional schema and resolver complexity will be introduced.
+
+## Out of Scope
+
+This ADR does not define the final containment algorithm in detail.
+
+It does not finalize:
+
+- exact containment thresholds
+- anchor selection algorithm
+- final candidate shortlist strategy
+- review/ambiguity workflow
+- expedition table design
+
+Those will follow in implementation-focused ADRs or design notes.
+
+## Immediate Next Steps
+
+1. Design the minimum containment resolver.
+2. Define the ride-to-route association schema.
+3. Validate the containment model on a representative rando test set:
+   - exact perm
+   - reverse traversal
+   - midpoint start
+   - home -> perm -> home
+   - small off-course food detour
+   - overlapping but different route
+4. Keep canonical route identity strict.
+5. Keep Pass 2 out of this work.
+
+## Decision Summary
+
+Lanterne will stop treating uploaded ride equality as the primary mechanism for recognizing that a rider rode a route.
+
+Instead:
+
+- **Canonical route identity remains strict.**
+- **Uploaded rides are modeled as ride envelopes.**
+- **Route recognition for uploaded rides is based on containment.**
+- **Expedition is a higher-order layer above ride envelopes and canonical routes.**
+
+
