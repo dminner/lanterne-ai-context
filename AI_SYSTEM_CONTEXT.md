@@ -13827,3 +13827,214 @@ Instead:
 - **Expedition is a higher-order layer above ride envelopes and canonical routes.**
 
 
+
+---
+
+## Source File: docs/03-adrs/adr-038-route_defined_vs_constraint_defined_activities.md
+
+# ADR-0398: Route-Defined vs Constraint-Defined Activities
+
+## Status
+Proposed
+
+## Date
+2026-04-01
+
+---
+
+## Context
+
+Lanterne supports multiple types of cycling experiences, including:
+- Randonneur permanents (perms)
+- Brevets
+- Ultra-distance events
+- User-created routes and GPX uploads
+- Multi-day journeys (expeditions)
+
+Initial implementations implicitly treated all activities as variations of a single concept: "a route defined by geometry." However, real-world usage revealed that this assumption does not hold.
+
+There are fundamentally different types of activities:
+
+1. Activities defined by a **specific route line**
+2. Activities defined by **constraints (rules), not a fixed route**
+
+Trying to force both into the same model leads to:
+- brittle canonical matching
+- incorrect identity assumptions
+- poor representation of rider behavior
+- confusion in downstream logic (containment, scoring, expedition tracking)
+
+---
+
+## Problem
+
+The system currently lacks a clear distinction between:
+
+- Activities where the **route itself is the identity**
+- Activities where the **rules of the journey define the identity**
+
+Examples:
+
+### Route-defined
+- Perms
+- Fixed GPX routes
+- Curated route libraries
+
+### Constraint-defined
+- Point-to-point ultras
+- Checkpoint-based events
+- Start/finish + mandatory controls
+- Self-routed challenges
+
+These require different logic for:
+- identity
+- matching
+- validation
+- rider association
+
+---
+
+## Decision
+
+Introduce a first-class distinction between activity types:
+
+### 1. Route-Defined Activities
+
+Definition:
+Activities where the route geometry is the primary identity.
+
+Examples:
+- Perms
+- Fixed brevet routes
+- Curated routes
+
+Properties:
+- Canonical route exists
+- Geometry-first identity
+- Matching via containment or equality
+- Variants represent meaningful alternate geometries
+
+Core question:
+> Did the rider follow or contain this route?
+
+---
+
+### 2. Constraint-Defined Activities
+
+Definition:
+Activities where the rules define the experience, not the exact route line.
+
+Examples:
+- Ultra races with checkpoints
+- Start-to-finish challenges
+- Self-routed events
+
+Properties:
+- No single canonical geometry
+- Defined by:
+  - start/end
+  - controls/checkpoints
+  - time constraints
+  - optional route hints
+- Multiple valid geometries can satisfy the same activity
+
+Core question:
+> Did the rider satisfy the constraints?
+
+---
+
+### 3. Shared Concepts
+
+Both activity types use:
+
+- Ride Envelope (what the rider actually did)
+- Association layer (relationship between ride and activity)
+- Expedition layer (multi-ride journeys)
+
+---
+
+## Rationale
+
+This separation allows:
+
+- Clean canonical route identity for perms
+- Flexible representation of ultras
+- Correct containment logic
+- Avoiding forcing arbitrary rides into incorrect equality models
+- Alignment with real-world cycling behavior
+
+It also prevents architectural confusion such as:
+- treating constraint-defined events as canonical routes
+- polluting canonical route identity with non-route semantics
+
+---
+
+## Alternatives Considered
+
+### A. Single unified route model
+Rejected
+
+Reason:
+Cannot accurately represent both route-defined and constraint-defined activities
+
+---
+
+### B. Encode constraints inside canonical route
+Rejected
+
+Reason:
+Violates separation of concerns and corrupts route identity
+
+---
+
+### C. Separate “ultra object” entirely
+Deferred
+
+Reason:
+Constraint-defined activities can be modeled as a subtype rather than a separate system
+
+---
+
+## Consequences
+
+### Positive
+
+- Cleaner domain model
+- Better alignment with real-world use
+- Enables correct containment and validation logic
+- Supports future features like expeditions
+
+### Negative / Risks
+
+- Increased conceptual complexity
+- Requires branching logic in resolver and UI
+- Needs careful schema design
+
+---
+
+## Implementation Notes
+
+Introduce field:
+
+```text
+course_model = route_defined | constraint_defined
+```
+
+Used to route logic paths for:
+- canonical matching
+- containment
+- validation
+- UI behavior
+
+---
+
+## Decision Summary
+
+Lanterne will explicitly support two activity models:
+
+- Route-defined: identity = geometry
+- Constraint-defined: identity = rules
+
+All downstream systems will respect this distinction.
+
+
