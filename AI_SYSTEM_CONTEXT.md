@@ -1628,6 +1628,126 @@ That is enough structure to stop building by thread vibes and start building wit
 
 ---
 
+## Source File: docs/02-architecture/arch-007-route_rendering_architecture.md
+
+┌─────────────────────────────────────────────────────────────────┐
+│  STAGE 1 — FILE INPUT                                          │
+│  File: src/components/GpxUpload.tsx                            │
+│  Function: handleFile()                                        │
+│  Action: FileReader reads .gpx → raw XML string                │
+│  Calls: props.onFileLoad(xmlString, fileName)                  │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STAGE 2 — GPX PARSE                                           │
+│  File: src/pages/Index.tsx                                     │
+│  Function: handleGpxLoad() → runAnalysis()                     │
+│  Calls: parseGpx(xml) from src/lib/gpx.ts                     │
+│  Output: GpxRoute { name, points[], cuePoints[], fileType,     │
+│          totalDistanceMi }                                     │
+│  Also: validateRouteIngest() — guardrails on size/distance     │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STAGE 3 — NORMALIZATION                                       │
+│  File: src/pages/Index.tsx → src/lib/normalized-route.ts       │
+│  Function: normalizeFromGpxRoute(route, source)                │
+│  Action: Produces NormalizedRoute — consistent dense geometry,  │
+│          dwell filtering, cue binding, distance recomputation   │
+│  Output: NormalizedRoute (used as canonical GpxRoute downstream)│
+│  Side effects: setGpxRoute(), setGpxCuePoints(), etc.          │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STAGE 4 — PROGRESSIVE ANALYSIS                                │
+│  File: src/pages/Index.tsx → src/lib/route-analysis.ts         │
+│  Function: runProgressiveAnalysis() iterates                   │
+│            analyzeRouteProgressive() async generator            │
+│                                                                │
+│  Yields stages in order:                                       │
+│    shell      → basic geometry metrics                         │
+│    corridor   → OSM road fetch (Overpass)                      │
+│    enrichment → HPMS/DOT/railroad data                         │
+│    forensic   → forensic zone analysis                         │
+│    refinement → boundary refinement                            │
+│    scoring    → left turns, risk scoring                       │
+│    analysis   → final SafetyResult                             │
+│                                                                │
+│  MATERIALIZER (inside analysis stage):                         │
+│    - truth-map construction (road matching per sample)         │
+│    - truthRuns[] emission (one per road segment)               │
+│    - PASS 2 boundary refinement                                │
+│    - routeSpeedSegments[] (display compaction — legacy)        │
+│    - truthSegments[] built from truthRuns                      │
+│                                                                │
+│  Output: SafetyResult { truthRuns, truthSegments,              │
+│          routeSpeedSegments, score, grade, ... }               │
+│  Side effect: setGpxAnalysis(result)                           │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STAGE 5 — HEATMAP BUILD                                       │
+│  File: src/pages/Index.tsx (useEffect) →                       │
+│         src/lib/heatmap/builder.ts                             │
+│  Function: buildHeatmapLayers({ routeLine, truthRuns })        │
+│                                                                │
+│  Sub-steps (when DEBUG.OVERLAY_DEBUG is OFF):                  │
+│    1. Build truthSegments from truthRuns (1:1)                 │
+│    2. ensureCoverage() — gap fill                              │
+│    3. suppressNoiseSegments() — absorb micro-segments          │
+│    4. mergeForZoom() per zoom band (low/mid/high)              │
+│       uses isMeaningfulBoundary() to decide merges             │
+│                                                                │
+│  When DEBUG.OVERLAY_DEBUG is ON:                               │
+│    → bypasses all merging, returns raw 1:1 truthRun segments   │
+│                                                                │
+│  Output: HeatmapBuildOutput {                                  │
+│    truthSegments,                                              │
+│    displaySegmentsByZoom: { low, mid, high },                  │
+│    animationPath                                               │
+│  }                                                             │
+│  Side effect: setHeatmapOutput(output)                         │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STAGE 6 — SEGMENT SELECTION                                   │
+│  File: src/components/RouteMap.tsx (useEffect ~line 1670)      │
+│                                                                │
+│  if heatmapOutput exists:                                      │
+│    displaySegs = truthMode                                     │
+│      ? heatmapOutput.truthSegments        (raw boundaries)     │
+│      : heatmapOutput.displaySegmentsByZoom[zoomBand]  (merged) │
+│    hitboxSegs = heatmapOutput.truthSegments (always raw)       │
+│  else:                                                         │
+│    fallback to legacy routeSpeedSegments                       │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STAGE 7 — LEAFLET RENDER                                      │
+│  File: src/components/RouteMap.tsx                             │
+│         src/lib/heatmap/leaflet-gradient-layer.ts              │
+│                                                                │
+│  Normal mode (gradient):                                       │
+│    renderGradientLayer() — continuous color blending from       │
+│    displaySegs onto routeCoords polyline                       │
+│                                                                │
+│  Truth/HC/debug mode (discrete):                               │
+│    forEach segment → L.polyline() with speed-class color       │
+│    (halo + casing + core layers)                               │
+│                                                                │
+│  Hitbox layer: always from truthSegments (invisible polylines  │
+│  for click detection → road card)                              │
+└─────────────────────────────────────────────────────────────────┘
+
+
+---
+
 ## Source File: docs/02-architecture/analysis/anal-001-indices_calculation.md
 
 # Lanterne Indices Calculation
