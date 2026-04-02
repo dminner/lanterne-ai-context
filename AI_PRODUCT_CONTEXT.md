@@ -549,6 +549,265 @@ Expedition state is durable. Live session state is transient. These are differen
 
 ---
 
+## Source File: docs/05-product/heatmap-color-reference.md
+
+# Heatmap Color Pipeline — Authoritative Reference
+
+_Generated from codebase audit, April 2026. Faithful to the implemented logic._
+
+---
+
+## 1. The Actual Pipeline (End-to-End)
+
+```
+OSM Road Data
+  → speed classification (classifySpeed)
+  → truth-run materialization (per-matched-road segments)
+  → speedClass assignment: 'safepath' | 'low' | 'medium' | 'high' | 'unknown'
+  → heatmap builder (merge/consolidate for display)
+  → gradient renderer (speedClass → numeric risk → HSL color)
+  → Leaflet polyline chunks on the map
+```
+
+### Step 1: Speed Classification
+
+**File:** `src/lib/speed-utils.ts` → `classifySpeed()`
+
+| Condition | speedClass |
+|-----------|-----------|
+| `isSafePath === true` (cycleway, path, etc.) | `low` (but rendered as `safepath` downstream) |
+| Speed ≤ 25 mph | `low` |
+| Speed 26–35 mph | `medium` |
+| Speed > 35 mph | `high` |
+| Speed unknown | `unknown` |
+
+**Safe path detection** (`isSafePathType`): Cycleways, footways, paths, pedestrian ways, tracks, steps — unless they have explicit `motor_vehicle=yes/designated`.
+
+### Step 2: speedClass → Numeric Risk Value
+
+**File:** `src/lib/heatmap/gradient-renderer.ts`
+
+| speedClass | Risk Value (0–1) |
+|-----------|-----------------|
+| `safepath` | 0.00 |
+| `low` | 0.20 |
+| `unknown` | 0.50 |
+| `medium` | 0.70 |
+| `high` | 1.00 |
+
+### Step 3: Risk Value → HSL Color
+
+**File:** `src/lib/heatmap/gradient-renderer.ts` — `COLOR_STOPS` with linear HSL interpolation
+
+| Risk Range | Color | HSL |
+|-----------|-------|-----|
+| 0.00–0.10 | **Blue** | `hsl(215, 75%, 60%)` |
+| 0.10–0.20 | Blue → Green transition | interpolated |
+| 0.20–0.35 | **Green** | `hsl(145, 65%, 50%)` |
+| 0.35–0.50 | Green → Grey transition | interpolated |
+| 0.50 | **Neutral Grey** | `hsl(220, 10%, 55%)` |
+| 0.50–0.70 | Grey → Orange transition | interpolated |
+| 0.70 | **Orange** | `hsl(30, 85%, 52%)` |
+| 0.70–1.00 | Orange → Red transition | interpolated |
+| 1.00 | **Red** | `hsl(0, 72%, 50%)` |
+
+### Step 4: Boundary Blending
+
+At segment transitions, a 50m (30–80m clamped) backward-only cosine-ease blend smooths the color change. This is purely visual — scoring boundaries are unchanged.
+
+### Step 5: Uncertainty Treatment
+
+Segments where ALL of these are true get reduced saturation (×0.8) and lower opacity:
+- Speed is estimated (no OSM `maxspeed` tag)
+- No real AADT traffic data
+- Risk renders as orange or red
+- Not a safe path
+
+This makes "we're guessing this is dangerous" visually distinct from "we know this is dangerous."
+
+---
+
+## 2. Hard Rules (Exact Thresholds)
+
+These are real implemented cutoffs, not heuristics.
+
+### A. Speed → speedClass (hard boundaries)
+
+| Speed | Class | Color tendency |
+|-------|-------|---------------|
+| ≤ 25 mph | `low` | **Green** |
+| 26–35 mph | `medium` | **Orange** |
+| ≥ 36 mph | `high` | **Red** |
+| No data | `unknown` | **Grey** |
+| Safe path (cycleway/path) | `safepath` | **Blue** |
+
+### B. Safe Path → Blue (hard rule)
+
+A road is blue (`safepath`) if and only if:
+- OSM `highway` tag is cycleway, footway, path, pedestrian, track, steps, or bridleway
+- AND it does NOT have `motor_vehicle=yes` or `motor_vehicle=designated`
+
+There is no "partial blue." Blue is binary.
+
+### C. Very Low Speed Rule
+
+Any segment with effective speed ≤ 10 mph is forced to the safest bucket regardless of other factors. (This catches footways, steps, tracks at their default 10 mph.)
+
+### D. Uncertainty Visual (hard rule)
+
+Desaturation is applied if and only if: `source === 'estimated'` AND `trafficBucket === 'none'` AND `risk ≥ 0.7` AND `!isSafePath`.
+
+---
+
+## 3. Explanatory Heuristics ("Usually This Means...")
+
+These describe composite behavior that cannot be reduced to a single threshold.
+
+### A. Bike Infrastructure Does NOT Directly Change the Heatmap Color
+
+**This is the most important thing to understand.**
+
+The heatmap color is driven by `speedClass`, which is determined **only by the road's speed limit**. Bike infrastructure (protected lane, painted lane, shoulder) affects the **route-level safety score** (the letter grade A–F) but does NOT directly change the per-segment heatmap color.
+
+A 45 mph road with a protected bike lane is still **red** on the heatmap.
+
+A 25 mph residential street with no bike lane is still **green** on the heatmap.
+
+_Why:_ The heatmap shows "what kind of road environment are you in right now" — speed class is the visual signal. The composite risk calculation (which includes infrastructure, traffic, shoulders) feeds the aggregate route score, not the per-segment color.
+
+### B. Traffic Volume Does NOT Directly Change the Heatmap Color
+
+Same as infrastructure: AADT / traffic tier affects route-level scoring but not the per-segment heatmap color. A high-traffic 30 mph road and a low-traffic 30 mph road are both orange.
+
+### C. "Unknown" Grey Usually Means Missing Data
+
+Grey segments typically mean:
+- No `maxspeed` tag in OSM
+- No safe-path classification
+- Speed defaulted from highway class but classified as `unknown`
+
+In practice, grey is rare because the engine falls back to highway-class default speeds, which usually resolve to low/medium/high.
+
+### D. Orange Is the Most Common "Caution" Color
+
+Most suburban arterials and collectors (30–35 mph) land in the medium/orange band. This is the densest part of the color scale and covers a wide range of actual risk levels that differ significantly in the scoring engine but look similar on the map.
+
+---
+
+## 4. Color-by-Condition Table
+
+| Road Condition | Likely Color | Primary Driver | Notes |
+|---------------|-------------|---------------|-------|
+| Separated bike path / cycleway | **Blue** | `isSafePath=true` | Hard rule, speed irrelevant |
+| Residential street (20–25 mph), any infra | **Green** | Speed ≤ 25 mph | Infra doesn't change color |
+| Residential street (25 mph) + protected lane | **Green** | Speed = 25 mph | Same green regardless of lane |
+| Collector road (30–35 mph) + shoulder | **Orange** | Speed 30–35 mph | Shoulder helps score, not color |
+| Collector road (30 mph) + protected lane | **Orange** | Speed 30 mph | Protected lane helps score, not color |
+| Arterial (40–45 mph) + no infrastructure | **Red** | Speed > 35 mph | Worst visual + worst score |
+| Arterial (45 mph) + protected bike lane | **Red** | Speed > 35 mph | Color still red; score is better |
+| Highway shoulder (55 mph) | **Red** | Speed > 35 mph | Deep red end of scale |
+| Unknown road, no speed data | **Grey** | `speedClass=unknown` | Rare in practice |
+| 35 mph road, estimated speed, no traffic data | **Orange** (desaturated) | Uncertainty treatment | Reduced saturation flags low confidence |
+
+---
+
+## 5. Top Color Drivers
+
+### What most often causes RED:
+- **Speed > 35 mph.** That's it. Any road where the effective speed exceeds 35 mph becomes red regardless of bike infrastructure, shoulders, traffic, or anything else.
+
+### What most often causes ORANGE:
+- **Speed 26–35 mph.** The typical suburban road. This covers a huge range of actual risk because traffic and infrastructure vary widely within this speed band — but the heatmap doesn't show that variation.
+
+### What most often causes GREEN:
+- **Speed ≤ 25 mph.** Residential streets, low-speed commercial areas, neighborhood roads.
+
+### What most often causes BLUE:
+- **Safe path designation.** Dedicated cycleways, multi-use paths, pedestrian infrastructure. The road must have a qualifying `highway` tag AND no motor vehicle access.
+
+---
+
+## 6. The Honest Assessment
+
+### What the heatmap actually communicates well:
+- "You are on a fast road" (red) vs "you are on a slow road" (green) vs "you are on a path" (blue)
+- Speed environment risk at a glance
+- Where data confidence is low (grey / desaturated)
+
+### What the heatmap currently does NOT communicate:
+- Traffic volume differences within the same speed band
+- Infrastructure protection (a protected bike lane on a 40 mph road is still red)
+- Shoulder presence
+- Railroad crossing risk
+- Left-turn conflict density
+- The composite risk that actually determines the route grade
+
+### The core tension:
+The **route-level score** (A+ through F) uses a sophisticated multiplicative model with speed (0.60), traffic (0.30), rail (0.10), infrastructure multipliers (0.25–1.0), shoulder factors, and left-turn penalties.
+
+The **per-segment heatmap color** uses only speed classification with three cutpoints (25/35 mph).
+
+This means a rider can see an all-orange route and not understand why it scores well (because it has great infrastructure and low traffic) or why it scores poorly (because it has high traffic and no shoulders). The heatmap gives the speed story but hides everything else.
+
+---
+
+## 7. Recommendations
+
+### A. Maintainable Product Artifact
+
+**Recommended:** Keep this as `docs/05-product/heatmap-color-reference.md` in the repo. It should be updated whenever `classifySpeed()`, `COLOR_STOPS`, or `RISK_VALUE` are modified. Add a code comment in `gradient-renderer.ts` pointing to this doc.
+
+### B. Rider-Facing Tooltip Content
+
+For the map legend / segment click card:
+- **Blue:** Separated bike infrastructure — no motor traffic
+- **Green:** Low-speed road (≤ 25 mph)
+- **Orange:** Moderate-speed road (26–35 mph)
+- **Red:** High-speed road (> 35 mph)
+- **Grey:** Limited road data available
+- **Desaturated color:** Speed is estimated, not posted
+
+### C. Admin/Dev Panel Explainer
+
+Add a "Color Pipeline" info card to the dev panel showing: `speedClass → risk value → color` with the live segment's values when inspecting.
+
+### D. Potential Refactor: Composite Color Bands
+
+If you want the heatmap to communicate more than just speed, consider a named color-band abstraction:
+
+```typescript
+type HeatmapBand = 'safe_path' | 'low_stress' | 'moderate_stress' | 'high_stress' | 'extreme_stress';
+```
+
+Where `low_stress` could mean "low speed + good infra" and `moderate_stress` could mean "medium speed + no infra" OR "high speed + great infra." This would let the heatmap reflect the composite scoring model instead of just speed — but it's a significant product decision because it changes what riders see and learn to trust.
+
+The current speed-only model has the advantage of being simple and predictable. A composite model would be more accurate but harder to explain. Both are defensible choices.
+
+---
+
+## Appendix: Scoring Constants Reference
+
+| Constant | Value | Used In |
+|----------|-------|---------|
+| W_SPEED | 0.60 | Route score only |
+| W_TRAFFIC | 0.30 | Route score only |
+| W_RAIL | 0.10 | Route score only |
+| W_LEFT_TURN | 0.21 | Route score only |
+| Protected track multiplier | 0.25× | Route score only |
+| Painted lane multiplier | 0.70× | Route score only |
+| Shoulder factor (wide) | 0.72× | Route score only |
+| High-speed infra floor | 0.50× (if ≥ 40 mph) | Route score only |
+| Speed risk: 25 mph | 1.0 | Route score only |
+| Speed risk: 35 mph | 3.0 | Route score only |
+| Speed risk: 45 mph | 5.0 | Route score only |
+| Speed risk: 55 mph | 7.0 (cap) | Route score only |
+| Safety score formula | `100 / (1 + e^(1.4 × (RPM - 2.5)))` | Route score only |
+
+**None of these affect heatmap color.** They all feed the aggregate route score / letter grade.
+
+
+---
+
 ## Source File: docs/05-product/prod-001-positioning.md
 
 # Product Positioning
