@@ -13218,7 +13218,7 @@ Not:
 
 ---
 
-## Source File: docs/03-adrs/adr_canonical_route_identity_vs_ride_envelope_containment.md
+## Source File: docs/03-adrs/adr-037-canonical_route_identity_vs_ride_envelope_containment.md
 
 # ADR: Canonical Route Identity vs Ride Envelope Containment
 
