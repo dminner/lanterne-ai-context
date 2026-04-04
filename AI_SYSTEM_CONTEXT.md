@@ -917,7 +917,7 @@ Throughout the pipeline, `IoMetrics` (in `route-analysis.ts`) tracks: corridor t
 
 | Feature | Description | Key Code |
 |---------|-------------|----------|
-| **Safety Scoring** | 0–100 score with A+–F grade. V2 model: speed/traffic/rail core weights + multiplicative bike infra + shoulder credit + left turn penalty | `safety-scoring.ts` |
+| **Safety Scoring** | 0–100 score with A+–F grade. V3.1 model: speed(60%)/traffic(40%) core weights × multiplicative bike infra × shoulder factor + bounded crossing risk contribution. Rail, critical stretch, time-of-day traffic are report-only, NOT in headline score. | `safety-scoring.ts`, `safety-constants.ts` |
 | **Heatmap** | Speed-colored road overlays with zoom-banded truth-to-display rendering | `heatmap/builder.ts`, `RouteMap.tsx` |
 | **Corridor Analysis** | Fetches and indexes the broader road network; builds CorridorGraph for local pathfinding | `corridor.ts`, `corridor-graph.ts` |
 | **Micro-Hazard Detection** | 7 hazard types from OSM tags (railroad crossings, metal grate bridges, cattle guards, covered bridges, etc.) | `hazards.ts` |
@@ -2196,16 +2196,14 @@ If an index cannot be explained in one sentence to a rider, it should not exist.
 
 ## Source File: docs/02-architecture/analysis/anal-002-score_calculation.md
 
-# Lanterne Score Calculation
-2026-04-03
+# Lanterne Score Calculation — V3.1 Launch
+2026-04-04
 
 ## Purpose
 
 This document explains how rider-facing **scores** are produced from underlying analysis data.
 
-It reflects the **V3 scoring engine implementation** in the codebase (`safety-scoring.ts`, `safety-constants.ts`, `traffic-time.ts`, `hazards.ts`).
-
-The goal is that this document always matches the real system.
+It reflects the **V3.1-launch scoring engine** (`safety-constants.ts`, `safety-scoring.ts`).
 
 ---
 
@@ -2213,7 +2211,6 @@ The goal is that this document always matches the real system.
 
 Lanterne does **not** collapse all route intelligence into one number.
 
-Instead it uses:
 - A primary **Safety Score** (narrowly defined as motor-vehicle harm risk)
 - Several **indices describing route reality**
 - Environmental **conditions**
@@ -2227,30 +2224,25 @@ The Safety Score is the only true "headline score." Everything else is supportin
 
 > The relative expected motor-vehicle harm per mile for a bicyclist.
 
-Normalized to a **0–100 scale** and mapped to letter grades.
+Normalized to a **0–100 scale** and mapped to letter grades (A+ through F).
 
-This is NOT a kitchen-sink danger score. It excludes weather, surface, fatigue, rail hazards, and all non-motor-vehicle factors.
+This is NOT a kitchen-sink danger score. It **excludes** weather, surface, fatigue, rail hazards, time-of-day traffic, and all non-motor-vehicle factors.
 
 ---
 
-## 3. Score Pipeline (V3)
+## 3. Score Pipeline (V3.1-Launch)
 
 ```
 Route geometry
     ↓
-Segment risk modeling (speed × 0.60 + traffic × 0.40)
+Segment risk modeling
+  SliceMiles × (0.60 × SpeedFactor + 0.40 × TrafficFactor) × InfraFactor × ShoulderFactor
     ↓
-Bike infrastructure mitigation (multiplicative)
+Crossing risk contribution (bounded per-event model)
     ↓
-Shoulder mitigation (when no bike facility, speed ≥ 30)
+Continuous RPM + Effective Crossing RPM (capped at 40% of total)
     ↓
-Crossing-conflict event penalties
-    ↓
-Risk-per-mile calculation
-    ↓
-Logistic normalization → Base Safety Score
-    ↓
-Critical-stretch cap (worst 1km RPM)
+Logistic normalization: 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
     ↓
 Final Safety Score (0–100)
     ↓
@@ -2259,136 +2251,182 @@ Letter grade + confidence level
 
 ---
 
-## 4. Segment Risk Modeling (V3)
+## 4. Speed Factor (60% weight)
 
-Each route segment contributes to risk via two continuous factors:
+Piecewise-linear breakpoint table:
 
-### Speed exposure (60%)
-- Piecewise-linear speed risk factor (0 at 0 mph → 7.0 cap at 55 mph)
+| Speed (mph) | Factor |
+|-------------|--------|
+| ≤ 20        | 0.50   |
+| 25          | 1.00   |
+| 30          | 1.60   |
+| 35          | 2.30   |
+| 40          | 3.10   |
+| 45          | 4.00   |
+| 50          | 5.00   |
+| 55+         | 6.20   |
 
-### Traffic exposure (40%)
-- AADT continuous curve when available
-- Tier-based fallback: low=0.70, medium=1.0, high=1.70, unknown=1.10
+Linear interpolation between breakpoints.
 
-### Safe path baseline
-- Separated paths: 0.05 risk/mile (not zero)
-- Crossing-conflict events still apply at road crossings / re-entry
+---
 
-### What is NOT in per-segment risk
+## 5. Traffic Factor (40% weight)
+
+AADT-per-lane tiered with interpolation:
+
+| AADT/lane    | Factor |
+|--------------|--------|
+| < 2,000      | 0.60   |
+| 2,000–3,999  | 1.00   |
+| 4,000–7,999  | 1.50   |
+| 8,000–11,999 | 2.00   |
+| 12,000–15,999| 2.50   |
+| 16,000+      | 3.00   |
+
+### Traffic Fallback Ladder
+
+1. Official AADT per lane (highest confidence)
+2. Official total AADT + known lane count → compute per-lane
+3. Official total AADT + inferred lane count (default: 2)
+4. Inferred AADT total from nearby values by highway type
+5. Generic road-class / highway-type traffic proxy
+6. Unknown → factor 1.10
+
+---
+
+## 6. Infrastructure Mitigation (InfraFactor)
+
+Multiplicative reduction:
+
+| Facility         | Multiplier |
+|------------------|------------|
+| Protected track  | 0.50       |
+| Buffered lane    | 0.68       |
+| Painted lane     | 0.82       |
+| Shared lane      | 1.00       |
+| No facility      | 1.00       |
+
+Sharrows do NOT count as infrastructure.
+
+---
+
+## 7. Shoulder Mitigation (ShoulderFactor)
+
+Applies ONLY when no dedicated bike facility AND speed ≥ 30 mph:
+
+| Shoulder       | Multiplier |
+|----------------|------------|
+| Wide (≥ 8 ft)  | 0.78       |
+| Usable (2–8 ft)| 0.88       |
+| Sub-usable (<2 ft) | 1.00   |
+| None           | 1.00       |
+
+---
+
+## 8. Crossing Risk Contribution
+
+Replaces the V2/V3.0 left-turn penalty.
+
+```
+CrossingEventContribution = min(E_cap, E0 × √(SpeedFactor × TrafficFactor) × WidthFactor × ControlFactor × MovementFactor)
+```
+
+- E0 = 0.05, E_cap = 0.75
+- Width: 1.00 (1–2 lanes), 1.25 (3–4), 1.60 (5–6), 2.00 (7+)
+- Control: signalized 1.00, stop 1.05, unknown 1.10
+- Movement: straight 1.00, right_merge 1.05, left_across 1.20, unknown 1.10
+
+### Crossing Eligibility Gate
+
+A crossing is score-eligible if ANY is true:
+- Speed ≥ 30 mph AND effective AADT/lane ≥ 2,000
+- Lanes ≥ 3
+- Left-across movement AND (speed ≥ 30 OR effective AADT/lane ≥ 2,000)
+
+**Important:** The gate uses the full traffic fallback ladder, not just raw official AADT. This prevents under-scoring obvious crossings in data-poor areas.
+
+### Crossing Cap
+
+Total crossing risk is capped: `EffectiveCrossingRPM ≤ ContinuousRPM × 0.6667`
+
+This ensures crossings never exceed 40% of total raw canonical risk.
+
+---
+
+## 9. What is NOT in the Canonical Safety Score
+
 - Rail crossings (hazard layer only)
-- Left-turn penalties (replaced by crossing-conflict events)
-- Additive shoulder credits (removed)
+- Bridge hazards (hazard layer only)
+- Time-of-day traffic adjustments (contextual display only)
+- Critical stretch / worst-1km penalties (report-only, does NOT cap score)
+- Weather, surface, fatigue
+- Left-turn penalties (replaced by crossing risk contribution)
 
 ---
 
-## 5. Infrastructure Mitigation
+## 10. Critical Stretch (Report-Only)
 
-Risk is reduced multiplicatively by bike infrastructure:
+Worst 1km RPM is computed and reported for transparency but does **NOT** modify the canonical Safety Score.
 
-| Facility | Multiplier |
-|----------|------------|
-| Protected track | 0.50 |
-| Buffered lane | 0.68 |
-| Painted lane | 0.82 |
-| No facility | 1.00 |
-
-Sharrows do not count as infrastructure.
-
----
-
-## 6. Shoulder Mitigation
-
-Shoulder applies ONLY when:
-- No dedicated bike facility
-- Speed ≥ 30 mph
-
-| Shoulder | Multiplier |
-|----------|------------|
-| None | 1.00 |
-| Usable | 0.88 |
-| Wide (≥ 8ft) | 0.78 |
+| Worst 1km RPM | Suggested Cap |
+|----------------|---------------|
+| < 2.5          | no cap        |
+| 2.5–3.5        | 89            |
+| 3.5–4.5        | 79            |
+| 4.5–5.5        | 69            |
+| ≥ 5.5          | 59            |
 
 ---
 
-## 7. Crossing-Conflict Events (replaces left-turn penalty)
+## 11. Confidence Output
 
-Fires at route transitions creating motor-vehicle conflict zones.
-
-Penalty = 0.12 × SpeedGate × TrafficGate × WidthGate
-
-Each unique event counted once. Modeled on truth transitions, not display segments.
-
----
-
-## 8. Critical-Stretch Protection
-
-A short dangerous stretch can cap the final score:
-
-| Worst 1km RPM | Max Score |
-|---------------|-----------|
-| < 2.5 | no cap |
-| 2.5–3.5 | 89 |
-| 3.5–4.5 | 79 |
-| 4.5–5.5 | 69 |
-| ≥ 5.5 | 59 |
-
----
-
-## 9. Time-of-Day Traffic
-
-The canonical baseline Safety Score does NOT depend on start time or time-of-day traffic multipliers.
-
-Time-of-day traffic (`traffic-time.ts`) exists for:
-- Display purposes (estimated cars/min at arrival time)
-- Future contextual overlay scoring (not yet implemented)
-
----
-
-## 10. Confidence Output
-
-Each score includes a confidence level:
+Each score includes confidence based on data coverage:
 
 | Coverage | Confidence |
 |----------|------------|
-| ≥ 80% | high |
-| 50–80% | medium |
-| < 50% | low |
-
-Plus: `unknown_speed_miles`, `unknown_traffic_miles`, `unknown_facility_miles`, `risk_per_mile_worst_1km`, `critical_stretch_band`, `score_model_version`.
+| ≥ 80%    | high       |
+| 50–80%   | medium     |
+| < 50%    | low        |
 
 ---
 
-## 11. Hazard Layer (separate from Safety Score)
+## 12. Hazard Layer (separate from Safety Score)
 
-Rail crossings, bridge hazards, cattle guards, underpasses, and other micro-hazards are detected and displayed but do NOT affect the headline Safety Score. They appear in a separate hazard summary.
-
----
-
-## 12. Letter Grades
-
-| Grade | Meaning |
-|-------|---------|
-| A | Very safe cycling conditions |
-| B | Good conditions |
-| C | Moderate caution required |
-| D | Elevated risk |
-| F | Dangerous conditions |
+Rail crossings, bridge hazards, cattle guards, and other micro-hazards are detected and displayed but do NOT affect the headline Safety Score.
 
 ---
 
-## 13. Road Density Guardrail
+## 13. Safe Path Baseline
 
-Unchanged from previous version. Warning-only, never blocks output.
-
----
-
-## 14. Adaptive Corridor
-
-Unchanged from previous version. Width adapts based on road density.
+Separated paths (bike paths, multi-use trails): 0.05 risk/mile baseline (not zero).
 
 ---
 
-## 15. Design Rule
+## 14. Letter Grades
+
+| Grade | Score Range |
+|-------|-------------|
+| A+    | 97–100      |
+| A     | 93–96       |
+| A-    | 90–92       |
+| B+    | 87–89       |
+| B     | 83–86       |
+| B-    | 80–82       |
+| C+    | 77–79       |
+| C     | 73–76       |
+| C-    | 70–72       |
+| D     | 60–69       |
+| F     | < 60        |
+
+---
+
+## 15. Model Version
+
+`v3.1-launch` — defined in `SCORE_MODEL_VERSION` constant.
+
+---
+
+## 16. Design Rule
 
 Safety Score must remain:
 - Narrowly defined (motor-vehicle harm only)
