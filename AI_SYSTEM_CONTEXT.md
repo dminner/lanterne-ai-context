@@ -8358,11 +8358,11 @@ Analyze small. Display aggregated. Never let display granularity determine analy
 
 # ADR-006 — Safety Definition
 
-**Status:** Accepted  
-**Date:** 2026
+**Status:** Accepted (updated for v3.1-launch)  
+**Date:** 2026  
+**Updated:** 2026-04-04
 
-**Related ADRs:** ADR-007 (Index Families), ADR-032 (Comparative Traffic Context and Segment Cohorts)  
-**No companion DS required** — this ADR is self-contained. The safety score is implemented as part of the core scoring engine.
+**Related ADRs:** ADR-007 (Index Families), ADR-032 (Comparative Traffic Context), ADR-039 (Bounded Crossing Risk)  
 
 ---
 
@@ -8380,19 +8380,22 @@ Lanterne must define safety narrowly and defend that definition as the product e
 
 > The likelihood of a rider being struck by a motor vehicle, and the severity of the resulting injury.
 
-**The Safety Score is derived from:**
-- Traffic Index
-- Bike Support Index
+**The Safety Score (v3.1-launch) is derived from:**
 
-**Environmental conditions are explicitly excluded from the Safety Score:**
-- Wind
-- Temperature
-- Precipitation
-- Light state
-- UV
+- **Continuous road risk**: 60% Speed + 40% Traffic (AADT), modified by InfraFactor and ShoulderFactor
+- **Crossing risk contribution**: bounded per-event model (E0=0.05, E_cap=0.75), capped at 40% of route risk
+
+**Explicitly excluded from the canonical Safety Score:**
+
+- Wind, temperature, precipitation
+- Light state, UV
 - Surface quality
+- Rail crossings, cattle guards, metal grates (hazard overlay only)
+- Time-of-day traffic adjustments (contextual layer only)
+- Critical stretch / hotspot penalties (report-only)
+- Fatigue, navigation difficulty
 
-These conditions belong in other index families (see ADR-007) and may be presented alongside safety, but they must never contaminate the Safety Score itself.
+These belong in other index families (see ADR-007) and may be presented alongside safety, but they must never contaminate the Safety Score itself.
 
 ---
 
