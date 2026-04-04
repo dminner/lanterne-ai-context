@@ -14104,3 +14104,96 @@ Lanterne will explicitly support two activity models:
 All downstream systems will respect this distinction.
 
 
+
+---
+
+## Source File: docs/03-adrs/adr-039-bounded_crossing_risk_and_report_only_critical_stretch.md
+
+# ADR-039: Bounded Crossing Risk Contribution + Report-Only Critical Stretch
+
+**Status:** Accepted  
+**Date:** 2026-04-04  
+**Model Version:** v3.1-launch
+
+## Context
+
+The V3.0 crossing-conflict penalty model used a flat base penalty (0.12 risk points) with speed/traffic/width gate multipliers. This produced unbounded penalties for crossing-dense urban routes and did not account for crossing control type or movement type.
+
+The V3.0 model also applied critical-stretch caps to the canonical Safety Score, which conflated route-average risk with localized risk exposure.
+
+## Decision
+
+### Crossing Risk Contribution
+
+Replace the V3.0 crossing-conflict penalty with a bounded crossing risk contribution model:
+
+```
+CrossingEventContribution = min(E_cap,
+    E0 × sqrt(SpeedFactor × TrafficFactor)
+       × WidthFactor × ControlFactor × MovementFactor)
+```
+
+**Launch constants:**
+- **E0** = 0.05 — base crossing risk contribution in risk points. This is a policy-derived constant representing the baseline risk of a single motor-vehicle conflict crossing, calibrated against the continuous risk scale where ~1.0 RPM represents a residential road.
+- **E_cap** = 0.75 — maximum risk contribution any single crossing can produce, preventing outlier crossings from dominating the score.
+
+**WidthFactor** (lanes crossed):
+| Lanes | Factor |
+|-------|--------|
+| 1–2   | 1.00   |
+| 3–4   | 1.25   |
+| 5–6   | 1.60   |
+| 7+    | 2.00   |
+
+**ControlFactor**:
+| Type | Factor |
+|------|--------|
+| Signalized | 1.00 |
+| Stop-controlled | 1.05 |
+| Unknown | 1.10 |
+
+**MovementFactor**:
+| Movement | Factor |
+|----------|--------|
+| Straight | 1.00 |
+| Right/merge | 1.05 |
+| Left across traffic | 1.20 |
+| Unknown | 1.10 |
+
+**Crossing scoring eligibility** (at least one must be true):
+- Crossed road speed ≥ 30 mph AND AADT per lane ≥ 2,000/day/lane
+- Lanes crossed ≥ 3
+- Left across traffic on a road with speed ≥ 30 mph or AADT per lane ≥ 2,000/day/lane
+
+**Route-level crossing cap:**
+```
+EffectiveCrossingRPM = min(RawCrossingRPM, ContinuousRPM × 0.6667)
+```
+This ensures crossings cannot exceed 40% of raw canonical route risk.
+
+### Critical Stretch: Report-Only
+
+The critical-stretch mechanism (worst-1km RPM → score cap) is retained for transparency and report-only purposes but does **NOT** modify the canonical Safety Score.
+
+The canonical Safety Score is derived solely from:
+```
+RawRPM = ContinuousRPM + EffectiveCrossingRPM
+SafetyScore = 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
+```
+
+## Consequences
+
+1. Crossing risk is bounded per-event and as fraction of route risk
+2. Canonical score is purely RPM-derived — no hotspot overrides
+3. Critical stretch remains useful for rider awareness
+4. Urban crossing-dense routes are no longer disproportionately penalized
+5. Control type and movement type are captured for future refinement
+
+## Explicit Exclusions from Canonical Score
+
+- Critical stretch / hotspot penalties
+- Time-of-day traffic adjustments
+- Rail / grate / cattle-guard hazard penalties
+- Weather / light conditions
+- Signalized/stop-controlled crossing counts alone
+

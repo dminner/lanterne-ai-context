@@ -2601,6 +2601,240 @@ That gives Lanterne a stop system that is simple on the surface, truthful in the
 
 ---
 
+## Source File: docs/05-product/prod-010-safety_score_methodology_v3.md
+
+# Lanterne Safety Score — Public Methodology (v3.1-launch)
+
+> How Lanterne measures the relative motor-vehicle risk of an endurance cycling route.
+
+---
+
+## What the Safety Score measures
+
+The Safety Score estimates the **relative expected motor-vehicle harm per mile** for a bicyclist on a given route. It is a single number from 0–100, where higher is safer.
+
+It does **not** measure weather, fatigue, navigation difficulty, or surface quality. Those are separate layers.
+
+---
+
+## 1. Continuous Slice Risk
+
+Every route is divided into slices. Each slice's risk contribution is:
+
+```
+ContinuousSliceRisk = SliceMiles × (0.60 × SpeedFactor + 0.40 × TrafficFactor) × InfraFactor × ShoulderFactor
+```
+
+### SpeedFactor
+
+Based on posted or inferred speed limit of the road:
+
+| Speed (mph) | SpeedFactor |
+|-------------|-------------|
+| ≤ 20        | 0.50        |
+| 25          | 1.00        |
+| 30          | 1.60        |
+| 35          | 2.30        |
+| 40          | 3.10        |
+| 45          | 4.00        |
+| 50          | 5.00        |
+| 55+         | 6.20        |
+
+Values between breakpoints are interpolated linearly.[^1]
+
+### TrafficFactor
+
+Based on AADT (Annual Average Daily Traffic) **per lane**:
+
+| AADT/lane      | TrafficFactor |
+|----------------|---------------|
+| < 2,000        | 0.60          |
+| 2,000–3,999    | 1.00          |
+| 4,000–7,999    | 1.50          |
+| 8,000–11,999   | 2.00          |
+| 12,000–15,999  | 2.50          |
+| 16,000+        | 3.00          |
+
+Traffic data is sourced through a fallback ladder:
+1. Official AADT per lane (state DOT)
+2. Official AADT total ÷ known lane count
+3. Official AADT total ÷ inferred lane count (default: 2)
+4. Nearby inferred AADT by highway type
+5. Generic road-class traffic proxy
+6. Unknown (factor = 1.10)[^2]
+
+Each step down the ladder reduces confidence in the score.
+
+**Rider-readable equivalents:** 5,000 AADT ≈ 208 vehicles/hour ≈ 3.5 vehicles/minute during a typical daytime hour.[^3]
+
+### InfraFactor
+
+| Facility Type             | InfraFactor |
+|---------------------------|-------------|
+| Protected / fully separated | 0.50       |
+| Buffered lane             | 0.68        |
+| Painted lane              | 0.82        |
+| No dedicated facility     | 1.00        |
+
+Sharrows receive no credit at launch.
+
+### ShoulderFactor
+
+Shoulder credit applies **only** when there is no dedicated bike facility **and** speed ≥ 30 mph.
+
+| Shoulder Class | Width           | ShoulderFactor |
+|---------------|-----------------|----------------|
+| Sub-usable    | < 2.0 ft (0.6 m) | 1.00 (no credit) |
+| Usable        | 2.0–7.9 ft (0.6–2.3 m) | 0.88 |
+| Wide          | ≥ 8.0 ft (2.4 m) | 0.78 |
+
+---
+
+## 2. Crossing Risk Contribution
+
+When a route crosses or enters a road with significant motor-vehicle conflict, a per-event risk contribution is added:
+
+```
+CrossingEventContribution = min(E_cap, E0 × √(SpeedFactor × TrafficFactor) × WidthFactor × ControlFactor × MovementFactor)
+```
+
+- **E0 = 0.05** — base crossing risk points. This is a policy-derived constant representing the baseline danger of a single motor-vehicle crossing, calibrated against the continuous risk scale.[^4]
+- **E_cap = 0.75** — maximum risk any single crossing can contribute, preventing outlier crossings from dominating the score.[^5]
+
+### WidthFactor
+
+| Lanes Crossed | WidthFactor |
+|---------------|-------------|
+| 1–2           | 1.00        |
+| 3–4           | 1.25        |
+| 5–6           | 1.60        |
+| 7+            | 2.00        |
+
+### ControlFactor
+
+| Control Type     | ControlFactor |
+|------------------|---------------|
+| Signalized       | 1.00          |
+| Stop-controlled  | 1.05          |
+| Unknown          | 1.10          |
+
+### MovementFactor
+
+| Movement           | MovementFactor |
+|--------------------|----------------|
+| Straight           | 1.00           |
+| Right turn / merge | 1.05           |
+| Left across traffic| 1.20           |
+| Unknown            | 1.10           |
+
+### Scoring Eligibility
+
+A crossing enters score math when **at least one** is true:
+- Crossed road speed ≥ 30 mph **and** AADT per lane ≥ 2,000/day/lane
+- Lanes crossed ≥ 3
+- Left across traffic on a road with speed ≥ 30 mph or AADT per lane ≥ 2,000/day/lane
+
+---
+
+## 3. Route Rollup
+
+```
+ContinuousRPM = TotalContinuousRisk ÷ RouteMiles
+EffectiveCrossingRPM = min(RawCrossingRPM, ContinuousRPM × 0.6667)
+RawRPM = ContinuousRPM + EffectiveCrossingRPM
+SafetyScore = 100 ÷ (1 + e^(1.4 × (RawRPM − 2.5)))
+```
+
+The 0.6667 cap ensures crossings cannot exceed 40% of raw canonical route risk.
+
+---
+
+## 4. What is NOT in the Safety Score
+
+The following are **explicitly excluded** from the canonical score:
+
+| Factor | Why excluded |
+|--------|-------------|
+| Critical stretch / hotspot penalties | Report-only — shown for awareness, not score math |
+| Time-of-day traffic | Contextual only — shown in cue sheet and explainers |
+| Rail crossings, cattle guards, grates | Hazard overlay only |
+| Weather / lighting | Separate intelligence layer |
+| Signalized/stop crossing *counts* alone | Only scored when eligibility criteria are met |
+
+---
+
+## 5. Grade Scale
+
+| Score | Grade |
+|-------|-------|
+| 97+   | A+    |
+| 93–96 | A     |
+| 90–92 | A−    |
+| 87–89 | B+    |
+| 83–86 | B     |
+| 80–82 | B−    |
+| 77–79 | C+    |
+| 73–76 | C     |
+| 70–72 | C−    |
+| 67–69 | D+    |
+| 63–66 | D     |
+| 60–62 | D−    |
+| < 60  | F     |
+
+---
+
+## 6. Confidence
+
+Score confidence is based on data coverage:
+- **High** — ≥ 80% of route miles have known speed, traffic, and facility data
+- **Medium** — 50–79%
+- **Low** — < 50%
+
+---
+
+## Appendix A: Worked Crossing Examples
+
+### Low risk crossing
+A rider crosses a 2-lane, 25 mph residential street with signalized control, going straight.
+- **Not score-eligible**: speed < 30 mph, AADT per lane < 2,000, lanes < 3.
+- **Contribution: 0** risk points. Still counted and displayed as a crossing event.
+
+### Medium risk crossing
+A rider turns left across a 4-lane, 35 mph collector with AADT 8,000 total (4,000/lane), stop-controlled.
+- Score-eligible: speed ≥ 30 AND AADT/lane ≥ 2,000.
+- SpeedFactor(35) = 2.30, TrafficFactor(4000/lane) = 1.50
+- √(2.30 × 1.50) = 1.857
+- 0.05 × 1.857 × 1.25 (4 lanes) × 1.05 (stop) × 1.20 (left) = **0.146 risk points**
+
+### High risk crossing
+A rider turns left across a 6-lane, 45 mph arterial with AADT 24,000 total (4,000/lane), unknown control.
+- SpeedFactor(45) = 4.00, TrafficFactor(4000/lane) = 1.50
+- √(4.00 × 1.50) = 2.449
+- 0.05 × 2.449 × 1.60 (6 lanes) × 1.10 (unknown) × 1.20 (left) = **0.259 risk points**
+
+---
+
+## Appendix B: Benchmark Routes
+
+| Route Profile | Expected RPM | Expected Score | Grade |
+|---------------|-------------|----------------|-------|
+| 100% bike path | ~0.05 | 97+ | A+ |
+| Quiet residential (25 mph, low traffic) | ~0.5–0.8 | 90+ | A |
+| Mixed suburban (35 mph, medium traffic) | ~1.5–2.0 | 70–80 | C/B |
+| Urban arterial (45 mph, high traffic) | ~3.0–4.0 | 35–50 | F/D |
+| Highway shoulder (55 mph, high traffic) | ~4.5+ | <30 | F |
+
+---
+
+[^1]: SpeedFactor breakpoints are policy-derived, calibrated against FHWA pedestrian/cyclist fatality risk data and normalized for the Lanterne risk scale.
+[^2]: The unknown traffic factor (1.10) is a policy choice reflecting slight conservatism — unknown roads are treated as slightly above average rather than assumed safe.
+[^3]: Assuming uniform 24-hour distribution. Actual peak-hour volumes are typically 8–10% of AADT.
+[^4]: E0 (0.05) means a single baseline crossing contributes roughly the same risk as 50 meters of 25 mph residential road.
+[^5]: E_cap (0.75) prevents any single crossing from contributing more risk than ~0.5 miles of high-speed arterial.
+
+
+---
+
 ## Source File: docs/05-product/prod-011-hazard_severity_model.md
 
 # prod-011 — Hazards System
