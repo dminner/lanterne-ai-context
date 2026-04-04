@@ -569,7 +569,7 @@ That lived truth should remain visible in every major system decision.
 
 # Lanterne System Guide
 
-_Internal Documentation — Updated 2026-03-24 (v3)_
+_Internal Documentation — Updated 2026-04-04 (v3.1-launch)_
 
 ---
 
@@ -577,7 +577,7 @@ _Internal Documentation — Updated 2026-03-24 (v3)_
 
 ### What Lanterne Is
 
-Lanterne is a mobile-first Progressive Web App that provides cyclists with segment-level safety analysis of their routes. Users upload a GPX file or create a route on-map, and the platform analyzes every road segment for risk factors — speed, traffic volume, shoulders, bike infrastructure, railroad crossings, bridge hazards, and left turns — producing a composite safety grade (A+ through F) and a color-coded heatmap overlay.
+Lanterne is a mobile-first Progressive Web App that provides cyclists with segment-level safety analysis of their routes. Users upload a GPX file or create a route on-map, and the platform analyzes every road segment for risk factors — speed, traffic volume, shoulders, bike infrastructure, and crossing exposure — producing a composite safety grade (A+ through F) and a color-coded heatmap overlay. Railroad crossings and bridge hazards are detected and shown as a separate hazard layer.
 
 ### The Problem
 
@@ -817,20 +817,19 @@ Before matching begins, two preparatory scans run:
 **Output:** `TotalRisk`, `RiskPerMile`, `SafetyScore` (0–100), `LetterGrade` (A+ to F).
 **Code:** `safety-scoring.ts → computeRouteSafetyScore()`.
 
-**V2 Scoring Model:**
+**V3.1-Launch Scoring Model:**
 
-The core risk for each segment is computed as:
+The core risk for each continuous segment is:
 
 ```
-rawRisk = (W_SPEED × speedRisk + W_TRAFFIC × trafficRisk + W_RAIL × railRisk) × segmentLength
+SliceRisk = SliceMiles × (0.60 × SpeedFactor + 0.40 × TrafficFactor) × InfraFactor × ShoulderFactor
 ```
 
-Where `W_SPEED=0.60`, `W_TRAFFIC=0.30`, `W_RAIL=0.10` (sum to 1.0).
+Where SpeedFactor uses a piecewise-linear breakpoint table (≤20→0.50 through 55+→6.20), TrafficFactor uses a 6-step AADT-per-lane ladder with a fallback evidence chain, InfraFactor is multiplicative (protected 0.50, buffered 0.68, painted 0.82, none 1.00), and ShoulderFactor applies only when speed ≥ 30 and no bike facility exists.
 
-Then modifiers are applied:
-- **Bike infrastructure** — multiplicative factor (0.25 for protected track, 0.40 buffered lane, 0.70 painted lane, 0.90 shared lane, 1.0 none). At speeds >40 mph, even protected infra cannot reduce below 0.50×.
-- **Shoulder credit** — subtractive, capped at 40% of raw risk. 0.1 per side per mile, bonus for width >1.5m.
-- **Left turn penalty** — flat per-event cost (weight 0.21), not distance-proportional.
+**Crossing risk contribution** replaces the former left-turn penalty: `min(0.75, 0.05 × √(SpeedFactor × TrafficFactor) × Width × Control × Movement)`, capped so crossings never exceed 40% of total raw canonical risk.
+
+**Excluded from headline score:** rail crossings, bridge hazards, time-of-day traffic, critical stretch penalties, weather, surface, fatigue. These are report-only layers.
 
 The aggregate `RiskPerMile` is transformed to a 0–100 score via a logistic curve (midpoint 2.5, steepness 1.4).
 
@@ -2344,6 +2343,16 @@ A crossing is score-eligible if ANY is true:
 - Left-across movement AND (speed ≥ 30 OR effective AADT/lane ≥ 2,000)
 
 **Important:** The gate uses the full traffic fallback ladder, not just raw official AADT. This prevents under-scoring obvious crossings in data-poor areas.
+
+### Policy Assumptions in the Crossing Gate
+
+Two design decisions in the gate are **policy-derived**, not benchmark coefficients:
+
+**A. `left_across` + speed ≥ 30 can make a crossing score-bearing even without strong traffic evidence.**
+Rationale: A left turn across oncoming traffic on a 30+ mph road is inherently risky regardless of measured volume. This is a product safety judgment, not a literature-derived threshold.
+
+**B. `classProxyFactor → approximateAadtPerLane` is a policy-derived approximation.**
+When no official AADT data exists, the gate reverse-engineers an approximate AADT-per-lane from the highway-class traffic proxy factor. This is a best-effort estimate to avoid ignoring obvious major crossings in data-poor areas. It is NOT a benchmark coefficient — it is a policy decision to use available evidence rather than default to zero.
 
 ### Crossing Cap
 
