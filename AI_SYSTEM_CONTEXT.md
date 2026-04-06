@@ -5718,6 +5718,8 @@ Persist the journey. Bound the working set. Do not confuse session recovery with
 
 ## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v1.md
 
+> ⚠️ **DEPRECATED** — This document is superseded by [`safety-score-system-contract.md`](../safety-score-system-contract.md). It is retained as historical reference only and does not reflect current implementation. Do not treat as binding.
+
 ## Lanterne Safety Score — V3 Complete Formula
 
 ### Plain English Summary
@@ -5938,6 +5940,8 @@ These are explicitly excluded from the headline Safety Score:
 ---
 
 ## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v2.md
+
+> ⚠️ **DEPRECATED** — This document is superseded by [`safety-score-system-contract.md`](../safety-score-system-contract.md). It is retained as historical reference only and does not reflect current implementation. Do not treat as binding.
 
 # DS-015 — Safety Scoring Model
 
@@ -6932,6 +6936,8 @@ That is the right trade.
 ---
 
 ## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v2_lovable_prompt.md
+
+> ⚠️ **DEPRECATED** — This document is superseded by [`safety-score-system-contract.md`](../safety-score-system-contract.md). It is retained as historical reference only. The migration it describes has been completed.
 
 You are updating Lanterne's Safety Score from the current V2 model to a narrower, more defensible V3 model.
 
