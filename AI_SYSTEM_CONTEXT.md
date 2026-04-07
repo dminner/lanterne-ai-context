@@ -810,7 +810,7 @@ Before matching begins, two preparatory scans run:
 | Covered bridge | 1 | `covered=yes or bridge:structure=covered` |
 | No-shoulder bridge | 2 | `bridge + no cycling infra + narrow` |
 
-### Step 11 — Segment Scoring
+### Step 11 — Segment Scoring - OUT OF DATE - SEE v4 UPDATE DOC
 
 **Purpose:** Compute per-segment and aggregate route risk.
 **Input:** Enriched truth segments.
@@ -1080,6 +1080,208 @@ Built on **Leaflet** via `RouteMap.tsx` (~3,000 lines — see Technical Debt). L
 | **Windowed long-route analysis** | ADR-034 defines the four-layer model (master route → expedition → window → session); window trigger logic and expedition creation are in Phase 1 |
 | **Local rerouting** | `CorridorGraph` adjacency model enables graph-based detour generation without any external API call |
 | **International expansion** | Tile-based architecture is geography-agnostic; HPMS/DOT enrichment degrades gracefully to OSM-only outside the US |
+
+
+---
+
+## Source File: docs/02-architecture/arch-004-system_guide_v4_safety_score_update.md
+
+# Lanterne System Guide
+
+_Internal Documentation — Updated 2026-04-04 (v4, safety-model update)_
+
+---
+
+## 1. Overview
+
+### What Lanterne Is
+
+Lanterne is a mobile-first Progressive Web App that provides cyclists with segment-level safety analysis of their routes. Users upload a GPX file or create a route on-map, and the platform analyzes every road segment for risk factors — speed, traffic, shoulder and bike operating space, bounded crossing conflicts, and route-specific hazards — producing a rider-facing grade, heatmap, cue sheet, and decision-support surfaces.
+
+### The Problem
+
+Cyclists lack granular, road-level safety data. Existing tools may show bike lanes or route lines, but they do not explain how dangerous a specific road segment or crossing is likely to be.
+
+### Core Workflow
+
+```text
+GPX Upload → Corridor Fetch → Road Matching → Data Enrichment → Hazard Detection → Safety Scoring → Visualization
+```
+
+### What Makes It Unique
+
+1. **Client-side analysis** — all computation runs in the browser; infrastructure cost stays low because the user’s device is the compute engine.  
+2. **Multi-source data fusion** — OSM road geometry + federal HPMS traffic + state DOT attributes + imported route-source metadata such as RWGPS surface when available.  
+3. **Shared geographic tile caching** — every user warms global caches for others in the same geography.  
+4. **Truth-segment scoring** — scoring operates on canonical internal route slices rather than purely visual map segments.  
+5. **Two-pass forensic matching** — coarse matching followed by targeted re-analysis in suspicious zones.  
+6. **Narrow safety definition** — the canonical Safety Score is limited to motor-vehicle strike exposure and likely severity, not a kitchen-sink route score.  
+
+---
+
+## 2. Architecture
+
+### Computation Model
+
+All CPU-intensive work — GPX parsing, spatial indexing, road matching, forensic analysis, scoring, heatmap building, cue generation — runs in the browser. The backend is a data-and-proxy layer: it stores caches/user data and proxies rate-limited external APIs. No analysis runs server-side.
+
+### Safety-model summary
+
+The launch canonical Safety Score has two parts:
+
+1. **Continuous segment exposure risk**  
+   Built from non-linear speed environment, traffic exposure, and operating-space mitigation.
+
+2. **Bounded crossing risk contribution**  
+   Built from discrete score-bearing crossing events using speed, traffic, width, control, and movement context.
+
+The canonical score explicitly excludes:
+- weather/light conditions
+- critical-stretch penalties
+- time-of-day bell-curving of AADT
+- rail / non-motor-vehicle hazard penalties
+
+Those may still appear in report and explanation layers.
+
+---
+
+## 3. Analysis Pipeline
+
+### Step 1 — GPX Ingestion
+Parses route geometry and metadata from GPX, RWGPS, or other supported sources.
+
+### Step 2 — Corridor / route-source enrichment
+Builds the route corridor, imports route-source metadata, and preserves provenance.
+
+### Step 3 — Road matching and truth segmentation
+Routes are matched to roads and broken into small internal slices / truth runs. This keeps the score tied to real changes in road context rather than only large visual segments.
+
+### Step 4 — Data enrichment
+Enriches matched roads and slices with:
+- posted speed or speed proxy
+- AADT where available
+- lane counts and road class
+- bike facility / shoulder context
+- surface context
+- hazard context
+
+### Step 5 — Safety scoring
+Canonical Safety Score is computed in two layers:
+
+#### A. Continuous segment exposure
+For each internal slice:
+
+```text
+ContinuousSliceRisk
+= SliceMiles
+× (0.60 × SpeedFactor + 0.40 × TrafficFactor)
+× InfraFactor
+× ShoulderFactor
+```
+
+#### B. Crossing risk contribution
+For each score-bearing crossing event:
+
+```text
+CrossingEventContribution_i
+= min(E_cap,
+      E0 × (SpeedFactor_raw × TrafficFactor_raw)^0.5
+         × WidthFactor × ControlFactor × MovementFactor)
+```
+
+Launch policy constants:
+- `E0 = 0.05 crossing risk points`
+- `E_cap = 0.75 crossing risk points`
+
+The route-level crossing contribution is bounded so crossings cannot exceed 40% of raw canonical route risk.
+
+### Step 6 — Route rollup
+
+```text
+ContinuousRPM = TotalContinuousRisk / RouteMiles
+RawCrossingRiskContributionPerMile = TotalCrossingRiskContribution / RouteMiles
+EffectiveCrossingRiskContributionPerMile = min(RawCrossingRiskContributionPerMile, ContinuousRPM × 0.6667)
+RawRPM = ContinuousRPM + EffectiveCrossingRiskContributionPerMile
+SafetyScore = 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
+```
+
+### Step 7 — Report-only interpretive layers
+These may appear in the analysis drawer or route explanation but do not modify the canonical score:
+- critical stretch / hotspot reporting
+- time-of-day contextual traffic interpretation
+- rail and other non-motor-vehicle micro-hazards
+- weather / light conditions
+
+---
+
+## 4. Data precedence and truth rules
+
+### Surface truth
+Rider-facing surface truth should follow this precedence order:
+1. RWGPS explicit surface
+2. Admin verified surface truth
+3. explicit mapped surface tags
+4. inferred surface
+5. unknown
+
+Brevet-specific official gravel distance is a separate concept and should remain in brevet-specific logic, not in the general surface-truth pipeline.
+
+### Traffic fallback
+Traffic truth follows a descending-confidence ladder:
+1. official AADT per lane
+2. official AADT total + known lane count
+3. official AADT total + inferred lane count
+4. inferred AADT total from nearby AADT values by highway type
+5. generic road-class / highway-type traffic proxy
+6. unknown
+
+### Shoulder classes
+- sub-usable shoulder: < 2.0 ft / 0.6 m
+- usable shoulder: 2.0 ft to < 8.0 ft / 0.6 m to < 2.4 m
+- wide shoulder: ≥ 8.0 ft / 2.4 m
+
+Sub-usable shoulder remains visible to riders but earns no safety credit.
+
+---
+
+## 5. Presentation rules
+
+### Canonical score vs explanation layers
+The canonical Safety Score answers:
+
+> how much motor-vehicle danger this route exposes a cyclist to
+
+The report / explanation layers answer additional rider questions, such as:
+- where danger concentrates
+- how ugly the worst crossing is
+- what traffic may feel like by time of day
+- what hazards are present that do not belong in the headline score
+
+### Public-facing traffic display
+Whenever traffic is shown publicly as a daily figure, the UI should also provide at least one rider-readable equivalent:
+- cars per hour average
+- cars per minute average
+
+---
+
+## 6. Current strategic priorities
+
+- stabilize the final V3 safety model implementation
+- keep stale V2 scoring language from leaking into live docs or UI
+- preserve narrow score semantics
+- support route-source precedence cleanly (especially RWGPS surface)
+- keep guest mode and client-side compute intact
+
+---
+
+## 7. Guiding rules
+
+1. Keep Safety Score narrow.  
+2. Keep route explanation richer than route score.  
+3. Compute on small slices, present on readable segments.  
+4. Separate canonical score from contextual interpretation.  
+5. Use clear precedence ladders for truth and confidence.  
+6. Do not let unknown silently turn into asserted truth.  
 
 
 ---
@@ -2193,7 +2395,7 @@ If an index cannot be explained in one sentence to a rider, it should not exist.
 
 ---
 
-## Source File: docs/02-architecture/analysis/anal-002-score_calculation.md
+## Source File: docs/02-architecture/analysis/anal-002-score_calculation_v2.md
 
 # Lanterne Score Calculation — V3.1 Launch
 2026-04-04
@@ -2444,6 +2646,248 @@ Safety Score must remain:
 - Resistant to feature creep
 
 A dangerous road in light rain should not score better than the same road in sunshine. Weather is a different question with a different answer.
+
+
+---
+
+## Source File: docs/02-architecture/analysis/anal-002-score_calculation_v3_final.md
+
+# Lanterne Score Calculation
+2026-04-04
+
+## Purpose
+
+This document explains how rider-facing scores are produced from underlying analysis data.
+
+It reflects the intended launch V3 canonical Safety Score model.
+
+The goal is a score that is:
+- narrow
+- explainable
+- benchmark-shaped
+- transparent about launch policy choices
+
+---
+
+## 1. Score Philosophy
+
+Lanterne does **not** collapse all route intelligence into one number.
+
+Instead it uses:
+- a primary **Safety Score**
+- route reality and condition layers outside the headline score
+- report and explainer layers that help riders understand context without diluting the canonical score
+
+The Safety Score is the only headline score today.
+
+---
+
+## 2. Safety Score definition
+
+Safety Score represents:
+
+> the relative expected harm from a bicyclist being struck by a motor vehicle
+
+The score is normalized to a **0–100** scale and mapped to letter grades.
+
+It is **not**:
+- a crash probability
+- a weather score
+- a fatigue score
+- a hotspot penalty score
+
+---
+
+## 3. Score pipeline
+
+```text
+Route geometry
+    ↓
+Internal truth slices
+    ↓
+Continuous slice risk modeling
+    ↓
+Crossing event contribution modeling
+    ↓
+Route rollup (continuous + bounded crossing contribution)
+    ↓
+Logistic normalization
+    ↓
+Safety Score (0–100)
+    ↓
+Letter grade
+```
+
+---
+
+## 4. Continuous slice risk
+
+For each internal slice:
+
+```text
+ContinuousSliceRisk
+= SliceMiles
+× (0.60 × SpeedFactor + 0.40 × TrafficFactor)
+× InfraFactor
+× ShoulderFactor
+```
+
+### 4.1 SpeedFactor
+Speed is non-linear.
+Launch table:
+- ≤20 mph → 0.50
+- 25 mph → 1.00
+- 30 mph → 1.60
+- 35 mph → 2.30
+- 40 mph → 3.10
+- 45 mph → 4.00
+- 50 mph → 5.00
+- 55+ mph → 6.20
+
+This is benchmark-shaped and launch-compressed for stability.
+
+### 4.2 TrafficFactor
+Traffic uses AADT-per-lane where available.
+Launch table:
+- <2,000/day/lane → 0.60
+- 2,000–3,999/day/lane → 1.00
+- 4,000–7,999/day/lane → 1.50
+- 8,000–11,999/day/lane → 2.00
+- 12,000–15,999/day/lane → 2.50
+- 16,000+/day/lane → 3.00
+
+### 4.3 InfraFactor
+- protected / fully separated → 0.50
+- buffered lane → 0.68
+- painted lane → 0.82
+- no dedicated facility → 1.00
+
+### 4.4 ShoulderFactor
+Shoulder only applies when:
+- no dedicated bike facility
+- speed ≥ 30 mph
+
+Shoulder classes:
+- sub-usable: < 2.0 ft / 0.6 m
+- usable: 2.0 ft to < 8.0 ft / 0.6 m to < 2.4 m
+- wide: ≥ 8.0 ft / 2.4 m
+
+Launch values:
+- sub-usable / none → 1.00
+- usable → 0.88
+- wide → 0.78
+
+---
+
+## 5. Crossing risk contribution
+
+A crossing event is a score-bearing conflict point where the route requires more than simply continuing along the road.
+
+### 5.1 Variables
+- **E0** = base crossing risk contribution before context is applied
+- **E_cap** = maximum contribution any one crossing may add
+- **SpeedFactor_raw** = raw benchmark speed ratio before launch compression
+- **TrafficFactor_raw** = raw benchmark traffic ratio
+- **WidthFactor** = width / lanes-crossed multiplier
+- **ControlFactor** = signalized / stop-controlled / unknown modifier
+- **MovementFactor** = straight / right-merge / left-across / unknown modifier
+
+### 5.2 Formula
+
+```text
+CrossingEventContribution_i
+= min(E_cap,
+      E0 × (SpeedFactor_raw × TrafficFactor_raw)^0.5
+         × WidthFactor × ControlFactor × MovementFactor)
+```
+
+Launch constants:
+- E0 = 0.05 crossing risk points
+- E_cap = 0.75 crossing risk points
+
+### 5.3 Eligibility
+A crossing event enters score math when at least one is true:
+- crossed/entered road speed ≥ 30 mph and AADT per lane ≥ 2,000/day/lane
+- lanes crossed ≥ 3
+- left across traffic on a road that is either speed ≥ 30 mph or AADT per lane ≥ 2,000/day/lane
+
+Signalized and stop-controlled crossings may still be counted and displayed even when not all of them are score-bearing.
+
+### 5.4 Factor tables
+#### WidthFactor
+- 1–2 lanes → 1.00
+- 3–4 lanes → 1.25
+- 5–6 lanes → 1.60
+- 7+ lanes → 2.00
+
+#### ControlFactor
+- signalized → 1.00
+- stop-controlled → 1.05
+- unknown → 1.10
+
+#### MovementFactor
+- straight-across → 1.00
+- right / merge → 1.05
+- left across traffic → 1.20
+- unknown → 1.10
+
+---
+
+## 6. Route rollup
+
+```text
+TotalContinuousRisk = Σ ContinuousSliceRisk
+ContinuousRPM = TotalContinuousRisk / RouteMiles
+
+TotalCrossingRiskContribution = Σ CrossingEventContribution_i
+RawCrossingRiskContributionPerMile = TotalCrossingRiskContribution / RouteMiles
+
+EffectiveCrossingRiskContributionPerMile
+= min(RawCrossingRiskContributionPerMile, ContinuousRPM × 0.6667)
+
+RawRPM = ContinuousRPM + EffectiveCrossingRiskContributionPerMile
+
+SafetyScore = 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
+```
+
+This route-level crossing cap ensures crossing contribution cannot exceed 40% of raw canonical route risk at launch.
+
+---
+
+## 7. What is out of canonical score math
+
+The following are not part of canonical score math:
+- critical stretch / hotspot penalties
+- time-of-day traffic bell-curving
+- rail / grate / cattle-guard / non-motor-vehicle hazard penalties
+- weather / light conditions
+
+These may still appear in report and explanation layers.
+
+---
+
+## 8. Report-only layers
+
+### 8.1 Critical stretch
+Critical stretch is report-only.
+It may appear in the analysis drawer and route explanation, but it does not modify the canonical score.
+
+### 8.2 Contextual traffic
+If Lanterne shows public traffic as daily counts, it should also show rider-readable equivalents:
+- cars per hour average
+- cars per minute average
+
+Time-of-day contextual interpretation may appear in cue sheets and explainers, but not in canonical score math.
+
+---
+
+## 9. Design rule
+
+Safety Score must remain:
+- explainable
+- grounded in traffic safety research
+- resistant to feature creep
+- honest about what is benchmark-derived vs launch policy
 
 
 ---
@@ -7206,6 +7650,373 @@ Return:
 
 ---
 
+## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v3_final.md
+
+# DS-017 — Final V3 Safety Score Model: Non-Linear Speed and Bounded Crossing Risk Contribution
+
+Status: Accepted for launch implementation  
+Date: 2026-04-04
+
+## Purpose
+
+This document defines the launch canonical Safety Score model for Lanterne.
+
+The goal is a score that is:
+- narrow
+- explainable
+- benchmark-shaped
+- transparent about policy-derived safeguards
+- suitable for long endurance routes
+
+## 1. Canonical score definition
+
+Safety Score represents:
+
+> relative expected harm from a bicyclist being struck by a motor vehicle
+
+It is not:
+- a crash probability
+- a weather score
+- a fatigue score
+- a critical-stretch score
+
+## 2. Continuous segment exposure
+
+For each internal analysis slice:
+
+```text
+ContinuousSliceRisk
+= SliceMiles
+× (0.60 × SpeedFactor + 0.40 × TrafficFactor)
+× InfraFactor
+× ShoulderFactor
+```
+
+### 2.1 SpeedFactor
+
+Benchmark shape: NCHRP Table 156, normalized to a 25 mph baseline and compressed for launch stability.
+
+```text
+BenchmarkSpeedRatio(s)
+= Interp(Table156, s) / Table156(25 mph)
+
+SpeedFactor(s)
+= BenchmarkSpeedRatio(s) ^ 0.65
+```
+
+Launch table:
+
+| Posted speed | SpeedFactor | Plain English |
+|---|---:|---|
+| ≤20 mph | 0.50 | very low-speed environment |
+| 25 mph | 1.00 | baseline town / slow road |
+| 30 mph | 1.60 | clearly elevated from baseline |
+| 35 mph | 2.30 | meaningful severity jump |
+| 40 mph | 3.10 | fast arterial / rural main road |
+| 45 mph | 4.00 | high-consequence exposure |
+| 50 mph | 5.00 | very high-consequence exposure |
+| 55+ mph | 6.20 | extreme posted-speed environment |
+
+What is benchmark-derived:
+- non-linear speed shape
+- the fact that the 25–55 mph region matters disproportionately
+- the table family behind the curve
+
+What is policy-derived:
+- the 0.65 compression exponent
+- using posted speed as the practical national-scale proxy
+- the exact rounded launch values above
+
+### 2.2 TrafficFactor
+
+Benchmark shape: NCHRP Table 172, normalized to the 2,000–3,999/day/lane baseline.
+
+Launch table:
+
+| AADT per lane | TrafficFactor | Rider-facing translation |
+|---|---:|---|
+| <2,000/day/lane | 0.60 | quiet-ish road |
+| 2,000–3,999/day/lane | 1.00 | baseline light-to-moderate |
+| 4,000–7,999/day/lane | 1.50 | moderate / busy |
+| 8,000–11,999/day/lane | 2.00 | busy |
+| 12,000–15,999/day/lane | 2.50 | very busy |
+| 16,000+/day/lane | 3.00 | extremely busy |
+
+#### Traffic fallback ladder (highest confidence to lowest)
+1. official AADT per lane  
+2. official AADT total + known lane count  
+3. official AADT total + inferred lane count  
+4. inferred AADT total from nearby AADT values by highway type  
+5. generic road-class / highway-type traffic proxy  
+6. unknown
+
+Each fallback step must reduce confidence.
+
+#### Public display rule
+Whenever a public-facing traffic figure is shown as per-day volume, it should also be shown in at least one rider-readable equivalent:
+- cars per hour average
+- cars per minute average
+
+### 2.3 InfraFactor
+
+| Facility | InfraFactor |
+|---|---:|
+| fully separated / protected track | 0.50 |
+| buffered bike lane | 0.68 |
+| painted bike lane | 0.82 |
+| no dedicated bike lane/facility | 1.00 |
+
+No sharrow credit at launch.
+
+### 2.4 ShoulderFactor
+
+Shoulder only applies when:
+- no dedicated bike facility
+- speed ≥ 30 mph
+
+#### Shoulder classes
+- **sub-usable shoulder**: < 2.0 ft / 0.6 m
+- **usable shoulder**: 2.0 ft to < 8.0 ft / 0.6 m to < 2.4 m
+- **wide shoulder**: ≥ 8.0 ft / 2.4 m
+
+Launch table:
+
+| Shoulder condition | ShoulderFactor |
+|---|---:|
+| no shoulder or sub-usable shoulder | 1.00 |
+| usable shoulder | 0.88 |
+| wide shoulder | 0.78 |
+
+Sub-usable shoulder is still important rider information and may be shown in cues/inspection, but it earns no meaningful safety credit.
+
+## 3. Crossing risk contribution
+
+### 3.1 Variable definitions
+
+For each score-bearing crossing event:
+
+- **E0** = base crossing risk contribution before context is applied
+- **E_cap** = maximum crossing risk contribution any one crossing may add
+- **SpeedFactor_raw** = raw benchmark speed ratio before launch compression
+- **TrafficFactor_raw** = raw benchmark traffic ratio before any route-level bounding
+- **WidthFactor** = crossing width / lanes-crossed multiplier
+- **ControlFactor** = signalized / stop-controlled / unknown modifier
+- **MovementFactor** = straight / right-merge / left-across / unknown modifier
+
+### 3.2 Event formula
+
+```text
+CrossingEventContribution_i
+= min(E_cap,
+      E0 × (SpeedFactor_raw × TrafficFactor_raw)^0.5
+         × WidthFactor × ControlFactor × MovementFactor)
+```
+
+Launch constants:
+- `E0 = 0.05 crossing risk points`
+- `E_cap = 0.75 crossing risk points`
+
+Why they exist:
+- **E0** ensures that a real crossing event is never treated like zero-weight noise.
+- **E_cap** prevents one uncertain open-data-derived crossing from overwhelming a very long route.
+
+These are explicit launch policy constants, not benchmark-given coefficients.
+
+### 3.3 Scored crossing-event eligibility
+
+A crossing event enters score math when at least one is true:
+
+- crossed/entered road speed ≥ 30 mph **and** AADT per lane ≥ 2,000/day/lane
+- lanes crossed ≥ 3
+- left across traffic on a road that is either speed ≥ 30 mph or AADT per lane ≥ 2,000/day/lane
+
+Signalized and stop-controlled crossings may still be counted and shown even when not every one is score-bearing.
+
+### 3.4 WidthFactor
+
+| Lanes crossed | WidthFactor |
+|---|---:|
+| 1–2 | 1.00 |
+| 3–4 | 1.25 |
+| 5–6 | 1.60 |
+| 7+ | 2.00 |
+
+### 3.5 ControlFactor
+
+| Control | ControlFactor |
+|---|---:|
+| signalized | 1.00 |
+| stop-controlled | 1.05 |
+| unknown | 1.10 |
+
+Control remains a small modifier. National open data does not justify aggressive control coefficients at launch.
+
+### 3.6 MovementFactor
+
+| Movement | MovementFactor |
+|---|---:|
+| straight-across | 1.00 |
+| right / merge | 1.05 |
+| left across traffic | 1.20 |
+| unknown | 1.10 |
+
+Movement remains a small modifier. Movement framing is benchmark-supported; exact magnitudes are launch policy.
+
+## 4. Route-level crossing risk contribution
+
+```text
+TotalCrossingRiskContribution
+= Σ CrossingEventContribution_i
+
+RawCrossingRiskContributionPerMile
+= TotalCrossingRiskContribution / RouteMiles
+```
+
+No separate density-adjustment layer is used.
+
+### 4.1 Route-level crossing share cap
+
+```text
+EffectiveCrossingRiskContributionPerMile
+= min(RawCrossingRiskContributionPerMile,
+      ContinuousRPM × 0.6667)
+```
+
+This enforces the launch rule that crossings may not exceed **40% of total raw canonical route risk**.
+
+## 5. Route rollup
+
+```text
+TotalContinuousRisk = Σ ContinuousSliceRisk
+ContinuousRPM = TotalContinuousRisk / RouteMiles
+
+RawRPM = ContinuousRPM + EffectiveCrossingRiskContributionPerMile
+
+SafetyScore
+= 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
+```
+
+Launch note:
+- midpoint 2.5 and steepness 1.4 remain launch calibration constants
+- revisit after full 3,000-route endurance corpus scoring
+
+## 6. Worked examples
+
+### 6.1 Low risk crossing
+
+#### Scene
+A sleepy small-town signalized crossing of a 25 mph two-lane road with light average traffic. Straight through.
+
+#### Inputs
+- `E0 = 0.05 crossing risk points`
+- `E_cap = 0.75 crossing risk points`
+- `SpeedFactor_raw = 1.0`
+- `TrafficFactor_raw = 0.6`
+- `WidthFactor = 1.0`
+- `ControlFactor = 1.0`
+- `MovementFactor = 1.0`
+- 2,000 AADT total on 2 lanes ≈ 83 cars/hour average ≈ 1.4 cars/minute average
+
+#### Math
+```text
+CrossingEventContribution
+= min(0.75,
+      0.05 × (1.0 × 0.6)^0.5 × 1.0 × 1.0 × 1.0)
+≈ 0.039 crossing risk points
+```
+
+#### Meaning
+A real crossing, but not a route-defining problem.
+
+### 6.2 Medium risk crossing
+
+#### Scene
+A suburban arterial crossing: 35 mph, 4 lanes, moderate traffic, signalized, left across traffic.
+
+#### Inputs
+- `E0 = 0.05 crossing risk points`
+- `E_cap = 0.75 crossing risk points`
+- `SpeedFactor_raw ≈ 3.6`
+- `TrafficFactor_raw ≈ 1.5`
+- `WidthFactor = 1.25`
+- `ControlFactor = 1.0`
+- `MovementFactor = 1.2`
+- 20,000 AADT total on 4 lanes ≈ 833 cars/hour average ≈ 13.9 cars/minute average
+
+#### Math
+```text
+CrossingEventContribution
+= min(0.75,
+      0.05 × (3.6 × 1.5)^0.5 × 1.25 × 1.0 × 1.2)
+≈ 0.17 crossing risk points
+```
+
+#### Meaning
+A meaningful pinch point. Not catastrophic, but clearly part of the route’s danger story.
+
+### 6.3 High risk crossing
+
+#### Scene
+A fast, wide highway-style crossing: 55 mph, 6 lanes, high traffic, left across traffic, limited control certainty.
+
+#### Inputs
+- `E0 = 0.05 crossing risk points`
+- `E_cap = 0.75 crossing risk points`
+- `SpeedFactor_raw ≈ 16.3`
+- `TrafficFactor_raw ≈ 2.2`
+- `WidthFactor = 1.60`
+- `ControlFactor = 1.10`
+- `MovementFactor = 1.20`
+- 50,000 AADT total on 6 lanes ≈ 2,083 cars/hour average ≈ 34.7 cars/minute average
+
+#### Math
+```text
+Raw value before cap
+= 0.05 × (16.3 × 2.2)^0.5 × 1.60 × 1.10 × 1.20
+≈ 0.96 crossing risk points
+
+After cap:
+CrossingEventContribution = 0.75 crossing risk points
+```
+
+#### Meaning
+An “avoid if possible” crossing. Exactly the kind of thing the drawer should call out loudly.
+
+## 7. Out of canonical score
+
+Not part of canonical score math:
+- critical stretch
+- time-of-day traffic bell-curving
+- rail / grate / cattle-guard / non-motor-vehicle hazard penalties
+- weather / light conditions
+
+## 8. Report-only layers
+
+### 8.1 Critical stretch
+Show in drawer only:
+- worst 1 km or comparable hotspot metric
+- plain-English interpretation
+- no effect on canonical score
+
+### 8.2 Contextual traffic
+Show in cue sheet / explainer only:
+- AADT as cars/minute average
+- AADT as cars/hour average
+- optional time-of-day contextualization
+- no effect on canonical score
+
+## 9. Public terminology rules
+
+Public-facing docs and UI should use:
+- **crossing risk contribution**
+- **endurance rides**
+- **sub-usable shoulder** / **usable shoulder** / **wide shoulder**
+
+Avoid opaque internal language like “equivalent miles” in public-facing explanation.
+
+
+---
+
 ## Source File: docs/02-architecture/design/ds-016-experience_policy_layer.md
 
 # Experience Policy layer #
@@ -8071,6 +8882,952 @@ Then start deleting local conditional logic from `RouteMap`, drawers, and ride o
 
 That’s the right order. Not because it’s pretty. Because it keeps you from building a haunted house of conditionals and calling it architecture.
 
+
+---
+
+## Source File: docs/02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md
+
+# DS-017 — Truth Resolution & Propagation Specification
+
+Status: Draft (authoritative once implemented)
+Date: 2026-04-XX
+
+------
+
+## 1. Purpose
+
+This document defines **exactly how Lanterne determines and propagates truth** for:
+
+- speed
+- shoulder
+- bike infrastructure
+- traffic behavior
+
+This is not conceptual. This is operational.
+
+If ADR-032 defines the ingredients, and ADR-042 defines the rules, this document defines **how the system actually behaves in code**.
+
+------
+
+## 2. Core Principle
+
+The system maintains:
+
+> **one canonical truth per segment, derived deterministically from evidence**
+
+Truth must be:
+
+- explainable
+- reproducible
+- stable under identical inputs
+
+User contributions do not directly modify truth.
+
+------
+
+## 3. Evidence Sources (Ordered by Decreasing Trust)
+
+The following evidence sources are used to determine canonical truth.
+
+They are listed in **strict order of precedence**, from most trusted to least trusted.
+
+Higher-priority sources always override lower-priority ones.
+
+------
+
+### 0. measured (sensor-derived)
+
+Measured data represents direct, instrumented observations of the road.
+
+Examples:
+
+- Varia radar pass data
+- DOT speed sensors
+- traffic loop detectors
+
+Characteristics:
+
+- objective
+- repeatable
+- time-aware
+- often high-volume
+
+Notes:
+
+- this is the closest thing to ground truth
+- values are typically aggregated (median / trimmed mean), not single samples
+- propagation requires sufficient sample density
+
+------
+
+### 1. observed (admin / validated)
+
+Observed values are manually confirmed by a trusted source.
+
+Examples:
+
+- founder/admin overrides
+- validated field observations
+
+Characteristics:
+
+- high confidence
+- sparse
+- static snapshot
+
+Notes:
+
+- used when we explicitly know something is true
+- overrides all posted and inferred data
+
+------
+
+### 2. authoritative_posted (DOT / HPMS)
+
+Official posted values from government or authoritative datasets.
+
+Examples:
+
+- DOT speed limits
+- HPMS-derived posted values
+
+Characteristics:
+
+- structured
+- reliable
+- occasionally outdated or generalized
+
+Notes:
+
+- considered stronger than OSM
+- may not reflect real-world driving behavior
+
+------
+
+### 3. osm_posted
+
+Posted values derived from OpenStreetMap tags.
+
+Examples:
+
+- `maxspeed=35`
+- `maxspeed=25 mph`
+
+Characteristics:
+
+- community-maintained
+- widely available
+- variable accuracy
+
+Notes:
+
+- often correct, but not guaranteed
+- can lag real-world changes
+
+------
+
+### 4. observation_inferred
+
+Values propagated from nearby **observed or measured segments**.
+
+Examples:
+
+- a confirmed 45 mph segment extends across a continuous road
+
+Characteristics:
+
+- derived from high-confidence evidence
+- not directly observed on the segment itself
+
+Notes:
+
+- carries strong signal, but weaker than direct observation
+- must be clearly labeled as inferred
+
+------
+
+### 5. authoritative_inferred
+
+Values inferred from authoritative datasets.
+
+Examples:
+
+- DOT functional class implying typical speed
+- HPMS-based estimates
+
+Characteristics:
+
+- structured inference
+- consistent but generalized
+
+Notes:
+
+- stronger than OSM inference
+- weaker than direct posted values
+
+------
+
+### 6. osm_inferred
+
+Values inferred from OSM attributes.
+
+Examples:
+
+- highway type → estimated speed
+- lane count → inferred traffic behavior
+
+Characteristics:
+
+- heuristic-based
+- widely applicable
+- often inaccurate in edge cases
+
+Notes:
+
+- fallback when no better data exists
+
+------
+
+### 7. regional_prior
+
+Regionally derived baseline values.
+
+Examples:
+
+- typical residential speed in New Jersey suburbs
+- state-level speed norms
+
+Characteristics:
+
+- aggregated from known data
+- improves baseline realism
+
+Notes:
+
+- stronger than generic baseline
+- adapts to geography
+
+------
+
+### 8. highway_area_baseline
+
+Baseline derived from:
+
+- highway classification
+- urbanicity (rural / suburban / urban)
+
+Examples:
+
+- suburban arterial → 35 mph
+- rural secondary → 45 mph
+
+Characteristics:
+
+- structured but generic
+- context-aware
+
+Notes:
+
+- better than pure highway baseline
+- still a fallback
+
+------
+
+### 9. highway_baseline
+
+Pure highway-type-based default.
+
+Examples:
+
+- residential → 25 mph
+- primary → 45 mph
+
+Characteristics:
+
+- simple
+- universal
+- lowest fidelity
+
+Notes:
+
+- used only when no better information exists
+- considered last-resort input
+
+------
+
+## Summary
+
+The system always selects the highest-confidence available evidence.
+
+Lower-confidence sources are only used when stronger evidence is absent.
+
+This ordering ensures:
+
+- deterministic behavior
+- explainable results
+- progressive improvement as better data becomes available
+
+------
+
+## 3.5 Measured Evidence (Highest Priority)
+
+Measured evidence represents direct sensor-derived data.
+
+Examples:
+
+- Varia radar pass frequency and speed
+- DOT speed sensors
+- traffic loop detectors
+
+------
+
+### Characteristics
+
+Measured data is:
+
+- objective
+- repeatable
+- timestamped
+- potentially dense (multiple samples over time)
+
+------
+
+### Priority
+
+Measured evidence is the highest-priority source.
+
+It overrides:
+
+- observed
+- posted
+- inferred
+- baseline
+
+------
+
+### Aggregation
+
+Measured data is not used as a single value.
+
+Instead, it is aggregated into:
+
+- median or trimmed mean
+- distribution-aware metrics (future)
+
+------
+
+### Propagation
+
+Measured values propagate along the road similarly to observed values but:
+
+- decay more cautiously
+- require sufficient sample density to extend influence
+
+------
+
+### Future Use
+
+Measured data may support:
+
+- traffic exposure modeling
+- pass frequency estimation
+- driver behavior metrics
+
+This enables a transition from inferred traffic behavior to directly measured reality.
+
+------
+
+### Design Principle
+
+Measured data represents what actually happens on the road.
+
+It is the closest approximation to ground truth available to the system.
+
+------
+
+## 3.6 Measured Evidence — Aggregation & Promotion
+
+Measured data is the highest-trust input in the system.
+
+However, a single measurement is not truth.
+
+The system must distinguish between:
+
+- raw measured events
+- aggregated measured truth
+
+------
+
+### Raw Measured Events
+
+A measured event represents a single real-world interaction.
+
+Examples:
+
+- one Varia radar pass
+- one DOT sensor reading
+- one speed capture
+
+These are stored individually and must NOT directly influence canonical truth.
+
+------
+
+### Aggregated Measured Truth
+
+Measured truth is derived from a sufficient number of measured events.
+
+It represents the **typical real-world behavior** on a segment or road.
+
+------
+
+### Promotion Criteria (v1)
+
+Measured data may be promoted to canonical truth only when ALL conditions are met:
+
+- at least 10 measured events
+- at least 3 distinct ride sessions
+- (if multi-user data exists) at least 2 unique users
+- data is not highly unstable (see spread rules below)
+
+------
+
+### Aggregation Method
+
+Measured values are aggregated using:
+
+- median (not mean)
+- rounded to nearest 5 mph
+
+Example:
+
+Raw values:
+28, 30, 31, 29, 60
+
+→ median = 30
+→ canonical = 30 mph
+
+------
+
+### Spread / Stability Guardrail
+
+Measured data must be reasonably consistent.
+
+Do NOT promote if:
+
+- p75 - p25 > 15 mph
+
+This prevents:
+
+- mixed-context contamination
+- outlier-driven distortion
+- poor segment grouping
+
+------
+
+### Propagation Behavior
+
+Once promoted:
+
+- measured truth behaves like observed truth
+- it propagates along the road per standard rules
+- downstream segments are labeled as measured_inferred
+
+------
+
+### Naming & Storage
+
+Measured data should be stored as:
+
+- raw events (event-level)
+- aggregated value (segment/road-level)
+
+Suggested fields:
+
+- measured_vehicle_speed_mph
+- measured_pass_count
+- measured_confidence
+
+------
+
+### Important Distinction
+
+Measured vehicle speed is NOT the same as posted speed.
+
+It represents:
+
+> how vehicles actually behave on this road
+
+This may differ significantly from:
+
+- DOT posted limits
+- OSM maxspeed tags
+
+------
+
+### Interaction with Other Evidence
+
+Measured truth:
+
+- overrides observed
+- overrides posted
+- overrides inferred
+- overrides baseline
+
+Measured truth is only superseded by:
+
+- higher-quality measured data
+- explicit admin override
+
+------
+
+### Design Principle
+
+One measurement is an event.
+
+Enough measurements become reality.
+
+------
+
+## 4. Persistence Model
+
+For each segment field (speed, shoulder, bikeInfra, traffic), we persist:
+
+- value
+- source_type
+- confidence (implicit via source_type)
+- segment_id
+
+We do NOT persist:
+
+- propagation chains
+- inferred relationships between segments
+
+Propagation is recomputed deterministically.
+
+------
+
+## 5. Road Continuity Definition
+
+Propagation operates along **continuous road identity**, not raw OSM segmentation.
+
+Continuity is defined by:
+
+- road name continuity (primary signal)
+- geometric continuity (secondary)
+- directional coherence (tertiary)
+
+------
+
+### Continuity is broken when:
+
+- road name changes
+- strong conflicting evidence appears
+- explicit override exists
+
+------
+
+### Continuity is NOT broken by:
+
+- highway type changes alone
+- minor OSM segmentation splits
+- surface tag differences
+
+------
+
+## 6. Truth Dominance Model
+
+When a strong value exists on a road:
+
+> that value becomes the working truth along that road until contradicted
+
+This is not optional. This is the system behaving like the real world.
+
+------
+
+Example:
+
+- one confirmed 45 mph segment on a rural road
+  → assume 45 mph until proven otherwise
+
+## 6.5 Source Labeling During Propagation
+
+Propagation carries value, not source.
+
+When a value propagates from a segment with direct evidence:
+
+- the originating segment retains its source (e.g. observed, DOT posted, OSM posted)
+- downstream segments are labeled as inferred from that source
+
+Examples:
+
+- observed → observation_inferred
+- authoritative_posted → authoritative_inferred
+- osm_posted → osm_inferred
+
+This ensures provenance remains accurate and prevents misleading UI.
+
+------
+
+## Rule
+
+No propagated segment may retain a direct evidence label unless it is directly supported by that evidence.
+
+------
+
+## 7. Propagation by Dimension
+
+Each dimension behaves differently. This is intentional.
+
+------
+
+### 7.1 Speed
+
+**Behavior: highly stable**
+
+- propagates long distances
+- assumed constant across named road segments
+- only breaks on:
+  - road name change
+  - stronger evidence (DOT/OSM posted)
+  - explicit override
+
+------
+
+### 7.2 Shoulder
+
+**Behavior: context-dependent**
+
+- rural:
+  - propagates long distances
+- suburban:
+  - propagates moderately
+- urban:
+  - decays quickly
+
+------
+
+Rule of thumb:
+
+- shoulder is assumed continuous until contradicted
+- but is more fragile than speed
+
+------
+
+### 7.3 Bike Infrastructure
+
+**Behavior: discontinuous**
+
+- decays aggressively
+- does not propagate far
+- resets frequently
+
+------
+
+Example:
+
+- bike lane ends at intersection → do not carry forward
+
+------
+
+### 7.4 Traffic Behavior
+
+**Behavior: semi-stable**
+
+- influenced by:
+  - road class
+  - geography
+  - corridor structure
+
+------
+
+Rules:
+
+- carries across similar road segments
+- decays faster in:
+  - urban grids
+  - high intersection density areas
+- reinforced by regional priors
+
+------
+
+## 8. Urbanicity Adjustment
+
+Propagation distance depends on context.
+
+We define three bands:
+
+- rural
+- suburban
+- urban
+
+------
+
+### Rough heuristics:
+
+- rural:
+  - low intersection density
+  - long continuous roads
+  - long propagation allowed
+- suburban:
+  - moderate intersections
+  - moderate decay
+- urban:
+  - frequent intersections
+  - aggressive decay
+
+------
+
+Urbanicity is inferred from:
+
+- intersection density
+- road network density
+- classification mix
+
+------
+
+## 9. Regional Priors
+
+Regional priors exist to improve baseline inference.
+
+Examples:
+
+- typical speeds by state
+- road-class norms
+- traffic patterns
+
+------
+
+Rules:
+
+- stronger than baseline
+- weaker than direct evidence
+- used when no better signal exists
+
+------
+
+## 9.5 Regional Speed Inference Model
+
+Regional priors improve baseline speed estimation.
+
+------
+
+### Model Structure
+
+For each:
+
+- state
+- urbanicity band (rural / suburban / urban)
+- highway type
+
+Maintain:
+
+- rolling mean speed
+- rounded to nearest 5 mph
+
+------
+
+### Update Rule
+
+Each new observed or promoted value updates:
+
+- rolling mean using weighted averaging
+- outliers beyond ±15 mph ignored
+
+------
+
+### Minimum Data Threshold
+
+- fewer than 3 samples → use baseline
+- 3+ samples → use regional prior
+
+------
+
+### Priority
+
+Regional prior is:
+
+- stronger than highway baseline
+- weaker than inferred or observed values
+
+------
+
+### Purpose
+
+Replace naive highway-type-only inference with geographically realistic values.
+
+------
+
+
+
+## 10. Conflict Resolution
+
+When multiple values exist:
+
+1. choose highest-priority evidence
+2. if equal:
+   - prefer closer segment
+   - prefer consistent propagation chain
+
+------
+
+Conflicts do NOT blend.
+
+There is always a single resolved truth.
+
+------
+
+## 11. User Observations
+
+User observations:
+
+- are stored separately
+- are session-applied immediately
+- do NOT modify canonical truth
+- do NOT affect scoring
+
+------
+
+They may:
+
+- override display locally
+- be aggregated later
+
+------
+
+## 11.5 Observation Promotion to Canonical Truth
+
+User observations may be promoted to canonical truth through aggregation.
+
+------
+
+### Promotion Criteria (v1)
+
+An observation set may be promoted when:
+
+- at least N authenticated users (initially N = 3)
+- values agree within tolerance:
+  - speed: ±5 mph
+  - categorical values: exact match
+
+------
+
+### Aggregation Scope
+
+Observations are aggregated across:
+
+- continuous road identity
+- not individual segments
+
+This ensures propagation-consistent counting.
+
+------
+
+### Promotion Result
+
+When promoted:
+
+- source_type becomes "observed"
+- value becomes canonical truth
+- propagation rules apply from that point
+
+------
+
+### Constraints
+
+- anonymous observations do not count toward promotion
+- conflicting observations delay promotion
+- promotion must be deterministic
+
+------
+
+### Design Principle
+
+User input becomes truth only after sufficient agreement.
+
+Truth is earned, not assumed.
+
+
+
+## 12. Presentation Contract
+
+The UI must clearly distinguish:
+
+- canonical value
+- source (OSM / DOT / inferred / baseline)
+- user observation (if present)
+
+------
+
+Example:
+
+- “35 mph (OSM)”
+- “45 mph (your report)”
+
+------
+
+## 13. Scoring Contract
+
+Only canonical truth feeds:
+
+- safety score
+- heatmap coloring
+- route metrics
+
+------
+
+User observations must NOT influence:
+
+- score
+- color
+- ranking
+
+------
+
+## 14. Non-Goals
+
+This spec does NOT define:
+
+- observation aggregation
+- ML prediction
+- cohort-based comparison logic
+- rider-specific personalization
+
+------
+
+## 15. Test Scenarios (Minimum Set)
+
+The system must behave correctly under:
+
+- single observed speed on long rural road
+- conflicting OSM vs DOT speeds
+- suburban shoulder appearing/disappearing
+- urban bike lane discontinuities
+- highway type change with same road name
+- road name change with same highway type
+- user observation present (no canonical change)
+
+------
+
+## 16. Design Principle
+
+The system should behave like a rider who knows how roads actually work:
+
+- speed doesn’t randomly change every 200 meters
+- shoulders usually continue… until they don’t
+- bike lanes disappear abruptly
+- traffic patterns follow geography, not arbitrary segmentation
+
+------
+
+## 17. Final Rule
+
+> Truth is not averaged.
+> Truth is not guessed blindly.
+> Truth is derived, propagated, and corrected over time.
+
+------
+
+#### END
 
 ---
 
@@ -11877,6 +13634,10 @@ The system will not allow event packaging to redefine what a canonical route is.
 
 ADR-032 — Comparative Traffic Context and Segment Cohorts
 
+
+
+See ADR-042 for how canonical truth is derived from these evidence layers.
+
 Status: Accepted
 Date: 2026-03-23
 
@@ -14253,3 +16014,765 @@ SafetyScore = 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
 - Weather / light conditions
 - Signalized/stop-controlled crossing counts alone
 
+
+---
+
+## Source File: docs/03-adrs/adr-039-segment-level-analysis-storage-model.md
+
+# ADR-039 — Segment-Level Analysis Storage Model
+
+Status: Accepted
+Date: 2026-04-03
+
+------
+
+## Context
+
+Lanterne performs detailed route analysis by evaluating many small internal slices of a route.
+
+These slices capture real-world variation in:
+
+- traffic exposure
+- speed environment
+- shoulder presence
+- bike infrastructure
+- hazards
+
+This slice-level computation is essential to avoid smoothing over critical changes along a route.
+
+However, a key architectural question emerged:
+
+> Should segment-level analysis be persisted in the database?
+
+------
+
+## Decision
+
+Lanterne will **NOT persist segment-level analysis in the database**.
+
+Segment-level data is:
+
+- computed client-side
+- stored only in memory during analysis
+- optionally cached inside `route_cache.safety_result` as JSON
+- never stored in structured database tables
+
+------
+
+## Rationale
+
+### 1. Segment data is derived, not canonical
+
+Segment-level risk is:
+
+- computed from inputs
+- dependent on scoring model version
+- subject to change
+
+It is not a stable fact.
+
+Storing it would incorrectly elevate derived data to canonical status.
+
+------
+
+### 2. The system is designed for client-side computation
+
+Lanterne’s architecture is intentionally:
+
+- browser-first
+- compute-on-demand
+- server-light
+
+> All analysis runs in the user's device.
+
+Persisting segment-level data would introduce unnecessary backend coupling.
+
+------
+
+### 3. Storage adds complexity without rider value
+
+Persisting segment-level data would require:
+
+- schema design
+- migrations
+- versioning
+- invalidation logic
+- synchronization
+
+These add engineering cost but do not improve the rider’s experience for the core use case.
+
+------
+
+### 4. Caching already solves performance
+
+The system already uses:
+
+- tile-level caching (OSM roads)
+- route-level caching (analysis results)
+
+These eliminate redundant computation without requiring persistent segment storage.
+
+------
+
+### 5. Product focus is route-level decision support
+
+Lanterne’s core promise is:
+
+> Help riders understand a route before they ride it.
+
+It is not intended to be:
+
+- a global segment analytics platform
+- a shared road intelligence database
+
+------
+
+## Implications
+
+### What is stored
+
+- route geometry
+- route-level analysis results
+- cached tiles
+- user data
+
+------
+
+### What is NOT stored
+
+- segment-level risk
+- segment-level scoring
+- segment-level presentation tokens
+
+------
+
+### Where segment data exists
+
+Segment-level data exists only as:
+
+```txt
+in-memory during analysis
++
+JSON inside route_cache.safety_result
+```
+
+------
+
+### System behavior
+
+- segment truth is recomputed when needed
+- updates to scoring models automatically apply
+- no backfill or migration is required
+
+------
+
+## Consequences
+
+### Advantages
+
+- simpler architecture
+- faster iteration
+- no schema drift
+- no invalidation complexity
+- lower infrastructure cost
+- consistent with client-side compute model
+
+------
+
+### Tradeoffs
+
+- no cross-route segment querying
+- no persistent segment analytics
+- no server-side reuse of segment outputs
+
+These are acceptable given current product goals.
+
+------
+
+## Future Considerations
+
+This decision may be revisited if:
+
+- server-side compute becomes necessary
+- cross-route analytics becomes a core product feature
+- segment-level community data requires structured storage
+
+Until then, segment-level persistence is explicitly out of scope.
+
+------
+
+## Design Principle
+
+> Segment-level analysis is derived, not stored.
+
+------
+
+## Final Rule
+
+Lanterne computes truth on demand.
+
+It does not store derived segment data.
+
+## 
+
+---
+
+## Source File: docs/03-adrs/adr-040-user-observations-as-overlay-evidence-not-canonical-truth.md
+
+# ADR-040 — User Observations as Overlay Evidence, Not Canonical Truth
+
+Status: Accepted
+Date: 2026-04-03
+
+## Context
+
+Lanterne now supports rider-submitted observations for safety-relevant facts such as:
+
+- speed
+- shoulder
+- bike infrastructure
+
+These observations may be submitted without authentication.
+
+The product intent is to let riders contribute what they see on the road while preserving the integrity of Lanterne’s deterministic safety model.
+
+Recent implementation work introduced a session observation layer, a fire-and-forget persistence path, and a UI submission flow. During that work, user observations were temporarily being injected into canonical truth resolution.
+
+That behavior was architecturally incorrect.
+
+It violated several core system principles:
+
+- canonical truth must remain deterministic
+- Safety Score must remain explainable from model inputs
+- user observations are evidence, not truth
+- the heatmap must not become crowd-voted or silently user-modified
+
+This ADR formalizes the correction.
+
+## Problem
+
+If user observations are allowed to enter the canonical truth resolver directly, then:
+
+- scoring provenance becomes ambiguous
+- heatmap colors may change due to unreviewed user input
+- deterministic truth becomes contaminated by ad hoc evidence
+- guest submissions could silently influence the model
+- future moderation and override workflows become harder to design cleanly
+
+In other words, the system begins to collapse the distinction between:
+
+- canonical truth
+- rider evidence
+- reviewed overrides
+
+Those are different layers and must remain separate.
+
+## Decision
+
+Lanterne will treat user observations as a **presentation-layer evidence overlay**, not as a canonical truth input.
+
+### Final rule
+
+**User observations do not participate in canonical truth resolution.**
+
+They do not appear in:
+
+- `collectSpeedEvidence`
+- `collectShoulderEvidence`
+- `collectBikeInfraEvidence`
+- or any equivalent canonical resolver input path
+
+They do not affect:
+
+- Safety Score
+- heatmap colors
+- risk calculations
+- canonical inspector truth
+- any other deterministic scoring or truth output
+
+Instead, user observations are applied only as:
+
+- immediate session/UI overlays
+- persisted evidence records for future review
+
+## Architectural Model
+
+### 1. Canonical path
+
+Deterministic sources only:
+
+- OSM
+- HPMS / DOT
+- deterministic inference
+
+These feed:
+
+- canonical truth resolver
+- scoring engine
+- heatmap builder
+- canonical truth display
+
+### 2. Observation path
+
+User-submitted observations feed:
+
+- session-local immediate UI feedback
+- persisted evidence storage
+- presentation-layer overlays
+
+They do **not** feed:
+
+- canonical truth resolver
+- scoring
+- heatmap logic
+- risk calculations
+
+### 3. Current UI behavior
+
+User observations are rendered in `TruthSection` as display-only overlays, labeled explicitly with:
+
+- `"(your observation)"`
+- `user_observation` source badge
+
+The underlying canonical truth remains visible and deterministic.
+
+## Rationale
+
+### 1. Trust in the score depends on deterministic provenance
+
+Lanterne’s free safety promise only works if riders can trust that the model is grounded in deterministic inputs rather than raw crowd edits.
+
+### 2. Evidence and truth are not the same thing
+
+A rider-submitted observation may be useful, timely, and directionally correct. That still does not make it canonical truth.
+
+Observations are evidence. Truth is the result of governed resolution.
+
+### 3. This preserves a clean future moderation path
+
+By keeping observations out of the resolver now, Lanterne retains the ability to later build:
+
+- moderation workflows
+- corroboration rules
+- trusted-source weighting
+- reviewed override layers
+
+without contaminating the live scoring path.
+
+### 4. It protects guest-mode contributions without weakening the model
+
+Unauthenticated riders can still contribute useful field intelligence. Those contributions can be acknowledged immediately in the UI and stored for later use, without granting them direct influence over canonical truth.
+
+### 5. It prevents the heatmap from becoming a crowd-edited surface
+
+The heatmap must remain the output of the deterministic model. It must not become a blended artifact of live user submissions.
+
+## Consequences
+
+### Positive
+
+- canonical truth remains deterministic
+- Safety Score provenance remains explainable
+- heatmap trust is preserved
+- guest contributions remain possible
+- UI can acknowledge rider input immediately
+- future moderation / override workflows stay cleanly separable
+
+### Tradeoffs
+
+- user observations do not immediately improve the score
+- riders may see a mismatch between their observation and canonical truth
+- additional future work is required if approved evidence is later allowed to influence model inputs
+
+These tradeoffs are acceptable and intentional.
+
+## Non-Goals
+
+This ADR does **not** define:
+
+- moderation workflow
+- corroboration thresholds
+- auth-weighted evidence classes
+- reviewed override governance
+- aggregation logic that upgrades observations into stronger factual signals
+
+Those may come later.
+
+This ADR defines only the current architectural boundary.
+
+## Future Direction
+
+A future governed system may allow reviewed evidence to produce Lanterne-specific overrides that supersede upstream source values.
+
+If that happens, the architecture must remain:
+
+raw observation
+→ review / moderation
+→ approved override
+→ canonical resolver input
+
+Not:
+
+raw observation
+→ canonical resolver input
+
+That distinction is mandatory.
+
+## Implementation Notes
+
+The canonical truth resolver has already been corrected so that user observations no longer participate in:
+
+- `collectSpeedEvidence`
+- `collectShoulderEvidence`
+- `collectBikeInfraEvidence`
+
+Current behavior:
+
+- scoring, heatmap colors, and risk calculations are unaffected by user input
+- observations render only as display overlays in `TruthSection`
+- overlays are explicitly marked as `user_observation`
+
+## Design Principle
+
+**User observations are evidence overlays, not canonical truth inputs.**
+
+## Decision Summary
+
+Lanterne accepts rider observations as useful field evidence.
+
+But those observations do not alter canonical truth, scoring, or heatmap behavior.
+
+Canonical safety outputs remain fully explainable from deterministic model inputs only.
+
+---
+
+## Source File: docs/03-adrs/adr-041-crossing_risk_contribution_and_critical_stretch.md
+
+# ADR-041 — Bounded Crossing Risk Contribution and Report-Only Critical Stretch
+
+Status: Accepted  
+Date: 2026-04-04
+
+## Context
+
+Lanterne’s headline Safety Score is intentionally narrow:
+
+> relative expected harm from a bicyclist being struck by a motor vehicle
+
+That definition remains stable.
+
+Recent research and implementation pressure-testing established several important truths:
+
+1. **Continuous segment exposure from speed and motor-vehicle volume over distance must remain the backbone of the score.** National bicycle fatality patterns and bicycle safety modeling frameworks do not support treating intersections as the dominant story by default. Most bicyclist fatalities occur away from intersections, and midblock motor-vehicle bicycle crashes are more likely to be fatal or serious than intersection motor-vehicle bicycle crashes. [1]
+
+2. **Crossing and turn conflicts matter, but they are structurally different from riding along a segment.** They should be modeled as bounded discrete events, not smeared into segment exposure and not allowed to overwhelm long-route segment risk. [1][2]
+
+3. **Open data supports some crossing inputs well, some partially, and some not at all.** Nationally feasible launch inputs include posted speed, some AADT coverage, lane count, turn direction from route geometry, and some signal/stop control tagging. Nationally infeasible launch inputs include turning counts, signal phasing, and reliable yielding behavior everywhere. [1][2]
+
+4. **Critical stretch is useful as an explanation layer but not defensible enough to remain in canonical score math at launch.** It belongs in the analysis drawer and explainer surfaces, not in the narrow canonical score.
+
+5. **Time-of-day contextual traffic interpretation is useful, but not canonical.** AADT bell-curving and ride-time traffic storytelling belong in cue sheet context, explainers, and future push intelligence—not in the canonical score.
+
+## Decision
+
+### 1. Canonical Safety Score structure
+The canonical Safety Score is built from:
+
+- continuous segment exposure risk
+- bounded crossing risk contribution
+
+### 2. Continuous segment exposure remains the backbone
+Continuous segment exposure is computed on small internal slices using:
+
+- a non-linear speed factor
+- a traffic factor
+- infrastructure mitigation
+- shoulder mitigation
+
+### 3. Crossing conflict is modeled as a bounded event contribution
+Crossing and turn conflicts are modeled as discrete events using only launch-feasible inputs:
+
+- speed environment of crossed/entered road
+- traffic intensity of crossed/entered road
+- crossing width / lanes crossed
+- control type when available
+- movement type when derivable
+
+These events are added as a bounded secondary contribution rather than replacing the segment backbone.
+
+### 4. Scored crossing-event eligibility
+A crossing event enters score math when at least one of the following is true:
+
+- the crossed or entered road has **speed ≥ 30 mph** **and** **AADT per lane ≥ 2,000/day/lane**
+- the crossing requires **3 or more lanes** to be crossed
+- the movement is **left across traffic** on a road that is either **≥ 30 mph** or **≥ 2,000 AADT/day/lane**
+
+Signalized and stop-controlled crossings may still be counted and reported even when not every one is score-bearing.
+
+### 5. Route-level crossing share is capped
+At launch, effective crossing risk contribution may not exceed **40% of total raw canonical route risk**.
+
+This is an explicit product-policy safeguard informed by the evidence base that speed and volume over distance remain the stronger backbone of severe-harm risk for long endurance routes. [1][2]
+
+### 6. Critical stretch is report-only
+Critical stretch remains a report and explanation layer only.
+
+It may appear in:
+- analysis drawer
+- route explanation surfaces
+- cue / push intelligence context
+
+It does not modify the canonical Safety Score.
+
+### 7. Time-of-day traffic context is report-only
+AADT bell-curving / time-of-day traffic contextualization is not part of canonical score math.
+
+It may appear in:
+- cue sheet context
+- score explanation surfaces
+- future push-intelligence surfaces
+
+### 8. Comparative / endurance-route context is separate
+Canonical Safety Score remains absolute within the model.
+
+Corpus-relative percentile context for endurance rides may be shown separately, but must not rescale the canonical score.
+
+## Rationale
+
+This keeps the score:
+- narrow
+- explainable
+- benchmark-shaped
+- honest about data limitations
+
+It also separates **benchmark-derived structure** from **launch policy safeguards**:
+
+- benchmark-derived: speed non-linearity, traffic flow relevance, factorized intersection structure, lanes-to-cross relevance
+- policy-derived: crossing event cap, route-level crossing share cap, compression exponents, launch calibration constants
+
+## Consequences
+
+### Positive
+- better alignment with benchmarked safety logic
+- fewer black-box intersection claims
+- better suitability for long endurance routes
+- cleaner separation between canonical score and interpretation layers
+
+### Tradeoffs
+- some launch constants remain explicit policy choices
+- crossing math is intentionally simplified relative to engineering-grade intersection prediction
+- critical stretch and time-of-day traffic move out of the headline score
+
+These tradeoffs are accepted.
+
+## Design principles
+
+1. Continuous exposure is the backbone.  
+2. Crossings are bounded event contributions.  
+3. Critical stretch explains the route; it does not define the canonical score.  
+4. Public docs must distinguish benchmark-derived structure from launch policy values.  
+5. Unknown values must remain unknown rather than being silently promoted to truth.
+
+## References
+
+[1] `ass-005-lanterne_safety_model_pressure_test.md` — production-oriented pressure test of Lanterne’s intersection crossing risk, bounded contributions, hotspot logic, and public transparency.  
+[2] `ass-006-defensible_math_for_crossings_and_speed.md` — defensible production math shapes for Lanterne crossings and speed.
+
+
+---
+
+## Source File: docs/03-adrs/adr-042-evidence_resolution_and_truth_propagation_model.md
+
+# ADR-042 — Evidence Resolution & Truth Propagation Model
+
+This ADR operates on the evidence layers defined in ADR-032.
+
+Status: Accepted
+Date: 2026-04-XX
+
+------
+
+## 1. Purpose
+
+Define how Lanterne determines **canonical segment truth** for:
+
+- speed
+- shoulder
+- bike infrastructure
+- traffic behavior
+
+This ADR governs:
+
+- evidence precedence
+- propagation behavior
+- decay rules
+- separation of observations vs canonical inputs
+
+------
+
+## 2. Core Principle
+
+A segment has:
+
+- one canonical truth
+- multiple possible evidence sources
+
+Truth is derived deterministically from evidence.
+
+User-submitted observations are **not canonical truth**.
+
+------
+
+## 3. Evidence Precedence
+
+When multiple sources exist:  
+
+1. observed (founder/admin)
+2. authoritative_posted (DOT / HPMS)
+3. osm_posted
+4. observation_inferred
+5. authoritative_inferred
+6. osm_inferred
+7. regional_prior
+8. highway_area_baseline
+9. highway_baseline
+
+Lower-confidence sources must not overwrite higher-confidence ones.
+**Measured** evidence is the highest-priority input and supersedes all other evidence types.
+
+------
+
+## 4. Truth Dominance Along a Road
+
+If a reliable value is known for a road:
+
+That value becomes the **dominant truth** along that road.
+
+It propagates forward and backward until contradicted.
+
+------
+
+### Propagation continues until:
+
+- road name changes
+- strong conflicting evidence appears
+- explicit override exists
+
+------
+
+### Propagation does NOT stop on:
+
+- highway type changes alone
+- minor OSM segmentation differences
+
+------
+
+## 5. Propagation Model
+
+Propagation operates along continuous road identity.
+
+Segments inherit upstream truth when:
+
+- no stronger evidence exists
+- continuity is maintained
+
+------
+
+## 6. Decay Rules by Dimension
+
+### Speed
+
+- highly stable
+- propagates long distances
+- primary driver of safety
+
+------
+
+### Shoulder
+
+- context-dependent
+- rural: long propagation
+- suburban/urban: short propagation
+
+------
+
+### Bike Infrastructure
+
+- discontinuous
+- strict decay
+- resets frequently
+
+------
+
+### Traffic Behavior
+
+- semi-stable
+- influenced by regional context
+- decays moderately
+
+------
+
+## 7. Regional Inference
+
+Regional priors improve baseline inference.
+
+Examples:
+
+- state-level speed norms
+- road-class-specific behavior
+
+Regional priors:
+
+- stronger than baseline
+- weaker than direct evidence
+
+------
+
+## 8. User Observations
+
+User observations:
+
+- are stored in a separate observations layer
+- do not directly modify canonical truth
+- may be applied as session-level overlays
+- may be aggregated in future
+
+------
+
+## 9. Separation of Concerns
+
+Canonical truth is used for:
+
+- scoring
+- heatmap
+- analysis
+
+Observations are used for:
+
+- UI overlays
+- aggregation pipelines
+- future inference upgrades
+
+------
+
+## 10. Determinism Requirement
+
+Given identical inputs:
+
+- resolver must produce identical outputs
+
+User observations must not affect deterministic resolution.
+
+------
+
+## 11. Design Principle
+
+Truth is not crowdsourced in real time.
+
+Truth is derived from evidence.
+
+Evidence accumulates and is validated before influencing the model.
+
+------
+
+END
