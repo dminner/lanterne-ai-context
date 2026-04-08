@@ -2267,6 +2267,11 @@ Single file write to `docs/osm-tag-accounting.md` containing all six sections wi
 
 Estimated size: ~800-1000 lines of markdown.
 
+
+
+mkdir -p ~/lanterne/docs/02-architecture/nuremberg-osm-api
+mv ~/Downloads/nuremberg-lanterne-osm-api-server.js ~/lanterne/docs/02-architecture/nuremberg-osm-api/server.js
+
 ---
 
 ## Source File: docs/02-architecture/analysis/anal-001-indices_calculation.md
@@ -7860,16 +7865,16 @@ Shoulder only applies when:
 - speed ≥ 30 mph
 
 #### Shoulder classes
-- **sub-usable shoulder**: < 2.0 ft / 0.6 m
-- **usable shoulder**: 2.0 ft to < 8.0 ft / 0.6 m to < 2.4 m
+- **sub-usabe shoulder**: < 2.0 ft / 0.6 m
+- **usabe shoulder**: 2.0 ft to < 8.0 ft / 0.6 m to < 2.4 m
 - **wide shoulder**: ≥ 8.0 ft / 2.4 m
 
 Launch table:
 
 | Shoulder condition | ShoulderFactor |
 |---|---:|
-| no shoulder or sub-usable shoulder | 1.00 |
-| usable shoulder | 0.88 |
+| sub-usable shoulder | 1.00 |
+| Usable shoulder | 0.88 |
 | wide shoulder | 0.78 |
 
 Sub-usable shoulder is still important rider information and may be shown in cues/inspection, but it earns no meaningful safety credit.
