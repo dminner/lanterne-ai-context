@@ -2184,6 +2184,91 @@ The system correctly identifies roads — drift exists because boundaries are pl
 
 ---
 
+## Source File: docs/02-architecture/arch-009-osm_tag_accounting_audit.md
+
+# Plan: OSM Tag Accounting Audit Document
+
+## What this delivers
+
+A single comprehensive markdown file (`docs/osm-tag-accounting.md`) documenting every OSM tag used across Roads, POIs, and Hazards domains, grounded in actual code citations.
+
+## Summary of findings from audit
+
+Based on thorough codebase inspection:
+
+- **Roads**: ~30 unique OSM tags actively consumed
+- **POIs**: ~18 unique OSM tags (top-level classification + metadata)
+- **Hazards**: ~15 unique OSM tags (many shared with Roads)
+- **Cross-domain shared tags**: `highway`, `surface`, `bridge`, `tunnel`, `lanes`, `maxspeed`, `railway`, `name`, `ref`, `cycleway`, `shoulder`, `bicycle`
+
+## Document structure
+
+### Section 1 — Executive summary
+Counts, shared tags, dead/stale tag identification.
+
+### Section 2 — Roads tag inventory
+Table covering all tags consumed during road parsing/normalization across:
+- `src/lib/overpass.ts` (parseRoads, Overpass queries)
+- `src/lib/corridor.ts` (parseOverpassRoads, Overpass queries)
+- `src/lib/corridor-chunks.ts` (parseOverpassRoads, Overpass queries)
+- `src/lib/speed-utils.ts` (isSafePathType, parseShoulder, detectBikeFacility, parseMaxspeed, isSidewalkType)
+- `src/lib/heatmap/types.ts` (surfaceToBucket)
+- `src/lib/heatmap/admin-verification-overlays.ts` (classifyBikeInfra, classifyShoulder)
+- `src/pages/Index.tsx` (roadToSegment)
+- `pipeline/src/osm-facts.ts` (all normalization functions)
+- `pipeline/src/road-class.ts` (normalizeRoadClass)
+- `pipeline/src/speed-utils-node.ts` (mirror of speed-utils.ts)
+
+Tags to document (non-exhaustive):
+`highway`, `maxspeed`, `surface`, `lanes`, `cycleway`, `cycleway:right`, `cycleway:left`, `cycleway:right:buffer`, `cycleway:left:buffer`, `cycleway:buffer`, `shoulder`, `shoulder:left`, `shoulder:right`, `shoulder:width`, `shoulder:both:width`, `shoulder:right:width`, `shoulder:left:width`, `bridge`, `tunnel`, `name`, `ref`, `railway`, `man_made`, `bicycle`, `footway`, `sidewalk`, `motor_vehicle`, `motorcar`, `access`, `junction`, `tracktype`, `width`, `maxwidth`, `covered`, `bridge:structure`, `material`, `lcn`, `ncn`, `_hazard_node` (synthetic), `_bridge_outline` (synthetic)
+
+Detailed notes subsections for:
+- Bike infrastructure classification (multi-tag logic across 3 files)
+- Shoulder parsing (6 tags → ShoulderInfo)
+- Speed parsing/defaulting (maxspeed → mph conversion)
+- Safe-path logic (highway + bicycle + footway + sidewalk + motor_vehicle/motorcar/access)
+- Surface classification (surface + tracktype + highway inference)
+- Road class normalization (highway → 7-class enum)
+
+### Section 3 — POI tag inventory
+Tags from `src/lib/pois/fetchPoisRaw.ts` (Overpass queries) and `src/lib/pois/parsePois.ts` (classification):
+
+**Query tags**: `tourism`, `amenity`, `shop`, `natural`, `emergency`
+**Classification values**: `hotel`, `hostel`, `camp_site`, `post_office`, `restaurant`, `supermarket`, `convenience`, `fuel`, `cafe`, `fast_food`, `bakery`, `drinking_water`, `spring`, `toilets`, `shower`, `hospital`, `clinic`, `pharmacy`, `fire_station`, `police`, `phone`
+**Metadata tags**: `name`, `opening_hours`, `phone`, `contact:phone`, `website`, `contact:website`, `url`, `toilets:type`, `portable`
+
+### Section 4 — Hazards tag inventory
+Tags from `src/lib/hazards.ts` and Overpass queries:
+
+**Detection tags**: `railway` (level_crossing, crossing, rail, light_rail, narrow_gauge), `barrier` (cattle_grid), `bridge`, `tunnel`, `surface`, `covered`, `bridge:structure`, `material`, `lanes`, `width`, `maxwidth`, `maxspeed`, `highway` (traffic_signals, stop), `cycleway`, `cycleway:left`, `cycleway:right`, `shoulder`, `bicycle`, `man_made` (bridge)
+
+Hazard-specific multi-tag logic:
+- Metal grate bridge: bridge=yes + surface ∈ {grate, grid, metal_grid, steel_grid, ...}
+- Metal plate bridge: bridge=yes + surface ∈ {metal, steel, metal_plate, steel_plate}
+- No-shoulder bridge: bridge=yes + NO (cycleway|shoulder|bicycle=designated) + narrow (lanes=1|width<6|maxwidth<3)
+- Covered bridge: bridge=yes + (covered=yes | bridge:structure=covered)
+- Single-lane underpass: tunnel=yes + (lanes=1 | maxwidth<4)
+- Bridge outline inheritance: man_made=bridge ways → surface/material tag → inherits to overlapping road ways
+
+### Section 5 — Transform/function map
+Reverse index: function → tags read → output. ~20 key functions across 10 files.
+
+### Section 6 — Gaps / inconsistencies / tech debt
+Known items to call out:
+1. `roadToSegment()` in Index.tsx duplicates bike facility detection with inline logic instead of calling `detectBikeFacility()` from speed-utils.ts — uses `cycleway:buffer` tag that canonical function doesn't check
+2. `corridor-chunks.ts` parseOverpassRoads does NOT extract `man_made=bridge` ways (missing from way filter condition), unlike `corridor.ts` — bridge outline inheritance only works in tile-based fetching, not chunk-based
+3. Pipeline `osm-facts.ts` checks `lcn` and `ncn` tags for bike route classification — browser code does not
+4. `shoulder:left:width` checked in admin overlay but not in canonical `parseShoulder()`
+5. Three near-identical `parseOverpassRoads` functions (overpass.ts, corridor.ts, corridor-chunks.ts) with slight tag handling differences
+
+## Implementation approach
+
+Single file write to `docs/osm-tag-accounting.md` containing all six sections with proper markdown tables, code citations (file:function:line), and explicit status labels for each tag.
+
+Estimated size: ~800-1000 lines of markdown.
+
+---
+
 ## Source File: docs/02-architecture/analysis/anal-001-indices_calculation.md
 
 # Lanterne Indices Calculation
