@@ -6267,6 +6267,474 @@ If you truly want the minimum viable path:
 
 ---
 
+## Source File: docs/04-execution/exec-011-codex_route_loader_improvement_plan.md
+
+ROUTE LOADER IMPROVEMENTS - CODEX**Pass 2 Sequence**
+
+
+
+ **Goal**
+
+ Make route load fast and smooth, keep the loader alive through the
+
+ full pipeline, align safety structure to docs/02-architecture/
+
+ design/ds-015-safety_scoring_model_v3_final.md, and start pulling
+
+ orchestration out of Index.tsx / RouteMap.tsx into worker/
+
+ controller-friendly modules.
+
+
+
+ **Core rules**
+
+
+
+ \- Fastest route load wins.
+
+ \- Only core scoring roads enter matching/scoring.
+
+ \- Nearby context is lazy.
+
+ \- Expanded edit context is lazy and incremental.
+
+ \- No global exploration hard cap.
+
+ \- Each expansion step is bounded.
+
+ \- Zoom gates detail level.
+
+ \- Persist only route-level aggregate outputs, not giant geometry
+
+  universes.
+
+ \- Progress is event-driven, reportable, and visually smoothed.
+
+
+
+ **Canonical safety alignment**
+
+
+
+ \- Keep scoring architecture aligned to V3:
+
+   \- continuous segment exposure
+
+   \- crossing risk contribution
+
+ \- Hazards is the subsystem name for broader safety evidence.
+
+ \- Hazard evidence may feed canonical scoring lanes or remain UI/
+
+  intelligence-only until formally scored.
+
+ \- Do not invent a competing safety taxonomy.
+
+
+
+ **Implementation order**
+
+
+
+1. **Create route-load telemetry contract**
+
+
+
+ \- New:
+
+   \- src/lib/route-load/RouteLoadTelemetry.ts
+
+ \- Defines:
+
+   \- progress events
+
+   \- cumulative telemetry snapshot
+
+   \- stage metrics that can always be reported
+
+ \- Includes counters like:
+
+   \- route miles
+
+   \- elevation gain
+
+   \- corridor tiles/groups
+
+   \- fetched/cached roads
+
+   \- scoring roads retained
+
+   \- hazard stage status
+
+   \- enrichment counts
+
+   \- payload size
+
+   \- truth runs / cues / segment stats
+
+
+
+2. **Create route-load controller**
+
+
+
+ \- New:
+
+   \- src/lib/route-load/RouteLoadController.ts
+
+ \- Responsibilities:
+
+   \- lifecycle
+
+   \- cancellation
+
+   \- stage orchestration
+
+   \- event emission
+
+ \- First pass:
+
+   \- wrap existing analyzeRouteProgressive() rather than rewriting
+
+​    it all at once
+
+
+
+3. **Create smoothed progress model**
+
+
+
+ \- New:
+
+   \- src/lib/route-load/RouteLoadProgressModel.ts
+
+ \- Responsibilities:
+
+   \- convert truthful telemetry into smooth loader state
+
+   \- weighted phases
+
+   \- never freeze descriptive text
+
+   \- visually smooth percentage without faking completed work
+
+
+
+4. **Create road-band controller**
+
+
+
+ \- New:
+
+   \- src/lib/route-load/RoadBandController.ts
+
+ \- Owns three road bands:
+
+   \- coreScoringRoads
+
+   \- nearbyContextRoads
+
+   \- expandedEditRoads
+
+ \- Hard rules:
+
+   \- only coreScoringRoads enter matching/scoring
+
+   \- nearbyContextRoads are lazy
+
+   \- expandedEditRoads are lazy and incremental
+
+
+
+5. **Define band policies**
+
+
+
+ \- **Core scoring band**
+
+   \- route-adjacent
+
+   \- smallest viable universe for matching/scoring
+
+ \- **Nearby context band**
+
+   \- lazy
+
+   \- initial inspect/heatmap support
+
+   \- modest proximity to route
+
+ \- **Expanded edit band**
+
+   \- triggered on edit-mode entry
+
+   \- initial preload is viewport-aware but hard-capped
+
+   \- per-load cap around 30 miles max added context radius
+
+   \- on pan beyond loaded extent: fetch another bounded increment
+
+   \- no absolute distance wall for user exploration
+
+   \- at very zoomed-out levels: suppress or coarsen detail rather
+
+​    than loading huge context universes
+
+
+
+6. **Stabilize hazard stage**
+
+
+
+ \- Existing:
+
+   \- src/lib/route-analysis.ts
+
+ \- Immediate goal:
+
+   \- hard timeout / fail-open for current hazard fetch path
+
+ \- Naming:
+
+   \- telemetry and status should say Hazards, not railroad
+
+ \- Later:
+
+   \- broaden hazard pipeline without breaking canonical scoring
+
+​    structure
+
+
+
+7. **Refactor corridor output into explicit scoring subset**
+
+
+
+ \- Existing:
+
+   \- src/lib/corridor.ts
+
+   \- src/lib/route-analysis.ts
+
+ \- Goal:
+
+   \- fetched road universe may still be broader for backend
+
+​    compatibility
+
+   \- but only explicit coreScoringRoads continue downstream
+
+
+
+8. **Constrain matching/scoring to core band only**
+
+
+
+ \- Existing:
+
+   \- src/lib/route-analysis.ts
+
+ \- Canonical purpose:
+
+   \- this is the universe for continuous segment exposure
+
+ \- Outcome:
+
+   \- no broad context roads in matching/scoring grids
+
+
+
+9. **Separate hazards/intersection lane from generic enrichment**
+
+
+
+ \- Existing:
+
+   \- src/lib/route-analysis.ts
+
+ \- Goal:
+
+   \- make Hazards its own pipeline lane
+
+   \- keep crossing/intersection analysis distinguishable from
+
+​    generic road enrichment
+
+ \- Canonical alignment:
+
+   \- crossing-event logic stays aligned to crossing risk
+
+​    contribution
+
+
+
+10. **Strip final analysis payload aggressively**
+
+
+
+ \- Existing:
+
+   \- src/lib/route-analysis.ts
+
+   \- route result assembly / persistence call sites
+
+ \- Rules:
+
+   \- keep route-level aggregate metrics
+
+   \- keep minimal UI-facing derivatives
+
+   \- remove full fetched-road universes
+
+   \- remove broad nearby/edit geometries from persisted/final
+
+​    route payload
+
+ \- Persistence target:
+
+   \- safety score
+
+   \- elevation gain
+
+   \- hazard counts
+
+   \- route-level sortable summary stats
+
+ \- Do not store large client-derived geometry universes in DB
+
+
+
+11. **Move orchestration out of** Index.tsx
+
+
+
+ \- Existing:
+
+   \- src/pages/Index.tsx
+
+ \- Goal:
+
+   \- Index.tsx becomes consumer of controller + progress model
+
+   \- not the place where the entire route-load pipeline lives
+
+
+
+12. **Move map context behavior out of** RouteMap.tsx
+
+
+
+ \- Existing:
+
+   \- src/components/RouteMap.tsx
+
+ \- Goal:
+
+   \- map becomes consumer of context-band data
+
+   \- not owner of fetch strategy/orchestration
+
+
+
+13. **Introduce worker-ready adapter**
+
+
+
+ \- New:
+
+   \- src/lib/route-load/AnalysisWorkerAdapter.ts
+
+ \- First pass:
+
+   \- main-thread adapter with worker-like contract
+
+ \- Later:
+
+   \- move heavy work to Web Worker without changing orchestration/
+
+​    UI contracts
+
+
+
+ **Suggested file targets**
+
+
+
+ \- New:
+
+   \- src/lib/route-load/RouteLoadTelemetry.ts
+
+   \- src/lib/route-load/RouteLoadController.ts
+
+   \- src/lib/route-load/RouteLoadProgressModel.ts
+
+   \- src/lib/route-load/RoadBandController.ts
+
+   \- src/lib/route-load/AnalysisWorkerAdapter.ts
+
+ \- Existing likely to slim down:
+
+   \- src/pages/Index.tsx
+
+   \- src/components/RouteMap.tsx
+
+   \- src/lib/route-analysis.ts
+
+   \- src/lib/corridor.ts
+
+
+
+ **Acceptance criteria**
+
+
+
+ \- Loader stays alive for the whole route-load lifecycle.
+
+ \- Percent is smooth, but based on truthful stage telemetry.
+
+ \- No long silent freeze at 27% or similar.
+
+ \- Core route load is faster.
+
+ \- Core matching/scoring only sees core scoring roads.
+
+ \- Nearby/edit context is lazy and incremental.
+
+ \- User can explore arbitrarily far, but no single huge context
+
+  fetch happens because of zoom.
+
+ \- Hazard stage fails open temporarily when needed.
+
+ \- Final/persisted route payload is summary-oriented, not geometry-
+
+  bloated.
+
+ \- Safety/crossing structure remains aligned to DS-015.
+
+
+
+ **Execution priority**
+
+
+
+1. telemetry
+2. controller
+3. progress model
+4. hazard fail-open
+5. road-band split
+6. payload trimming
+7. Index.tsx extraction
+8. RouteMap.tsx extraction
+9. worker adapter
+
+
+
+ This is the approved Pass 2 plan I’d implement against.
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System

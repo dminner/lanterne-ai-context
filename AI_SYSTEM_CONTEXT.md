@@ -8192,6 +8192,15 @@ Whenever a public-facing traffic figure is shown as per-day volume, it should al
 - cars per hour average
 - cars per minute average
 
+#### Public speed-band display rule
+This scoring spec is distinct from the map paint heuristics. For rider-facing speed paint, the current display bands are:
+- blue: `<= 15 mph`
+- green: `16-30 mph`
+- orange: `31-45 mph`
+- red: `> 45 mph`
+
+These are display-only thresholds. They do not change the canonical Safety Score formula.
+
 ### 2.3 InfraFactor
 
 | Facility | InfraFactor |
