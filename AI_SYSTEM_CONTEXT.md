@@ -2274,6 +2274,351 @@ mv ~/Downloads/nuremberg-lanterne-osm-api-server.js ~/lanterne/docs/02-architect
 
 ---
 
+## Source File: docs/02-architecture/arch-010-route_load_architecture.md
+
+# Route Load Architecture
+
+## Purpose
+
+Document the current route-load architecture after the controller/telemetry refactor and the first round of route-load hardening.
+
+This is not the final target architecture. It describes the system as it exists now so future optimization work does not have to rediscover the same boundaries.
+
+## Current Shape
+
+Route load is now split into four layers:
+
+1. `route-analysis.ts`
+   - owns the analysis engine
+   - yields progressive stages
+   - returns the final runtime safety result
+
+2. `src/lib/route-load/`
+   - owns route-load orchestration
+   - translates analysis stages into telemetry, progress, and road-band state
+
+3. `Index.tsx`
+   - owns app-level lifecycle and mode transitions
+   - starts route load
+   - consumes controller snapshots/events
+   - commits canonical analysis state to React
+
+4. `RouteMap.tsx`
+   - consumes route, score, road bands, and debug/admin overlays
+   - no longer owns as much inline audit/admin rendering logic as before
+
+## Route-Load Modules
+
+### `RouteLoadController.ts`
+
+Responsibilities:
+- start/cancel route load
+- consume progressive analysis stages
+- emit snapshots and stage events
+- maintain controller-owned road-band state
+
+Important rule:
+- the controller should not block route completion on non-user-critical background work
+
+### `RouteLoadTelemetry.ts`
+
+Responsibilities:
+- convert raw analysis stages into a cumulative telemetry snapshot
+- expose stable counts for UI and perf logging
+
+Important rule:
+- telemetry must remain cheap enough to sit on the hot path
+
+### `RouteLoadProgressModel.ts`
+
+Responsibilities:
+- turn telemetry snapshots into smoothed loader presentation
+- keep stage labels and percent coherent during long phases
+
+Important rule:
+- it can smooth presentation, but it must not lie about completed work
+
+### `RoadBandController.ts`
+
+Owns three road bands:
+- `coreScoringRoads`
+- `nearbyContextRoads`
+- `expandedEditRoads`
+
+Current meaning:
+- `coreScoringRoads`: smallest route-relevant road universe for route review/paint
+- `nearbyContextRoads`: broader nearby road universe for context/audit/edit support
+- `expandedEditRoads`: wider lazy band for edit/detour operations
+
+## Canonical vs Runtime Result
+
+The system now distinguishes between:
+
+- `SafetyResult`
+  - canonical persisted/shared analysis shape
+  - safe to cache, persist, and hold in ordinary app state
+
+- `RuntimeSafetyResult`
+  - analysis result plus ephemeral runtime-only road universes
+  - includes fields like `matchedRoads` and `allFetchedRoads`
+
+Current rule:
+- canonical app state, route cache, and route persistence should prefer the stripped canonical shape
+- large runtime road universes should not be treated as canonical
+
+## Current Critical Path
+
+Current route load still looks like this:
+
+1. shell stage
+2. corridor fetch
+3. enrichment
+4. analysis/scoring
+5. final handoff into review UI
+
+Recent hardening changed two important things:
+
+- enrichment can begin earlier instead of waiting for every downstream handoff to finish
+- post-pipeline reconciliation/persistence was moved off the user-critical path
+
+## What Was Extracted From `RouteMap`
+
+`RouteMap.tsx` still owns lifecycle and major map wiring, but several rendering slices were extracted:
+
+- admin verification overlay
+- raw nearby audit overlay
+- candidate audit overlay
+- turn audit overlay
+- sequence audit overlay
+- debug overlay diagnostics
+- fragment overlay
+- transition debug overlay
+- route creation layer
+- edit handles layer
+
+This matters because future route-load work should keep map rendering consumption-oriented rather than pushing orchestration back into `RouteMap`.
+
+## Paint Presentation Layer
+
+Route paint now has an explicit controller:
+
+- `src/lib/presentation/route-paint-controller.ts`
+
+Current user-facing modes:
+- `normal`
+- `high_contrast`
+
+This is the beginning of a route-paint presentation layer rather than one-off rendering switches inside the map.
+
+## What Still Blocks Cold Loads
+
+The main remaining cold-load bottleneck is infrastructure and payload shape, not just React wiring.
+
+Current major pain points:
+- corridor cold misses still depend on fragile proxy/public Overpass fallback behavior
+- cold runs still build a broader road universe than first-paint route review actually needs
+- context/admin/debug needs are not fully separated from first-answer route review
+
+## Architectural Rules Going Forward
+
+1. Route score, route paint, and hazard essentials should be available before admin/context bookkeeping.
+2. Canonical persisted analysis must remain smaller than runtime diagnostic/context material.
+3. `coreScoringRoads` should remain the first-paint road source.
+4. Larger nearby/edit context should hydrate after first usable route review.
+5. Admin/debug overlays should never silently re-enter the critical route-load path.
+
+## Files To Read First
+
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- [src/lib/route-load/RouteLoadController.ts](/Users/derekminner/lanterne/src/lib/route-load/RouteLoadController.ts)
+- [src/lib/route-load/RouteLoadTelemetry.ts](/Users/derekminner/lanterne/src/lib/route-load/RouteLoadTelemetry.ts)
+- [src/lib/route-load/RouteLoadProgressModel.ts](/Users/derekminner/lanterne/src/lib/route-load/RouteLoadProgressModel.ts)
+- [src/lib/route-load/RoadBandController.ts](/Users/derekminner/lanterne/src/lib/route-load/RoadBandController.ts)
+- [src/lib/route-analysis-canonical.ts](/Users/derekminner/lanterne/src/lib/route-analysis-canonical.ts)
+- [src/pages/Index.tsx](/Users/derekminner/lanterne/src/pages/Index.tsx)
+- [src/components/RouteMap.tsx](/Users/derekminner/lanterne/src/components/RouteMap.tsx)
+
+
+---
+
+## Source File: docs/02-architecture/arch-011-route_load_optimization_direction.md
+
+# Route Load Optimization Direction
+
+## Purpose
+
+Capture the next-step optimization model for route load so tuning work does not regress into patching symptoms around the wrong critical path.
+
+## Core Observation
+
+Cold-cache route load is still paying for too much too early.
+
+The system currently answers more than the user asked for on first load:
+- broad nearby road context
+- edit-oriented context
+- admin/debug diagnostics
+- canonical identity/persistence support work
+
+For a user opening a route, the immediate question is much smaller:
+
+`Is this route safe, and where is it risky?`
+
+## Target Model
+
+Split route load into three layers.
+
+### 1. Route Core
+
+This is the first-answer payload and the only layer that should block first route review.
+
+Should include:
+- route geometry
+- core scoring roads only
+- safety score and grade
+- route speed/risk segments for paint
+- hazard essentials
+- essential cues
+- minimum traffic/speed evidence needed to support scoring
+
+Should not include:
+- broad nearby road universe
+- edit/detour expansion universe
+- admin audit/debug payloads
+
+### 2. Route Context
+
+This is background hydration for ordinary interaction after first paint.
+
+Should include:
+- nearby context roads
+- expanded edit roads
+- detour/edit support context
+- richer nearby map context
+
+This should start automatically after the user already has a working route and score. It should not wait for the user to press a heatmap or audit button.
+
+### 3. Route Diagnostics
+
+This is the heavy admin/developer layer.
+
+Should include:
+- candidate audit backing data
+- sequence audit backing data
+- raw nearby audit backing data
+- transition diagnostics
+- forensic debug
+- boundary debug
+- left-turn debug
+
+This layer should be opt-in, lazy, and clearly non-critical.
+
+## Cache Strategy Direction
+
+The right long-term model is driftless cache-first behavior:
+
+1. if route-level cache is warm enough, use it
+2. if cache is missing, compute only route core
+3. once route core is visible, hydrate context and diagnostics later
+4. write each layer back into cache separately when possible
+
+This implies a future separation between:
+- route core cache
+- route context cache
+- route diagnostics cache
+
+## Current Infrastructure Reality
+
+The main cold-load bottleneck is still corridor fetch.
+
+What was learned:
+- Supabase `overpass-proxy` is a fragile cold-path dependency
+- when that fails, fallback to public Overpass is slow and unstable
+- browser-direct Nuremberg is not currently viable because the backend does not expose CORS
+
+So the next real infrastructure improvement is not “try direct from browser again.”
+
+It is one of:
+- enable CORS on the direct roads backend
+- or provide a thinner relay path that does not do heavy edge-function compute
+
+## Practical Optimization Priorities
+
+### Priority 1
+
+Make first paint depend only on route core.
+
+That means:
+- score
+- hazards
+- route paint
+- cue essentials
+
+### Priority 2
+
+Hydrate `nearbyContextRoads` in the background automatically after first review is visible.
+
+Not:
+- on heatmap button press
+- not in the blocking analysis handoff
+
+But:
+- immediately after successful route-core load
+
+### Priority 3
+
+Keep all canonical identity reconciliation and turn-event persistence out of the first-review path.
+
+These jobs are useful, but they are bookkeeping, not route-review prerequisites.
+
+### Priority 4
+
+Only load diagnostics when admin/debug features actually require them.
+
+## Rules For Future Changes
+
+Before adding anything to the route-load path, ask:
+
+1. Does this change the score?
+2. Does this change the immediate route paint?
+3. Does this change the immediate hazard answer?
+
+If the answer is no, it probably does not belong on the first-paint critical path.
+
+## Intended Next Refactor
+
+The likely next architectural module is a background context hydrator under `src/lib/route-load/`.
+
+Likely responsibilities:
+- hydrate `nearbyContextRoads` after first paint
+- expand `expandedEditRoads` lazily and incrementally
+- update road-band state without blocking review mode
+- support cancellation if the user loads a different route
+
+Probable name:
+- `RouteContextHydrator.ts`
+
+## What “Done Optimally For Now” Looks Like
+
+For this moment in time, the route-load system is in a good place when:
+
+- first review appears without waiting on broad context or diagnostics
+- cold loads do not stall after `pipeline_complete`
+- heatmap/edit mode usually feel ready because context hydrates in the background
+- admin/dev tools remain available, but only when explicitly needed
+- canonical persisted results stay much smaller than runtime analysis artifacts
+
+## Related Files
+
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- [src/lib/corridor.ts](/Users/derekminner/lanterne/src/lib/corridor.ts)
+- [src/lib/overpass-request.ts](/Users/derekminner/lanterne/src/lib/overpass-request.ts)
+- [src/lib/route-load/RoadBandController.ts](/Users/derekminner/lanterne/src/lib/route-load/RoadBandController.ts)
+- [src/lib/route-load/RouteLoadController.ts](/Users/derekminner/lanterne/src/lib/route-load/RouteLoadController.ts)
+- [src/lib/route-analysis-canonical.ts](/Users/derekminner/lanterne/src/lib/route-analysis-canonical.ts)
+
+
+---
+
 ## Source File: docs/02-architecture/analysis/anal-001-indices_calculation.md
 
 # Lanterne Indices Calculation
