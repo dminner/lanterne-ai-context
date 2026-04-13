@@ -6735,6 +6735,1926 @@ ROUTE LOADER IMPROVEMENTS - CODEX**Pass 2 Sequence**
 
 ---
 
+## Source File: docs/04-execution/exec-012a-cgpt_pro_safety_score_improvement_plan.md
+
+# EXEC-012a — CGPT Pro Safety Score Improvement Plan
+
+**Status:** Draft for review  
+**Date:** April 13, 2026  
+**Filename:** `exec-012-cgpt_pro_safety_score_improvement_plan.md`
+
+## 1. Purpose
+
+This document translates:
+- the Codex current-state scoring audit
+- the GPT-5.4 Pro architecture review
+- the target documents:
+  - DS-015 — Safety Scoring Model V5
+  - DS-019 — Score Tracing
+  - ADR-043 — Confidence and Provenance Model
+
+  into an execution-grade implementation plan.
+
+  This is not a brainstorming memo. It is the plan to get from the current live scoring system to a canonical V5 implementation without shipping another split-brain scoring dialect.
+
+## 2. Current-state summary
+
+The current system has a real, working browser score path, but it is not the only score-like path in the product.
+
+### What is already strong
+
+- There is a real canonical browser route-analysis path today: `route-analysis.ts` builds scoring segments and crossing conflicts, then calls `computeRouteSafetyScore(...)`.
+- The current scorer is not ad hoc; it has shared constants, tested traffic fallback ladders, route-level crossing accounting, and separate route-level confidence output.
+- The app already has a high-value analysis pipeline:
+  - route matching
+  - boundary refinement
+  - HPMS/DOT enrichment
+  - truth-ish segments
+  - route cache and tile cache
+- The system is already compute-capable on the client and cost-efficient enough to support this refactor without a server-side worker architecture change first.
+
+### What is most broken
+
+The main problem is split-brain score ownership.
+
+Today there are multiple overlapping score or score-adjacent paths:
+- primary browser route scorer
+- inspect / truth resolver path
+- heatmap speed-paint path
+- detour approximation scorer
+- admin simulator path
+- pipeline scorer / rollup path
+
+That means the codebase does not currently have one clean rider-facing scoring truth. If V5 is layered on top of that without first unifying score ownership, the result will be another scoring dialect instead of a canonical model.
+
+## 3. What V5 actually changes
+
+V5 is not a constants swap inside the existing weighted blend.
+
+It is a structural rewrite from:
+> weighted blended route risk
+
+to:
+> local expected serious harm
+
+For each route element:
+- incident likelihood
+- multiplied by
+- conditional severity
+
+summed across the route.
+
+At the conceptual level:
+
+H_route = Σe λe · se
+
+### V5 launch model intent
+
+#### Continuous-road likelihood owns:
+- traffic / AADT-per-lane backbone
+- operating space / separation
+- horizontal curvature
+- zero continuous-road likelihood for path-like / MUP-like slices
+
+#### Crossing-event likelihood owns:
+- crossed-road traffic
+- width
+- control
+- movement
+- non-intersection crossing events:
+  - path / MUP road crossings
+  - path / MUP joins onto roads
+  - path / MUP exits from roads
+  - bounded launch-scope access-road / driveway-like crossings
+
+#### Severity owns:
+- speed
+- benchmark-shaped nonlinear severity weighting
+- no regression to a smoothed substitute if the benchmark is already stronger
+
+### Explicit launch decisions already made
+
+These are not open questions anymore:
+
+1. Street parking / door-zone friction
+   - not part of launch canonical V5 score math
+   - must be built as a hazard/context feature
+
+2. Horizontal curvature
+   - is part of launch canonical V5 likelihood
+   - requires a new geometry-derived measurement and category-mapping step
+
+3. Non-intersection crossing events
+   - must not be ignored
+   - should be treated as ordinary crossing events for launch
+   - signed but non-signalized crossings can use the stop-controlled launch bucket
+   - signalized remains signalized
+   - ambiguous / untagged remains unknown
+
+4. Driveway / access density
+   - is acknowledged as a real future likelihood candidate
+   - but is deferred from launch canonical score until a defensible national measurement method exists
+
+5. Shoulder values
+   - shoulder is a meaningful operating-space reducer
+   - launch V5 does not assume even a wide shoulder is better than a dedicated painted bike lane
+   - shoulder values remain bounded launch policy constants sized relative to stronger bike-lane benchmarks
+
+6. State-level variation
+   - is not a canonical score multiplier
+   - if useful at all, it belongs in comparative context or calibration
+
+7. Traceability
+   - full rider-facing trace UI is deferred
+   - analysis-time structure must preserve enough information to support it later
+
+8. Confidence / provenance
+   - must remain separate from score math
+   - missingness must not silently soften or inflate canonical risk
+
+## 4. Execution goals
+
+This pass should achieve seven things.
+
+### A. Create one rider-facing canonical score truth
+The browser route-analysis scorer must become the sole canonical rider-facing source of Safety Score.
+
+### B. Upgrade the scoring architecture to V5
+The score must become local expected serious harm, not a tuned variant of the old weighted soup.
+
+### C. Add new upstream analysis primitives required by V5
+Most importantly:
+- horizontal curvature
+- non-intersection crossing synthesis
+- explicit path/MUP score-domain classification
+
+### D. Preserve confidence and provenance as first-class analysis outputs
+Without letting them leak into score math.
+
+### E. Preserve future score tracing viability
+By emitting enough structured analysis-time artifact data.
+
+### F. Align dependent score consumers
+Heatmap, inspect, explanation, detour, and cache semantics must stop quietly disagreeing.
+
+### G. Avoid re-solving unrelated architecture debt
+This is a scoring refactor, not a full app cleanup crusade.
+
+## 5. What must happen before code changes
+
+Before implementation begins, the following decisions must be frozen:
+
+### 5.1 Path-like / MUP-like classification fallback
+V5 uses a launch proxy of relevant OSM speed limit <= 15 mph, but launch behavior for missing `maxspeed` still needs explicit signoff.
+
+Recommended launch rule:
+Treat a slice as path-like / MUP-like only if:
+- the facility classification is explicitly path/MUP-like, or
+- the OSM speed environment is <= 15 mph and the facility context is clearly separated / non-roadway
+
+Do not let Codex improvise this from partial tags.
+
+### 5.2 Launch inclusion rule for meaningful access-road / driveway-like crossings
+The requirement is “do not ignore them,” but launch scope must be bounded.
+
+Recommended launch rule:
+Include only:
+- path/MUP road crossings
+- path joins onto roads
+- path exits from roads
+- access-road-like crossings that are clearly represented as routable road links in the matched linework
+
+Do not try to count every tiny residential driveway throat in launch canon.
+
+### 5.3 Curve-radius measurement method
+The category thresholds and factors are fixed by the benchmark family. The implementation method is not.
+
+Recommended launch rule:
+Derive local radius from matched road geometry using a smoothing/windowing method robust to noisy polyline vertices, then classify into buckets only when the tighter radius persists for at least 50 m.
+
+### 5.4 Launch logistic shell
+V5 leaves the rider-facing score shell symbolic.
+
+Recommended launch policy:
+Keep the current midpoint / steepness shell for the first V5 implementation pass:
+- midpoint = 2.5
+- steepness = 1.4
+
+Then recalibrate after a first full V5 corpus scoring pass.
+
+### 5.5 Detour / admin / pipeline policy
+Decide whether those paths are:
+- brought to parity in this pass
+- or explicitly downgraded / labeled / hidden as non-canonical
+
+Recommended policy:
+Detour and admin can temporarily remain adapter-based / non-canonical during the math rewrite, but rider-facing inspect, explanation, and heatmap must align to the frozen analysis artifact. Pipeline parity can be explicitly deferred if not launch-critical.
+
+### 5.6 DS-019 update for V5
+DS-019 still needs a V5-consistent interpretation.
+
+Required policy:
+Trace requirements must no longer assume a route-level crossing-saturation branch. V5 tracing must follow local harm contributions.
+
+## 6. Prescriptive implementation sequence
+
+### Step 1 — Declare one canonical score owner
+Goal: establish `route-analysis -> canonical scorer` as the sole rider-facing source of Safety Score.
+
+Why first:
+If multiple score owners remain live, every later change becomes ambiguous.
+
+Work:
+- identify every score-like consumer
+- classify each as canonical, adapter, debug/admin-only, or deprecated
+- formally demote alternate scorers
+
+### Step 2 — Define the new canonical analysis artifact
+Goal: create the structured analysis-time object model that V5 depends on.
+
+The artifact must represent:
+
+#### Continuous score-bearing slices
+Each slice should include:
+- slice id / index
+- distance / length
+- chosen speed input
+- chosen traffic input
+- facility class
+- shoulder class
+- path-like / MUP-like flag
+- horizontal curvature category
+- provenance + confidence for each load-bearing field
+- local likelihood contribution
+- local severity weight
+- local harm contribution
+
+#### Crossing score-bearing events
+Each event should include:
+- event id / index
+- event type
+- location
+- crossed-road speed
+- crossed-road traffic
+- width class
+- control class
+- movement class
+- provenance + confidence for chosen inputs
+- local crossing likelihood contribution
+- local severity weight
+- local harm contribution
+
+#### Route-level analysis outputs
+- total route harm
+- harm per mile
+- rider-facing score
+- grade
+- aggregate confidence summary
+- evidence mix / fallback counts
+- score-model version
+- analysis artifact version
+
+### Step 3 — Add path/MUP score-domain classification
+Goal: separate path-like / MUP-like from mere protected-facility semantics.
+
+Required behavior:
+- path-like / MUP-like slices contribute zero continuous roadway likelihood
+- they can still contribute through crossing events
+
+### Step 4 — Implement horizontal curvature as a real upstream primitive
+Goal: derive a benchmark-backed curvature likelihood input from matched geometry.
+
+Required behavior:
+- estimate local radius from matched road geometry
+- classify into launch buckets
+- enforce the 50 m sustained rule
+- emit the chosen curvature category into the canonical artifact
+
+### Step 5 — Expand the crossing-event builder
+Goal: make crossing-event synthesis match V5 scope.
+
+Required launch support:
+- formal intersections
+- path-road crossings
+- path joins onto roads
+- path exits onto roads
+- signed but non-signalized crossings
+- bounded launch-scope access-road / driveway-like crossings
+
+Launch simplification rule:
+Non-intersection crossings should be treated as ordinary crossing events for launch. Do not build a giant subtype taxonomy.
+
+### Step 6 — Rewrite the canonical scorer to V5 math
+Goal: replace the weighted blended V3/V4-style route risk model with local expected serious harm.
+
+Required launch formulas:
+
+Continuous-road likelihood:
+λroad = 0 for path/MUP-like slices, otherwise m * TF * CurvF * FF * ShF
+
+Crossing-event likelihood:
+λcross = min(0.050, 0.025 * sqrt(TFcross) * WF * CF * MF)
+
+Local harm:
+hroad = λroad * σ(v)
+hcross = λcross * σ(vcross)
+
+Route harm:
+Hroute = sum(hroad) + sum(hcross)
+Hrpm = Hroute / M
+
+Rider-facing score shell:
+SafetyScore = 100 / (1 + e^(1.4(Hrpm - 2.5)))
+
+Important:
+- speed leaves continuous-road likelihood
+- speed remains the severity weight
+- there is no route-level crossing saturation branch
+
+### Step 7 — Thread confidence and provenance through the full result
+Goal: meet ADR-043 without contaminating score math.
+
+Required behavior:
+- unknowns use bounded neutral score fallbacks
+- confidence takes the penalty
+- provenance classes are explicit
+- route-level evidence mix is stored
+
+### Step 8 — Emit trace-friendly derivation metadata at analysis time
+Goal: keep DS-019 future-viable without building the full trace UI now.
+
+Required behavior:
+- preserve chosen inputs
+- preserve local contributions
+- preserve route rollup ingredients
+- avoid having to reconstruct score logic later
+
+### Step 9 — Do cache and persistence migration before trusting UI outputs
+Goal: prevent stale score semantics from masquerading as V5.
+
+Required behavior:
+- dual gate by score-model version and analysis artifact version
+- old cached results must be rejected, flagged stale, or lazily upgraded
+- old route-history score blobs must not silently present as fresh V5 truth
+
+### Step 10 — Align truth surfaces before pretty surfaces
+Correct order:
+1. inspect / audit / explanation surfaces read frozen analysis artifact
+2. then align heatmap
+3. then align summary / drawer / explanation
+4. then align detour delta if in scope
+
+### Step 11 — Remove or quarantine stale consumers
+Goal: prevent future confusion and hidden regressions.
+
+## 7. Explicit deferrals
+
+These should be explicitly out of scope for this pass:
+
+- full rider-facing score trace UI
+- driveway / access density in canonical score math
+- state-based canonical multipliers
+- heavy-vehicle canonical severity factor
+- lane-width canonical factor
+- street-lighting canonical factor
+- endurance-relative score implementation
+- broad RouteMap cleanup outside what is necessary for score truth
+- full worker/server-side compute architecture migration
+
+Still required outside canonical score:
+- street parking / door-zone hazard/context feature
+- hazard tooltip / explanation support
+- hazard boundary tests proving these do not contaminate canonical score
+
+## 8. Required test plan
+
+### Math tests
+- V5 severity table values and interpolation
+- traffic interpolation anchor behavior
+- continuous-road likelihood excludes speed
+- local harm multiplies by speed severity once, not twice
+- shoulder suppression when dedicated facility exists
+- neutral unknown control/movement behavior
+- no route-level crossing saturation
+- rider-facing logistic shell
+
+### Curvature tests
+- straight geometry remains CurvF = 1.00
+- moderate / sharp / very-sharp categories classify correctly
+- a noisy kink under 50 m does not trigger
+- a sustained curve over 50 m does trigger
+- slice-boundary behavior is deterministic
+
+### Non-intersection crossing tests
+- path crossing a motor road
+- path joining a motor road
+- path exiting onto a road
+- signed but non-signalized crossing
+- bounded access-road-like inclusion
+- exclusion of trivial junk events per launch rule
+
+### Path/MUP tests
+- path-like slices contribute zero continuous roadway likelihood
+- path routes still score via crossings
+- no fake perfect score if crossings remain
+
+### Hazard boundary tests
+- rail / grates / cattle guards / bridges do not change canonical Safety Score
+- street parking hazard object does not change canonical Safety Score
+- hazard summaries still populate correctly
+
+### Provenance / confidence tests
+- precedence ordering works
+- unknown uses neutral fallback + confidence loss
+- field / slice / crossing / route confidence summaries are emitted
+- fallback counts are stored
+- low-confidence crossings are visible as such
+
+### Alignment tests
+- inspect surfaces match frozen analysis artifact
+- heatmap color derives from canonical score-bearing truth, not legacy speed bands
+- route summary / explanation derives from canonical artifact
+- detour/admin/pipeline are either parity-correct or explicitly marked non-canonical
+
+### Cache/version tests
+- V5 writes new score-model version
+- old cache rows are rejected or flagged stale by dual gating
+- old route-history analyses do not silently render as V5
+- stale semantics cannot survive model bump unnoticed
+
+### Integration tests
+- GPX upload → analyze → cache → reload preserves score + confidence + explanation
+- model version bump updates surfaces consistently
+- a crossing-heavy path route behaves plausibly
+- a long brevet with both midblock and crossing exposure behaves plausibly
+
+## 9. SWOT — where the project stands right now
+
+### Strengths
+- The architectural insight is finally right.
+- The score is now being redefined around expected serious harm, which is much closer to research-grounded safety logic than the old weighted soup.
+- You have enough real system infrastructure already in place to support the change.
+- The project has a strong philosophical center:
+  - narrow safety
+  - long-distance focus
+  - distrust of black-box bullshit
+  - separation between canonical score and comparative context
+
+### Weaknesses
+- The live system is split-brained.
+- The current codebase still has too many score-like surfaces and too many ways for old semantics to leak into new ones.
+- You are doing major score-model surgery in a product where map paint, inspect truth, detour delta, and stored results all have some claim on “truth.”
+- The implementation risk is increasingly upstream:
+  - event synthesis
+  - canonical artifact shape
+  - geometry-derived curve measurement
+  - cache semantics
+
+### Opportunities
+- If this lands cleanly, Lanterne will have a much more defensible and distinctive safety model than most route tools.
+- Horizontal curvature is a real opportunity because it is benchmark-backed, measurable from your geometry, and differentiated.
+- The path/MUP treatment, non-intersection crossing handling, and hazard boundary discipline can become part of what makes the score feel trustworthy.
+- The trace/provenance scaffolding, if done now, can save enormous future pain.
+
+### Threats
+- The biggest threat is not bad math. It is bad ownership.
+- If formulas change before score owner, analysis artifact, and alignment are nailed down, you will get a world of iterative pain.
+- The second biggest threat is under-scoping upstream analysis primitives and then trying to patch them later from the presentation layer.
+- The third biggest threat is stale cache / stale route-history semantics fooling you into thinking the new score is wrong when the real problem is old blobs wearing new clothes.
+
+## 10. Advice to get this right in one decisive pass
+
+### A. Treat this as an analysis-artifact refactor, not just a scorer refactor
+That is the biggest lever.
+
+If you only change formulas, you will still be arguing with:
+- recomputed inspect truth
+- old heatmap paint assumptions
+- stale cached score blobs
+- detour approximations
+- pipeline leftovers
+
+The real win is:
+freeze the canonical analysis artifact first, then make everything read from it.
+
+### B. Do not let Codex widen scope
+This pass should not become:
+- driveway density canon
+- truck factor canon
+- state calibration layer
+- urban mode rethink
+- RouteMap cleanup crusade
+
+### C. Make inspect the oracle before heatmap
+If inspect / audit truth is not frozen to the canonical artifact first, you will never know whether the score is wrong or the UI is lying.
+
+### D. Ship the launch version of curve measurement, not the perfect one
+You need:
+- a radius derivation method
+- benchmark bucket mapping
+- sustained 50 m rule
+- tests
+
+That is enough.
+
+### E. Be ruthless about hazard boundaries
+Street parking, rail, grates, bridges, pinch points — all real, all useful, all tempting to smuggle back into canonical score.
+
+Do not.
+
+### F. Version everything that matters
+At minimum:
+- score-model version
+- analysis artifact version
+- cache schema version
+
+### G. The one-swing version
+1. freeze the launch decisions
+2. define the canonical analysis artifact
+3. make one score owner
+4. implement curve + non-intersection crossing synthesis
+5. rewrite scorer to V5
+6. wire confidence/provenance
+7. migrate cache/history
+8. align inspect → heatmap → summary
+9. do not ship until tests are green
+
+## 11. Final implementation brief
+
+The implementation team should be told, plainly:
+
+1. Do not implement V5 as a constants swap inside the current model.
+2. Do not touch presentation first.
+3. Do not ignore non-intersection crossings.
+4. Do not fake driveway/access density.
+5. Do not let street parking leak into canonical score.
+6. Do not keep multiple score owners alive.
+7. Do not trust cache/history semantics unless version migration is explicit.
+8. Do not ship without the new test plan green.
+
+The right sequence is:
+- decisions
+- artifact
+- owner
+- primitives
+- formulas
+- provenance
+- migration
+- alignment
+- cleanup
+- tests
+
+That is the plan.
+
+
+---
+
+## Source File: docs/04-execution/exec-012b-codex_safety_score_v5_execution_plan.md
+
+# EXEC-012b — Codex Safety Score v5 Execution Plan
+
+- **# A. Planning assumptions**
+
+  
+
+  \- The canonical target is **V5**, not V4. The implementation plan
+
+   assumes the score is rewritten around **local expected serious**
+
+   **harm**:
+
+    \- continuous slice harm: h_road = λ_road * σ(speed)
+
+    \- crossing event harm: h_cross = λ_cross * σ(crossed_speed)
+
+    \- route harm: H_route = Σ h_road + Σ h_cross
+
+    \- route shell: current launch logistic shell remains
+
+  ​    midpoint=2.5, steepness=1.4 per DS-015 and the fixed launch
+
+  ​    decision.
+
+   \- The existing browser route-analysis path remains the only
+
+    acceptable canonical score owner:
+
+     \- src/lib/route-analysis.ts:6501
+
+     \- src/lib/safety-scoring.ts:420
+
+   \- The current codebase is still split-brained. Planning assumes
+
+    that **multiple score owners cannot survive** the transition:
+
+     \- detour scorer in src/lib/routing.ts:219
+
+     \- pipeline rollup in pipeline/src/route-rollup.ts:213
+
+     \- heatmap speed paint in src/lib/heatmap/gradient-
+
+  ​    renderer.ts:167
+
+     \- inspect recompute path in src/lib/evidence/resolver.ts:572
+
+   \- DS-019 requires trace-ready artifacts to be generated **at analysis**
+
+    **time**, not reconstructed later:
+
+     \- docs/02-architecture/design/ds-019-score_tracing.md:31
+
+   \- ADR-043 requires provenance, confidence, and precedence to be
+
+    first-class and **separate from score math**:
+
+     \- docs/03-adrs/adr-043-confidence_and_provenance_model.md:29
+
+   \- Fixed launch constraints from the prompt are treated as frozen:
+
+     \- door-zone / parking is hazard-only
+
+     \- curvature is canonical launch likelihood
+
+     \- non-intersection crossings are in launch scope
+
+     \- driveway density is deferred
+
+     \- shoulder remains bounded and below dedicated bike lane
+
+  ​    benchmarks
+
+     \- state is not a canonical multiplier
+
+     \- confidence/provenance remain outside canonical math
+
+     \- trace UI is deferred, trace-ready artifact is not
+
+   \- Two implementation details still require explicit human freeze
+
+    before coding:
+
+     \- path/MUP classification fallback for missing speed /
+
+  ​    ambiguous separation
+
+     \- bounded inclusion rule for access-road-like non-intersection
+
+  ​    crossings
+
+  ​    These were also flagged in the execution plan at docs/04-
+
+  ​    execution/exec-012-
+
+  ​    cgpt_pro_safety_score_improvement_plan.md:124.
+
+  
+
+   **# B. Proposed phase-by-phase implementation plan**
+
+  
+
+   **## Phase 0. Freeze policy decisions and score ownership**
+
+  
+
+   Goal:
+
+  
+
+   \- Freeze the remaining V5 launch rules before code moves.
+
+   \- Declare one canonical score owner and demote all others to
+
+    adapters, debug-only, or deferred.
+
+  
+
+   Why first:
+
+  
+
+   \- Formula work before ownership freeze guarantees another split-
+
+    brain rollout.
+
+  
+
+   Work:
+
+  
+
+   \- Confirm path/MUP classification rule.
+
+   \- Confirm launch inclusion rule for non-intersection / access-road-
+
+    like crossings.
+
+   \- Confirm curve measurement method and sustained-length handling.
+
+   \- Confirm parity policy for detour, admin, and pipeline paths.
+
+   \- Confirm DS-019 interpretation for V5 local-harm tracing.
+
+  
+
+   **## Phase 1. Define the canonical V5 analysis artifact**
+
+  
+
+   Goal:
+
+  
+
+   \- Introduce the canonical score-bearing artifact that all
+
+    downstream consumers must read.
+
+  
+
+   Why this phase comes before scorer rewrite:
+
+  
+
+   \- V5 is an analysis-artifact refactor, not just a formula swap.
+
+   \- Without frozen units, inspect/heatmap/explanation will keep
+
+    inventing their own truths.
+
+  
+
+   Work:
+
+  
+
+   \- Define route-level artifact versioning.
+
+   \- Define continuous slice artifact.
+
+   \- Define crossing-event artifact.
+
+   \- Define route rollup artifact.
+
+   \- Define provenance/confidence attachment shape on every load-
+
+    bearing input.
+
+   \- Define trace-ready storage fields now, even if rider UI is
+
+    deferred.
+
+  
+
+   **## Phase 2. Build upstream V5 analysis primitives**
+
+  
+
+   Goal:
+
+  
+
+   \- Add the primitives V5 needs before math can be rewritten.
+
+  
+
+   Work:
+
+  
+
+   \- Path/MUP score-domain classification primitive.
+
+   \- Horizontal curvature measurement + bucket assignment + 50 m
+
+    sustained rule.
+
+   \- Expanded crossing-event synthesis:
+
+     \- formal intersections
+
+     \- path/MUP road crossings
+
+     \- path joins onto roads
+
+     \- path exits onto roads
+
+     \- bounded access-road-like crossings
+
+   \- Chosen-input freezing for slice and crossing artifacts.
+
+  
+
+   **## Phase 3. Rewrite the canonical scorer to V5 local-harm math**
+
+  
+
+   Goal:
+
+  
+
+   \- Replace the blended-risk model with local likelihood × severity
+
+    accumulation.
+
+  
+
+   Work:
+
+  
+
+   \- Severity module becomes explicit benchmark-shaped σ(speed).
+
+   \- Continuous likelihood excludes speed entirely.
+
+   \- Crossing likelihood becomes explicit event-level λ_cross.
+
+   \- Remove route-level crossing saturation branch.
+
+   \- Roll route harm to H_route, H_rpm, logistic shell, grade.
+
+  
+
+   **## Phase 4. Thread confidence, provenance, and trace-ready metadata**
+
+   **through outputs**
+
+  
+
+   Goal:
+
+  
+
+   \- Make ADR-043 and DS-019 real at analysis time.
+
+  
+
+   Work:
+
+  
+
+   \- Provenance classes aligned to ADR-043.
+
+   \- Field/slice/crossing/route confidence summaries emitted.
+
+   \- Evidence precedence made explicit in chosen inputs.
+
+   \- Store fallback counts, low-confidence hotspot counts, and route-
+
+    level evidence mix.
+
+   \- Preserve chosen values and local contributions for later trace
+
+    UI.
+
+  
+
+   **## Phase 5. Align truth surfaces before presentation polish**
+
+  
+
+   Goal:
+
+  
+
+   \- Make inspect, admin audit, and explanation surfaces read the
+
+    frozen canonical artifact first.
+
+  
+
+   Why before heatmap:
+
+  
+
+   \- Inspect/audit must become the oracle; otherwise heatmap bugs will
+
+    mask scorer bugs.
+
+  
+
+   Work:
+
+  
+
+   \- Inspect panel stops recomputing alternate scoring truth.
+
+   \- Admin audit reads new V5 artifact fields.
+
+   \- Explanation drawer derives from canonical artifact, not legacy
+
+    bucket summaries.
+
+  
+
+   **## Phase 6. Align heatmap and route paint with canonical score-**
+
+   **bearing units**
+
+  
+
+   Goal:
+
+  
+
+   \- Stop map color from using legacy speed-band ownership.
+
+  
+
+   Work:
+
+  
+
+   \- Heatmap color derives from canonical score-bearing slice truth.
+
+   \- Display segments become a presentation merge over canonical
+
+    slices, not a separate risk model.
+
+   \- Safe-path/presentation invariants are reconciled with V5 path/MUP
+
+    classification.
+
+  
+
+   **## Phase 7. Cache, persistence, and version migration**
+
+  
+
+   Goal:
+
+  
+
+   \- Prevent stale V3/V4 semantics from presenting as V5.
+
+  
+
+   Work:
+
+  
+
+   \- Introduce analysis artifact version alongside score model
+
+    version.
+
+   \- Dual gate cache and history reads by both.
+
+   \- Reject, stale-mark, or lazily reanalyze old blobs.
+
+   \- Persist enough new artifact data for reload, inspect, and future
+
+    tracing.
+
+  
+
+   **## Phase 8. Quarantine or adapt non-canonical score consumers**
+
+  
+
+   Goal:
+
+  
+
+   \- Ensure no rider-facing score-like path survives outside the
+
+    canonical artifact.
+
+  
+
+   Work:
+
+  
+
+   \- Detour scorer explicitly adapter-based or marked non-canonical
+
+    until parity work is scheduled.
+
+   \- Admin simulator either updated to canonical artifact inputs or
+
+    labeled non-canonical.
+
+   \- Pipeline scorer/rollup either deferred explicitly or brought to
+
+    parity in a later contained pass.
+
+   \- Remove or quarantine dead legacy score surfaces.
+
+  
+
+   **## Phase 9. Final V5 rollout verification**
+
+  
+
+   Goal:
+
+  
+
+   \- Validate end-to-end semantics before release.
+
+  
+
+   Work:
+
+  
+
+   \- Upload → analyze → inspect → cache → reload → explanation
+
+    consistency.
+
+   \- Crossing-heavy path route sanity.
+
+   \- Midblock-heavy brevet sanity.
+
+   \- Low-confidence route caveat sanity.
+
+   \- Explicit stale-cache behavior after model-version bump.
+
+  
+
+   **# C. Likely files/modules touched by phase**
+
+  
+
+   **## Phase 0**
+
+  
+
+   \- docs/04-execution/exec-012-
+
+    cgpt_pro_safety_score_improvement_plan.md:124
+
+   \- docs/02-architecture/design/ds-015-safety_scoring_model_v5.md:117
+
+   \- docs/02-architecture/design/ds-019-score_tracing.md:49
+
+   \- docs/03-adrs/adr-043-confidence_and_provenance_model.md:55
+
+  
+
+   **## Phase 1**
+
+  
+
+   \- src/lib/route-analysis.ts:719
+
+   \- src/lib/safety-scoring.ts:58
+
+   \- src/lib/evidence/types.ts:133
+
+   \- src/domain/adminScoreAudit.ts:1
+
+   \- likely new type module under src/shared/scoring/ or src/lib/
+
+    analysis/
+
+  
+
+   **## Phase 2**
+
+  
+
+   \- src/lib/route-analysis.ts:6337
+
+   \- src/shared/scoring/bike-facility.ts:17
+
+   \- src/lib/safe-path-invariant.ts:20
+
+   \- src/lib/route-geometry.ts:1 if suitable, or new geometry helper
+
+   \- src/lib/hazards.ts:1 only if needed as an event input source, not
+
+    canonical hazard math
+
+   \- src/lib/cue-resolver.ts:1 if turn/join semantics are reused
+
+  
+
+   **## Phase 3**
+
+  
+
+   \- src/lib/safety-scoring.ts:420
+
+   \- src/shared/scoring/safety-constants.ts:27
+
+   \- likely new V5-specific helpers under src/shared/scoring/
+
+   \- src/lib/route-analysis.ts:6501
+
+  
+
+   **## Phase 4**
+
+  
+
+   \- src/lib/evidence/types.ts:22
+
+   \- src/lib/evidence/resolver.ts:476
+
+   \- src/lib/route-analysis.ts:10006
+
+   \- src/domain/adminScoreAudit.ts:1
+
+   \- src/components/AdminScoreAuditBlock.tsx:29
+
+  
+
+   **## Phase 5**
+
+  
+
+   \- src/lib/evidence/resolver.ts:572
+
+   \- src/components/inspection/TruthSection.tsx:1
+
+   \- src/domain/routeScoreExplanation.ts:343
+
+   \- src/components/RouteAndAnalysisDrawer.tsx:102
+
+   \- src/components/RouteScoreExplanationPanel.tsx:1
+
+  
+
+   **## Phase 6**
+
+  
+
+   \- src/lib/heatmap/builder.ts:134
+
+   \- src/lib/heatmap/gradient-renderer.ts:167
+
+   \- src/lib/presentation/speed-presentation-controller.ts:94
+
+   \- src/lib/presentation/segment-presentation.ts:158
+
+   \- src/components/RouteMap.tsx:1856
+
+   \- src/lib/display-continuity.ts:167
+
+  
+
+   **## Phase 7**
+
+  
+
+   \- src/lib/route-cache.ts:9
+
+   \- src/lib/route-analysis-canonical.ts:1
+
+   \- src/lib/route-persistence.ts:76
+
+  
+
+   **## Phase 8**
+
+  
+
+   \- src/lib/routing.ts:219
+
+   \- src/lib/detour-routing.ts:665
+
+   \- src/components/DetourDeltaPanel.tsx:17
+
+   \- src/pages/SafetyModelAdmin.tsx:239
+
+   \- pipeline/src/slice-scorer.ts:251
+
+   \- pipeline/src/route-rollup.ts:213
+
+   \- src/components/SafetyScore.tsx:1
+
+  
+
+   **## Phase 9**
+
+  
+
+   \- end-to-end route load / analysis surfaces centered on:
+
+     \- src/pages/Index.tsx:970
+
+     \- src/lib/route-cache.ts:52
+
+     \- src/lib/route-persistence.ts:76
+
+  
+
+   **# D. New analysis primitives required**
+
+  
+
+  1. **Canonical V5 score-bearing slice artifact**
+
+  
+
+   \- One immutable analysis-time unit for continuous roadway harm.
+
+   \- Must carry length, chosen traffic, chosen speed, facility,
+
+    shoulder, path/MUP classification, curvature class, provenance,
+
+    confidence, λ_road, σ, and h_road.
+
+  
+
+  2. **Canonical V5 crossing-event artifact**
+
+  
+
+   \- One immutable analysis-time unit for crossing harm.
+
+   \- Must cover formal intersections and launch-scope non-intersection
+
+    events.
+
+   \- Must carry location, event type, crossed-road truth, width/
+
+    control/movement classes, provenance, confidence, λ_cross, σ, and
+
+    h_cross.
+
+  
+
+  3. **Path/MUP score-domain classification primitive**
+
+  
+
+   \- Must distinguish score-domain path/MUP slices from merely
+
+    “protected facility” semantics.
+
+   \- This is required before formula changes because V5 gives them
+
+    zero continuous roadway likelihood.
+
+  
+
+  4. **Horizontal curvature measurement primitive**
+
+  
+
+   \- Geometry-derived local radius estimate.
+
+   \- Bucket mapping to launch categories.
+
+   \- Sustained-length rule of at least 50 m.
+
+   \- Must be deterministic and reusable in trace/audit surfaces.
+
+  
+
+  5. **Non-intersection crossing synthesis primitive**
+
+  
+
+   \- Must emit ordinary crossing events for:
+
+     \- path-road crossings
+
+     \- path joins onto roads
+
+     \- path exits onto roads
+
+     \- bounded launch-scope access-road-like crossings
+
+   \- Must not explode into a subtype system beyond what launch needs.
+
+  
+
+  6. **Chosen-input freezing primitive**
+
+  
+
+   \- For each slice/event, freeze the winning value plus provenance/
+
+    confidence at analysis time.
+
+   \- Required by DS-019 to avoid post-hoc reconstruction drift.
+
+  
+
+  7. **Route-level evidence mix / confidence summary primitive**
+
+  
+
+   \- Route-wide aggregation of official/imported/geometry/inferred/
+
+    baseline/unknown usage.
+
+   \- Needed for ADR-043 route-level confidence and later trace
+
+    headers.
+
+  
+
+  8. **Artifact version primitive**
+
+  
+
+   \- Distinct from score-model version.
+
+   \- Needed for cache/persistence gating and future migrations.
+
+  
+
+   **# E. Review checkpoints before moving forward**
+
+  
+
+   **## Checkpoint 1. Artifact definition approval**
+
+  
+
+   Required before any formula rewrite.
+
+   Review:
+
+  
+
+   \- slice artifact
+
+   \- crossing artifact
+
+   \- route rollup artifact
+
+   \- provenance/confidence shape
+
+   \- artifact versioning
+
+    Reject if:
+
+   \- any downstream consumer would still need to recompute score truth
+
+    independently
+
+  
+
+   **## Checkpoint 2. Path/MUP classification approval**
+
+  
+
+   Required before continuous likelihood implementation.
+
+   Review:
+
+  
+
+   \- exact launch rule for explicit path/MUP vs ambiguous separated
+
+    facilities
+
+   \- missing maxspeed fallback behavior
+
+    Reject if:
+
+   \- classification can drift between scoring and map/inspect surfaces
+
+  
+
+   **## Checkpoint 3. Curvature primitive approval**
+
+  
+
+   Required before V5 likelihood math lands.
+
+   Review:
+
+  
+
+   \- radius derivation method
+
+   \- smoothing/windowing choice
+
+   \- 50 m sustained trigger
+
+   \- bucket thresholds and deterministic behavior
+
+    Reject if:
+
+   \- noisy polyline vertices can create unstable category flips
+
+  
+
+   **## Checkpoint 4. Crossing synthesis approval**
+
+  
+
+   Required before crossing math rewrite.
+
+   Review:
+
+  
+
+   \- event inclusion rules
+
+   \- non-intersection event coverage
+
+   \- bounded access-road-like inclusion
+
+   \- unknown / signed non-signalized handling
+
+    Reject if:
+
+   \- launch scope creeps into a driveway-density pseudo-model
+
+  
+
+   **## Checkpoint 5. Canonical scorer rewrite approval**
+
+  
+
+   Required before UI alignment.
+
+   Review:
+
+  
+
+   \- continuous likelihood excludes speed
+
+   \- severity only multiplies once
+
+   \- no route-level crossing saturation branch
+
+   \- route harm rollup and logistic shell
+
+    Reject if:
+
+   \- any V4 weighted-blend semantics still survive in canonical math
+
+  
+
+   **## Checkpoint 6. Provenance/confidence approval**
+
+  
+
+   Required before cache migration.
+
+   Review:
+
+  
+
+   \- ADR-043 class mapping
+
+   \- precedence handling
+
+   \- neutral unknown fallback handling
+
+   \- field/slice/crossing/route confidence outputs
+
+    Reject if:
+
+   \- confidence leaks into canonical score math
+
+  
+
+   **## Checkpoint 7. Inspect/audit alignment approval**
+
+  
+
+   Required before heatmap alignment.
+
+   Review:
+
+  
+
+   \- inspect surfaces read frozen artifact
+
+   \- admin audit reads frozen artifact
+
+   \- explanation derives from frozen artifact
+
+    Reject if:
+
+   \- inspect still recomputes score-adjacent truth separately
+
+  
+
+   **## Checkpoint 8. Cache/persistence approval**
+
+  
+
+   Required before release.
+
+   Review:
+
+  
+
+   \- score model version
+
+   \- artifact version
+
+   \- stale blob handling
+
+   \- route-history semantics
+
+    Reject if:
+
+   \- old analyses can silently render as fresh V5
+
+  
+
+   **## Checkpoint 9. Heatmap and consumer quarantine approval**
+
+  
+
+   Required before final rollout.
+
+   Review:
+
+  
+
+   \- canonical slice ownership of map color
+
+   \- detour/admin/pipeline explicit status
+
+   \- dead/stale score surfaces removed or labeled
+
+    Reject if:
+
+   \- rider-facing map/summary can disagree with canonical artifact
+
+  
+
+   **# F. Explicit deferrals / out-of-scope items**
+
+  
+
+   \- Door-zone / street parking in canonical score math
+
+   \- Driveway / access density as canonical likelihood
+
+   \- Heavy-vehicle canonical severity factor
+
+   \- Lane-width canonical factor
+
+   \- State-based canonical multiplier
+
+   \- Lighting canonical factor
+
+   \- Endurance-relative score in canonical math
+
+   \- Full rider-facing score trace UI
+
+   \- Broad RouteMap cleanup beyond what is required for canonical
+
+    ownership
+
+   \- Full server-side / worker architecture migration
+
+   \- Pipeline parity if not launch-critical, provided it is explicitly
+
+    labeled/deferred
+
+   \- Detour canonical parity in the same pass, if it blocks canonical
+
+    browser rollout
+
+  
+
+   Still required outside canonical score:
+
+  
+
+   \- door-zone / parking as hazard/context feature
+
+   \- hazard boundary tests proving hazard/context data does not alter
+
+    canonical score
+
+  
+
+   **# G. Test plan by phase**
+
+  
+
+   **## Phase 1 tests**
+
+  
+
+   Likely files:
+
+  
+
+   \- new artifact tests near src/lib/route-analysis.test.ts or src/
+
+    lib/__tests__/...
+
+    Add:
+
+   \- artifact shape serialization / rehydration
+
+   \- artifact version presence
+
+   \- chosen-input freezing tests
+
+   \- route-level evidence-mix summary tests
+
+  
+
+   **## Phase 2 tests**
+
+  
+
+   Likely files:
+
+  
+
+   \- src/lib/__tests__/...
+
+    Add:
+
+   \- path/MUP classification:
+
+     \- explicit path classified as path-like
+
+     \- protected lane not automatically path-like
+
+     \- ambiguous/missing-speed fallback follows frozen rule
+
+   \- curvature:
+
+     \- straight line => neutral curvature
+
+     \- sustained curve > 50 m => bucketed
+
+     \- short noisy kink < 50 m => ignored
+
+     \- slice-boundary determinism
+
+   \- crossing synthesis:
+
+     \- formal intersection event
+
+     \- path-road crossing
+
+     \- path join onto road
+
+     \- path exit onto road
+
+     \- signed non-signalized treated as stop-controlled
+
+     \- ambiguous event stays unknown
+
+     \- trivial junk access crossings excluded
+
+  
+
+   **## Phase 3 tests**
+
+  
+
+   Likely files:
+
+  
+
+   \- src/lib/safety-scoring.test.ts:1
+
+   \- new V5-specific tests under src/lib/__tests__/
+
+    Add:
+
+   \- severity table values / interpolation match V5
+
+   \- continuous likelihood contains traffic/curvature/facility/
+
+    shoulder only
+
+   \- continuous harm multiplies by severity once
+
+   \- crossing likelihood formula matches V5 launch formula
+
+   \- no route-level crossing saturation branch
+
+   \- path/MUP zero continuous likelihood but nonzero crossing harm
+
+    allowed
+
+   \- logistic shell remains midpoint 2.5 / steepness 1.4
+
+  
+
+   **## Phase 4 tests**
+
+  
+
+   Likely files:
+
+  
+
+   \- src/lib/evidence/__tests__/...
+
+   \- src/lib/__tests__/...
+
+    Add:
+
+   \- precedence ordering by ADR-043 class
+
+   \- unknown uses neutral fallback plus confidence loss
+
+   \- provenance classes survive into slice/event artifacts
+
+   \- field/slice/crossing/route confidence summaries emitted
+
+   \- low-confidence crossing counts and fallback counts stored
+
+  
+
+   **## Phase 5 tests**
+
+  
+
+   Likely files:
+
+  
+
+   \- src/components/inspection/__tests__/traffic-truth-
+
+    preference.test.ts:1
+
+   \- src/domain/routeScoreExplanation.test.ts:1
+
+    Add:
+
+   \- inspect reads frozen canonical artifact, not local recompute
+
+   \- admin audit reflects artifact values
+
+   \- explanation surfaces derive from artifact rollup and local
+
+    contributions
+
+   \- route-level confidence caveats appear from artifact summaries
+
+  
+
+   **## Phase 6 tests**
+
+  
+
+   Likely files:
+
+  
+
+   \- src/lib/heatmap/__tests__/...
+
+   \- src/lib/__tests__/safe-path-invariant.test.ts
+
+    Add:
+
+   \- heatmap color derives from canonical score-bearing truth
+
+   \- legacy speed-band path no longer owns canonical map paint
+
+   \- display continuity does not change underlying score-bearing
+
+    classifications
+
+   \- path/MUP map treatment remains aligned with canonical slice type
+
+  
+
+   **## Phase 7 tests**
+
+  
+
+   Likely files:
+
+  
+
+   \- cache/persistence tests near src/lib/__tests__/...
+
+    Add:
+
+   \- old CURRENT_DATA_VERSION or old artifact version rejected
+
+   \- old route-history analyses flagged stale or excluded
+
+   \- V5 analysis persists score-model version and artifact version
+
+   \- reload preserves canonical artifact, confidence, provenance,
+
+    explanation inputs
+
+  
+
+   **## Phase 8 tests**
+
+  
+
+   Likely files:
+
+  
+
+   \- src/lib/routing.test.ts if present, else new
+
+   \- pipeline tests
+
+    Add:
+
+   \- detour/admin explicitly marked non-canonical if not updated
+
+   \- pipeline outputs either parity-tested or explicitly excluded from
+
+    canonical assertions
+
+   \- dead legacy SafetyScore path not referenced by live UI
+
+  
+
+   **## Phase 9 integration tests**
+
+  
+
+   Likely files:
+
+  
+
+   \- higher-level integration tests under src/lib/__tests__/ / src/
+
+    pages/__tests__/
+
+    Add:
+
+   \- GPX upload -> analyze -> inspect -> cache -> reload consistency
+
+   \- model bump invalidates stale semantics
+
+   \- crossing-heavy MUP route behaves plausibly
+
+   \- long brevet with mixed midblock + crossing exposure behaves
+
+    plausibly
+
+   \- hazard-only features do not change canonical score
+
+  
+
+   **# H. Final planning brief to approve before code changes**
+
+  
+
+   This should be executed as an **artifact-first V5 rewrite**, not as a
+
+   scorer-only tweak. The required order is:
+
+  
+
+  1. freeze the remaining launch policies and declare one canonical
+
+     score owner
+
+  2. define the canonical V5 analysis artifact
+  3. add the upstream primitives V5 depends on:
+
+     \- path/MUP classification
+
+     \- curvature measurement
+
+     \- non-intersection crossing synthesis
+
+  4. rewrite the canonical scorer to local expected serious harm
+  5. thread provenance, confidence, and trace-ready metadata through
+
+     the artifact
+
+  6. make inspect/audit/explanation read the frozen artifact first
+  7. then align heatmap and other presentation surfaces
+  8. then gate cache/history by model version and artifact version
+  9. then quarantine or adapt detour/admin/pipeline consumers
+
+  
+
+   The key approval questions before coding are:
+
+  
+
+   \- Is the proposed artifact shape the single source of truth for
+
+    rider-facing score semantics?
+
+   \- Is the launch path/MUP rule frozen tightly enough to avoid
+
+    downstream drift?
+
+   \- Is the non-intersection crossing inclusion rule bounded tightly
+
+    enough to avoid scope creep?
+
+   \- Is pipeline/detour/admin explicitly treated as secondary until
+
+    proven canonical?
+
+   \- Is cache/history migration part of the implementation, not a
+
+    cleanup afterward?
+
+  
+
+   If those are approved, the implementation can proceed in one
+
+   decisive pass without creating another split-brain score dialect.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
@@ -11821,6 +13741,1181 @@ Index.tsx: user clicks road on map
 ## 8. Recommended Next Implementation Pass
 
 Wire a lightweight async AADT enrichment into the ad-hoc road inspect path — check the existing `dot_tile_cache` and `hpms_tile_cache` first (zero-cost if data is already cached from a prior route analysis), then fall back to a single-tile DOT/HPMS proxy fetch for the clicked road's tile, and populate the synthetic segment's `resolvedTraffic*` fields before the resolver runs.
+
+---
+
+## Source File: docs/assessments/ass-008-inspect-aadt-pilot.md
+
+# ASS-008 Pilot — Ad Hoc Inspect Government AADT Hydration
+
+## What is now live
+- Explore / bare-map inspect now hydrates clicked synthetic segments with government traffic truth when available.
+- Loaded-route inspect now hydrates only when the clicked segment does not already carry analysis-time `resolvedTraffic*` truth.
+- Hydration path reuses existing DOT and HPMS tile caches first, then performs bounded on-demand fetch over the clicked tile + immediate neighbors.
+- Matched government records populate canonical `resolvedTraffic*` fields before inspector truth resolution.
+- Matching remains geometry-first, with lightweight metadata-aware rejectors/tiebreakers (road name, route ref, highway class) when metadata is present.
+- Source precedence is explicit:
+  - AADT: DOT > HPMS > fallback
+  - Lanes: DOT > HPMS > existing segment lane value
+- Added inspect debug logs for cache hit/miss, fetch success/no result, and winning source.
+
+## What still falls back
+- If neither DOT nor HPMS yields a matched record, inspect remains on honest fallback behavior (`class_proxy` / unknown via existing resolver).
+- Modes outside this pilot scope are unchanged (verify-only in this pass).
+
+## Intentionally deferred
+- Full viewport hydration parity architecture.
+- Draw-route / detour / route-to-address wiring changes.
+- Route score redesign, crossing rewiring, and map color redesign.
+
+
+---
+
+## Source File: docs/assessments/ass-009-codex_safety_scoring_audit.md
+
+# ASS-08-CODEX Safety Scoring Audit
+
+• **# A. Current-state inventory**
+
+
+
+ **## 1. File-by-file map of live scoring logic**
+
+
+
+ | Area | Live / legacy | Evidence |
+
+ | --- | --- | --- |
+
+ | Canonical browser route scoring entrypoint | **Live** | src/lib/route-
+
+ analysis.ts:6337 analyzeRoute builds scoringSegments and crossingConflicts,
+
+ then calls computeRouteSafetyScore(...) at src/lib/route-analysis.ts:6501.
+
+ Final SafetyResult fields are assembled at src/lib/route-analysis.ts:9623. |
+
+ | Core segment + route score math | **Live** | src/lib/safety-scoring.ts:271
+
+ computeSegmentRisk; src/lib/safety-scoring.ts:420 computeRouteSafetyScore;
+
+ src/lib/safety-scoring.ts:344 gradeFromScore; src/lib/safety-scoring.ts:404
+
+ computeConfidence. |
+
+ | Shared constants / traffic ladder / crossing math | **Live** | src/shared/
+
+ scoring/safety-constants.ts:27 SCORE_MODEL_VERSION; src/shared/scoring/safety-
+
+ constants.ts:288 trafficFactorFromAADTPerLane; src/shared/scoring/safety-
+
+ constants.ts:352 resolveTrafficFactor; src/shared/scoring/safety-
+
+ constants.ts:453 isCrossingScoreEligible; src/shared/scoring/safety-
+
+ constants.ts:522 crossingRiskContribution; src/shared/scoring/safety-
+
+ constants.ts:593 safetyScoreFromRPM. |
+
+ | Bike facility normalization | **Live** | src/shared/scoring/bike-facility.ts:17
+
+ normalizeBikeFacility maps bike_path and multiuse_path to protected_track. |
+
+ | Inspect / truth resolver / segment scoring | **Live, separate from route**
+
+ **rollup** | src/lib/evidence/resolver.ts:476 resolveCanonicalTraffic; src/lib/
+
+ evidence/resolver.ts:572 computeSegmentScoring; src/lib/evidence/
+
+ resolver.ts:644 resolveSegmentTruth. |
+
+ | Evidence data model / provenance labels | **Live** | src/lib/evidence/
+
+ types.ts:22 SourceType; src/lib/evidence/types.ts:133 ResolvedTrafficTruth /
+
+ SegmentTruth. |
+
+ | Local-area traffic prior | **Live** | src/lib/evidence/local-area-prior.ts:65
+
+ computeLocalAreaPrior. |
+
+ | Heatmap truth segment model | **Live** | src/lib/heatmap/types.ts:11
+
+ HeatmapSegment; src/lib/heatmap/types.ts:160 traffic / shoulder / infra
+
+ buckets. |
+
+ | Heatmap truth builder | **Live** | src/lib/heatmap/builder.ts:134
+
+ buildHeatmapOutput; cached scoring fields propagated at src/lib/heatmap/
+
+ builder.ts:158. |
+
+ | Safe-path UI guard | **Live** | src/lib/safe-path-invariant.ts:20
+
+ enforceSafePathInvariant. |
+
+ | Segment presentation colors | **Live** | src/lib/presentation/segment-
+
+ presentation.ts:158 getSegmentPresentation; uses truth.scoring.riskLevel.
+
+ Deprecated helper remains at src/lib/presentation/segment-presentation.ts:27.
+
+ |
+
+ | Route map rendering | **Live** | src/components/RouteMap.tsx:1856 heatmap route
+
+ selection; src/components/RouteMap.tsx:1891 map paint driven by shared speed
+
+ color. |
+
+ | Gradient renderer | **Live, split-brain** | src/lib/heatmap/gradient-
+
+ renderer.ts:89 segmentToRisk prefers cached risk, but src/lib/heatmap/
+
+ gradient-renderer.ts:167 buildGradientColors uses speed presentation path. |
+
+ | Speed-based display controller | **Live** | src/lib/presentation/speed-
+
+ presentation-controller.ts:38 speedToDisplayClass; src/lib/presentation/speed-
+
+ presentation-controller.ts:94 resolveRouteSegmentSpeedPresentation. |
+
+ | Display continuity suppression | **Live, presentation-only** | src/lib/display-
+
+ continuity.ts:167 post-processes speedClass, infra, traffic buckets. |
+
+ | Score explanation adapter | **Live** | src/domain/routeScoreExplanation.ts:343
+
+ buildExplanationFromSafetyResult; highlight grouping from heatmap buckets at
+
+ src/domain/routeScoreExplanation.ts:300. |
+
+ | Main drawer consumer | **Live** | src/components/RouteAndAnalysisDrawer.tsx:102
+
+ builds explanation from gpxAnalysis. |
+
+ | Drawer panel | **Live** | src/components/RouteScoreExplanationPanel.tsx:1
+
+ consumes explanation object and score fields. |
+
+ | Cue drawer | **Live, score-adjacent** | src/components/CueDrawer.tsx:195 shows
+
+ miles and grade only. |
+
+ | Admin score audit UI | **Live** | src/domain/adminScoreAudit.ts:1 and src/
+
+ components/AdminScoreAuditBlock.tsx:29 expose diagnostics from SafetyResult. |
+
+ | Detour / optimizer scorer | **Live, alternate path** | src/lib/routing.ts:219
+
+ scoreOsrmPath; src/lib/detour-routing.ts:665 computeDetourRoute; src/
+
+ components/DetourDeltaPanel.tsx:17. |
+
+ | Admin simulator | **Live, alternate path** | src/pages/SafetyModelAdmin.tsx:239
+
+ computes sample route scores manually. |
+
+ | Offline pipeline slice scorer | **Dead for browser path / still present** |
+
+ pipeline/src/slice-scorer.ts:251 scoreSlice; no crossing rollup parity. |
+
+ | Offline pipeline route rollup | **Dead for browser path / still present** |
+
+ pipeline/src/route-rollup.ts:213 rollupRoute; logistic diverges from shared
+
+ browser scorer. |
+
+ | Stale score UI component | **Dead / unused** | src/components/
+
+ SafetyScore.tsx:251 still describes railroad and left-turn contribution
+
+ semantics; no live imports found. |
+
+
+
+ **## 2. Constants and formulas currently in use**
+
+
+
+ | Category | Current live behavior | Evidence |
+
+ | --- | --- | --- |
+
+ | Model version | v3.1-launch | src/shared/scoring/safety-constants.ts:27 |
+
+ | Segment continuous weights | 0.60*speed + 0.40*traffic | src/lib/safety-
+
+ scoring.ts:307 |
+
+ | Safe path continuous risk | Non-zero baseline SAFE_PATH_BASELINE_RPM=0.05 |
+
+ src/shared/scoring/safety-constants.ts:44, src/lib/safety-scoring.ts:274 |
+
+ | Speed factor table | 10:0.35, 20:0.8, 25:1.0, 30:1.4, 35:1.9, 40:2.6,
+
+ 45:3.4, 50:4.6, 55+:6.2 | src/shared/scoring/safety-constants.ts:228
+
+ speedRiskFactor |
+
+ | Traffic midpoint anchors | 0/2000/4000/8000/12000/16000 ->
+
+ 0.60/1.0/1.5/2.0/2.5/3.0 | src/shared/scoring/safety-constants.ts:288 |
+
+ | Bike facility multipliers | protected 0.50, buffered 0.68, painted 0.82,
+
+ shared/shoulder/none/unknown 1.0 | src/shared/scoring/safety-constants.ts:47 |
+
+ | High-speed infra floor | At >=40 mph, infra factor floored at 0.50 | src/
+
+ shared/scoring/safety-constants.ts:60 |
+
+ | Shoulder multipliers | Wide 0.78, usable fallback 0.88, else 1.0; only at
+
+ \>=30 mph and suppressed if dedicated bike facility exists | src/shared/
+
+ scoring/safety-constants.ts:64, src/lib/safety-scoring.ts:189 |
+
+ | Crossing base and cap | E0=0.05, Ecap=0.75 | src/shared/scoring/safety-
+
+ constants.ts:198 |
+
+ | Crossing width factors | 1-2 lanes 1.0, 3-4 lanes 1.25, 5-6 lanes 1.60, 7+
+
+ lanes 2.0 | src/shared/scoring/safety-constants.ts:208, src/shared/scoring/
+
+ safety-constants.ts:433 |
+
+ | Crossing control factors | signal 1.0, stop 1.05, unknown 1.10 | src/shared/
+
+ scoring/safety-constants.ts:215, src/shared/scoring/safety-constants.ts:440 |
+
+ | Crossing movement factors | straight 1.0, right_merge 1.05, left_across
+
+ 1.20, unknown 1.10 | src/shared/scoring/safety-constants.ts:221, src/shared/
+
+ scoring/safety-constants.ts:445 |
+
+ | Crossing event formula | min(Ecap, E0 +
+
+ sqrt(speedFactor*trafficFactor)*width*control*movement) for eligible events
+
+ only | src/shared/scoring/safety-constants.ts:522 |
+
+ | Crossing route aggregation | Sum event penalties, divide by route miles,
+
+ then hard cap: effectiveCrossingRPM=min(rawCrossingRPM, continuousRPM*0.6667)
+
+ | src/lib/safety-scoring.ts:468, src/lib/safety-scoring.ts:482 |
+
+ | Final route rollup | rawRPM = continuousRPM + effectiveCrossingRPM; score =
+
+ logistic of RPM | src/lib/safety-scoring.ts:485, src/shared/scoring/safety-
+
+ constants.ts:593 |
+
+ | Logistic params | midpoint 2.5, steepness 1.4 | src/shared/scoring/safety-
+
+ constants.ts:40 |
+
+ | Grade thresholds | A+..F, 13 bands, e.g. >=97 A+, <45 F | src/lib/safety-
+
+ scoring.ts:344 |
+
+ | Legacy constants still present | W_RAIL=0, W_LEFT_TURN=0, shoulder additive
+
+ credits zeroed, traffic tier buckets retained | src/shared/scoring/safety-
+
+ constants.ts:34, src/shared/scoring/safety-constants.ts:83 |
+
+
+
+ **## 3. Input sources actually wired**
+
+
+
+ \- Speed: entry.speedLimit ?? defaultSpeedForHighway(entry.highway) in src/lib/
+
+  route-analysis.ts:6363 analyzeRoute.
+
+ \- Traffic: direct cue aadtValue / laneCount, else local-area prior from src/
+
+  lib/evidence/local-area-prior.ts:65 computeLocalAreaPrior, else class proxy
+
+  inside src/shared/scoring/safety-constants.ts:352 resolveTrafficFactor.
+
+ \- Facility: cue bikeFacility, normalized by src/shared/scoring/bike-
+
+  facility.ts:17 normalizeBikeFacility.
+
+ \- Shoulder: cue shoulder object passed through from src/lib/route-
+
+  analysis.ts:6367.
+
+ \- Crossing movement/control: synthesized from left-turn cues and controlled-
+
+  crossing hazards in src/lib/route-analysis.ts:6425 and src/lib/route-
+
+  analysis.ts:6455.
+
+ \- Crossing width / lanes crossed: nearest cue laneCount only, from src/lib/
+
+  route-analysis.ts:6434 and src/lib/route-analysis.ts:6482.
+
+ \- Inspect-panel truth path additionally uses resolved evidence bundles and
+
+  provenance in src/lib/evidence/resolver.ts:644 resolveSegmentTruth.
+
+
+
+ **## 4. Fallback ladders actually wired**
+
+
+
+ | Input | Actual fallback order | Evidence |
+
+ | --- | --- | --- |
+
+ | Speed | cue speed limit -> defaultSpeedForHighway(highway) -> safe-path
+
+ special case 0 mph | src/lib/route-analysis.ts:6363 |
+
+ | Traffic factor | aadtPerLane -> aadtTotal + known lanes -> aadtTotal +
+
+ inferred lanes -> localAreaPriorAADT -> classProxyFactor -> unknown factor
+
+ 1.10 | src/shared/scoring/safety-constants.ts:352 resolveTrafficFactor |
+
+ | Facility | raw OSM-ish facility string -> normalized canonical bucket;
+
+ bike_path / multiuse_path collapse to protected_track | src/shared/scoring/
+
+ bike-facility.ts:17 |
+
+ | Shoulder | dedicated bike facility present => no shoulder credit; else if
+
+ speed <30 => none; else explicit width if available; else any shoulder
+
+ presence => usable factor 0.88; else none | src/lib/safety-scoring.ts:189
+
+ shoulderFactor |
+
+ | Crossing movement | left-turn events => left_across; controlled hazards =>
+
+ straight; otherwise no alternate inference | src/lib/route-analysis.ts:6442,
+
+ src/lib/route-analysis.ts:6487 |
+
+ | Crossing control | left-turn events => unknown; hazard type => signalized or
+
+ stop_controlled | src/lib/route-analysis.ts:6450, src/lib/route-
+
+ analysis.ts:6492 |
+
+ | Crossing width / lanes | nearest cue lane count -> undefined; scorer
+
+ supports richer fallback inputs, but route scorer does not pass them through |
+
+ src/lib/route-analysis.ts:6434, src/lib/safety-scoring.ts:471 |
+
+
+
+ **## 5. Route rollup math actually wired**
+
+
+
+1. **Primary live route-analysis path**
+
+   \- Segment continuous risk is summed in src/lib/safety-scoring.ts:440
+
+​    computeRouteSafetyScore.
+
+   \- Crossing risk is summed per event at src/lib/safety-scoring.ts:468.
+
+   \- Crossing contribution is then hard-capped relative to continuous RPM at
+
+​    src/lib/safety-scoring.ts:482.
+
+   \- Final score is logistic-normalized at src/lib/safety-scoring.ts:488.
+
+2. **Detour / optimizer path**
+
+   \- src/lib/routing.ts:219 scoreOsrmPath scores sampled path segments with
+
+​    computeSegmentRisk(...), ignores route-level crossing model, then
+
+​    logistic-normalizes riskPerMile directly at src/lib/routing.ts:328.
+
+   \- This is a distinct score path.
+
+3. **Offline pipeline path**
+
+   \- pipeline/src/slice-scorer.ts:251 scoreSlice handles continuous slice
+
+​    scoring only.
+
+   \- pipeline/src/route-rollup.ts:213 rollupRoute applies its own logistic
+
+​    transform and no crossing-event model.
+
+   \- This is another distinct score path.
+
+
+
+ **## 6. UI / inspect / heatmap dependencies**
+
+
+
+ | Surface | Dependency | Divergence risk |
+
+ | --- | --- | --- |
+
+ | Route summary / drawer headline | Uses SafetyResult.score, grade,
+
+ riskPerMile, counts via src/domain/routeScoreExplanation.ts:343
+
+ buildExplanationFromSafetyResult | Close to canonical route score, but
+
+ highlight groups come from heatmap buckets, not canonical scoring slices. |
+
+ | Map color logic | Uses speed presentation bands via src/lib/presentation/
+
+ speed-presentation-controller.ts:94 and src/lib/heatmap/gradient-
+
+ renderer.ts:167 | **Split-brain**: map color is speed-driven, not canonical
+
+ segment score-driven. |
+
+ | Inspect panel | Uses resolveSegmentTruth(...) in src/lib/evidence/
+
+ resolver.ts:644 and may reuse cached segment scoring or recompute | Can
+
+ disagree with route-level score path because it is segment-truth-centric and
+
+ independently resolved. |
+
+ | Cue drawer | Shows grade only from analysis object at src/components/
+
+ CueDrawer.tsx:195 | Low risk, but grade comes from primary route score path
+
+ only. |
+
+ | Admin audit | Uses diagnostics from SafetyResult in src/components/
+
+ AdminScoreAuditBlock.tsx:29 | Faithful to route scorer, but only admin-
+
+ visible. |
+
+ | Detour delta UI | Uses alternate detour scorer outputs in src/components/
+
+ DetourDeltaPanel.tsx:17 | **Split-brain** against canonical route-analysis score
+
+ path. |
+
+ | Caching | Cached safety_result blobs via src/lib/route-cache.ts:117 | Model-
+
+ version drift can persist stale score semantics if cache version not bumped. |
+
+
+
+ **## 7. Current tests**
+
+
+
+ | Test file | What it verifies | Gaps |
+
+ | --- | --- | --- |
+
+ | src/lib/safety-scoring.test.ts:1 | Speed factors, traffic ladder, facility/
+
+ shoulder logic, crossing formula, route cap, logistic score, grades | No V4
+
+ benchmark speed table, no soft saturation, no zero-road-risk MUP path. |
+
+ | src/lib/__tests__/crossing-browser-integration.test.ts:1 | Crossings lower
+
+ score and are bounded by current cap | Bakes in current V3 cap behavior. |
+
+ | src/lib/__tests__/controlled-crossing-integration.test.ts:1 | Controlled
+
+ crossing effects | No V4 unknown-neutrality checks. |
+
+ | src/lib/__tests__/crossing-breakdown-counts.test.ts:1 | Breakdown counts in
+
+ SafetyResult | Does not validate traceability architecture. |
+
+ | src/lib/evidence/__tests__/traffic-ladder-integration.test.ts:1 | Traffic
+
+ fallback ladder | No ADR-043 provenance class parity. |
+
+ | src/lib/evidence/__tests__/resolver-traffic-parity.test.ts:1 | Inspector
+
+ traffic truth parity | No route-score parity check. |
+
+ | src/lib/evidence/__tests__/traffic-confidence-mapping.test.ts:1 | Legacy
+
+ confidence-to-source mapping | Confirms current legacy vocabulary, not ADR-043
+
+ target. |
+
+ | src/lib/heatmap/__tests__/resolved-traffic-propagation.test.ts:1 | Heatmap
+
+ preserves resolved traffic truth | No test that map coloring aligns with
+
+ canonical score. |
+
+ | src/domain/routeScoreExplanation.test.ts:1 | Explanation adapter preserves
+
+ score fields | No trace-generation coverage. |
+
+ | src/components/inspection/__tests__/traffic-truth-preference.test.ts:1 |
+
+ Inspector prefers precomputed traffic truth | No end-to-end route/inspect
+
+ consistency test. |
+
+ | src/lib/__tests__/safe-path-invariant.test.ts:1 | UI safe-path guard | UI-
+
+ only; does not assert route-score zero-risk semantics. |
+
+ | pipeline/src/__tests__/slice-scorer-real.test.ts:1 | Pipeline scorer
+
+ fallbacks | Does not prove parity with browser route scorer. |
+
+
+
+ **# B. Gap analysis against V4**
+
+
+
+ | Requirement | Classification | Evidence in code | Impacted files | Notes on
+
+ mismatch |
+
+ | --- | --- | --- | --- | --- |
+
+ | 1. Canonical narrow score definition | **implemented but inconsistent with**
+
+ **spec** | Current scorer excludes rail/weather in core math, matching the narrow
+
+ scope, but still carries legacy fields and stale UI semantics: src/lib/safety-
+
+ scoring.ts:1, src/components/SafetyScore.tsx:251 | src/lib/safety-scoring.ts,
+
+ src/components/SafetyScore.tsx, src/lib/route-analysis.ts | Narrow intent
+
+ exists, but codebase still contains stale score consumers and legacy fields. |
+
+ | 2. Continuous speed / traffic backbone | **already implemented** |
+
+ computeSegmentRisk is 0.60*speed + 0.40*traffic, then infra/shoulder
+
+ multipliers: src/lib/safety-scoring.ts:307 | src/lib/safety-scoring.ts |
+
+ Backbone exists. Constants differ from V4. |
+
+ | 3. Direct benchmark-normalized speed treatment | **implemented but**
+
+ **inconsistent with spec** | Current speed table tops out at 6.2 at 55+, not V4
+
+ launch table: src/shared/scoring/safety-constants.ts:228 | src/shared/scoring/
+
+ safety-constants.ts | V4 doc requires materially steeper benchmark-normalized
+
+ curve. |
+
+ | 4. Traffic factor interpolation from midpoint anchors | **implemented but**
+
+ **inconsistent with spec** | Current anchors are 0/2000/4000/8000/12000/16000, not
+
+ V4 1000/3000/6000/10000/14000/18000: src/shared/scoring/safety-
+
+ constants.ts:288 | src/shared/scoring/safety-constants.ts | Live ladder is
+
+ real and tested, but not V4. |
+
+ | 5. Infra / shoulder application logic | **implemented but inconsistent with**
+
+ **spec** | Dedicated facility suppresses shoulder credit; safe-paths still receive
+
+ baseline risk; bike_path/multiuse_path normalize to protected_track: src/lib/
+
+ safety-scoring.ts:189, src/shared/scoring/bike-facility.ts:17 | src/lib/
+
+ safety-scoring.ts, src/shared/scoring/bike-facility.ts | V4 wants zero
+
+ continuous road risk for bike paths/MUPs, not just a facility multiplier. |
+
+ | 6. Crossing event eligibility | **implemented but inconsistent with spec** |
+
+ Eligibility is hardcoded by speed/AADT/lane rules at src/shared/scoring/
+
+ safety-constants.ts:453 | src/shared/scoring/safety-constants.ts, src/lib/
+
+ route-analysis.ts | Broadly similar conceptually, but actual thresholds/
+
+ fallback threading need V4 review. |
+
+ | 7. Crossing event formula | **implemented but inconsistent with spec** | Formula
+
+ exists at src/shared/scoring/safety-constants.ts:522 | src/shared/scoring/
+
+ safety-constants.ts | Width/control/movement constants differ from V4. |
+
+ | 8. Width / control / movement factors | **implemented but inconsistent with**
+
+ **spec** | Width/control/movement factors are more punitive than V4, especially
+
+ unknowns: src/shared/scoring/safety-constants.ts:208, [215], [221] | src/
+
+ shared/scoring/safety-constants.ts | Unknown factors are punitive 1.10, not
+
+ neutral means. |
+
+ | 9. Unknown handling | **implemented but inconsistent with spec** | Traffic
+
+ unknown falls back to factor 1.10; route confidence is a coarse coverage
+
+ heuristic: src/shared/scoring/safety-constants.ts:397, src/lib/safety-
+
+ scoring.ts:404 | src/shared/scoring/safety-constants.ts, src/lib/safety-
+
+ scoring.ts, src/lib/evidence/resolver.ts | Unknowns are bounded, but
+
+ confidence/provenance separation is incomplete and vocabulary is non-ADR. |
+
+ | 10. Route-level crossing saturation | **implemented but inconsistent with spec**
+
+ | Hard min-cap at src/lib/safety-scoring.ts:482 | src/lib/safety-scoring.ts |
+
+ V4 requires soft saturation, not a hard cap. |
+
+ | 11. Final route rollup + logistic normalization | **implemented but**
+
+ **inconsistent with spec** | Browser primary path uses RPM logistic with midpoint
+
+ 2.5 / steepness 1.4: src/lib/safety-scoring.ts:485, src/shared/scoring/safety-
+
+ constants.ts:593 | src/lib/safety-scoring.ts, src/shared/scoring/safety-
+
+ constants.ts | Primary path matches shape, but detour and pipeline paths
+
+ diverge. |
+
+ | 12. Bike path / MUP treatment | **absent** | Safe paths receive baseline
+
+ continuous risk, not zero; bike_path/multiuse_path collapse into
+
+ protected_track: src/lib/safety-scoring.ts:274, src/shared/scoring/bike-
+
+ facility.ts:17 | src/lib/safety-scoring.ts, src/shared/scoring/bike-
+
+ facility.ts, src/lib/route-analysis.ts | This is a direct V4 miss. |
+
+ | 13. Confidence separated from score | **partially scaffolded** | Route
+
+ confidence exists separately in SafetyResult.scoreConfidence: src/lib/safety-
+
+ scoring.ts:503, src/lib/route-analysis.ts:10006 | src/lib/safety-scoring.ts,
+
+ src/lib/route-analysis.ts, src/lib/evidence/types.ts | Separate field exists,
+
+ but model is shallow and mostly traffic-centric. |
+
+ | 14. Provenance expectations | **partially scaffolded** | Traffic provenance
+
+ strings and source types exist for segment truth: src/lib/evidence/
+
+ types.ts:22, src/lib/evidence/resolver.ts:517 | src/lib/evidence/types.ts,
+
+ src/lib/evidence/resolver.ts, src/components/inspection/TruthSection.tsx |
+
+ Provenance exists for traffic, not as ADR-043’s required canonical model
+
+ across all score inputs and events. |
+
+ | 15. Score tracing readiness / architecture friendliness | **partially**
+
+ **scaffolded** | SafetyResult already carries diagnostics like continuousRPM,
+
+ effectiveCrossingRPM, counts, traffic coverage: src/lib/route-analysis.ts:836,
+
+ src/lib/route-analysis.ts:10006 | src/lib/route-analysis.ts, src/domain/
+
+ adminScoreAudit.ts | Some ingredients exist, but no canonical trace artifact
+
+ generated at analysis time. |
+
+ | 16. Endurance-relative score separation from canonical score | **already**
+
+ **implemented** | No canonical score math includes endurance weighting; current
+
+ score is route-risk only: src/lib/safety-scoring.ts:420 | src/lib/safety-
+
+ scoring.ts | This is already true in live canonical browser math. |
+
+ | 17. Heatmap alignment with canonical score | **implemented but inconsistent**
+
+ **with spec** | Map coloring is speed-band driven in src/lib/presentation/speed-
+
+ presentation-controller.ts:94 and src/lib/heatmap/gradient-renderer.ts:167 |
+
+ src/lib/heatmap/gradient-renderer.ts, src/lib/presentation/speed-presentation-
+
+ controller.ts, src/components/RouteMap.tsx | Heatmap is not aligned to
+
+ canonical score slices. |
+
+ | 18. Inspect-panel alignment with canonical score | **implemented but**
+
+ **inconsistent with spec** | Inspect panel uses resolveSegmentTruth(...) and may
+
+ recompute per-segment scoring with local truth data: src/lib/evidence/
+
+ resolver.ts:572, src/lib/evidence/resolver.ts:644 | src/lib/evidence/
+
+ resolver.ts, src/components/inspection/* | It is adjacent to score math but
+
+ not guaranteed to reflect the same final canonical route path. |
+
+ | 19. Cache / persistence implications | **partially scaffolded** | Cache
+
+ versioning exists: src/lib/route-cache.ts:9; persisted route history stores
+
+ score fields and full analysis blob: src/lib/route-persistence.ts:94 | src/
+
+ lib/route-cache.ts, src/lib/route-analysis-canonical.ts, src/lib/route-
+
+ persistence.ts | Mechanisms exist, but no V4 migration/version strategy yet. |
+
+ | 20. Test coverage relative to V4 changes | **implemented but inconsistent with**
+
+ **spec** | Current tests strongly lock in V3 behavior, especially crossing cap and
+
+ ladder constants: src/lib/safety-scoring.test.ts:1, src/lib/__tests__/
+
+ crossing-browser-integration.test.ts:1 | src/lib/*.test.ts, src/lib/evidence/
+
+ __tests__/*, pipeline/src/__tests__/* | Coverage is decent for current V3
+
+ logic, weak for V4 migration risks and split-brain consumers. |
+
+
+
+ **# C. Ambiguity / decision register**
+
+
+
+ | Issue | Files involved | Why ambiguous | Options | Recommended option |
+
+ Signoff |
+
+ | --- | --- | --- | --- | --- | --- |
+
+ | Canonical source of truth for all score consumers | src/lib/route-
+
+ analysis.ts, src/lib/routing.ts, pipeline/src/*, src/pages/
+
+ SafetyModelAdmin.tsx | There are at least three scoring paths in code. | Keep
+
+ multiple paths; or define one canonical scorer and force all consumers through
+
+ adapters. | Make computeRouteSafetyScore the sole canonical route scorer and
+
+ demote others to explicit approximations or remove them. | **Yes** |
+
+ | Safe path vs bike path semantics | src/shared/scoring/bike-facility.ts, src/
+
+ lib/safety-scoring.ts, src/lib/safe-path-invariant.ts | Current code conflates
+
+ facility type and safe-path routing state. V4 wants zero continuous road risk
+
+ for bike path/MUP. | Treat bike_path/multiuse_path as special facility only;
+
+ or elevate to explicit score-domain category. | Add explicit score-domain
+
+ “path/MUP” treatment, not just facility normalization. | **Yes** |
+
+ | Crossing event input fallback richness | src/lib/route-analysis.ts, src/lib/
+
+ safety-scoring.ts, src/shared/scoring/safety-constants.ts | Scorer supports
+
+ richer crossing fallback inputs than route-analysis currently passes. | Keep
+
+ direct-only event fields; or extend event synthesis to pass total AADT,
+
+ inferred lanes, provenance. | Extend event model to carry chosen traffic basis
+
+ and provenance explicitly. | **Yes** |
+
+ | Heatmap precedence | src/lib/heatmap/gradient-renderer.ts, src/lib/
+
+ presentation/speed-presentation-controller.ts, src/lib/presentation/segment-
+
+ presentation.ts | Cached risk exists, but map rendering still prioritizes
+
+ speed bands. | Keep speed heatmap; switch fully to score heatmap; support both
+
+ with explicit modes. | If V4 calls it score-aligned, render from canonical
+
+ score slices or clearly label speed view as separate. | **Yes** |
+
+ | Inspect panel precedence | src/lib/evidence/resolver.ts, src/components/
+
+ inspection/* | Inspect may reuse cached scoring or recompute from current
+
+ truth, which can differ from route result. | Show route-analysis frozen truth
+
+ only; or show live recompute with explicit badge. | Freeze to analysis-time
+
+ chosen inputs for score explanation surfaces. | **Yes** |
+
+ | Confidence storage shape | src/lib/safety-scoring.ts, src/lib/evidence/
+
+ types.ts, src/lib/route-analysis.ts | Current confidence is categorical and
+
+ route-wide. ADR-043 implies layered confidence. | Keep single string; add
+
+ structured confidence object; store both. | Add structured object and retain
+
+ headline label as derived presentation. | **Yes** |
+
+ | Provenance vocabulary migration | src/lib/evidence/types.ts, src/lib/
+
+ evidence/resolver.ts | Current source types do not match ADR-043 classes. |
+
+ Map old vocabulary forward; or replace in-place. | Introduce canonical
+
+ provenance enum and map legacy labels into it. | **Yes** |
+
+ | Trace artifact storage | src/lib/route-analysis.ts, src/lib/route-cache.ts,
+
+ src/lib/route-persistence.ts | DS-019 requires analysis-time trace artifact;
+
+ no storage shape exists. | Inline in SafetyResult; separate persisted trace
+
+ blob; lazy reconstruction. | Persist explicit analysis-time trace blob keyed
+
+ to score model version. | **Yes** |
+
+ | Cache/version invalidation strategy | src/lib/route-cache.ts, src/lib/route-
+
+ persistence.ts | Score model version and cache version are separate today. |
+
+ Bump cache only; rely on model version in blob; dual gating. | Dual gate with
+
+ cache schema version plus score-model version. | **Yes** |
+
+
+
+ **# D. Migration and implementation risks**
+
+
+
+ \- **Formula drift risk:** V3 constants are spread across browser scorer, detour
+
+  scorer, admin simulator, and pipeline rollup. Changing only one path will
+
+  create silent disagreement. Evidence: src/lib/safety-scoring.ts:420, src/
+
+  lib/routing.ts:219, pipeline/src/route-rollup.ts:213, src/pages/
+
+  SafetyModelAdmin.tsx:239.
+
+ \- **UI / score mismatch risk:** map heatmap is speed-based while drawer headline
+
+  is route-score-based. Evidence: src/lib/heatmap/gradient-renderer.ts:167,
+
+  src/domain/routeScoreExplanation.ts:343.
+
+ \- **Cache invalidation risk:** cached SafetyResult blobs persist old semantics
+
+  unless versioning is coordinated. Evidence: src/lib/route-cache.ts:9, src/
+
+  lib/route-cache.ts:117.
+
+ \- **Stale route analysis risk:** persisted route history stores score fields and
+
+  full trimmed analysis; old routes may continue showing pre-V4 scores.
+
+  Evidence: src/lib/route-persistence.ts:94.
+
+ \- **Dead-code confusion risk:** stale SafetyScore.tsx and pipeline scorer imply
+
+  obsolete score semantics and will mislead future changes. Evidence: src/
+
+  components/SafetyScore.tsx:251.
+
+ \- **Presentation regression risk:** safe-path UI guards and continuity suppression
+
+  operate independently of canonical score logic. Evidence: src/lib/safe-path-
+
+  invariant.ts:20, src/lib/display-continuity.ts:167.
+
+ \- **Line-color vs score disagreement risk:** route map may still show a “good”
+
+  green segment because of speed band even if canonical risk changed due to
+
+  traffic/crossing semantics.
+
+ \- **Inspect panel disagreement risk:** inspect can display recomputed or cached
+
+  segment truth that is not the exact route-score input basis. Evidence: src/
+
+  lib/evidence/resolver.ts:580, src/lib/evidence/resolver.ts:763.
+
+ \- **Test blind spots:** no tests prove canonical/browser/pipeline/detour parity,
+
+  no V4-specific path/MUP, soft saturation, trace, provenance, or migration
+
+  tests.
+
+ \- **Rollout/versioning risk:** SCORE_MODEL_VERSION exists, but many consumers do
+
+  not branch on it. Evidence: src/shared/scoring/safety-constants.ts:27.
+
+
+
+ **# E. Recommended implementation order**
+
+
+
+ | Step | Goal | Why now | Likely files | Regression risk |
+
+ | --- | --- | --- | --- | --- |
+
+ | 1 | Declare one canonical V4 score path and isolate non-canonical scorers |
+
+ Current split-brain must be contained before formula work | src/lib/safety-
+
+ scoring.ts, src/lib/route-analysis.ts, src/lib/routing.ts, pipeline/src/*,
+
+ src/pages/SafetyModelAdmin.tsx | High |
+
+ | 2 | Implement V4 continuous segment math and explicit path/MUP treatment in
+
+ canonical scorer only | Canonical score correctness is first priority | src/
+
+ shared/scoring/safety-constants.ts, src/shared/scoring/bike-facility.ts, src/
+
+ lib/safety-scoring.ts | High |
+
+ | 3 | Implement V4 crossing eligibility, event math, and route-level soft
+
+ saturation | Crossing math is the largest current semantic mismatch | src/
+
+ shared/scoring/safety-constants.ts, src/lib/safety-scoring.ts, src/lib/route-
+
+ analysis.ts | High |
+
+ | 4 | Thread explicit chosen inputs, provenance, and confidence through route-
+
+ analysis result | Needed for ADR-043 compliance and later trace generation |
+
+ src/lib/route-analysis.ts, src/lib/evidence/types.ts, src/lib/evidence/
+
+ resolver.ts | Medium |
+
+ | 5 | Add canonical score-trace hooks at analysis time | DS-019 says trace
+
+ should be generated from the real pipeline, not reconstructed later | src/lib/
+
+ route-analysis.ts, cache/persistence files, new trace types | Medium |
+
+ | 6 | Align dependent UI surfaces to canonical score output | Prevent map/
+
+ drawer/inspect split-brain after math changes | src/lib/heatmap/gradient-
+
+ renderer.ts, src/lib/presentation/*, src/domain/routeScoreExplanation.ts,
+
+ inspection components | High |
+
+ | 7 | Decide fate of detour, admin simulator, and pipeline parity | They
+
+ currently compute different scores and will rot further after V4 | src/lib/
+
+ routing.ts, src/lib/detour-routing.ts, src/pages/SafetyModelAdmin.tsx,
+
+ pipeline/src/* | Medium |
+
+ | 8 | Add migration-safe cache and persistence versioning | Prevent stale V3
+
+ artifacts from surfacing as V4 | src/lib/route-cache.ts, src/lib/route-
+
+ persistence.ts, src/lib/route-analysis-canonical.ts | Medium |
+
+ | 9 | Replace V3 tests with canonical V4 coverage and add split-brain
+
+ regression tests | Needed before rollout, not after | src/lib/*.test.ts, src/
+
+ lib/evidence/__tests__/*, src/lib/heatmap/__tests__/*, pipeline/src/__tests__/
+
+ \* | Medium |
+
+
+
+ **# F. Final verdict**
+
+
+
+ Most broken today is the **split-brain architecture**. The primary browser route
+
+ score is a coherent V3.1 scorer, but the map heatmap is largely speed-colored,
+
+ the inspect panel runs through a separate truth-resolution path, detour
+
+ scoring uses an approximation, and the pipeline has yet another rollup model.
+
+ That is not a clean foundation for a user-facing V4 release.
+
+
+
+ What is already in decent shape is the existence of a real canonical browser
+
+ scorer with shared constants, a tested traffic fallback ladder, route-level
+
+ crossing accounting, and separate headline confidence/provenance scaffolding.
+
+ The codebase is not empty or ad hoc; it has a usable center.
+
+
+
+ What absolutely must be fixed before any V4 release is:
+
+
+
+ \- path/MUP zero continuous-risk handling,
+
+ \- V4 speed and traffic constants,
+
+ \- V4 crossing constants and soft saturation,
+
+ \- heatmap alignment with canonical score semantics,
+
+ \- explicit confidence/provenance threading,
+
+ \- cache/version migration,
+
+ \- isolation or removal of conflicting alternate scorers.
+
+
+
+ Structural readiness is **mixed**. The codebase is ready for a clean V4
+
+ implementation only if the team first **unifies score ownership and isolates**
+
+ **legacy paths**. If that unification does not happen first, V4 will land as
+
+ another scoring dialect rather than a canonical model.
+
+
+
+ **## Appendix: files inspected**
+
+
+
+ \- docs/02-architecture/design/ds-015-safety_scoring_model_v4.md
+
+ \- docs/03-adrs/adr-043-confidence_and_provenance_model.md
+
+ \- docs/02-architecture/design/ds-019-score_tracing.md
+
+ \- src/lib/route-analysis.ts
+
+ \- src/lib/safety-scoring.ts
+
+ \- src/shared/scoring/safety-constants.ts
+
+ \- src/shared/scoring/bike-facility.ts
+
+ \- src/lib/evidence/types.ts
+
+ \- src/lib/evidence/resolver.ts
+
+ \- src/lib/evidence/local-area-prior.ts
+
+ \- src/lib/heatmap/types.ts
+
+ \- src/lib/heatmap/builder.ts
+
+ \- src/lib/heatmap/gradient-renderer.ts
+
+ \- src/lib/safe-path-invariant.ts
+
+ \- src/lib/presentation/segment-presentation.ts
+
+ \- src/lib/presentation/speed-presentation-controller.ts
+
+ \- src/lib/display-continuity.ts
+
+ \- src/components/RouteMap.tsx
+
+ \- src/domain/routeScoreExplanation.ts
+
+ \- src/components/RouteAndAnalysisDrawer.tsx
+
+ \- src/components/RouteScoreExplanationPanel.tsx
+
+ \- src/components/CueDrawer.tsx
+
+ \- src/domain/adminScoreAudit.ts
+
+ \- src/components/AdminScoreAuditBlock.tsx
+
+ \- src/lib/routing.ts
+
+ \- src/lib/detour-routing.ts
+
+ \- src/components/DetourDeltaPanel.tsx
+
+ \- src/pages/SafetyModelAdmin.tsx
+
+ \- src/lib/route-cache.ts
+
+ \- src/lib/route-analysis-canonical.ts
+
+ \- src/lib/route-persistence.ts
+
+ \- src/components/SafetyScore.tsx
+
+ \- src/components/inspection/TruthSection.tsx
+
+ \- src/lib/safety-scoring.test.ts
+
+ \- src/lib/__tests__/crossing-browser-integration.test.ts
+
+ \- src/lib/__tests__/controlled-crossing-integration.test.ts
+
+ \- src/lib/__tests__/crossing-breakdown-counts.test.ts
+
+ \- src/lib/__tests__/inspect-traffic-hydration.test.ts
+
+ \- src/lib/__tests__/safe-path-invariant.test.ts
+
+ \- src/lib/evidence/__tests__/traffic-ladder-integration.test.ts
+
+ \- src/lib/evidence/__tests__/resolver-traffic-parity.test.ts
+
+ \- src/lib/evidence/__tests__/traffic-confidence-mapping.test.ts
+
+ \- src/lib/heatmap/__tests__/resolved-traffic-propagation.test.ts
+
+ \- src/domain/routeScoreExplanation.test.ts
+
+ \- src/components/inspection/__tests__/traffic-truth-preference.test.ts
+
+ \- src/shared/scoring/__tests__/slice-scorer-parity.test.ts
+
+ \- src/shared/scoring/__tests__/pipeline-traffic-parity.test.ts
+
+ \- pipeline/src/slice-scorer.ts
+
+ \- pipeline/src/route-rollup.ts
+
+ \- pipeline/src/run-analysis.ts
+
+ \- pipeline/src/__tests__/slice-scorer-real.test.ts
 
 ---
 
