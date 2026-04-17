@@ -11051,6 +11051,2620 @@ The following are explicitly supported by research or benchmark models, but inte
 
 ---
 
+## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v6.md
+
+# DS-015 — Safety Scoring Model V6
+
+**Status:** Draft for review  
+**Date:** April 13, 2026
+**Filename:** `ds-015-safety_scoring_model_v6.md`
+
+## Purpose
+
+This document defines the canonical V6 Safety Score model for Lanterne.
+
+The V6 model is designed to be:
+
+- **narrow** in scope
+
+- **benchmark-shaped** where the evidence is strong
+
+- **transparent** about what is benchmark-derived versus policy-derived
+
+- **defensible** for long-distance brevet-style route planning
+
+- **stable** under incomplete national-scale open data
+
+  The headline Safety Score remains:
+
+> **relative expected serious harm from a bicyclist being struck by a motor vehicle**
+
+It is **not**:
+
+- a crash probability
+
+- a weather score
+
+- a fatigue score
+
+- a route difficulty score
+
+- a hotspot-only score
+
+  That narrow definition remains aligned with Lanterne’s product principles and analysis model.
+
+---
+
+## 1. Canonical score definition
+
+V6 keeps the same narrow safety scope as V4, but changes the accounting structure of the score.
+
+Instead of blending all inputs into one weighted pot, V6 defines route risk as:
+
+1. **incident likelihood**  
+   how likely a bicycle–motor-vehicle incident is on a road slice or at a crossing event
+
+2. **conditional severity**  
+   how severe the likely outcome is if an incident occurs there
+
+3. **expected serious harm**  
+   the local product of those two, summed across the route
+
+4. **logistic normalization**  
+   a rider-facing score shell that turns raw expected harm per mile into a 0–100 score
+
+   In plain English:
+
+- traffic, crossings, and operating space mostly shape **incident likelihood**
+
+- speed mostly shapes **conditional severity**
+
+- the score is the sum of those local products, not a prettier version of the old weighted blend
+
+  The score remains intentionally **route-level** and **distance-aware**. It is not allowed to collapse into either:
+
+- a pure average that hides ugly short sections, or
+
+- a crossing-only model that forgets most risk still accumulates over many miles between nodes
+
+### 1.1 Notation
+
+- \(M\) = total route miles
+- \(N\) = number of continuous road slices
+- \(K\) = number of scored crossing events
+- \(j\) = continuous road-slice index
+- \(i\) = crossing-event index
+- \(m_j\) = miles in continuous road slice \(j\), where \(\sum_{j=1}^{N} m_j = M\)
+- \(\lambda^{road}_j\) = incident-likelihood contribution of continuous road slice \(j\)
+- \(\lambda^{cross}_i\) = incident-likelihood contribution of crossing event \(i\)
+- \(\sigma(v)\) = conditional severity weight at speed environment \(v\)
+- \(h^{road}_j\) = local expected serious harm from continuous road slice \(j\)
+- \(h^{cross}_i\) = local expected serious harm from crossing event \(i\)
+- \(H_{route}\) = total expected serious harm across the route
+- \(H_{rpm}\) = expected serious harm per mile
+
+---
+
+## 2. Why V6 changes structure
+
+V4 was a meaningful improvement over the earlier launch model, but it still forced variables that were doing different jobs into the same pot.
+
+- **AADT and crossing burden** mostly tell you about **incident likelihood**
+
+- **speed** mostly tells you about **conditional severity**
+
+- **bike lanes and shoulders** mainly reduce likelihood by improving operating space
+
+- **crossings** are primarily conflict generators, not severity generators on their own
+
+  That split is not just intuitive. It matches the strongest evidence stack behind the model.
+
+  The HSM / HSM2 / NCHRP bicycle framework supports a factorized structure where crash likelihood and crash severity are treated as different quantities. The location evidence used in V4 points the same way: intersections account for a large share of bicycle–motor-vehicle crashes and nonfatal injuries, but the worst outcomes skew more toward midblock exposure. 
+
+  NHTSA’s 2021 *Bicyclists and Other Cyclists Traffic Safety Facts* reinforces the same core split that motivates V5. It reports that **62% of pedalcyclist fatalities** occurred at locations that were **not intersections**, **29%** occurred **at intersections**, and the remaining **9%** occurred at **other locations**, including **shoulders/roadsides, bicycle lanes, sidewalks, shared-use paths, driveway accesses, and other sites**. This supports two important design conclusions:
+
+  1. the most severe outcomes are not dominated by intersections alone, so continuous roadway exposure must remain central to the canonical score; and  
+  2. spaces outside “true intersections” — including shared-use paths, driveway accesses, and shoulders/roadsides — can still participate in motor-vehicle harm and therefore should not be treated as categorically irrelevant to route safety.
+
+  In short, the lesson is not that crossings do not matter. It is that crossings are mostly **likelihood** events, while speed is mostly a **severity** driver.
+
+  That leads to the cleaner object V6 is actually trying to estimate:
+
+> **expected serious harm = incident likelihood × conditional severity**
+
+computed locally and then summed across the route.
+
+### 2.1 Design implication
+
+For launch V6:
+
+- **incident likelihood** owns AADT, crossing structure, operating space, and benchmark-backed roadway geometry
+- **conditional severity** is intentionally dominated by the speed environment
+- crossings remain explicit, but they no longer need a separate route-level saturation branch simply to stop them from fighting the whole model for attention
+- pure paths / MUPs do not accumulate fake continuous road risk; only the road crossings that can still hurt you contribute
+
+### 2.2 Launch scope cut
+
+V6 does **not** try to ship every plausible likelihood factor at once.
+
+Launch canonical score includes only the variables that are both:
+
+- **strongly supported**
+
+- and **launch-feasible to measure or derive nationally**
+
+  So launch V6 canonical likelihood includes:
+
+1. **motor-vehicle exposure** — AADT / AADT per lane  
+
+2. **horizontal curvature** — because Lanterne can measure radius directly from matched road geometry  
+
+3. **operating space** — bike facility and shoulder  
+
+4. **crossing conflict structure** — crossed-road traffic, width, control, movement  
+
+   What V6 intentionally leaves out of launch canonical score — even though some of them are real and worth building later — includes:
+
+- driveway / access density
+
+- curb-activity / commercial proxies
+
+- lane width
+
+- vehicle parking as a canonical score factor
+
+- street lighting
+
+- state as a multiplier
+
+- heavy-vehicle exposure
+
+- speed spillover into likelihood
+
+  That is deliberate. Better to ship a narrow model with honest measurement than a fancier one built on proxies the rider cannot really trust.
+
+---
+
+## 3. Conditional severity model
+
+### 3.1 Severity is mostly speed
+
+The strongest evidence behind the new architecture points to speed as the dominant severity variable.
+
+That does **not** mean speed is the only thing that affects real-world injury outcome severity. It means speed is the only variable with:
+
+- strong enough empirical support
+
+- clean enough national availability
+
+- and clear enough rider-facing meaning
+
+  to carry the launch severity module on its own.
+
+  So V6 keeps the strongest part of V4 intact and makes its role explicit:
+
+> speed is the conditional-severity weight
+
+### 3.2 SeverityWeight
+
+**Benchmark anchor:** the publicly available National Academies / TRB volume *Pedestrian and Bicycle Safety Performance Functions*, **Table 156: “Motor Vehicle Traffic Speed Factor for Bicycle Crashes Along the Road.”** That table attributes the underlying factor to **iRAP 2013l**.
+
+V6 keeps the direct benchmark treatment from V4. It does **not** smooth it into a prettier table and it does **not** hide it inside a blended weighted term. Instead, **SeverityWeight** is taken directly from the published Table 156 curve and normalized so that **25 mph = 1.0**.
+
+$$
+\text{BenchmarkSpeedRatio}(s)
+=
+\frac{\text{Interp(Table 156, }s\text{)}}{\text{Table156}(25\text{ mph})}
+$$
+
+$$
+\sigma(s)=\text{BenchmarkSpeedRatio}(s)
+$$
+
+For continuous road slices, use the slice’s posted speed.
+
+For crossing events, use the posted speed of the crossed or entered road.
+
+#### Launch table
+
+| Posted speed | SeverityWeight | Plain English                     |
+| ------------ | -------------: | --------------------------------- |
+| ≤20 mph      |           0.35 | very low-speed outcome severity   |
+| 25 mph       |           1.00 | baseline severity environment     |
+| 30 mph       |           2.10 | clearly above baseline            |
+| 35 mph       |           3.60 | meaningful severity jump          |
+| 40 mph       |           5.70 | high-consequence environment      |
+| 45 mph       |           8.50 | very high-consequence environment |
+| 50 mph       |          12.00 | extreme consequence environment   |
+| 55+ mph      |          16.30 | maximum launch severity regime    |
+
+These launch values are the benchmark-shaped ratios implied by Table 156 when normalized to the **25 mph** row. They are **relative conditional severity weights**, not crash-probability multipliers.
+
+**What is benchmark-derived**
+
+- the fact that speed should be treated as a **non-linear** severity input
+
+- the published **Table 156** speed-factor shape from the National Academies / TRB volume
+
+- the table’s attribution to **iRAP 2013l** as the underlying source family
+
+- the steepening of relative harm through the **25–55 mph** range
+
+- the use of interpolation between benchmark speed points rather than arbitrary band jumps
+
+  **What is policy-derived**
+
+- using **posted speed** as the practical national-scale proxy for severity environment
+
+- choosing **25 mph** as the normalization baseline where `SeverityWeight = 1.0`
+
+- rounding the launch table into implementation-friendly values for the spec
+
+- keeping severity intentionally **speed-only** at launch to avoid a disguised speed index
+
+  **Why V6 keeps this structure**  
+  V4 already did the hard work of getting speed onto firmer benchmark footing. V6 keeps that direct benchmark treatment intact and simply gives it a cleaner job to do.
+
+### 3.3 What stays out of launch severity
+
+V6 intentionally keeps the launch severity module lean.
+
+It does **not** add:
+
+- parking / curb friction
+
+- commercial-district proxies
+
+- driveway density
+
+- lighting
+
+- state
+
+- random road-class fudge factors
+
+  Those may matter for conflict generation, but they are not the kind of high-confidence severity driver speed is.
+
+### 3.4 Future heavy-vehicle proxy
+
+Heavy-vehicle exposure is the strongest candidate for a future second severity variable.
+
+That is emotionally true to riders and directionally consistent with what the road feels like: a narrow fast road with trucks blowing past is different from the same road with mostly passenger cars.
+
+But launch V6 still keeps heavy-vehicle exposure **out of canonical score** until there is a defensible measurement layer. If truck-share truth later becomes available, then the severity module could become:
+
+$$
+\sigma(v,h)=\sigma(v)\cdot HVF(h)
+$$
+
+where \(HVF(h)\) is a bounded heavy-vehicle severity multiplier.
+
+That is future work, not launch canon.
+
+---
+
+## 4. Continuous-road incident likelihood
+
+### 4.1 Continuous-road likelihood formula
+
+For each continuous road slice, road-likelihood contribution is:
+
+$$
+\lambda^{road}_j
+=
+\begin{cases}
+0, & \text{if slice } j \text{ is path-like / MUP-like under Section 4.6} \\
+m_j \cdot TF_j \cdot CurvF_j \cdot FF_j \cdot ShF_j, & \text{otherwise}
+\end{cases}
+$$
+
+Where:
+
+- \(TF_j\) = traffic exposure factor
+
+- \(CurvF_j\) = horizontal-curvature likelihood factor
+
+- \(FF_j\) = facility likelihood factor
+
+- \(ShF_j\) = shoulder likelihood factor
+
+  This is a **likelihood-only** equation. Speed does **not** appear here at launch.
+
+### 4.2 TrafficFactor
+
+**Benchmark anchor:** NCHRP 17-84 / HSM2 provides the strongest defensible **AADT-per-lane** breakpoint family for bicycle movement risk. V6 keeps **AADT per lane** as the canonical traffic input because it is a formal exposure measure, it avoids lane-count confounding better than total AADT alone, and it is far more defensible than vague road-class intuition. V6 also keeps the V4 move away from hard traffic cliffs. Instead of snapping real AADT values into buckets, it uses benchmark bands as anchor points and interpolates between them.
+
+Let \(v\) be the best available **AADT per lane** value for the road-slice context.
+
+$$
+TF(v)=\text{InterpTrafficMidpoints}(v)
+$$
+
+V6 uses these **anchor points**, derived from the midpoints of the benchmark-aligned launch bands:
+
+$$
+(1000,\,0.60),\;
+(3000,\,1.00),\;
+(6000,\,1.50),\;
+(10000,\,2.00),\;
+(14000,\,2.50),\;
+(18000,\,3.00)
+$$
+
+#### Launch anchor table
+
+| Benchmark band (AADT per lane) | Midpoint anchor used in math | TrafficFactor at anchor | Plain English              |
+| ------------------------------ | ---------------------------: | ----------------------: | -------------------------- |
+| <2,000/day/lane                |                        1,000 |                    0.60 | quiet-ish road             |
+| 2,000–3,999/day/lane           |                        3,000 |                    1.00 | baseline light-to-moderate |
+| 4,000–7,999/day/lane           |                        6,000 |                    1.50 | moderate / busy            |
+| 8,000–11,999/day/lane          |                       10,000 |                    2.00 | busy                       |
+| 12,000–15,999/day/lane         |                       14,000 |                    2.50 | very busy                  |
+| 16,000+/day/lane               |                       18,000 |                    3.00 | extremely busy             |
+
+These values are still **relative likelihood / exposure multipliers**, not crash-probability multipliers. The benchmark bands remain the public-facing anchor; the midpoint interpolation is the engineering implementation.
+
+#### How the interpolation works
+
+The rule is simple:
+
+- if \(v \le 1000\), use **0.60**
+
+- if \(v \ge 18000\), use **3.00**
+
+- otherwise, find the two surrounding anchor points and draw a straight line between them
+
+  So for example:
+
+- a road at **5,000/day/lane** sits between the **3,000** and **6,000** anchors, so its TrafficFactor lands between **1.00** and **1.50**, not abruptly at one or the other
+
+- a road at **9,000/day/lane** sits between the **6,000** and **10,000** anchors, so it lands between **1.50** and **2.00**
+
+  That is the key design choice: **real AADT gets treated as continuous when the data is real enough to deserve it.**
+
+#### Why this is better than hard buckets
+
+Hard buckets create ugly cliffs:
+
+- 3,999/day/lane and 2,100/day/lane would score exactly the same
+
+- 4,000/day/lane would jump suddenly into a new risk world
+
+- better traffic data would be intentionally flattened into a cruder model
+
+  V6 avoids that. The benchmark bands still matter, but they act as **reference anchors**, not hard scoring walls. This preserves scientific grounding without intentionally undercutting more precise official data.
+
+#### Traffic fallback ladder
+
+Highest confidence to lowest:
+
+1. **official AADT per lane**
+
+2. **official AADT total + known lane count**
+
+3. **official AADT total + inferred lane count**
+
+4. **inferred AADT total from nearby official values by road type / corridor context**
+
+5. **generic road-class / highway-type traffic proxy**
+
+6. **unknown**
+
+   The point is simple: if the traffic data is guessy, the score should admit that through **confidence** instead of pretending every traffic number is equally real.
+
+#### Fallback handling rule
+
+When the system has a **real or derived numeric AADT-per-lane value**, it should use the **continuous interpolation** above.
+
+When the system only has a **generic proxy** rather than a meaningful numeric estimate, it may fall back to the **nearest benchmark band / anchor** instead of pretending it has fine-grained precision.
+
+That gives Lanterne the right behavior in both cases:
+
+- **lean into precision** when DOT / HPMS / other official traffic data exists
+
+- **stay honest** when the system is standing on weaker inference or proxy data
+
+  Each fallback step must reduce **confidence**. Missingness should weaken **confidence**, not silently add danger or fake certainty.
+
+#### Rider-facing traffic display rule
+
+Whenever public-facing traffic is shown as a daily count, it should also be translated into rider-readable average intensity:
+
+$$
+\text{cars/hour average}=\frac{\text{AADT}}{24}
+$$
+
+$$
+\text{cars/min average}=\frac{\text{AADT}}{1440}
+$$
+
+This does **not** claim a rider will literally encounter that exact flow at every hour. It is simply a transparent translation of AADT into plain-English average exposure language.
+
+### 4.3 HorizontalCurvatureFactor
+
+**Benchmark anchor:** the HSM2 / NCHRP bicycle along-road likelihood framework explicitly includes a horizontal-curvature adjustment factor for bicycle crashes on roadway segments. This is one of the strongest benchmark-backed geometry factors in the whole along-road likelihood family, and unlike lane width or lighting, it is something Lanterne can actually measure from matched road geometry.
+
+V6 therefore **ships horizontal curvature in canonical score**.
+
+#### Benchmark categories and factors
+
+| Horizontal curvature category | Benchmark definition                                         | HorizontalCurvatureFactor |
+| ----------------------------- | ------------------------------------------------------------ | ------------------------: |
+| straight or gently curving    | advisory speed ≥ 60 mph **or** radius \(> 2600\) ft          |                      1.00 |
+| moderate curvature            | advisory speed 45 mph to < 60 mph **or** radius \(1300 < r \le 2600\) ft |                      1.81 |
+| sharp curve                   | advisory speed 25 mph to < 45 mph **or** radius \(650 < r \le 1300\) ft |                      3.51 |
+| very sharp curve              | advisory speed < 25 mph **or** radius \(r \le 650\) ft       |                      6.02 |
+
+For launch, Lanterne uses the **radius side** of the benchmark because advisory-speed truth is not guaranteed nationally.
+
+Metric equivalents:
+
+- \(2600\) ft ≈ \(792\) m
+- \(1300\) ft ≈ \(396\) m
+- \(650\) ft ≈ \(198\) m
+
+#### Launch measurement rule
+
+Lanterne should derive local curve radius from matched road geometry and assign a road slice to the **worst materially represented curvature category** inside that slice.
+
+A single noisy vertex should **not** trigger a sharper category by itself. The tighter radius must be sustained over a short contiguous run.
+
+Launch policy rule:
+
+- classify by the worst curvature category present for at least **50 m** of contiguous slice-aligned geometry
+
+- if no such sustained curve exists, use **1.00**
+
+  This is a product measurement rule layered on top of the benchmark categories. The **category thresholds and factor values** are benchmark-derived. The **radius-estimation method** and sustained-length rule are launch implementation policy.
+
+#### Why V6 ships this now
+
+This factor clears all three bars:
+
+- strong benchmark impact
+
+- clear fit inside **incident likelihood**
+
+- launch-feasible measurement from Lanterne’s existing geometry tooling
+
+  Where curvature is moderate or sharper, the UI may also surface a **curve hazard marker**. That presentation marker is additive and not separate score math. The canonical score influence comes through \(CurvF_j\).
+
+### 4.4 FacilityLikelihoodFactor
+
+**Benchmark anchor:** HSM2 / NCHRP bicycle likelihood methods treat bicycle facilities and paved shoulder provision as real likelihood modifiers, and FHWA bicycle-treatment CMF work directionally supports the claim that more separation generally reduces bicycle crash likelihood.
+
+V6 therefore keeps the V4 operating-space reductions and reinterprets them explicitly as **likelihood reducers**.
+
+#### Launch table
+
+| Facility class                               | FacilityLikelihoodFactor |
+| -------------------------------------------- | -----------------------: |
+| fully separated / protected on-road facility |                     0.50 |
+| buffered bike lane                           |                     0.68 |
+| painted bike lane                            |                     0.82 |
+| no dedicated bike facility                   |                     1.00 |
+
+These remain **bounded launch constants**. The direction is strongly supported. The exact grouped values remain a practical national product choice rather than a literal CMF transplant.
+
+#### Why buffered remains distinct
+
+Buffered lanes are not the same thing as painted lanes. They still leave the rider in the roadway environment, but they create more operating space and separation than a line-only treatment. So V6 keeps buffered as its own launch category rather than collapsing it into painted.
+
+### 4.5 ShoulderLikelihoodFactor
+
+Shoulder remains part of continuous-road **likelihood**, not severity.
+
+It matters most where it actually creates usable operating space, so it only applies when:
+
+- no dedicated bike facility is present, and
+
+- posted speed is at least 30 mph
+
+  Otherwise:
+
+$$
+ShF_j = 1.00
+$$
+
+#### Launch table
+
+| Shoulder condition | ShoulderLikelihoodFactor |
+| ------------------ | -----------------------: |
+| sub-usable / none  |                     1.00 |
+| usable shoulder    |                     0.90 |
+| wide shoulder      |                     0.85 |
+
+Shoulder is a meaningful operating-space reducer, but V6 does not assume even a wide shoulder is better than a dedicated painted bike lane. Because the benchmark support for shoulder impact is weaker than for bike-lane treatment, these launch values are bounded operating-space policy constants sized relative to the better-supported bike-lane benchmark family.
+
+### 4.6 Low-speed paths and MUPs
+
+V6 keeps the same narrow safety definition as V4: **risk of injury from a motor vehicle**.
+
+So when a slice is functionally a bike path or MUP-like facility, the canonical score should not invent continuous road risk that is not really there.
+
+For launch, V6 uses the same operational proxy:
+
+- if the relevant OSM speed limit is **15 mph or lower**, the slice is treated as having **zero continuous road likelihood**
+
+- that slice may still contribute **crossing-event likelihood** where it intersects or enters motor-vehicle roads
+
+  This means bike paths, MUPs, and similarly low-speed separated corridors are scored **only on the road crossings that can still hurt you**, not as if they were just unusually safe roads.
+
+### 4.65 Non-intersection crossing events
+
+If the route:
+
+- crosses a motor road from a path / MUP
+- joins a motor road from a path / MUP
+- exits a motor road onto a path / MUP
+- crosses a driveway-access or access-road connection that is clearly part of the routed line
+
+then it counts as a **crossing event**.
+
+V6 does not limit crossing-event scoring to formal mapped intersections. Non-intersection crossings should be treated as ordinary crossing events using the existing width / control / movement / crossed-road traffic logic.
+
+These events must be detected during route build / analysis and treated as crossing events when they meet canonical eligibility.
+
+This keeps path-road crossings and similar non-intersection conflict points from being silently ignored simply because they are not modeled as conventional intersections. NHTSA’s 2021 fatality-location summary explicitly includes **shared-use paths** and **driveway accesses** inside the “other locations” bucket, reinforcing that these locations remain relevant to a narrow motor-vehicle harm model. 
+
+### 4.7 Deferred but supported road-likelihood factors
+
+The following candidates are real and benchmark-supported or empirically supported, but are **not part of launch canonical score**.
+
+#### Driveway / access density
+
+This is a strong idea. FHWA is explicit that **every driveway represents potential conflict points between motor vehicles, pedestrians, and bicyclists**, and that crash rates rise as driveway density rises. Local bicyclist crash-prediction work also supports access-point friction, often through retail / curb-cut proxies.
+
+But launch V6 still defers driveway / access density because the national measurement story is not ready.
+
+Why it stays out at launch:
+
+- OSM does **not** reliably map suburban residential driveways
+
+- cartographic Census boundary files do **not** solve driveway counts
+
+- commercial-district or parcel-density proxies are too proxy-heavy to be honest in canonical score math yet
+
+- it is too easy to double count access friction if you later bring in better direct measures
+
+  So V6 explicitly acknowledges access density as a **future canonical likelihood candidate**, but does not fake it at launch.
+
+#### Lane width
+
+The HSM2 / NCHRP bicycle along-road likelihood framework includes a lane-width factor:
+
+| Lane width category | Benchmark factor |
+| ------------------- | ---------------: |
+| wide                |             1.00 |
+| medium              |             1.20 |
+| narrow              |             1.50 |
+
+That is a real benchmark factor. But launch V6 defers it because the national derivation story is not reliable enough yet.
+
+#### Advance visibility of a curve
+
+The HSM2 / NCHRP bicycle along-road likelihood framework also includes advance-visibility factors:
+
+| Advance visibility of a curve | Benchmark factor |
+| ----------------------------- | ---------------: |
+| substantial                   |             1.00 |
+| limited                       |             1.40 |
+| not applicable                |             1.00 |
+
+This is real, but too specific and not measurable cleanly enough from launch data. Horizontal curvature is the stronger, cleaner geometry signal, so V6 ships the curve factor and leaves advance visibility out.
+
+#### Vehicle parking
+
+The HSM2 / NCHRP bicycle along-road framework includes vehicle-parking likelihood factors:
+
+| Vehicle parking condition | Benchmark factor |
+| ------------------------- | ---------------: |
+| none                      |             1.00 |
+| one side                  |             1.20 |
+| two sides                 |             1.33 |
+
+If a functioning bike facility is present and not routinely obstructed, the benchmark parking effect may revert to 1.00.
+
+This is a real likelihood-side factor. But for launch V6 it remains better handled as a **hazard / context layer** than as canonical score math.
+
+#### Street lighting
+
+The HSM2 / NCHRP bicycle along-road framework also includes a lighting factor:
+
+| Street lighting | Benchmark factor |
+| --------------- | ---------------: |
+| present         |             1.00 |
+| not present     |             1.25 |
+
+Again, real benchmark support exists. But launch V6 has no clean national view into actual lighting presence, and the broader Lanterne product philosophy already treats light as a separate layer.
+
+#### State
+
+State-level crash-rate differences are real, but state is too coarse to be a canonical road-likelihood multiplier. It belongs in calibration or future comparative context, not as a direct route-level penalty.
+
+---
+
+## 5. Crossing-event incident likelihood
+
+Before V6 applies severity to a crossing, it first estimates how likely that crossing is to generate a bicycle–motor-vehicle incident at all.
+
+That keeps the crossing logic clean.
+
+The model first asks:
+
+> **How conflict-prone is this specific crossing or joining maneuver?**
+
+Only after that does it ask:
+
+> **If something goes wrong here, how bad is it likely to be?**
+
+That separation matters. Crossings still deserve explicit treatment, but their job in V6 is now much clearer:
+
+- the crossing module is mainly about **likelihood**
+- the crossed-road speed environment carries **severity**
+
+### 5.1 Variable definitions
+
+For each score-bearing crossing event:
+
+- \(\Lambda_0\) = base crossing-likelihood contribution before context is applied
+
+- \(\Lambda_{\text{cap}}\) = maximum likelihood contribution any one crossing may add
+
+- \(TF^{cross}_i\) = traffic factor for the crossed or entered road
+
+- \(WF_i\) = width multiplier based on lanes crossed
+
+- \(CF_i\) = control multiplier
+
+- \(MF_i\) = movement multiplier
+
+  These variables describe the event **as scored**, not merely as displayed in the UI. That distinction matters for future tracing and auditing.
+
+### 5.2 Crossing-event likelihood contribution
+
+$$
+\lambda^{cross}_i
+=
+\min\left(
+\Lambda_{\text{cap}},
+\;
+\Lambda_0
+\times
+\left(TF^{cross}_i\right)^{0.5}
+\times
+WF_i
+\times
+CF_i
+\times
+MF_i
+\right)
+$$
+
+### Launch constants
+
+$$
+\Lambda_0 = 0.150
+$$
+
+$$
+\Lambda_{\text{cap}} = 0.300
+$$
+
+These are **Lanterne calibration constants**, not literature coefficients copied from Bike ISI or another external standard.
+
+- **\(\Lambda_0\)** is the base crossing-likelihood constant and may be tuned against known-route calibration behavior and corpus sanity checks.
+- **\(\Lambda_{\text{cap}}\)** is the per-event guardrail that prevents one crossing from becoming absurdly dominant on its own.
+- Changes to either constant should be documented as **model-calibration policy changes**, not represented as direct benchmark updates.
+
+This equation is intentionally simple in structure, and V6 is explicit about where the freedom lives:
+
+- the **crossing structure** is benchmark-informed
+- the **base event constant** and **per-event cap** are Lanterne calibration choices
+- V6 deliberately turns both of those calibration knobs up together by **6×** relative to the prior V5 draft so urban / suburban conflict-heavy routes are not systematically underweighted
+
+
+1. start with a **base crossing-likelihood contribution**
+2. scale it by the **traffic** of the crossed road
+3. shape it with **width, control, and movement**
+4. cap the event so one node cannot become absurdly dominant on its own
+
+### 5.3 Why the crossed-road traffic term is square-rooted
+
+The fastest-changing part of the crossing-likelihood equation is crossed-road traffic. V6 keeps that important, but does **not** let a single busy node become a second giant traffic curve inside one event.
+
+$$
+\left(TF^{cross}_i\right)^{0.5}
+$$
+
+This is a deliberate **sublinear compression**. It says:
+
+- a busier crossed road should clearly increase incident likelihood
+- but the model should not pretend open-data crossing context is precise enough to justify an uncontrolled multiplicative blow-up
+
+### 5.4 Event eligibility
+
+Not every mapped node deserves to enter canonical score math. V6 only scores crossing events when the maneuver is plausibly meaningful in the context of motor-vehicle harm.
+
+A crossing event enters score math when at least one of the following is true:
+
+- the crossed or entered road has **speed ≥ 30 mph** **and** **AADT per lane ≥ 2,000/day/lane**
+
+- **lanes crossed ≥ 3**
+
+- the maneuver is **left-across traffic**
+
+- the node is signalized on a materially trafficked motor road
+
+- the route joins or exits a path / MUP onto a motor road
+
+  This keeps the crossing layer focused on **meaningful conflict points**, not every low-stakes neighborhood corner.
+
+### 5.5 What the crossing-likelihood layer is for
+
+The crossing-likelihood layer is not where V6 decides the **full seriousness** of a crossing.
+
+It only decides:
+
+> **How incident-prone is this crossing before severity is applied?**
+
+That is why:
+
+- the event layer is allowed to produce meaningful crossing-likelihood contributions
+
+- but the actual crossing harm is only completed later when crossed-road speed severity is applied in the route rollup
+
+  That handoff is the core logic of the V6 crossing model:
+
+- **Section 5** scores crossing likelihood honestly
+
+- **Section 7** multiplies it by severity and rolls it into route harm
+
+---
+
+## 6. Width, control, and movement factors
+
+After the crossing event’s **crossed-road traffic core** is computed, V6 applies three bounded context multipliers:
+
+- **WidthFactor**
+
+- **ControlFactor**
+
+- **MovementFactor**
+
+  These do **not** create the crossing’s basic conflict load on their own. Their job is narrower: they shape **how complicated the crossing problem is once the crossed-road traffic stream has already established the base conflict environment**. In plain English, crossed-road traffic answers **“how busy is the motor-vehicle stream I’m dealing with?”** while width, control, and movement answer **“how messy is this specific crossing problem?”**
+
+  V6 grounds these three factors in FHWA’s **Bike ISI** as a **relative-influence reference model**. Bike ISI is useful because it explicitly models bicyclist intersection movements and includes terms for **lanes to cross**, **signalization**, and distinct **movement classes**. But Bike ISI is an **additive**, movement-specific intersection index, while Lanterne’s crossing module is a **multiplicative likelihood component**. So V6 does **not** transplant Bike ISI coefficients literally. Instead, it preserves three things from the reference model:
+
+1. **direction** — more lanes crossed should increase crossing likelihood; left-across should sit above straight; signalized control should not be treated as a blanket safety credit
+
+2. **ordering** — width should matter more than control; left should matter more than right; all three should remain below the traffic backbone
+
+3. **bounded magnitude** — these factors should shape the event, not hijack it
+
+   This is the key design principle for the whole section: **width, control, and movement are secondary conflict shapers, not hidden backbone variables**.
+
+   Where a factor is **unknown**, V6 does not quietly convert missingness into a worst-case danger penalty. Instead, the score uses a **bounded neutral fallback** (the arithmetic mean of the known launch options), while **confidence** takes the hit separately. That keeps the score from overstating danger just because the data is incomplete, while still making uncertainty visible elsewhere in the system.
+
+### 6.1 WidthFactor
+
+**Benchmark anchor:** FHWA’s Bike ISI supports the inclusion of **lanes to cross** as a real bicyclist conflict input through variables such as **RTCross**, **LTCross**, and **CrossLNS**. That means width is not an invented concept in Lanterne’s crossing model. What Bike ISI does **not** provide is a ready-made set of multiplicative crash factors for grouped lane buckets. V6 therefore treats width as a **bounded secondary multiplier**.
+
+#### Width classes
+
+- **1–2 lanes crossed**: baseline crossing width
+- **3–4 lanes crossed**: moderate multilane crossing
+- **5–6 lanes crossed**: wide arterial crossing
+- **7+ lanes crossed**: very wide / highway-like crossing
+
+#### Launch table
+
+| Lanes crossed | WidthFactor |
+| ------------- | ----------: |
+| 1–2           |        1.00 |
+| 3–4           |        1.10 |
+| 5–6           |        1.20 |
+| 7+            |        1.30 |
+
+#### Why width matters
+
+Crossing more lanes generally means:
+
+- more exposure time in the conflict zone
+
+- more paths of vehicle interaction
+
+- greater difficulty clearing the crossing in one decision window
+
+  Bike ISI’s positive lanes-to-cross terms are enough to support that directionally. V5’s grouped values are therefore **policy-bounded translations** of a benchmark-supported concept, not claims that FHWA published these exact multiplier magnitudes.
+
+  Where explicit lane truth is missing, lanes crossed may be estimated from lane tags, divided-road structure, and crossing geometry. Estimated width should reduce **confidence** even when the score still uses the grouped launch factor.
+
+#### Why the values stay modest
+
+V6 intentionally keeps width flatter than a raw “big road = terrifying” interpretation because:
+
+- traffic already carries the backbone role on the likelihood side
+- severity is handled separately by speed
+- width is important, but still a bounded conflict shaper
+
+### 6.2 ControlFactor
+
+**Benchmark anchor:** FHWA’s Bike ISI supports treating **control type** as relevant, but not as a simple monotonic “more control = safer” rule. In Bike ISI, **signal** appears as a positive modeled term in certain bicycle movement equations, which supports the idea that signalized intersections often proxy larger, more conflict-rich locations rather than automatically safer ones.
+
+#### Launch table
+
+| Control         | ControlFactor |
+| --------------- | ------------: |
+| stop-controlled |          1.00 |
+| signalized      |          1.05 |
+| unknown         |         1.025 |
+
+#### Why signalized is slightly above stop-controlled
+
+V6 does **not** claim that every signalized crossing is riskier than every stop-controlled one.
+
+Instead, V6 makes a narrower claim:
+
+- signalized intersections often occur where the crossing problem is already bigger
+
+- Bike ISI does not treat signal as an automatic safety credit
+
+- for cyclists, a stop-controlled approach can sometimes allow more self-timed gap selection than a rigid signal cycle
+
+- therefore signalized should be modeled as **slightly above neutral**, not as a strong reducer or a dramatic penalty
+
+  This keeps the control effect modest and cyclist-specific.
+
+#### Why unknown is the mean
+
+Unknown control should not secretly become worse than all known options, and it should not pretend to be harmless certainty either.
+
+So V6 uses the arithmetic mean of the known launch control options:
+
+$$
+\text{UnknownControlFactor}
+=
+\frac{1.00 + 1.05}{2}
+=
+1.025
+$$
+
+Unknown uses the arithmetic mean in score math; the real penalty is carried separately through **confidence** and trace metadata.
+
+### 6.3 MovementFactor
+
+**Benchmark anchor:** Bike ISI is explicitly **movement-based**, using separate logic for **through**, **right-turn**, and **left-turn** bicycle movements. That is enough to support keeping movement explicit in Lanterne’s crossing module.
+
+#### Launch table
+
+| Movement            | MovementFactor |
+| ------------------- | -------------: |
+| straight-across     |           1.00 |
+| right / merge       |           1.05 |
+| left across traffic |           1.20 |
+| unknown / ambiguous |         1.0833 |
+
+#### Why straight is baseline
+
+Straight-across is the least conflict-rich of the modeled movement classes and therefore serves as the natural baseline.
+
+#### Why right / merge is slightly above straight
+
+Right / merge conflicts are real, but V6 keeps them modest:
+
+- they introduce additional conflict complexity
+
+- they can involve turning vehicles or joining traffic streams
+
+- but without turning counts and better control detail, they should not be exaggerated
+
+  So right / merge receives a **small** premium above straight.
+
+#### Why left is above right
+
+Left-across traffic is the most conflict-rich of the movement classes modeled in V5:
+
+- it generally implies the broadest path conflict
+
+- it often requires crossing or entering multiple vehicle trajectories
+
+- it aligns with the most classically dangerous turning-conflict framing in bike-safety logic
+
+  This ordering is also consistent with Bike ISI’s decision to model through, right-turn, and left-turn bicycle movements separately rather than treating them as one generic crossing class.
+
+#### Why unknown is the mean
+
+Unknown movement should not default to worst-case by hidden policy, and it should not pretend the ambiguity does not matter.
+
+So V6 uses the arithmetic mean of the known launch movement options:
+
+$$
+\text{UnknownMovementFactor}
+=
+\frac{1.00 + 1.05 + 1.20}{3}
+=
+1.0833
+$$
+
+Unknown uses the arithmetic mean in score math; the real penalty is carried separately through **confidence** and trace metadata.
+
+#### Important implementation note
+
+Unknown movement should be rare. It should represent:
+
+- ambiguous geometry
+
+- complex nodes
+
+- low-confidence turn classification
+
+  not ordinary routing behavior.
+
+  If unknown movement becomes common, that indicates a **movement-classification quality problem**, not a coefficient problem.
+
+---
+
+## 7. Route rollup and expected serious harm
+
+Once V6 has computed:
+
+- continuous-road incident likelihood
+
+- crossing-event incident likelihood
+
+- and the speed-driven conditional severity weights
+
+  the rest of the route rollup becomes very clean.
+
+### 7.1 Local road harm
+
+$$
+h^{road}_j = \lambda^{road}_j \cdot \sigma(v_j)
+$$
+
+### 7.2 Local crossing harm
+
+$$
+h^{cross}_i = \lambda^{cross}_i \cdot \sigma(v^{cross}_i)
+$$
+
+### 7.3 Total route harm
+
+$$
+H_{route}
+=
+\sum_{j=1}^{N} h^{road}_j
++
+\sum_{i=1}^{K} h^{cross}_i
+$$
+
+### 7.4 Harm per mile
+
+$$
+H_{rpm} = \frac{H_{route}}{M}
+$$
+
+This is the canonical raw route quantity.
+
+### 7.5 Nested form
+
+$$
+\lambda^{road}_j
+=
+\begin{cases}
+0, & \text{if slice } j \text{ is path-like / MUP-like} \\
+m_j \cdot TF_j \cdot CurvF_j \cdot FF_j \cdot ShF_j, & \text{otherwise}
+\end{cases}
+$$
+
+$$
+\lambda^{cross}_i
+=
+\min\left(
+0.300,\;
+0.150
+\cdot
+\left(TF^{cross}_i\right)^{0.5}
+\cdot
+WF_i
+\cdot
+CF_i
+\cdot
+MF_i
+\right)
+$$
+
+$$
+H_{route}
+=
+\sum_{j=1}^{N}\lambda^{road}_j \cdot \sigma(v_j)
++
+\sum_{i=1}^{K}\lambda^{cross}_i \cdot \sigma(v^{cross}_i)
+$$
+
+$$
+H_{rpm}=\frac{H_{route}}{M}
+$$
+
+$$
+\text{SafetyScore}
+=
+\frac{100}{1+e^{\alpha(H_{rpm}-\beta)}}
+$$
+
+This is the clean conceptual form:
+
+1. compute continuous-road likelihood
+2. compute crossing-event likelihood
+3. apply speed severity locally
+4. sum local expected serious harm across the route
+5. divide by route miles
+6. pass the result through the rider-facing score shell
+
+### 7.6 Ugly master form
+
+For implementation, audit, and score-tracing purposes, the full canonical equation can also be written in one line:
+
+$$
+H_{rpm}
+=
+\frac{1}{M}
+\left[
+\sum_{j=1}^{N}
+\left(
+\begin{cases}
+0, & \text{if slice } j \text{ is path-like / MUP-like} \\
+m_j \cdot TF_j \cdot CurvF_j \cdot FF_j \cdot ShF_j, & \text{otherwise}
+\end{cases}
+\right)
+\cdot
+\sigma(v_j)
++
+\sum_{i=1}^{K}
+\min\left(
+0.300,\;
+0.150
+\cdot
+\left(TF^{cross}_i\right)^{0.5}
+\cdot
+WF_i
+\cdot
+CF_i
+\cdot
+MF_i
+\right)
+\cdot
+\sigma(v^{cross}_i)
+\right]
+$$
+
+That is the full canonical equation in one place:
+
+- continuous-road likelihood
+
+- crossing-event likelihood
+
+- speed-driven severity
+
+- route-level per-mile harm rollup
+
+  It is ugly, but it is not hand-wavy.
+
+### 7.7 No route-level crossing saturation in V6
+
+V4 used a dedicated route-level crossing saturation layer to keep crossings from bullying the score. V6 no longer needs that separate branch because crossings and roads now live inside the same **local expected-harm** architecture.
+
+V6 still protects against runaway crossings through:
+
+- event eligibility gating
+
+- bounded width / control / movement factors
+
+- per-event cap \(\Lambda_{\text{cap}}\)
+
+  The old V4 **8–25% target / 5–30% envelope** remains useful as a **corpus sanity check**, not as a formula cap. If a first full V6 scoring pass routinely produces crossing shares far outside that range on ordinary long-distance routes, the likely problem is crossing-likelihood calibration, not the absence of a saturation formula.
+
+---
+
+## 8. Worked examples
+
+The examples below are here for one reason: to prove the model behaves the way the policy says it should.
+
+The **road-slice examples** show how continuous likelihood and speed severity now play separate roles.
+
+The **crossing examples** show how an individual crossing can carry real expected harm without needing its own separate route-level share formula.
+
+These examples are not engineering-grade crash predictions. They are **behavior checks**. If the examples do not feel believable to someone who has actually ridden long roads, the model has failed no matter how elegant the equation looks.
+
+The sections below should therefore be read as:
+
+- **sanity checks**
+
+- **traceability examples**
+
+- **model-behavior proof points**
+
+  not as claims of literal real-world crash odds.
+
+### 8.1 Buffered-lane town arterial
+
+**Scene:** 1-mile slice, 25 mph, 6,000/day/lane, buffered lane, straight.
+
+Inputs:
+
+- \(m = 1.0\)
+
+- \(TF = 1.50\)
+
+- \(CurvF = 1.00\)
+
+- \(FF = 0.68\)
+
+- \(ShF = 1.00\)
+
+- \(\sigma(25)=1.00\)
+
+  Likelihood:
+
+$$
+\lambda^{road}
+=
+1.0 \cdot 1.50 \cdot 1.00 \cdot 0.68 \cdot 1.00
+=
+1.02
+$$
+
+Harm:
+
+$$
+h^{road}
+=
+1.02 \cdot 1.00
+=
+1.02
+$$
+
+**Meaning:** the road is still conflict-exposed, but the buffered lane materially reduces likelihood.
+
+### 8.2 Rural county road with usable shoulder
+
+**Scene:** 1-mile slice, 35 mph, 3,000/day/lane, no bike lane, usable shoulder, straight.
+
+Inputs:
+
+- \(m = 1.0\)
+
+- \(TF = 1.00\)
+
+- \(CurvF = 1.00\)
+
+- \(FF = 1.00\)
+
+- \(ShF = 0.88\)
+
+- \(\sigma(35)=3.60\)
+
+  Likelihood:
+
+$$
+\lambda^{road}
+=
+1.0 \cdot 1.00 \cdot 1.00 \cdot 1.00 \cdot 0.88
+=
+0.88
+$$
+
+Harm:
+
+$$
+h^{road}
+=
+0.88 \cdot 3.60
+=
+3.168
+$$
+
+**Meaning:** the road is not especially conflict-dense, but the 35 mph severity environment still makes the slice matter.
+
+### 8.3 Sharp 40 mph curve
+
+**Scene:** 0.15-mile slice, 40 mph, 3,000/day/lane, no facility, no usable shoulder, sharp curve.
+
+Inputs:
+
+- \(m = 0.15\)
+
+- \(TF = 1.00\)
+
+- \(CurvF = 3.51\)
+
+- \(FF = 1.00\)
+
+- \(ShF = 1.00\)
+
+- \(\sigma(40)=5.70\)
+
+  Likelihood:
+
+$$
+\lambda^{road}
+=
+0.15 \cdot 1.00 \cdot 3.51 \cdot 1.00 \cdot 1.00
+=
+0.5265
+$$
+
+Harm:
+
+$$
+h^{road}
+=
+0.5265 \cdot 5.70
+\approx 3.00
+$$
+
+**Meaning:** this is exactly the kind of geometry-driven risk V6 can now capture without pretending “sharp turn” is just a vibe.
+
+### 8.4 Medium arterial crossing
+
+**Scene:** suburban arterial crossing, 35 mph, 4 lanes, moderate traffic, signalized, left across traffic.
+
+Inputs:
+
+- \(TF^{cross}=1.50\)
+
+- \(WF=1.10\)
+
+- \(CF=1.05\)
+
+- \(MF=1.20\)
+
+- \(\sigma(35)=3.60\)
+
+  Likelihood:
+
+$$
+\lambda^{cross}
+=
+\min\left(
+0.300,\;
+0.150 \cdot \sqrt{1.50} \cdot 1.10 \cdot 1.05 \cdot 1.20
+\right)
+$$
+
+$$
+\lambda^{cross}
+\approx 0.0424
+$$
+
+Harm:
+
+$$
+h^{cross}
+=
+0.0424 \cdot 3.60
+\approx 0.153
+$$
+
+**Meaning:** one crossing does not erase the whole route, but it is a real conflict event with real expected harm.
+
+### 8.5 High-speed highway-like crossing
+
+**Scene:** 55 mph, 6-lane highway-like crossing, high traffic, unknown control, unknown movement geometry.
+
+Inputs:
+
+- \(TF^{cross}=2.20\)
+
+- \(WF=1.20\)
+
+- \(CF=1.025\)
+
+- \(MF=1.0833\)
+
+- \(\sigma(55)=16.30\)
+
+  Likelihood:
+
+$$
+\lambda^{cross}
+=
+\min\left(
+0.300,\;
+0.150 \cdot \sqrt{2.20} \cdot 1.20 \cdot 1.025 \cdot 1.0833
+\right)
+$$
+
+$$
+\lambda^{cross}
+\approx 0.0494
+$$
+
+Harm:
+
+$$
+h^{cross}
+=
+0.0494 \cdot 16.30
+\approx 0.805
+$$
+
+**Meaning:** the conflict likelihood is only moderately higher than the medium crossing, but the severity environment makes the harm much worse. That is the whole point of the V6 split.
+
+### 8.6 Path / MUP route with two arterial crossings
+
+**Scene:** 20-mile protected path / MUP with no continuous motor-vehicle exposure, but two 45 mph signalized arterial crossings. Assume each crossing has:
+
+- \(\lambda^{cross}=0.037\)
+
+- \(\sigma(45)=8.50\)
+
+  Then:
+
+$$
+H_{route}
+=
+2 \cdot (0.037 \cdot 8.50)
+\approx 0.629
+$$
+
+$$
+H_{rpm}
+=
+\frac{0.629}{20}
+\approx 0.031
+$$
+
+**Meaning:** the route is still very safe overall, but it is not falsely treated as perfect just because the continuous roadway exposure is zero.
+
+### 8.7 Brevet rollup example
+
+Suppose a 100-mile brevet has:
+
+- total continuous-road harm = \(178\)
+
+- total crossing harm = \(24\)
+
+  Then:
+
+$$
+H_{route}=178+24=202
+$$
+
+$$
+H_{rpm}=\frac{202}{100}=2.02
+$$
+
+If the same route had:
+
+- \(L_{route}=57.7\)
+
+  then average route severity would be:
+
+$$
+S_{route}=\frac{202}{57.7}\approx 3.50
+$$
+
+**Meaning:** the route’s danger is still mostly built on the open road, but the crossings add real harm locally instead of being forced through a separate share cap.
+
+---
+
+## 9. Unknown handling and confidence
+
+Unknown values should not be used to secretly smuggle more danger into the score than the known states support.
+
+So V6 adopts this rule:
+
+- **unknown score modifier = arithmetic mean of launch-known options**
+
+- **unknown evidence also reduces confidence**
+
+  For V6 scoring:
+
+- unknown control = **1.025**
+
+- unknown movement = **1.0833**
+
+  For V6 confidence:
+
+- unknown control and unknown movement should reduce event confidence in the provenance layer
+
+- the exact confidence penalty is **not** part of canonical score math and should live in the confidence/provenance spec
+
+  This keeps the Safety Score narrow and keeps missing data from impersonating safety truth. That is consistent with Lanterne’s analysis model and broader provenance direction.
+
+---
+
+## 10. Out of canonical score
+
+The following remain **out of canonical score math**:
+
+- weather / wind / temperature
+
+- fatigue
+
+- remoteness
+
+- railroad crossings, metal bridges, pinch points, treacherous descents, or any other non-motor-vehicle road hazards
+
+- driveway / access density until a national measurement method is worth defending
+
+- curb-activity / commercial proxies
+
+- lane width
+
+- vehicle parking as a canonical score factor
+
+- street lighting
+
+- state as a canonical multiplier
+
+- heavy-vehicle proxy until data quality is good enough
+
+- report-only critical stretch / hotspot messaging
+
+- time-of-day traffic contextualization in public explainer text
+
+  These may appear in companion layers, report sections, or future indices, but not inside the narrow vehicle-strike Safety Score. That remains a foundational Lanterne principle.
+
+### 10.1 Endurance-relative score (comparative, not canonical)
+
+Lanterne may compute and surface a separate **endurance-relative score** for riders who self-identify as endurance riders.
+
+This value is **not part of the canonical Safety Score**.
+
+It is a **comparative presentation layer** derived **after** canonical scoring by locating the route’s canonical Safety Score within a versioned endurance-rider reference corpus, such as a seed set of approximately **3,000 RUSA routes** scored under the same canonical model version.
+
+Its purpose is to answer:
+
+> **How does this route compare with the endurance-riding universe?**
+
+It does **not** answer:
+
+> **How risky is this route in absolute terms?**
+
+#### Design rule
+
+The endurance-relative score is:
+
+- **not equal to** the canonical Safety Score
+
+- **not an input into** canonical score math
+
+- **not allowed to rescale or soften** absolute danger because a risky route is typical for a hard cohort
+
+- **not a replacement for** the canonical Safety Score
+
+  A route that is dangerous in absolute terms must remain dangerous in absolute terms, even if it ranks as typical within an endurance corpus.
+
+#### Relationship to the canonical score
+
+The canonical Safety Score remains the source of truth for:
+
+- absolute route risk
+
+- route-to-route comparison in absolute safety terms
+
+- score tracing
+
+- score provenance
+
+- model calibration
+
+  The endurance-relative score is a **cohort-context view** built on top of that canonical result.
+
+#### Allowed presentation
+
+The endurance-relative score may be expressed as:
+
+- a **0–100 comparative score**
+
+- an **A–F comparative grade**
+
+- a **percentile or rank-based endurance context value**
+
+  If surfaced in a score or grade format, it must be **clearly labeled** as comparative, for example:
+
+- **Endurance-relative score**
+
+- **Randonneur context score**
+
+- **Compared with endurance routes**
+
+  It must not be labeled in a way that implies it is simply another canonical Safety Score.
+
+#### Versioning requirements
+
+Any endurance-relative score must carry:
+
+- **reference corpus version**
+
+- **canonical scoring model version**
+
+- **curve / mapping version**
+
+  This is required so score movement can be explained honestly.
+
+#### UI rule
+
+If surfaced first for endurance riders, the endurance-relative score must still appear **alongside** the canonical Safety Score, not replace it or bury it.
+
+The intended relationship is:
+
+- **Canonical Safety Score** = absolute truth
+- **Endurance-relative score** = cohort context
+
+#### Why this remains out of canonical score
+
+Lanterne is built for riders who go long. For those riders, comparative context can be useful. But comparative context and absolute vehicle-strike risk are **not the same question**. Keeping them separate preserves trust in the canonical model while still allowing a more endurance-native framing for the riders Lanterne is built to serve.
+
+### 10.2 Parking / door-zone hazard
+
+Parallel parking and door-zone friction are real bicycle crash-likelihood concerns, and the HSM2 / NCHRP bicycle likelihood framework includes parking as a segment-level likelihood adjustment factor. But for launch V6, parking remains better handled as a **hazard / context layer** than as a canonical expected-serious-harm factor.
+
+Reason:
+
+- it belongs more naturally to incident likelihood than severity
+
+- it is strongly context-dependent
+
+- it is most useful when surfaced explicitly to the rider, not buried in the canonical score
+
+  The research can still be surfaced in a tooltip or hazard explainer even though the factor is not part of launch canonical score.
+
+---
+
+## 11. Public transparency rules
+
+Public-facing explanation should say:
+
+- the score is a **relative expected-serious-harm index**, not a crash probability
+
+- traffic, crossings, and operating space shape **incident likelihood**
+
+- speed shapes **conditional severity**
+
+- horizontal curves are one of the few benchmark-backed geometry factors included in canonical likelihood
+
+- hazards are modeled separately where they do not belong in the narrow expected-serious-harm score
+
+- where data is missing, Lanterne uses explicit fallback handling and confidence signals
+
+  A clean public sentence is:
+
+> **Lanterne treats risk as two things: how likely a bad motor-vehicle interaction is, and how bad it is likely to be if it happens. Traffic, crossings, and operating space shape the first. Speed shapes the second.**
+
+---
+
+## 12. Design rule
+
+V6 keeps the core score defensible — and honest about what the model actually knows — by following one rule:
+
+> **Estimate conflict opportunity with the variables that actually generate incidents. Estimate consequence with the variable that most clearly governs injury severity. Then multiply locally and sum honestly.**
+
+That is why:
+
+- AADT remains the likelihood backbone
+- speed moves out of the weighted soup and into the severity module
+- horizontal curvature ships as a benchmark-backed geometry likelihood factor
+- bike facilities and shoulders remain bounded operating-space reducers
+- path-like facilities stop accumulating fake road risk
+- parking, curb friction, and access density stay out of launch canon until the measurement story is real
+- state stays out of canonical math
+- and the headline score becomes expected serious motor-vehicle harm, not a prettier version of the old blend
+
+---
+
+## 13. Evidence anchors for V6
+
+### 13.1 Architecture and expected-harm structure
+
+The overall V6 architecture is grounded in the HSM / HSM2 / NCHRP bicycle modeling family and the general road-safety practice of separating frequency-like and severity-like quantities rather than blending them into one undifferentiated score.
+
+That is the main reason V6 now treats the canonical object as:
+
+$$
+H = \sum_e \lambda_e \cdot \sigma_e
+$$
+
+rather than another weighted soup.
+
+### 13.2 Crossing logic
+
+Bike ISI remains the strongest practical reference model for:
+
+- movement-specific crossing structure
+
+- lanes to cross
+
+- signalized vs stop-controlled conflict structure
+
+- turning conflict differentiation
+
+  It is **not** treated as a crash-frequency SPF. It is treated as a structured relative-influence model for crossing likelihood.
+
+### 13.3 Speed and severity
+
+The V4 direct benchmark speed treatment remains the severity anchor for V5.
+
+For provenance clarity, the public source cited by this spec should be the National Academies / TRB volume *Pedestrian and Bicycle Safety Performance Functions*, **Table 156**, which in turn attributes the underlying factor to **iRAP 2013l**. The spec should not cite an “unapproved work product” draft as the primary source when the public table is available.
+
+That choice is further supported by the broader speed-injury literature and the empirical split between:
+
+- many bicycle–motor-vehicle crashes at intersections
+- and more severe outcomes at higher-speed midblock locations
+
+### 13.4 Deferred but supported factors
+
+The following are explicitly supported by research or benchmark models, but intentionally deferred from launch canonical score because their national measurement method or role is not yet tight enough:
+
+- **driveway / access density** — strong conflict-point logic, but no launch-ready measurement method
+
+- **lane width** — benchmark-backed, but not launch-derivable with enough trust
+
+- **advance visibility of a curve** — benchmark-backed, but too specific to measure cleanly now
+
+- **vehicle parking** — benchmark-backed, but better handled as a hazard / context layer at launch
+
+- **street lighting** — benchmark-backed, but no launch-quality national data layer
+
+- **heavy-vehicle exposure** — emotionally and directionally real, but not ready for canonical score yet
+
+  The launch philosophy is to keep only the variables that are both **real** and **measurable enough to defend**.
+
+## 14. Appendix A — Launch provenance and calibration matrix
+
+This appendix records where each launch-V6 variable, factor, or rule comes from, and whether it is benchmark-derived, benchmark-adapted, or an explicit Lanterne policy / calibration choice.
+
+It intentionally separates:
+
+- **direct benchmark-derived inputs**
+- **benchmark-informed but adapted inputs**
+- **Lanterne calibration / policy constants**
+- **supporting empirical evidence that informs architecture but does not provide coefficients**
+
+| V6 item | Role in model | Source model / standard named in this spec | Status in V6 | Notes |
+| --- | --- | --- | --- | --- |
+| Overall expected-harm architecture `H = Σ(incident likelihood × conditional severity)` | Canonical score structure | HSM / HSM2 / NCHRP bicycle modeling family | benchmark-shaped architecture | Grounded in that modeling family, but not claimed as a literal copied one-line equation. |
+| Intersection vs midblock split used to justify likelihood vs severity separation | Architecture support | NHTSA 2021 *Bicyclists and Other Cyclists Traffic Safety Facts* | supporting empirical evidence | Supports the split; does not provide coefficients. |
+| SeverityWeight `σ(s)` shape | Conditional severity curve | National Academies / TRB *Pedestrian and Bicycle Safety Performance Functions*, Table 156; underlying attribution to iRAP 2013l | direct benchmark-derived | Public source for the bicycle along-road motor-vehicle speed factor shape. |
+| Posted speed as severity proxy | Maps severity curve onto national-scale data | none | Lanterne policy choice | Chosen because posted speed is the practical national proxy for severity environment. |
+| 25 mph normalization baseline | Sets `SeverityWeight = 1.0` | none | Lanterne policy choice | Normalization choice, not an external standard requirement. |
+| Rounded launch speed table values | Implementation-friendly speed table | Table 156 shape above | benchmark-informed, adapted | Shape is benchmark-derived; rounded launch values are implementation policy. |
+| TrafficFactor `TF(v)` anchor family | Continuous-road incident-likelihood backbone | NCHRP 17-84 / HSM2 AADT-per-lane breakpoint family | benchmark-informed, adapted | Uses benchmark-aligned bands but interpolates between anchor points. |
+| AADT-per-lane anchor points and midpoint interpolation | Continuous traffic likelihood scaling | NCHRP 17-84 / HSM2 breakpoint family | benchmark-informed, adapted | Midpoint anchors and interpolation are engineering policy, not literal published coefficients. |
+| Traffic fallback ladder | Uses weaker traffic truth honestly | none | Lanterne policy choice | Confidence/provenance handling rather than external-standard math. |
+| HorizontalCurvatureFactor `CurvF` categories and values | Continuous-road geometry likelihood | HSM2 / NCHRP bicycle along-road likelihood framework | direct benchmark-derived | Category thresholds and factors are benchmark-backed. |
+| Radius-based measurement of curvature | Practical curvature measurement rule | none | Lanterne policy choice | Uses radius because advisory-speed truth is not nationally reliable. |
+| 50 m sustained-curve rule | Prevents noisy-vertex false positives | none | Lanterne policy choice | Launch measurement rule layered on top of benchmark categories. |
+| FacilityLikelihoodFactor `FF` concept | Bike facility reduces continuous-road likelihood | HSM2 / NCHRP bicycle likelihood methods; FHWA bicycle-treatment CMF work | benchmark-informed, adapted | Direction is supported; grouped constants are bounded launch values. |
+| Facility class values `0.50 / 0.68 / 0.82 / 1.00` | Protected / buffered / painted / none | same as above | Lanterne calibration / policy constants | Not claimed as literal CMF transplants. |
+| ShoulderLikelihoodFactor `ShF` concept | Shoulder reduces continuous-road likelihood | weaker support than bike-facility family; no single launch table cited | benchmark-informed, adapted | Supported directionally, but not tied to one strong named launch coefficient table. |
+| Shoulder values `1.00 / 0.90 / 0.85` | None / usable / wide | none | Lanterne calibration / policy constants | Explicitly bounded operating-space policy constants. |
+| Shoulder application gate (only when no facility and speed ≥ 30 mph) | Scope control for shoulder effect | none | Lanterne policy choice | Product / modeling rule. |
+| Path/MUP zero continuous-road likelihood rule | Prevents fake road risk on separated paths | none beyond Lanterne narrow safety definition | Lanterne policy choice | Scope rule driven by canonical safety definition. |
+| 15 mph path-like operational threshold | Operational proxy for path treatment | none | Lanterne policy choice | Explicit launch proxy. |
+| Non-intersection path-road / driveway-access crossing inclusion | Includes meaningful non-intersection conflict points | NHTSA 2021 *Bicyclists and Other Cyclists Traffic Safety Facts* | supporting empirical evidence + Lanterne policy | NHTSA supports relevance of “other locations”; eligibility rule remains internal policy. |
+| Crossing structure overall | Width / control / movement crossing logic | FHWA Bike ISI | benchmark-informed, adapted | Bike ISI is the reference model; coefficients are not transplanted literally. |
+| Base crossing constant `Λ0` | Base crossing-likelihood contribution | none | Lanterne calibration / policy constant | Tunable calibration constant; not a literature coefficient. |
+| Crossing cap `Λcap` | Per-event guardrail | none | Lanterne calibration / policy constant | Tunable cap; not a literature coefficient. |
+| Square-root crossed-road traffic term `(TFcross)^0.5` | Sublinear crossing traffic compression | none | Lanterne policy choice | Calibration / stability choice. |
+| Crossing event eligibility rules | Decides which nodes enter score math | none | Lanterne policy choice | Internal gating rule, not an external standard. |
+| WidthFactor concept | More lanes crossed → more crossing likelihood | FHWA Bike ISI | benchmark-informed, adapted | Concept is supported by Bike ISI-style lanes-to-cross logic. |
+| WidthFactor values `1.00 / 1.10 / 1.20 / 1.30` | 1–2 / 3–4 / 5–6 / 7+ lanes | FHWA Bike ISI concept only | Lanterne calibration / policy constants | Grouped multiplicative values are not literal Bike ISI coefficients. |
+| ControlFactor concept | Stop vs signalized crossing structure | FHWA Bike ISI | benchmark-informed, adapted | Bike ISI supports relevance; small launch multipliers are policy choices. |
+| ControlFactor values `1.00 / 1.05 / 1.025` | Stop / signal / unknown | FHWA Bike ISI concept only | Lanterne calibration / policy constants | Policy values with Bike ISI-informed ordering. |
+| MovementFactor concept | Straight / right / left movement structure | FHWA Bike ISI | benchmark-informed, adapted | Bike ISI is explicitly movement-based. |
+| MovementFactor values `1.00 / 1.05 / 1.20 / 1.0833` | Straight / right / left / unknown | FHWA Bike ISI concept only | Lanterne calibration / policy constants | Ordered to reflect Bike ISI logic, not copied coefficients. |
+| Unknown = arithmetic mean rule | Missing-factor fallback | none | Lanterne policy choice | Keeps missingness from secretly becoming a danger penalty. |
+| Route rollup `H_route`, `H_rpm` | Local harm sum and per-mile normalization | built from V6 architecture above | Lanterne canonical formulation | Natural consequence of the chosen expected-harm architecture. |
+| Logistic score shell | Raw harm per mile → rider-facing 0–100 score | none | Lanterne policy choice | Score presentation shell, not an externally sourced safety standard. |
+
+### Appendix note on deferred but benchmark-supported factors
+
+The following items are explicitly acknowledged in V6 as supported by named benchmark models or research, but are **not** part of launch canonical score:
+
+- driveway / access density
+- lane width
+- advance visibility of a curve
+- vehicle parking
+- street lighting
+- heavy-vehicle exposure
+
+Where those are discussed in the main spec, they should remain labeled as **deferred but supported**, not implied to be active launch variables.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v7.md
+
+# DS-015 — Safety Scoring Model V7
+
+**Status:** Draft for review  
+**Date:** April 16, 2026  
+**Filename:** `ds-015-safety_scoring_model_v7.md`
+
+## Purpose
+
+This document updates the Lanterne safety-scoring architecture to separate:
+
+1. the **canonical risk model** the system actually believes
+2. the **comparative rider-facing interpretation layer** shown on top of that model
+
+V7 keeps the narrow safety definition from prior versions:
+
+> risk of a bicyclist being struck by a motor vehicle, and severity of the likely outcome
+
+V7 does **not** change that underlying safety scope.
+
+What V7 changes is the role of the rider-facing 0–100 / grade layer.
+
+The central decision is this:
+
+- **Route Risk** remains the canonical truth
+- **Route Risk Per Mile** becomes the normalized basis for cross-route comparison
+- rider-facing comparative outputs become explicitly **relative**, not a second canonical object
+
+### What changed from V6 conceptually
+
+V6 still assumed a rider-facing normalization layer whose job was to turn canonical route risk per mile into a single public score.
+
+V7 removes that requirement.
+
+The key conceptual change is:
+
+- V6 treated the rider-facing layer as a **fixed shell**
+- V7 treats the rider-facing layer as a **relative interpretation layer**
+
+So V7 does **not** change the underlying canonical risk logic from V6.
+
+It changes what sits on top of that logic and how the product should describe it.
+
+---
+
+## 1. Core V7 decision
+
+### 1.1 Canonical truth stays canonical
+
+The system’s stable underlying outputs are:
+
+- **Total Route Risk** `R_route`
+- **Route Risk Per Mile** `R_rpm`
+- **Road Confidence**
+- **Route Confidence**
+
+These are the model’s actual truth objects.
+
+They are allowed to be technical. They do not need to be forced into a single rider-facing 0–100 shell that pretends to be both absolute and comparative at the same time.
+
+### 1.2 Rider-facing interpretation becomes explicitly relative
+
+V7 replaces the idea of a second canonical 0–100 Safety Score with a relative interpretation layer built from a defined reference corpus.
+
+Day 1 rider-facing comparative outputs are:
+
+- **Route Rank**
+- **Relative Safety Grade**
+
+These are computed from **Route Risk Per Mile** against a defined route set.
+
+V7 therefore separates:
+
+- **stable canonical outputs**
+- **relative rider-facing interpretation**
+
+That separation is the governing architectural rule of this version.
+
+---
+
+## 2. Why V7 makes this change
+
+Earlier versions forced one rider-facing shell to do too many jobs at once:
+
+- preserve canonical ordering
+- keep path-heavy routes like Rockmart very high
+- keep urban/suburban routes like Tri-State in a believable band
+- avoid ugly lower-tail bunching
+- preserve meaningful differences among very bad routes
+- remain stable over time
+- feel intuitive across very different ride types
+
+That is too much work for one fixed shell.
+
+V7 simplifies the architecture:
+
+- the **canonical model** answers:  
+  **What does Lanterne believe about this route’s motor-vehicle risk?**
+
+- the **relative layer** answers:  
+  **How does this route compare with other routes in the chosen reference set?**
+
+Those are different questions and should not be collapsed.
+
+### 2.1 Why V7 uses Route Risk Per Mile for comparison
+
+V7 uses **Route Risk Per Mile** rather than **Total Route Risk** as the comparative basis because the relative layer is trying to compare **route character**, not total route duration.
+
+If a 125-mile route is mostly benign trail with a few ordinary connectors, it should not rank as unusually poor merely because it is long enough to accumulate more total burden than a short suburban route.
+
+So:
+
+- **Total Route Risk** remains canonical and visible
+- **Route Risk Per Mile** drives comparative rank / grade
+
+This preserves both truths:
+
+- how much total burden the route accumulates
+- what kind of route it is mile-for-mile
+
+---
+
+## 3. Canonical outputs
+
+## 3.1 Total Route Risk
+
+`R_route` remains the canonical accumulated route burden.
+
+This answers:
+
+> How much total traffic-related risk does this whole route accumulate?
+
+This remains important, especially for long-distance riding, because riders need to understand not only how hostile a route is mile-for-mile, but how much total exposure an expedition accumulates.
+
+This must remain visible in receipts, admin tools, and other power-user surfaces even when the rider-facing comparative layer becomes the main public interpretation.
+
+## 3.2 Route Risk Per Mile
+
+`R_rpm = R_route / M`
+
+This remains the normalized per-mile route intensity measure.
+
+This answers:
+
+> How risky is this route, mile for mile?
+
+V7 uses **Route Risk Per Mile** as the basis for comparative route ranking because it normalizes routes of different lengths more honestly than Total Route Risk alone.
+
+`R_rpm` is therefore the canonical bridge between:
+
+- the stable canonical risk layer
+- the relative rank / grade layer
+
+## 3.3 Confidence outputs
+
+V7 keeps:
+
+- **Road Confidence**
+- **Route Confidence**
+
+These remain separate from rank/grade.
+
+They answer:
+
+- how much the system trusts the score-driving road and crossing truth
+- how well the system understands the route overall
+
+Confidence remains canonical.
+
+It must not be collapsed into rank/grade or treated as a comparative quantity.
+
+---
+
+## 4. Comparative rider-facing outputs
+
+## 4.1 Route Rank
+
+**Route Rank** is the route’s ordinal placement within a defined route set.
+
+Examples:
+
+- `Randonneur Route Rank: #24 / 3300`
+- `Germany Route Rank: #180 / 12400`
+- `Rural Route Rank: #61 / 8900`
+
+The safest route in the chosen reference set is `#1`.
+
+The worst route in the chosen reference set is the largest rank number in that set.
+
+### Design rule
+
+A Route Rank is meaningless unless its route set is defined.
+
+The product must always know what route set is being used.
+
+## 4.2 Relative Safety Grade
+
+**Relative Safety Grade** is the rider-facing summary band derived from the route’s rank / percentile standing within the chosen reference set.
+
+Day 1, this should use **fixed percentile bands**, not ad hoc tuned bands.
+
+### Day 1 default bands
+
+- **A** = top 10%
+- **B** = next 20%
+- **C** = middle 40%
+- **D** = next 20%
+- **F** = bottom 10%
+
+This keeps the rider-facing interpretation simple while avoiding the false precision of a drifting 0–100 score.
+
+### Why a grade instead of a drifting 0–100
+
+A relative 0–100 number can imply more precision than the underlying comparative layer deserves.
+
+A grade communicates:
+
+- relative standing
+- broad rider-facing meaning
+- less fake exactness
+
+That makes it a better day-1 comparative summary than another pseudo-canonical score.
+
+### 4.3 Day 1 relationship between rank and grade
+
+Day 1 grade assignment should be deterministic from percentile standing within the chosen reference corpus.
+
+That means:
+
+- rank is the precise comparative position
+- grade is the broad rider-facing summary
+
+Both are relative.
+
+Neither replaces canonical Route Risk.
+
+---
+
+## 5. Day 1 comparison basis
+
+Day 1 relative ranking should be computed from:
+
+- **Route Risk Per Mile**
+- against a clearly defined reference corpus
+
+It should **not** be based on Total Route Risk alone, because that would confound route character with route length.
+
+### Why not Total Route Risk for ranking
+
+A long but mostly benign route can accumulate more total risk than a shorter but significantly more hostile route.
+
+That does not mean the longer route is the worse comparative route in rider-facing terms.
+
+So:
+
+- **Total Route Risk** remains canonical and visible
+- **Route Risk Per Mile** drives rank/grade
+
+This rule is mandatory for launch V7.
+
+Total Route Risk may be shown beside rank/grade, but it may not become the sole ranking input.
+
+---
+
+## 6. Day 1 reference-set rules
+
+Day 1 relative outputs are only valid if the reference set is explicitly defined.
+
+At minimum, each relative output must know:
+
+- reference corpus name
+- corpus version
+- canonical model version
+- ranking / grade mapping version
+
+### 6.1 Required versioned metadata
+
+For every relative output shown in admin or later public surfaces, the system must be able to identify:
+
+- **reference corpus name**  
+  e.g. `Randonneur Corpus`
+
+- **reference corpus version**  
+  e.g. `rusa_seed_2026_04_16`
+
+- **canonical model version**  
+  e.g. `v6` or later canonical risk model version
+
+- **grade mapping version**  
+  e.g. `relative_grade_v1`
+
+This metadata is required because the comparative layer is explicitly allowed to drift as:
+
+- the corpus changes
+- the canonical model changes
+- the grade mapping evolves
+
+Without these identifiers, rank/grade cannot be interpreted honestly.
+
+### Day 1 recommendation
+
+Start with one clearly defined route family, for example:
+
+- **Randonneur / endurance reference corpus**
+
+This gives the comparative layer an honest and understandable frame.
+
+Day 1 should avoid pretending that one early corpus is a universal cycling benchmark.
+
+---
+
+## 7. Future relative lenses
+
+Once the canonical Route Risk layer is preserved, V7 allows multiple legitimate relative lenses on top.
+
+Possible future examples:
+
+- **Randonneur Route Rank**
+- **Commuter Route Rank**
+- **Germany Route Rank**
+- **Las Vegas Route Rank**
+- **Rural Route Rank**
+- **Urban Route Rank**
+- **Suburban Route Rank**
+
+These do **not** change canonical Route Risk.
+
+They only change the route set.
+
+### Design rule
+
+Many relative lenses may exist.
+
+Only one canonical Route Risk layer sits underneath them all.
+
+### 7.1 Design allowance
+
+Future relative lenses may differ by:
+
+- route family
+- geography
+- riding intent
+- local traffic culture
+
+But those future lenses must remain **comparative overlays**.
+
+They may not fork the underlying canonical Route Risk model unless the canonical model itself is explicitly versioned forward.
+
+---
+
+## 8. User-facing language
+
+Day 1 rider-facing stack should read approximately like this:
+
+- **Relative Safety Grade**
+- **Route Rank**
+- optional short explainer:
+  - “Compared with similar routes in the selected reference set.”
+
+Power-user / receipts surfaces should also show:
+
+- **Total Route Risk**
+- **Route Risk Per Mile**
+- **Road Confidence**
+- **Route Confidence**
+
+When the product exposes rank/grade, it should also be able to explain:
+
+- what comparison set is being used
+- that the comparative outputs are relative
+- that canonical Route Risk remains the stable underlying model output
+- that the chosen route set is a rider-facing label; the internal data model may implement these sets as cohorts without surfacing that term in product UI
+
+## 8.1 Internal naming note
+
+V7 does not require the product to surface the term **cohort**.
+
+For rider-facing language, the system should name the route set directly, for example:
+
+- **Randonneur Routes**
+- **Germany Routes**
+- **Rural Routes**
+
+Internally, the persistence layer may still model these as cohorts or cohort memberships if that matches the existing schema more cleanly.
+
+---
+
+## 9. Non-goals
+
+V7 does **not**:
+
+- remove or replace the canonical risk model
+- hide Total Route Risk from power users
+- claim that rank/grade is stable over time
+- pretend the comparative layer is absolute truth
+- require all route families to share one universal rider-facing 0–100 shell
+- invent a new fake-canonical 0–100 shell inside V7
+
+---
+
+## 10. Design rule
+
+V7 keeps one stable risk truth underneath the system and lets rider-facing interpretation be explicitly comparative.
+
+In plain English:
+
+> Lanterne should model traffic-related route risk once, then compare that route honestly against a chosen route set, instead of forcing one fixed display shell to pretend to be both absolute truth and rider-friendly ranking.
+
+## 11. Day 1 summary
+
+Day 1 V7 should therefore ship this architecture:
+
+### Stable canonical layer
+
+- **Total Route Risk**
+- **Route Risk Per Mile**
+- **Road Confidence**
+- **Route Confidence**
+
+### Relative rider-facing layer
+
+- **Route Rank**
+- **Relative Safety Grade**
+
+with the following governing rules:
+
+- rank / grade are driven by **Route Risk Per Mile**
+- **Total Route Risk** remains visible and important
+- rank / grade are relative to a **defined route set / reference corpus**
+- rank / grade are **not stable over time**
+- future relative route sets may exist without changing canonical Route Risk
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v7_admin_rollout.md
+
+# DS-015 V7 — Admin-First Comparative Layer Rollout Note
+
+**Status:** Draft for implementation planning  
+**Date:** April 16, 2026  
+**Filename:** `ds-015-safety_scoring_model_v7_admin_rollout.md`
+
+## Purpose
+
+This note describes the smallest disciplined path for introducing the V7 comparative layer into the admin / benchmark cockpit first.
+
+The goal is to make comparative outputs inspectable and versioned **without** disturbing the canonical scoring path.
+
+---
+
+## 1. Governing rollout rule
+
+The canonical V6 risk path remains intact.
+
+The new V7 comparative layer is added **on top of** canonical outputs, not in place of them.
+
+That means:
+
+- canonical route analysis still computes:
+  - `total_route_risk`
+  - `route_risk_per_mile`
+  - `road_confidence`
+  - `route_confidence`
+- admin experiments may compute:
+  - `route_rank`
+  - `relative_safety_grade`
+
+The comparative layer must never overwrite or hide the canonical outputs in admin.
+
+---
+
+## 2. Day 1 admin-first scope
+
+Day 1 admin deployment should support:
+
+1. **Reference corpus selection**
+2. **Rank calculation from Route Risk Per Mile**
+3. **Relative Safety Grade assignment from fixed percentile bands**
+4. **Side-by-side display of canonical outputs and relative outputs**
+5. **Explicit version metadata**
+
+Day 1 does **not** need:
+
+- public rider-facing launch
+- multiple production-grade corpora
+- dynamic or custom grade bands
+- a new canonical 0–100 shell
+
+---
+
+## 3. Ranking basis
+
+Comparative ranking should be computed from:
+
+- `route_risk_per_mile`
+
+not from:
+
+- `total_route_risk`
+
+### Day 1 ranking rule
+
+Given a defined reference corpus:
+
+1. compute canonical `route_risk_per_mile` for every route in that corpus under the same canonical model version
+2. sort ascending by `route_risk_per_mile`
+3. assign ordinal rank
+   - lowest `route_risk_per_mile` = safest = `#1`
+
+Tie handling may be implementation-defined, but the rule must remain deterministic.
+
+---
+
+## 4. Grade assignment
+
+Day 1 grade assignment should come from fixed percentile bands.
+
+### Day 1 grade mapping
+
+- **A** = top 10%
+- **B** = next 20%
+- **C** = middle 40%
+- **D** = next 20%
+- **F** = bottom 10%
+
+This grade mapping should be versioned explicitly as:
+
+- `relative_grade_v1`
+
+The grade is a broad comparative interpretation layer, not a second canonical score.
+
+---
+
+## 5. Required metadata
+
+Every comparative output shown in admin should carry:
+
+- **reference corpus name**
+- **reference corpus version**
+- **canonical model version**
+- **grade mapping version**
+
+### Example
+
+- reference corpus name: `Randonneur Corpus`
+- reference corpus version: `rusa_seed_2026_04_16`
+- canonical model version: `v6`
+- grade mapping version: `relative_grade_v1`
+
+This metadata is required because the comparative layer is expected to drift over time.
+
+---
+
+## 6. Admin cockpit behavior
+
+The admin / benchmark cockpit should show both layers together.
+
+### Canonical section
+
+- Total Route Risk
+- Route Risk Per Mile
+- Road Confidence
+- Route Confidence
+
+### Comparative section
+
+- Route Rank
+- Relative Safety Grade
+- reference corpus metadata
+
+### Comparative decomposition support
+
+Admin should also make it easy to answer:
+
+- why the route ranks where it does
+- how much of the route is benign/path-domain
+- how much risk comes from road slices versus crossings
+
+This is especially important for:
+
+- Rockmart
+- Tri-State
+- Key West
+
+---
+
+## 7. Smallest implementation path
+
+### Step 1
+
+Add a reference corpus object to the admin benchmark harness with:
+
+- corpus name
+- corpus version
+- route ids included in the corpus
+
+### Step 2
+
+For each benchmark route:
+
+- compute canonical `route_risk_per_mile`
+- compute rank against the chosen corpus
+- compute percentile standing
+- map percentile standing to `A/B/C/D/F`
+
+### Step 3
+
+Render comparative outputs in the admin console beside canonical outputs.
+
+### Step 4
+
+Keep the existing canonical path unchanged:
+
+- no changes to canonical risk formulas
+- no changes to canonical confidence formulas
+- no replacement of raw-risk outputs with rank/grade
+
+---
+
+## 8. Reference corpus discipline
+
+The comparative layer is only as honest as its corpus definition.
+
+So Day 1 should prefer:
+
+- one clearly defined corpus
+- one clear route family
+- explicit versioning
+
+Good Day 1 example:
+
+- `Randonneur / endurance corpus`
+
+Bad Day 1 example:
+
+- mixing unrelated route families into one unlabeled “global score” and pretending it is universal
+
+---
+
+## 9. What admin-first deployment should prove
+
+Before any public rollout, the admin cockpit should help answer:
+
+- does Rockmart rank near the top of the chosen corpus?
+- does Tri-State land in a believable comparative band?
+- do Key West and Silver Lake separate meaningfully when ranked by `route_risk_per_mile`?
+- is the remaining issue in:
+  - canonical raw risk
+  - comparative corpus composition
+  - or grade-band interpretation?
+
+If admin cannot answer those questions clearly, the comparative layer is not ready for broader use.
+
+---
+
+## 10. Non-goals
+
+This rollout note does **not** authorize:
+
+- replacing canonical outputs with rank/grade
+- hiding Total Route Risk
+- using Total Route Risk alone for rank
+- treating comparative outputs as stable over time
+- inventing a new pseudo-canonical display score
+
+---
+
+## 11. Summary
+
+The admin-first V7 rollout should be minimal and disciplined:
+
+- keep the canonical path intact
+- rank by **Route Risk Per Mile**
+- assign grade from fixed percentile bands
+- keep **Total Route Risk** visible
+- version:
+  - reference corpus
+  - canonical model
+  - grade mapping
+
+That is enough to start learning from comparative route behavior without corrupting the underlying risk model.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-015-safety_scoring_model_v7_user_facing.md
+
+# How Lanterne now thinks about route safety
+
+Lanterne is built to answer a narrow question:
+
+**How much motor-vehicle risk does this route expose a rider to?**
+
+That is not the same as asking whether a route is hard, scenic, remote, windy, or memorable. Those things matter, especially on long rides. They just do not belong inside this one safety model.
+
+## The stable truth underneath
+
+Under the hood, Lanterne keeps a stable underlying risk model.
+
+That model produces two important route-level outputs:
+
+- **Total Route Risk** — how much traffic-related risk the whole route accumulates
+- **Route Risk Per Mile** — how risky the route is, mile for mile
+
+It also keeps two confidence readings:
+
+- **Road Confidence**
+- **Route Confidence**
+
+Both matter.
+
+A long route can have moderate per-mile risk and still accumulate a meaningful amount of total exposure. For expedition and brevet riding, that total burden matters. At the same time, riders also need a fair way to compare routes of very different lengths, which is why route risk per mile matters too.
+
+## Why the rider-facing layer changed
+
+Earlier versions tried to force a single rider-facing score to do too many jobs at once.
+
+It had to:
+
+- reflect the real underlying model
+- stay readable
+- separate bad routes from very bad routes
+- keep obviously benign routes very high
+- work across routes of very different lengths
+- and still feel intuitive
+
+That turned out to be too much pressure for one fixed score shell.
+
+So Lanterne now separates the system into two layers:
+
+### 1. Stable route risk
+This is the underlying model truth.
+
+### 2. Comparative route interpretation
+This tells you how the route compares with other routes in a chosen route set.
+
+That separation is cleaner and more honest.
+
+## What riders see now
+
+Lanterne’s rider-facing comparative layer is built around two things:
+
+- **Route Rank**
+- **Relative Safety Grade**
+
+### Route Rank
+This is the route’s position within a chosen comparison set.
+
+For example:
+
+- `#24 / 3300`
+- `#180 / 12400`
+
+A lower number is better. `#1` is the safest route in that reference set.
+
+### Relative Safety Grade
+This is the broad rider-facing summary of where the route lands in that same route set.
+
+Day 1, this uses fixed percentile bands:
+
+- **A** = top 10%
+- **B** = next 20%
+- **C** = middle 40%
+- **D** = next 20%
+- **F** = bottom 10%
+
+The point of the grade is not to pretend to be mathematically exact. It is to give riders a practical, readable summary without making a drifting comparative layer look more precise than it really is.
+
+## What stays stable and what does not
+
+The underlying risk model stays stable unless Lanterne explicitly changes the canonical model.
+
+That means the stable layer is still:
+
+- Total Route Risk
+- Route Risk Per Mile
+- Road Confidence
+- Route Confidence
+
+What does **not** stay stable over time is the comparative layer.
+
+That means:
+
+- Route Rank can change as the route set grows
+- Relative Safety Grade can change as the route’s percentile standing changes
+
+That is expected.
+
+## Why Route Rank and grade are relative
+
+A route can be ordinary in one riding universe and unusually safe or unusually risky in another.
+
+A route that ranks well among hard brevet routes might look less special compared with a wider all-route corpus. A route that feels ordinary in one city may stand out in another geography.
+
+That is why Lanterne treats Route Rank and Relative Safety Grade as **relative** outputs.
+
+They tell you:
+
+**How does this route compare with other routes in the chosen route set?**
+
+They do **not** replace the underlying Route Risk model.
+
+## Why Route Risk Per Mile drives rank
+
+For ranking and grading, Lanterne compares routes using **Route Risk Per Mile**.
+
+Why?
+
+Because routes can be very different lengths.
+
+If ranking were based only on Total Route Risk, longer routes would be penalized simply for being long, even when their mile-for-mile character was relatively benign.
+
+Using Route Risk Per Mile makes route comparison fairer across different route lengths.
+
+At the same time, Total Route Risk still remains visible underneath because riders need to understand total accumulated exposure on a long day or expedition.
+
+That matters especially for:
+
+- brevets
+- expeditions
+- long rural rides
+
+Two routes can have similar mile-for-mile character while still asking very different things of a rider over the full day.
+
+## What this means in practice
+
+This means the system now answers two different questions instead of pretending they are the same question.
+
+### Stable truth question
+**What does Lanterne believe about this route’s traffic-related risk?**
+
+That is answered by:
+
+- Total Route Risk
+- Route Risk Per Mile
+- Road Confidence
+- Route Confidence
+
+### Comparative question
+**How does this route compare with other routes in the chosen route set?**
+
+That is answered by:
+
+- Route Rank
+- Relative Safety Grade
+
+## Why this is better
+
+This approach is more honest because it stops trying to turn one rider-facing number into a second canonical truth.
+
+Instead:
+
+- the underlying risk model stays stable
+- the comparative layer can change as the corpus grows
+- the rider-facing interpretation can be tuned to the kind of riding being compared
+
+That is more honest than forcing one fixed score to pretend to be:
+
+- absolute truth
+- route comparison
+- public interpretation
+
+all at the same time.
+
+That means Lanterne can eventually support different relative lenses without corrupting the underlying model, for example:
+
+- randonneur routes
+- commuter routes
+- rural routes
+- urban routes
+- geography-specific route universes
+
+The underlying Route Risk stays the same. Only the route set changes.
+
+## The short version
+
+Lanterne now treats route safety in two layers:
+
+- **Route Risk** tells you what the model believes
+- **Route Rank** and **Relative Safety Grade** tell you how that route compares with other routes in the chosen route set
+
+That is a simpler, more practical way to explain route safety than forcing one fixed score to do everything at once.
+
+
+---
+
 ## Source File: docs/02-architecture/design/ds-016-experience_policy_layer.md
 
 # Experience Policy layer #
@@ -13607,6 +16221,1182 @@ A score tracing implementation is acceptable only if:
 
 Score Tracing is how the product proves that reliability is not branding.
 It is architecture.
+
+---
+
+## Source File: docs/02-architecture/design/ds-020-confidence_model_and_tracing.md
+
+# DS-020 — Confidence Model and Tracing
+
+**Status:** Draft for review  
+**Date:** April 14, 2026  
+**Filename:** `ds-020-confidence_model_and_tracing.md`
+
+---
+
+## 1. Purpose
+
+This document defines the canonical **confidence model** for Lanterne’s narrow Safety Score.
+
+It answers a different question than the score itself.
+
+- **Safety Score** asks:  
+  > how risky is this route, given the canonical values the system chose?
+
+- **Confidence** asks:  
+  > how confident are we that those chosen values, and therefore the resulting score, are trustworthy?
+
+This is not optional polish.
+
+Confidence must become a first-class modeled system because:
+
+- the score now depends on multiple truth inputs with different provenance quality
+- those inputs do not contribute equally to route risk
+- route-level trust cannot be inferred honestly from flat field counting
+- score trace without confidence trace is only half an explanation
+
+This spec is written to prevent the confidence system from becoming a second-rate heuristic sidecar.
+
+---
+
+## 2. Core principle
+
+Confidence must use the **same canonical variable graph** as score.
+
+That means:
+
+- no second heuristic tree
+- no independent “confidence-only” variable universe
+- no flat counting of unknowns detached from raw risk contribution
+
+Confidence and score are different outputs, but they are derived from the same underlying route truth.
+
+If score uses:
+
+- speed
+- traffic
+- facility
+- shoulder
+- crossing inputs
+
+then confidence must evaluate trust using those same inputs, their chosen provenance, and their actual role in local risk.
+
+### Design rule
+
+> **Confidence must follow the same canonical slices, crossing events, chosen inputs, and propagation rules as score.**
+
+If the score is calculated slice-by-slice and event-by-event, confidence must be calculated slice-by-slice and event-by-event too.
+
+---
+
+## 3. Scope
+
+This spec governs confidence for the canonical narrow Safety Score only.
+
+It applies to the first five canonical safety input families:
+
+1. **speed**
+2. **traffic**
+3. **facility**
+4. **shoulder**
+5. **crossing inputs**
+   - crossed-road speed
+   - crossed-road traffic
+   - crossing width / lanes crossed
+   - control
+   - movement
+
+It does **not** yet govern confidence for:
+
+- hazards
+- weather / conditions
+- remoteness
+- fatigue
+- route difficulty
+- comparative / cohort context
+- user reports as route-level modifiers
+
+Those may later gain their own confidence handling, but they are outside this launch spec.
+
+---
+
+## 4. What confidence is and is not
+
+### Confidence is
+
+- a modeled estimate of how trustworthy the score-driving chosen inputs are
+- sensitive to **provenance**
+- sensitive to **propagation / inference depth**
+- sensitive to **raw risk contribution**
+- computed at:
+  - field level
+  - slice level
+  - crossing-event level
+  - route level
+
+### Confidence is not
+
+- a hidden score modifier
+- a moral judgment about OSM or any other data source
+- a flat count of “unknown fields”
+- a claim that the score is exactly right in the scientific sense
+- a generic quality score for the whole route independent of what actually drove risk
+
+### Important product interpretation
+
+Riders often experience confidence as:
+
+> **How confident are we that this route is not riskier than the score suggests?**
+
+That is not identical to:
+
+> **How confident are we that the exact numeric score is perfect?**
+
+This spec still models confidence mathematically, but it recognizes that route-level confidence should be most sensitive to uncertainty in the **inputs that materially drove route risk**, not to incidental uncertainty in low-impact fields.
+
+---
+
+## 5. Output representation
+
+Confidence is represented in both numeric and banded form.
+
+At launch, two route-level confidence outputs are canonical:
+
+1. `road_confidence`
+2. `route_confidence`
+
+### 5.1 Numeric output
+
+All confidence outputs use a **0–100** scale.
+
+- **0** = no meaningful trust
+- **100** = highest launch confidence
+
+### 5.2 Band output
+
+Launch uses five 20-point bands:
+
+| Confidence score | Band |
+|---|---|
+| 0–19 | very low |
+| 20–39 | low |
+| 40–59 | medium |
+| 60–79 | high |
+| 80–100 | very high |
+
+These bands are product-facing summaries of the numeric confidence values, not separate logic systems.
+
+### 5.3 Route-level output split
+
+#### `road_confidence`
+
+This answers:
+
+> how confident are we in the road-domain slices and crossings that materially shaped the score?
+
+This is the audit-side confidence value.
+
+It stays tightly coupled to:
+
+- road-domain continuous slices
+- scored crossings
+- actual score participation
+- actual local risk
+
+#### `route_confidence`
+
+This answers:
+
+> how confident are we in our overall characterization of the route as a whole?
+
+This is the route-understanding confidence value.
+
+It is allowed to reflect:
+
+- confidently identified benign/path-domain mileage
+- broad route-domain understanding
+- the fact that a route may be mostly well understood even when a few connectors are weaker
+
+---
+
+## 6. The two-part confidence model
+
+Confidence is composed of two parts:
+
+1. **relative source confidence**
+2. **raw risk contribution**
+
+This is the backbone of the whole spec.
+
+### 6.1 Relative source confidence
+
+This answers:
+
+> how trustworthy is the chosen value source?
+
+This part comes from provenance and propagation quality.
+
+### 6.2 Actual score impact
+
+This answers:
+
+> how much did this variable actually matter to the local score on this slice or crossing?
+
+This part comes from the same canonical score graph as the score itself.
+
+For launch confidence weighting, this means **actual score participation**, not “deviation from a neutral baseline.”
+
+If a `25 mph` road slice has:
+
+- `localLikelihood > 0`
+- `localSeverity = 1.0`
+- `localRisk > 0`
+
+then speed is still participating in actual local risk and may not be assigned zero confidence weight simply because `25 mph` is the severity baseline.
+
+### 6.3 Combined idea
+
+Launch confidence should be driven by the simple principle:
+
+> **confidence effect = source confidence × raw risk contribution**
+
+Equivalently, uncertainty burden is:
+
+> **uncertainty burden = (1 - source confidence) × raw risk contribution**
+
+That means:
+
+- a weak source on a variable that barely mattered should barely matter
+- a weak source on a variable that materially drove local score should matter a lot
+- a non-operative variable with zero score impact should contribute zero confidence penalty
+
+That is the whole point of the model.
+
+---
+
+## 7. Relative source confidence ladder
+
+This section defines the launch source-confidence ladder for score-driving chosen values.
+
+It is aligned to the DS-017 truth resolution and propagation hierarchy, but translated into explicit launch confidence values.
+
+### 7.1 Launch candidate ladder
+
+| Provenance class | Launch confidence |
+|---|---:|
+| observed | 100 |
+| authoritative_posted | 100 |
+| osm_posted | 95 |
+| observation_inferred | 90 |
+| authoritative_inferred | 90 |
+| osm_inferred | 85 |
+| regional_prior | calculated per 8.3 + 15 |
+| highway_area_baseline | calculated per 8.3 + 10 |
+| highway_baseline | calculated per 8.3 |
+
+For dominant variables such as **speed** and **traffic**, a true terminal `unknown` state may still exist when the system genuinely has no defensible chosen value. In launch logic, that state should carry **10% confidence** for that field.
+
+For secondary variables such as **facility** and **shoulder**, non-operative or zero-impact unknowns should not automatically create a major confidence penalty. Their burden should depend on raw risk contribution.
+
+### 7.2 Why OSM posted remains high
+
+OSM posted speed is not treated as weak by default.
+
+If:
+- a rider or mapper took the time to verify a posted speed
+- contributed it
+- and it survived community review into OSM
+
+then that is generally strong evidence.
+
+It is weaker than direct authoritative posted truth, but only slightly.
+
+### 7.3 Why inferred classes still matter
+
+Inferred is not the same as unknown.
+
+A value inferred from:
+- nearby observed truth
+- nearby authoritative truth
+- stable road continuity
+
+is clearly better than a last-resort baseline.
+
+This spec therefore preserves meaningful separation between:
+
+- inferred from strong evidence
+- inferred from weak heuristics
+- generic baseline fallback
+
+---
+
+## 8. Dynamic baseline confidence for chosen speed
+
+This is one of the key launch design rules.
+
+A flat confidence value for `highway_baseline` or similar fallback speed is too dumb.
+
+Why?
+
+Because the confidence impact of a chosen speed baseline depends on how wrong it could be **in score terms**, not just raw mph terms.
+
+### 8.1 The problem with flat baseline confidence
+
+A chosen speed of:
+
+- **55 mph** inside a **45–65 mph** plausible highway range
+
+is not the same confidence story as:
+
+- **25 mph** inside a **15–35 mph** plausible range
+
+Even if both are centered in a 20 mph band.
+
+The reason is that the severity curve is nonlinear. The risk-impact spread at higher speeds is much larger.
+
+### 8.2 Rule
+
+When a chosen speed comes from a baseline class, confidence should be based on the **risk-impact spread around the chosenSpeed**, not just the raw mph width of the class.
+
+### 8.3 Launch model for baseline-derived speed confidence
+
+For any speed value chosen from a baseline class:
+
+1. identify the plausible low/high speed bounds for that class
+2. use the actual **chosenSpeed**, not an abstract midpoint label
+3. evaluate the risk-impact spread implied by those bounds around the chosenSpeed
+4. convert that spread into a relative source-confidence value for `highway_baseline`
+5. derive:
+   - `highway_area_baseline = highway_baseline + 10`
+   - `regional_prior = highway_baseline + 15`
+
+bounded to the 0–100 scale.
+
+This means baseline confidence is tied to **how wrong the score could be**, not just to raw mph spread.
+
+A practical launch implementation may use the severity function itself as the comparison surface. For example:
+
+- compute `σ(chosenSpeed)`
+- compute `σ(lowerBound)` and `σ(upperBound)`
+- measure the larger of the two risk-impact deviations
+- map larger deviation to lower baseline confidence
+
+### 8.4 Consequence
+
+Two baseline-derived speeds with the same raw class width may receive different confidence if one sits in a much steeper risk-impact regime.
+
+This is intentional, and it is one of the main reasons confidence must follow score logic rather than a flat source ladder.
+
+---
+
+## 9. Variable importance weighting
+
+This section defines how much each score-driving variable family should matter **if it is uncertain**.
+
+This is not a second scoring model. It is the confidence-side weighting of uncertainty burden.
+
+### 9.1 Governing principle
+
+A variable’s confidence weight should come from its actual ability to affect the score.
+
+That means:
+
+- speed should generally carry the strongest confidence weight
+- traffic should generally carry the next strongest confidence weight
+- facility and shoulder should be secondary
+- crossing inputs should be weighted according to their actual contribution in crossing score
+
+### 9.2 Launch variable families
+
+#### Speed
+- dominant on the severity side
+- usually the most load-bearing confidence variable on risk-driving slices
+
+#### Traffic
+- dominant on the likelihood side
+- especially important when official DOT/HPMS truth exists
+
+#### Facility
+- secondary but real
+- meaningful when it materially changes localLikelihood
+
+#### Shoulder
+- secondary but real
+- meaningful when it materially changes localLikelihood
+
+#### Crossing inputs
+- should use the same logic as crossing score:
+  - crossed-road speed
+  - crossed-road traffic
+  - width
+  - control
+  - movement
+
+### 9.2.1 Launch weighting direction
+
+The launch weighting hierarchy should strongly prefer the variables that dominate score-driving risk in practice.
+
+As a launch rule of thumb:
+
+- **speed** should usually carry the strongest confidence weight on continuous slices
+- **traffic** should usually carry the second-strongest confidence weight on continuous slices
+- **facility** and **shoulder** should be secondary
+- for crossings, **crossed-road speed** and **crossed-road traffic** should usually dominate crossing confidence weighting
+- **control**, **movement**, and **width** should matter, but usually less than crossed-road speed/traffic
+
+These are not permission to use a flat static weighting table detached from route context. They are launch directionality rules for the dynamic impact system.
+
+The actual confidence effect of each variable must still be computed from its real route-specific risk contribution.
+
+### 9.3 No flat counting
+
+The model may not treat:
+- speed unknown
+- bike-lane unknown
+- shoulder unknown
+
+as if they have equal confidence importance just because they are all fields.
+
+That is explicitly forbidden.
+
+---
+
+## 10. Fully dynamic impact weighting
+
+Confidence weighting is **fully dynamic** at the slice and crossing level.
+
+That means the confidence effect from a variable is based on the actual route circumstances in which it appears and on the raw risk contribution of that variable there.
+
+### 10.1 Slice intuition example
+
+If bike lanes are only relevant on 5 miles of a 125-mile route, and unknown there, their uncertainty should only damage route confidence in proportion to those relevant miles and their raw risk contribution.
+
+If the remaining 120 miles are path-domain and bike-lane availability is irrelevant there, they should contribute **zero** confidence penalty from bike-lane uncertainty.
+
+### 10.2 Path-domain rule
+
+If a slice has:
+
+- `domainType = path`
+- `localLikelihood = 0`
+- `localRisk = 0`
+
+then that slice contributes **zero confidence penalty** to route confidence, regardless of incidental uncertainty in road-only inputs.
+
+That rule is critical.
+
+---
+
+## 11. Field-level confidence
+
+Each chosen input should carry a confidence record.
+
+Field-level confidence answers:
+
+- what value was chosen
+- where it came from
+- how trustworthy that source is before route-specific risk weighting
+
+### 11.1 Canonical shape
+
+Suggested launch shape:
+
+```ts
+ConfidenceInput<T> = {
+  value: T | null
+  provenance: ProvenanceClass
+  relativeConfidence: number   // 0–100 from source ladder / baseline logic
+  confidenceBand: ConfidenceBand
+  fallbackNote?: string
+  sourceRef?: string
+}
+```
+
+### 11.2 Required launch fields
+
+For continuous slices:
+- chosenSpeed
+- chosenTraffic
+- chosenFacility
+- chosenShoulder
+- chosenCurvature
+
+For crossing events:
+- chosenCrossedSpeed
+- chosenCrossedTraffic
+- chosenWidth
+- chosenControl
+- chosenMovement
+
+---
+
+## 12. Slice-level confidence math
+
+### 12.1 Continuous slices
+
+A continuous slice should compute confidence from the same variables used in its score.
+
+The score side is:
+
+- `localLikelihood = λ_road`
+- `localSeverity = σ(speed)`
+- `localRisk = λ_road × σ(speed)`
+
+The confidence side should use the same chosen inputs and ask:
+
+- how confident are we in each chosen value source?
+- how much did that variable actually contribute to local risk on this slice?
+
+### 12.2 Launch slice-confidence shape
+
+For each score-driving variable on a slice:
+
+- `effectiveConfidence_i = confidenceRate_i × impact_i`
+
+where:
+
+- `confidenceRate_i` is the field’s relative source confidence on a 0–1 scale
+- `impact_i` is that variable’s actual risk-contribution share on the slice, also on a 0–1 scale
+
+Equivalently:
+
+- `uncertaintyBurden_i = (1 - confidenceRate_i) × impact_i`
+
+Then:
+
+- `sliceConfidence = 100 × (1 - Σ uncertaintyBurden_i)`
+
+The key point is that `impact_i` is not a static global constant. It is slice-specific and derived from the same canonical score graph.
+
+### 12.3 Important rule
+
+If a variable had negligible raw risk contribution on that slice, its uncertainty burden should also be negligible.
+
+This is why zero-risk path slices contribute zero confidence penalty even if some road-only fields are unknown there.
+
+---
+
+## 13. Crossing-level confidence math
+
+Crossing confidence should mirror crossing score.
+
+### 13.1 Crossing score structure
+
+- `localLikelihood = λ_cross`
+- `localSeverity = σ(crossedSpeed)`
+- `localRisk = λ_cross × σ(crossedSpeed)`
+
+### 13.2 Crossing confidence structure
+
+Crossing confidence should use the same ingredients:
+
+- crossed-road speed
+- crossed-road traffic
+- width
+- control
+- movement
+
+using the same launch confidence shape:
+
+- `confidence_contribution_i = confidence_pct_i × risk_contribution_i`
+
+### 13.3 Weighting intuition
+
+In most cases, crossing confidence should be driven more by:
+
+- crossed-road speed
+- crossed-road traffic
+
+than by:
+- control
+- movement
+- width
+
+But all of them should still be part of the same canonical graph.
+
+---
+
+## 14. Route-level confidence aggregation
+
+This is the most important rollup rule.
+
+### 14.1 Governing principle
+
+Route confidence must be driven by **risk-driving uncertainty burden**, not by raw counts of unknown fields or unknown miles.
+
+### 14.2 Consequence
+
+A route may still earn **high** or **very high** confidence even if some minor fields are unknown broadly, so long as the risk-driving slices and events rely on strong truth.
+
+### 14.3 Launch aggregation shape
+
+Launch uses two different route-level rollups:
+
+1. `road_confidence`
+2. `route_confidence`
+
+They use the same field/slice/crossing confidence machinery, but answer different questions.
+
+### 14.4 `road_confidence`
+
+`road_confidence` is the rollup of road-domain slices and scored crossings, weighted by their actual local risk.
+
+Conceptually:
+
+- `road_confidence = weighted rollup of road-domain slice confidences and crossing confidences`
+- weights are the units' actual `localRisk`
+
+This should answer:
+
+> how confident are we in the score-driving road slices and crossings that produced the route risk?
+
+This is the canonical audit rollup.
+
+### 14.5 `route_confidence`
+
+`route_confidence` is the rollup of overall route characterization confidence.
+
+It should:
+
+- include road-domain slices
+- include path-domain slices
+- allow confidently identified benign/path-domain mileage to count positively
+- avoid letting a few weaker connectors fully overwrite the route-wide characterization when the route is otherwise strongly understood
+
+Conceptually:
+
+- `route_confidence = weighted rollup of route-characterization confidence across the whole route`
+
+At launch:
+
+- road-domain slices may be weighted by miles, with visibility from local risk
+- path-domain slices with `localRisk = 0` may still contribute positively through route-characterization confidence
+- scored crossings may contribute a small additive characterization weight or may be reported separately in receipts, as long as the implementation choice is explicit
+
+### 14.6 Governing interpretation
+
+`road_confidence` should answer:
+
+> how well do we trust the risk-driving details?
+
+`route_confidence` should answer:
+
+> how well do we trust our overall understanding of the route?
+
+The exact rollup implementation may evolve, but the governing rules are fixed:
+
+- risk-driving slices/events with strong truth should dominate `road_confidence` upward
+- low-impact uncertainty should have limited effect
+- zero-risk slices should contribute zero penalty
+- a route must not be dragged to low confidence merely because many non-score-driving fields are messy
+- confidently known benign/path-domain mileage may raise `route_confidence` without softening `road_confidence`
+
+---
+
+## 15. Confidence bands at slice, crossing, and route level
+
+All three levels use the same five launch bands:
+
+| Score | Band |
+|---|---|
+| 0–19 | very low |
+| 20–39 | low |
+| 40–59 | medium |
+| 60–79 | high |
+| 80–100 | very high |
+
+That keeps the system coherent.
+
+---
+
+## 16. Confidence trace contract
+
+Confidence trace is required.
+
+It should parallel score trace.
+
+### 16.1 Confidence trace must show
+
+- chosen input
+- provenance class
+- relative source confidence
+- fallback path / propagation class
+- risk_contribution
+- confidence_contribution or uncertainty_contribution
+- slice or crossing confidence rollup
+- route confidence rollup
+
+### 16.2 Why this matters
+
+Without trace, confidence becomes just another opaque number.
+
+The purpose of confidence trace is to let the system explain:
+
+- what value was chosen
+- where that value came from
+- how confident the system was in that value
+- how much that uncertainty mattered to the slice, crossing, and route
+
+In other words, confidence trace is the trust-side equivalent of score trace.
+
+---
+
+## 17. Reporting and presentation contract
+
+Confidence should appear anywhere the system is making meaningful score claims.
+
+### 17.1 analysisReceipt
+Should show:
+- route confidence score
+- route confidence band
+- road confidence score
+- road confidence band
+- short explanation
+- fallback summary
+- warnings only when uncertainty is materially score-driving
+
+### 17.2 evidenceSummary
+Should show:
+- route confidence score + band
+- road confidence score + band
+- miles by provenance class
+- crossing counts by provenance class
+- fallback counts
+- low-confidence slice/event counts
+- reasons for lowered confidence
+
+### 17.3 scoreTrace
+Should show:
+- slice/event-level confidence alongside score derivation
+- confidence-aware decomposition language
+
+### 17.4 Warning rule
+
+Use warnings when:
+- low-confidence risk-driving slices are materially large
+- major crossings are low-confidence
+- official traffic coverage is sparse on score-driving segments
+
+Do **not** use warnings for minor incidental uncertainty with negligible route effect.
+
+---
+
+
+## 18. Worked examples
+
+These examples are not decorative.
+
+They exist to prove that the confidence model behaves the way the score model intends:
+
+- confidence follows the same canonical variable graph as score
+- confidence burden is weighted by raw risk contribution
+- zero-risk slices contribute zero confidence penalty
+- dominant variables such as speed and traffic matter much more than secondary variables when they actually drive route risk
+- route-level confidence is driven by risk-driving uncertainty, not flat field ugliness
+
+These examples are behavior checks, not final implementation test fixtures.
+
+### 18.0 Worked-example convention
+
+For the examples below:
+
+- confidence rates are shown on a **0–100** scale
+- risk contributions are also shown on a **0–100** scale
+- the operative variable risk contributions for a slice or crossing sum to **100**
+- `confidence contribution = confidence rate × risk contribution`
+- `slice/crossing confidence = sum of confidence contributions`
+- equivalently:
+  - `uncertainty burden = (100 - confidence rate) × risk contribution`
+  - `confidence = 100 - total burden`
+
+For route examples:
+- `road_confidence` is the weighted rollup of the score-driving road-slice/crossing confidences
+- `route_confidence` is the weighted rollup of whole-route characterization confidence
+- zero-risk path-domain slices contribute **0 confidence penalty** to `road_confidence`
+- zero-risk path-domain slices may still contribute positively to `route_confidence`
+
+### 18.1 Field-level example — posted speed vs baseline speed
+
+Two otherwise identical risk-driving road slices each give speed an **80%** risk contribution.
+
+#### Slice A
+- chosenSpeed = **45 mph**
+- source = **authoritative_posted**
+- confidence_pct = **100%**
+- risk_contribution = **80**
+
+Effective speed confidence contribution:
+
+- `1.00 × 80 = 80.0`
+
+#### Slice B
+- chosenSpeed = **45 mph**
+- source = **highway_baseline**
+- plausible class range = **35–55 mph**
+- risk_contribution = **80**
+
+Severity values from the launch score model:
+- `σ(35) = 3.6`
+- `σ(45) = 8.5`
+- `σ(55) = 16.3`
+
+Compute the risk-impact spread around the chosen speed:
+
+- lower-side deviation = `8.5 - 3.6 = 4.9`
+- upper-side deviation = `16.3 - 8.5 = 7.8`
+- total severity span across the class = `16.3 - 3.6 = 12.7`
+
+Normalized uncertainty ratio:
+
+- `max(4.9, 7.8) / 12.7 = 7.8 / 12.7 = 0.614`
+
+Launch-calculated baseline confidence for this example:
+
+- `1 - 0.614 = 0.386`
+- rounded launch `confidence_pct = 40%`
+
+Confidence contribution:
+
+- `0.40 × 80 = 32.0`
+
+#### Interpretation
+
+Both slices use the same chosen speed value, but the baseline-derived slice gets far less confidence credit because the chosen value is much less trustworthy in risk terms.
+
+The difference is:
+
+- `80.0 - 32.0 = 48.0 confidence points`
+
+That is the intended behavior.
+
+### 18.2 Field-level example — official traffic vs weak fallback traffic
+
+Two otherwise identical road slices each give traffic a **20%** risk contribution.
+
+#### Slice A
+- chosenTraffic = **official_per_lane**
+- confidence_pct = **100%**
+- risk_contribution = **20**
+
+Effective traffic confidence contribution:
+
+- `1.00 × 20 = 20.0`
+
+#### Slice B
+- chosenTraffic = **class_proxy**
+- plausible class-proxy range for this example = **3,000–8,640 AADT/lane**
+- chosenTraffic = **6,000 AADT/lane**
+- risk_contribution = **20**
+
+TrafficFactor values from the stronger three-zone launch shape:
+- `TF(3,000) = 1.2`
+- `TF(6,000) = 2.0`
+- `TF(8,640) = 3.0`
+
+Compute the risk-impact spread around the chosen traffic value:
+
+- lower-side deviation = `2.0 - 1.2 = 0.8`
+- upper-side deviation = `3.0 - 2.0 = 1.0`
+- total TrafficFactor span across the class = `3.0 - 1.2 = 1.8`
+
+Normalized uncertainty ratio:
+
+- `max(0.8, 1.0) / 1.8 = 1.0 / 1.8 = 0.556`
+
+Launch-calculated baseline confidence for this example:
+
+- `1 - 0.556 = 0.444`
+- rounded launch `confidence_pct = 45%`
+
+Confidence contribution:
+
+- `0.45 × 20 = 9.0`
+
+#### True terminal-unknown traffic case
+- chosenTraffic = **unknown**
+- confidence_pct = **10%**
+- risk_contribution = **20**
+
+Effective traffic confidence contribution:
+
+- `0.10 × 20 = 2.0`
+
+#### Interpretation
+
+Traffic is a dominant likelihood variable. Official traffic truth should therefore contribute much more confidence than weak fallback traffic, and terminal traffic unknown should contribute very little.
+
+### 18.3 Slice-level example — low-impact bike-lane uncertainty
+
+A 125-mile route contains:
+
+- **120 miles** of path-domain slices
+- **5 miles** of road-domain slices
+
+Assume bike-lane uncertainty is only relevant on those 5 road miles and that, at the route level, bike-lane uncertainty could affect only **4%** of total route risk.
+
+Let bike-lane confidence on those 5 miles be **0** for this example.
+
+Then:
+
+- confidence contribution from bike-lane = `0.00 × 4 = 0.0`
+- uncertainty contribution from bike-lane = `(1.00 - 0.00) × 4 = 4.0`
+
+So the route still lands at:
+
+- route confidence = `(96 / 100) × 100 = 96% confidence`
+- band = **very high**
+
+#### Interpretation
+
+This is the intended launch behavior.
+
+Bike-lane uncertainty on a small score-relevant fraction of the route may reduce confidence slightly, but it may not poison the whole route.
+
+### 18.4 Slice-level example — baseline speed on a score-driving road slice
+
+A high-speed road-domain slice has the following launch risk contributions:
+
+- speed = **80%**
+- traffic = **15%**
+- facility = **3%**
+- shoulder = **2%**
+
+Chosen input confidence rates:
+
+- chosenSpeed = **45 mph from highway_baseline** → **45**
+- chosenTraffic = **official_per_lane** → **100**
+- chosenFacility = **osm_posted / known** → **95**
+- chosenShoulder = **observed** → **90**
+
+Compute each confidence contribution:
+
+- speed: `45 × 0.80 = 36.00`
+- traffic: `100 × 0.15 = 15.00`
+- facility: `95 × 0.03 = 2.85`
+- shoulder: `90 × 0.02 = 1.80`
+
+Slice confidence:
+
+- `36.00 + 15.00 + 2.85 + 1.80 = 55.65`
+
+Band:
+
+- **medium**
+
+#### Interpretation
+
+This slice is not low-confidence because every field is bad.
+It is medium-confidence because a dominant variable — speed — is only baseline-derived in a score-driving context.
+
+That is the intended behavior.
+
+### 18.5 Slice-level example — shoulder non-stacking
+
+A road-domain slice has:
+
+- painted bike lane present
+- shoulder also present
+- score uses the bike lane as the operative facility signal
+
+Assume facility carries **12%** of this slice’s score impact and shoulder would otherwise have carried **8%** if it were operative.
+
+Chosen input confidence rates:
+
+- facility confidence = **95**
+- shoulder confidence = **unknown**, but shoulder is non-operative
+
+Then:
+
+- facility confidence contribution = `95 × 0.12 = 11.40`
+- shoulder confidence contribution = `0 × 0.00 = 0.00`
+
+#### Interpretation
+
+Under the launch anti-double-counting rule:
+
+- shoulder contributes **no additional score effect**
+- shoulder contributes **no additional confidence burden**
+- the bike lane carries the operating-space role for both score and confidence
+
+### 18.6 Crossing example — strong crossed-road truth, weak control truth
+
+A crossing event uses these launch risk contributions:
+
+- crossed-road speed risk contribution = **45**
+- crossed-road traffic risk contribution = **35**
+- width risk contribution = **10**
+- control risk contribution = **5**
+- movement risk contribution = **5**
+
+Chosen input confidence rates:
+
+- crossed-road speed = **authoritative_posted** → **100**
+- crossed-road traffic = **official_per_lane** → **100**
+- width = **osm_inferred** → **85**
+- control = **unknown** → **10**
+- movement = **authoritative_inferred** → **90**
+
+Compute each confidence contribution:
+
+- crossed-road speed: `1.00 × 45 = 45.00`
+- crossed-road traffic: `1.00 × 35 = 35.00`
+- width: `0.85 × 10 = 8.50`
+- control: `0.10 × 5 = 0.50`
+- movement: `0.90 × 5 = 4.50`
+
+Total crossing risk contribution:
+
+- `45 + 35 + 10 + 5 + 5 = 100`
+
+Crossing confidence:
+
+- `(45.00 + 35.00 + 8.50 + 0.50 + 4.50) / 100 = 0.935`
+- `crossing_confidence_pct = 93.50%`
+
+Band:
+
+- **very high**
+
+#### Interpretation
+
+Unknown control does reduce confidence, but it does not overwhelm the crossing because the dominant crossing variables — crossed-road speed and crossed-road traffic — are very strong.
+
+That is the intended launch behavior.
+
+### 18.7 Route-level example — Rockmart-style route
+
+A route contains:
+
+- ~120 path-domain miles with zero local risk
+- 5 road-domain score-driving slice groups
+- observed/posted speed truth on all risk-driving road miles
+- mixed or weaker facility certainty
+
+Assume the 5 score-driving road groups carry the following route-risk shares and slice confidences:
+
+| Slice group | Route-risk share | Slice confidence |
+|---|---:|---:|
+| 1 | 53% | 94 |
+| 2 | 41% | 92 |
+| 3 | 2% | 78 |
+| 4 | 2% | 76 |
+| 5 | 2% | 80 |
+
+All path-domain zero-risk miles contribute **zero confidence penalty** to `road_confidence`.
+
+Road confidence:
+
+- `(0.53 × 94) + (0.41 × 92) + (0.02 × 78) + (0.02 × 76) + (0.02 × 80)`
+- `= 49.82 + 37.72 + 1.56 + 1.52 + 1.60`
+- `= 92.22%`
+
+Band:
+
+- **very high**
+
+#### Interpretation
+
+This is one of the core launch expectations of the confidence model.
+
+A route should not be dragged to low confidence just because many path-domain miles contain low-impact unknowns if the actual risk-driving road miles are strongly supported.
+
+Route confidence may legitimately land even higher if the route is overwhelmingly confidently identified as benign path-domain mileage.
+
+### 18.8 Route-level example — genuinely low-confidence route
+
+A route contains:
+
+- many score-driving road-domain miles
+- speed mostly from highway_baseline
+- traffic mostly from weak fallback classes
+- several major crossings with inferred or unknown control
+- little official or posted truth on the dominant variables
+
+Assume route-risk shares and local confidences simplify to:
+
+| Component | Route-risk share | Local confidence |
+|---|---:|---:|
+| continuous road slices | 80% | 25 |
+| major crossings | 20% | 20 |
+
+Route confidence:
+
+- `(0.80 × 25) + (0.20 × 20)`
+- `= 20 + 4`
+- `= 24%`
+
+Band:
+
+- **low**
+
+#### Interpretation
+
+This route is low-confidence for the right reason:
+
+the uncertainty sits directly on the variables that materially drive the route’s score.
+
+### 18.9 Design lesson from the examples
+
+These examples all point to the same design rule:
+
+> Confidence does not care how many fields are ugly.  
+> Confidence cares how uncertain the risk-driving truths are.
+
+That is why:
+
+- zero-risk path slices contribute zero confidence penalty
+- observed/posted speed on risk-driving miles pulls confidence up strongly
+- bike-lane uncertainty matters only when bike-lane truth materially affects the score
+- crossing confidence mirrors crossing score structure
+- road confidence is built from weighted uncertainty contribution, not flat counts
+- route confidence separately reflects whole-route characterization
+
+
+## 18. Non-goals
+
+This spec does not yet define:
+
+- final user-facing confidence UI for all app surfaces
+- confidence for non-safety index families
+- crowd report confidence
+- ML-generated uncertainty
+- hazard confidence beyond the canonical safety inputs
+- comparative-context confidence
+
+---
+
+## 19. Design rules
+
+1. **Confidence must use the same canonical variable graph as score.**
+2. **Confidence must be risk-aware.**
+3. **Zero-risk slices contribute zero confidence penalty.**
+4. **Inferred is not the same as unknown.**
+5. **Direct posted truth for dominant variables should pull confidence upward strongly.**
+6. **Flat field counting is forbidden.**
+7. **Confidence trace is required.**
+8. **Reporting must explain not just what the model thinks, but how well it knows it.**
+
+---
+
+## 20. Launch philosophy
+
+Confidence should be strict enough to mean something, but not so harsh that almost every route becomes mediocre by definition.
+
+If:
+- score-driving speed truth is strong
+- traffic truth is strong enough
+- and the remaining uncertainty is mostly secondary
+
+then high route confidence should be achievable.
+
+That is a requirement, not a nice-to-have.
+
+---
+
+## 21. Final rule
+
+> **Confidence is not a sidecar. It is the trust model for the same canonical route truths that produce the score.**
+
 
 ---
 
