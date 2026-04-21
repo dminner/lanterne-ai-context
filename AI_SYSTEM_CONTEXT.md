@@ -803,12 +803,12 @@ Before matching begins, two preparatory scans run:
 | Hazard | Severity | Detection |
 |--------|----------|-----------|
 | Railroad crossing | 2–3 | `railway=level_crossing` |
-| Metal grate bridge | 3 | `bridge + surface=grate/grid/metal_grid` |
-| Metal plate bridge | 2 | `bridge + surface=metal/steel` |
+| Metal grate bridge | 3 | `bridge ∈ {yes, movable} + surface=grate/grid/metal_grid` |
+| Metal plate bridge | 2 | `bridge ∈ {yes, movable} + surface=metal/steel` |
 | Cattle guard | 2 | `barrier=cattle_grid` |
 | Single-lane underpass | 2 | `tunnel=yes + lanes=1 or maxwidth<4` |
-| Covered bridge | 1 | `covered=yes or bridge:structure=covered` |
-| No-shoulder bridge | 2 | `bridge + no cycling infra + narrow` |
+| Covered bridge | 1 | `bridge ∈ {yes, movable} + (covered=yes or bridge:structure=covered)` |
+| No-shoulder bridge | 2 | `bridge ∈ {yes, movable} + no cycling infra + narrow` |
 
 ### Step 11 — Segment Scoring - OUT OF DATE - SEE v4 UPDATE DOC
 
@@ -2243,10 +2243,10 @@ Tags from `src/lib/hazards.ts` and Overpass queries:
 **Detection tags**: `railway` (level_crossing, crossing, rail, light_rail, narrow_gauge), `barrier` (cattle_grid), `bridge`, `tunnel`, `surface`, `covered`, `bridge:structure`, `material`, `lanes`, `width`, `maxwidth`, `maxspeed`, `highway` (traffic_signals, stop), `cycleway`, `cycleway:left`, `cycleway:right`, `shoulder`, `bicycle`, `man_made` (bridge)
 
 Hazard-specific multi-tag logic:
-- Metal grate bridge: bridge=yes + surface ∈ {grate, grid, metal_grid, steel_grid, ...}
-- Metal plate bridge: bridge=yes + surface ∈ {metal, steel, metal_plate, steel_plate}
-- No-shoulder bridge: bridge=yes + NO (cycleway|shoulder|bicycle=designated) + narrow (lanes=1|width<6|maxwidth<3)
-- Covered bridge: bridge=yes + (covered=yes | bridge:structure=covered)
+- Metal grate bridge: bridge ∈ {yes, movable} + surface ∈ {grate, grid, metal_grid, steel_grid, ...}
+- Metal plate bridge: bridge ∈ {yes, movable} + surface ∈ {metal, steel, metal_plate, steel_plate}
+- No-shoulder bridge: bridge ∈ {yes, movable} + NO (cycleway|shoulder|bicycle=designated) + narrow (lanes=1|width<6|maxwidth<3)
+- Covered bridge: bridge ∈ {yes, movable} + (covered=yes | bridge:structure=covered)
 - Single-lane underpass: tunnel=yes + (lanes=1 | maxwidth<4)
 - Bridge outline inheritance: man_made=bridge ways → surface/material tag → inherits to overlapping road ways
 
@@ -2271,6 +2271,7 @@ Estimated size: ~800-1000 lines of markdown.
 
 mkdir -p ~/lanterne/docs/02-architecture/nuremberg-osm-api
 mv ~/Downloads/nuremberg-lanterne-osm-api-server.js ~/lanterne/docs/02-architecture/nuremberg-osm-api/server.js
+
 
 ---
 
@@ -3415,6 +3416,9 @@ Safety Score must remain:
 | DS-016 | Predicted vs Observed Conditions Schema | ADR-023 | **Reserved — not yet written** |
 | DS-017 | Field Note Schema and Confirmation Model | ADR-004, ADR-028 | **Reserved — not yet written** |
 | DS-018 | Viewport Overlay Hydration and Client Budget | ADR-027, ADR-029, ADR-030 | Draft |
+| DS-022 | Speed Prior and Area-Baseline Policy | ADR-042, DS-017 | Draft |
+| DS-023 | Government Feed Ingestion and Triage | ADR-042, DS-013, DS-017 | Draft |
+| DS-024 | Parallel Bike Facility Capture and Corridor Ownership | ADR-019, ADR-020, ADR-026, DS-008, DS-017 | Draft |
 
 ---
 
@@ -14754,6 +14758,7 @@ Notes:
 
 - stronger than generic baseline
 - adapts to geography
+- detailed admission and limiter rules for speed priors live in [DS-022](./ds-022-speed_prior_and_area_baseline_policy_spec.md)
 
 ------
 
@@ -14778,6 +14783,7 @@ Notes:
 
 - better than pure highway baseline
 - still a fallback
+- detailed admission and limiter rules for speed priors live in [DS-022](./ds-022-speed_prior_and_area_baseline_policy_spec.md)
 
 ------
 
@@ -15476,6 +15482,7 @@ The system should behave like a rider who knows how roads actually work:
 ------
 
 #### END
+
 
 ---
 
@@ -17405,532 +17412,1759 @@ That is a requirement, not a nice-to-have.
 # DS-021 — Profile-Based Routing and Alternate Route Policy Spec
 
 **Status:** Accepted  
-**Date:** 2026-04-17  
-**Filename:** `ds-021-profile_based_routing_and_alternate_route_policy_spec.md`  
-**ADR parent:** [ADR-044](../../03-adrs/adr-044-profile_based_routing_and_alternate_route_policies.md)  
-**Related:** ADR-001, ADR-002, ADR-005, ADR-032, DS-014, DS-020, [EXEC-013](../../04-execution/exec-013-profile_based_routing_implementation_plan.md), [ASS-010](../../assessments/ass-010-phase0_routing_audit.md)
+**Date:** 2026-04-18  
+**Related:** [ADR-044](../../../docs/03-adrs/adr-044-profile_based_routing_and_alternate_route_policies.md), [EXEC-013](../../../docs/04-execution/exec-013-profile_based_routing_implementation_plan.md), [ASS-010](../../../docs/assessments/ass-010-phase0_routing_audit.md)
 
 ---
 
 ## 1. Purpose
 
-This spec defines the implementation shape for Lanterne’s profile-based alternate routing system.
+This spec defines the Lanterne-owned contract for profile-based routing without prescribing a self-developed routing engine.
 
-It covers:
+Lanterne owns:
 
-- routing profile definitions
-- shared normalized edge attributes
-- cost-policy architecture
-- alternate comparison and suppression
-- search budgets and stop rules
-- Route To integration
-- Draw leg-recompute integration
-- heavy-compute behavior
-- legacy routing audit requirements
+- visible route-profile semantics
+- edge-cost policy semantics
+- alternate comparison and suppression rules
+- rider-facing result contract
 
-It does not:
+Lanterne does **not** need to own:
 
-- redefine Safety Score semantics
-- introduce arbitrary rider preference sliders
-- require routing policy ownership inside `RouteMap.tsx`
+- the low-level routing engine implementation
+- preprocessing artifacts
+- shortest-path internals
+
+The preferred implementation direction is an external routing engine integration, with GraphHopper as the leading candidate.
 
 ---
 
-## 2. Scope
+## 2. Core rule
 
-This spec governs the first launchable version of:
+There may be only **one routing-engine integration contract** for rider-facing route generation.
 
-- `Route To` route alternatives
-- draw-leg recompute using the same policy engine
+That contract must serve:
 
-### In scope
+- `Route To`
+- draw-leg recompute
+- future detour replacement workflows
 
-- Direct baseline route
-- Safer alternate
-- Lower Traffic alternate
-- Bike Support alternate
-- search-budgeting and no-result behavior
-- delta reporting vs Direct
-- old-routing-code audit and cleanup guidance
-
-### Out of scope
-
-- public marketing copy
-- deep visual design
-- full event-aware brevet optimizer
-- arbitrary rider-defined weighting systems
-- point/span infrastructure authoring
-- canonical score-model changes
+Visible route differences come from policy and comparison logic, not from multiple unrelated routing stacks.
 
 ---
 
-## 3. Public routing profiles
+## 3. Launch-visible profiles
 
-### 3.1 Canonical visible profile set
+Launch rider-facing profiles remain:
 
-```ts
-export type RoutingProfile =
-  | 'direct'
-  | 'safer'
-  | 'lower_traffic'
-  | 'bike_support';
-```
+- **Direct**
+- **Safer**
+- **Lower Traffic**
+- **Bike Support**
 
-### 3.2 Internal optional profile set
-
-The implementation may include internal-only helpers such as `balanced` if that simplifies orchestration.
-
-`balanced` is **not** a visible launch option.
-
-### 3.3 Route To contract
-
-- compute `direct` first
-- compare alternates against `direct`
-- suppress trivial or weakly differentiated routes
-- show only meaningful alternatives
+`Balanced` may exist internally for orchestration or experimentation, but it is not a visible launch option.
 
 ---
 
-## 4. Architectural boundaries
+## 4. Integration boundary
 
-### 4.1 Required module ownership
+Whatever routing engine sits underneath must expose enough stable edge/path attributes for Lanterne to apply:
 
-Routing-policy logic must live outside `RouteMap.tsx`.
-
-Recommended ownership:
-
-```text
-src/lib/routing-policies/
-  types.ts
-  config.ts
-  costs.ts
-  comparison.ts
-  budgets.ts
-  messages.ts
-  index.ts
-
-src/lib/routing-engine/
-  route-search.ts
-  alternative-generation.ts
-  profile-route-service.ts
-  route-size-buckets.ts
-  legacy-audit.ts
-
-src/lib/routing-graph/
-  edge-normalization.ts
-  graph-adapter.ts
-  graph-attributes.ts
-
-src/lib/routing-analysis/
-  route-delta.ts
-  overlap.ts
-  suppression.ts
-
-src/hooks/
-  useProfiledRouteTo.ts
-  useProfiledLegRecompute.ts
-
-src/components/routing/
-  RouteProfileChips.tsx
-  AlternateRouteDelta.tsx
-  AlternateRouteBusyNotice.tsx
-  AlternateRouteStatus.tsx
-```
-
-Equivalent clean homes may be used if the repo already has stronger ownership boundaries.
-
-### 4.2 Prohibited ownership
-
-Do not place the following into `RouteMap.tsx` except minimal plumbing:
-
-- profile formulas
-- profile labels
+- profile semantics
+- comparison rules
 - suppression rules
-- search budgets
-- no-result logic
-- heavy-compute thresholds
+- “no meaningful alternate” logic
 
-### 4.3 Shared-engine rule
+The integration boundary should normalize concepts such as:
 
-Draw leg recompute is not a second routing architecture.
+- distance
+- estimated travel time
+- speed burden
+- traffic burden
+- bike-support burden
+- shoulder burden
+- hazard burden
+- turn / crossing / intersection burden
 
-Route To and Draw leg recompute must use one shared policy engine and one shared graph/edge worldview.
-
----
-
-## 5. Normalized edge attribute contract
-
-The routing engine operates on a compact normalized edge shape derived from existing route truth / scoring primitives where possible.
-
-### 5.1 Canonical launch shape
-
-```ts
-export type RoutingEdgeInput = {
-  edgeId: string;
-  distanceMeters: number;
-  estimatedSeconds: number;
-
-  speedBurden: number;
-  trafficBurden: number;
-  bikeSupportBurden: number;
-  shoulderBurden: number;
-  hazardBurden: number;
-  turnBurden: number;
-  intersectionBurden: number;
-
-  confidencePct?: number;
-  provenanceClass?: string;
-  roadClass?: string;
-  hasDedicatedBikeFacility?: boolean;
-  isPathLike?: boolean;
-};
-```
-
-### 5.2 Design rules
-
-- use normalized burdens/credits where possible
-- derive from existing truth inputs instead of inventing a second fact universe
-- do not reuse presentation-only speed paint as route-policy truth
-- do not treat missing bike-support evidence as equivalent to positive bike-support truth
+The boundary must be stable enough that Lanterne can swap routing engines without rewriting product semantics.
 
 ---
 
-## 6. Shared cost-policy contract
+## 5. Non-goals
 
-### 6.1 Required cost function signature
+This spec does not approve:
 
-```ts
-computeEdgeCost(edge: RoutingEdgeInput, profile: RoutingProfile): number
-```
-
-### 6.2 Launch composition rule
-
-Launch cost should use explicit readable weighted-sum logic.
-
-Conceptual form:
-
-```ts
-cost =
-  w.time * estimatedSeconds +
-  w.speed * speedBurden +
-  w.traffic * trafficBurden +
-  w.bikeSupport * bikeSupportBurden +
-  w.shoulder * shoulderBurden +
-  w.hazard * hazardBurden +
-  w.turns * (turnBurden + intersectionBurden);
-```
-
-### 6.3 Profile intent
-
-#### `direct`
-
-- shortest / fastest reasonable contract
-- very low alternate penalties
-- primarily travel-oriented
-
-#### `safer`
-
-- stronger penalties on absolute risk-bearing burdens
-- modest willingness to spend more time/distance to reduce route risk
-
-#### `lower_traffic`
-
-- stronger penalties on traffic burden and stressful motor-vehicle context
-- more willing to accept detours to find calmer roads
-
-#### `bike_support`
-
-- strongest penalty on weak bike-support / shoulder context where known
-- should prefer supportive cycling environments where the system has meaningful evidence
-
-### 6.4 Hard semantic rule
-
-Safety Score semantics remain unchanged.  
-Routing cost is not score semantics.
+- a custom self-hosted routing graph stack as a long-term architecture
+- separate engines for Route To vs Draw
+- rider-editable policy weights
+- giant routing-settings surfaces
+- fake alternates created to appear intelligent
 
 ---
 
-## 7. Central config requirements
+## 6. Budget and honesty rules
 
-All major weights and thresholds must be centralized.
+Alternate discovery must be bounded and honest.
 
-### 7.1 Required config categories
+The integration must support:
 
-#### A. Cost weights by profile
+- explicit search/runtime budgets
+- explicit extra-distance / extra-time tolerances
+- route-size-aware limits
+- explicit no-result / no-meaningful-alternate outcomes
 
-For each profile:
-
-- time/distance weight
-- speed weight
-- traffic weight
-- bike-support weight
-- shoulder weight
-- hazard weight
-- turn/intersection weight
-
-#### B. Distinctness thresholds
-
-- max overlap ratio before suppression
-- minimum route improvement requirement by profile
-- minimum distance/time separation for “meaningfully different”
-
-#### C. Search budgets
-
-- max expansion budget by route-size bucket
-- max compute time by route-size bucket
-- max extra distance tolerance by profile
-- max extra time tolerance by profile
-
-#### D. Heavy-compute thresholds
-
-- route-size bucket at which heavy-compute UI may show
-- payload threshold at which heavier busy notice may show
-
-### 7.2 Hard rule
-
-No profile-defining constants may be embedded in component files.
+If an alternate cannot be found within budget, the product must say so rather than pretending otherwise.
 
 ---
 
-## 8. Route-size buckets and search budgets
+## 7. Safety-score separation rule
 
-### 8.1 Required bucket family
+The headline Safety Score remains canonical route analysis output.
 
-Launch should use route-size buckets such as:
+Routing profiles influence:
 
-- `small`
-- `medium`
-- `large`
-- `extra_large`
+- route selection
+- alternate comparison
 
-These may be determined by distance, graph size, expected candidate volume, or an equivalent bounded heuristic.
+Routing profiles do **not** redefine:
 
-### 8.2 Required per-bucket outputs
-
-For each bucket define:
-
-- `maxProfileComputeMs`
-- `maxTotalRequestComputeMs`
-- `maxExpansionBudget`
-- `maxExtraDistanceMeters`
-- `maxExtraTimeSeconds`
-- `showHeavyComputeHint`
-
-### 8.3 Design rule
-
-A 3-mile route and an 80-mile route may not receive identical search budgets.
+- score semantics
+- score curve meaning
+- route-analysis truth
 
 ---
 
-## 9. Search-horizon separation rule
+## 8. Implementation guidance
 
-### 9.1 Display corridor
+The implementation should prefer:
 
-The display corridor may remain optimized for:
+- external engine integration
+- one adapter layer
+- one policy/comparison layer
+- one rider-facing contract
 
-- map responsiveness
-- heatmap rendering
-- bounded overlay cost
+GraphHopper is the preferred future direction, but this spec is written so the policy layer stays valid even if the underlying engine changes.
 
-### 9.2 Routing search horizon
-
-Alternate-route discovery requires a distinct search-horizon policy.
-
-This policy may:
-
-- widen beyond display-only corridor limits
-- use bounded expansion budgets
-- remain route-size-aware
-- remain payload-aware
-
-### 9.3 Hard rule
-
-Do not silently reuse display/heatmap corridor limits if they suppress alternate discovery.
 
 ---
 
-## 10. Alternative route comparison contract
+## Source File: docs/02-architecture/design/ds-022-speed_prior_and_area_baseline_policy_spec.md
 
-Each alternate must be compared against `direct`.
+# DS-022 — Speed Prior and Area-Baseline Policy Specification
 
-### 10.1 Required comparison outputs
+**Status:** Draft for review  
+**Date:** 2026-04-19  
+**Related:** [ADR-042](../../../docs/03-adrs/adr-042-evidence_resolution_and_truth_propagation_model.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-020](./ds-020-confidence_model_and_tracing.md), [ASS-011](../../assessments/ass-011-speed_truth_feed_audit_2026_04_19.md)
 
-```ts
-export type RouteComparisonSummary = {
-  profile: RoutingProfile;
-  overlapRatio: number;
-  distanceDeltaMeters: number;
-  timeDeltaSeconds: number;
-  riskDeltaPct?: number;
-  profileImprovementMetric?: number;
-  isMeaningfullyDistinct: boolean;
-  suppressionReason?: RouteSuppressionReason;
-};
-```
+---
 
-### 10.2 Required suppression reasons
+## 1. Purpose
+
+This spec defines the policy contract for the two lowest non-generic speed evidence layers:
+
+1. `regional_prior`
+2. `highway_area_baseline`
+
+It exists to prevent the speed system from collapsing into blunt class defaults such as:
+
+- `trunk => ~55`
+- `primary => ~45`
+- `secondary => ~40`
+
+without enough local or contextual evidence.
+
+This document is intentionally prescriptive. It is meant to reduce implementation drift and prevent ad hoc “reasonable guesses” from becoming rider-facing truth.
+
+---
+
+## 2. Core rule
+
+`regional_prior` and `highway_area_baseline` are **guarded fallback layers**, not truth shortcuts.
+
+They may influence speed only when all stronger sources are absent:
+
+1. `observed`
+2. `authoritative_posted`
+3. `osm_posted`
+4. `observation_inferred`
+5. `authoritative_inferred`
+6. `osm_inferred`
+
+They must not override:
+
+- posted speed
+- same-road propagated truth
+- nearby same-corridor propagated truth
+- authoritative segment-level government speed
+
+### No-freelance rule
+
+Implementations must not invent additional prior logic outside this document.
+
+If a caller wants to use a prior dimension not specified here, it must be added to this DS first.
+
+---
+
+## 3. Non-goals
+
+This spec does not:
+
+- define posted-speed parsing
+- define same-road propagation mechanics
+- define confidence scoring math
+- approve rider-facing use of raw statutory maximums as if they were posted truth
+- treat research workbook rows as automatically production-safe
+
+---
+
+## 4. Definitions
+
+### 4.1 `regional_prior`
+
+A state- and context-sensitive prior derived from official/default rules or validated regional datasets.
+
+It is stronger than a generic area baseline because it reflects real jurisdictional behavior.
+
+Example:
+
+- “New Jersey suburban business/residence district local street defaults are typically around 25–35 mph”
+
+### 4.2 `highway_area_baseline`
+
+A structured but more generic fallback derived from:
+
+- road context
+- area context
+- facility form
+
+It is weaker than `regional_prior`, but stronger than pure highway class.
+
+Example:
+
+- “rural divided non-interstate arterial roads are generally faster than urban undivided arterials”
+
+### 4.3 `highway_baseline`
+
+The last-resort generic class fallback.
+
+Example:
+
+- `trunk => generic class prior`
+
+This layer must remain the weakest available non-null speed input.
+
+---
+
+## 5. Required decision dimensions
+
+The following dimensions are allowed to influence prior selection.
+
+No other dimensions may change prior selection unless this spec is updated.
+
+### 5.1 State / jurisdiction
+
+Required for `regional_prior`.
+
+State must be carried whenever available from:
+
+- route geography
+- cue geography
+- segment state lookup
+- future authoritative feed coverage
+
+If state is unknown:
+
+- `regional_prior` must not be used
+- evaluation falls through to `highway_area_baseline`
+
+### 5.2 Urbanicity
+
+Allowed values:
+
+- `urban`
+- `suburban`
+- `urban_suburban`
+- `rural`
+- `unknown`
+
+Urbanicity is a **hard limiter** for prior selection.
+
+#### Rule
+
+Urban/suburban contexts must not inherit rural statutory highs by default.
+
+Specifically:
+
+- a rural `primary` or `secondary` prior must not be reused for an urban/suburban segment
+- a rural `trunk`/expressway prior must not be reused for a suburban retail corridor
+- a statewide maximum must not be treated as an urban/suburban prior unless the source explicitly says so
+
+If urbanicity is unknown:
+
+- do not upgrade to a rural prior
+- prefer a lower-confidence baseline instead
+
+### 5.3 Municipality context
+
+Allowed values:
+
+- `inside_municipality`
+- `outside_municipality`
+- `unknown`
+
+Municipality status is a first-class limiter because many states structure defaults around:
+
+- inside municipality
+- outside municipality
+
+rather than pure land-use-style urbanicity.
+
+#### Rule
+
+If a source is municipality-based and municipality status is unknown:
+
+- the row must not be treated as `regional_prior`
+- it may only survive as `highway_area_baseline` if it is otherwise strongly limited and non-risky
+
+### 5.4 District context
+
+Allowed values:
+
+- `business_district`
+- `residence_district`
+- `school_context`
+- `open_highway`
+- `general`
+- `unknown`
+
+District context outranks generic urbanicity where the source explicitly uses district language.
+
+#### Rule
+
+If a statute explicitly defines:
+
+- `business district`
+- `residence district`
+
+those contexts must be preserved as their own prior selectors and must not be flattened into generic “urban”.
+
+### 5.5 Access control
+
+Allowed values:
+
+- `full_control`
+- `partial_control`
+- `none`
+- `unknown`
+
+This dimension is mandatory for higher-order roads.
+
+#### Rule
+
+Higher-order suburban roads must not inherit freeway-like priors unless access control supports it.
 
 Examples:
 
-- `too_similar`
-- `insufficient_risk_gain`
-- `insufficient_traffic_gain`
-- `insufficient_bike_support_gain`
-- `too_costly_for_gain`
-- `budget_exhausted_before_meaningful_candidate`
+- `trunk` with `full_control` may justify much higher priors
+- `trunk` with `none` in a retail corridor must not inherit freeway-style speeds
 
-### 10.3 Hard rule
+### 5.6 Dividedness
 
-The app may not present a fake alternate merely because a technically different polyline exists.
+Allowed values:
 
----
+- `divided`
+- `undivided`
+- `unknown`
 
-## 11. No-result contract
+Dividedness may influence prior selection, but only after urbanicity / municipality / access control filters pass.
 
-The system must support structured no-result handling.
+It must not by itself justify high-speed rider-facing assumptions.
 
-Examples:
+### 5.7 Facility class / mapping confidence
 
-- no viable alternate found within current budget
-- alternate was too similar to Direct
-- alternate was too costly for the gain
-- route size exceeded current compute allowance
+Allowed operational groupings:
 
-No-result behavior must be:
+- `local`
+- `collector / tertiary-like`
+- `secondary arterial`
+- `primary arterial`
+- `expressway / trunk-like`
+- `freeway / motorway-like`
 
-- bounded
-- profile-aware
-- honest
-- reusable across Route To and Draw leg recompute
+These mappings must be provenance-preserving and carry a confidence level.
 
----
-
-## 12. Draw leg recompute contract
-
-### 12.1 Scope rule
-
-Draw mode uses the same routing engine, but its working scope is one selected leg between anchors.
-
-### 12.2 Rules
-
-- recompute only the selected leg
-- preserve the rest of the route
-- preserve current detour/history semantics unless intentionally changed
-- use the same cost-policy and comparison modules as Route To
-
-### 12.3 Hard rule
-
-Draw leg recompute is not a second routing architecture.
+Low-confidence mappings must not feed production priors.
 
 ---
 
-## 13. Heavy-compute behavior
+## 6. Prescriptive policy by layer
 
-Heavy-compute notices are allowed only when justified by route size or search budget.
+## 6.1 `regional_prior`
+
+### Allowed use
+
+`regional_prior` is allowed only when:
+
+1. state is known
+2. source provenance is strong enough for operational use
+3. context is sufficiently specific
+4. the row does not behave like a broad statutory ceiling
+
+### Typical valid uses
+
+- business/residence district local defaults
+- municipal/local street defaults
+- clearly scoped suburban or urban local-street defaults
+- clearly scoped state-specific rural local-road defaults when the mapping is narrow and operationally trustworthy
+
+### Invalid uses
+
+Do not use `regional_prior` for:
+
+- broad statewide “other roads” or “general highway” rules
+- urban/suburban higher-order roads where the source context is too broad
+- mixed-class rows like `motorway; trunk` unless explicitly approved
+- low-confidence functional-class mapping
+- rows marked “review before operational use”
+
+### Urban/suburban rule
+
+Urban/suburban `regional_prior` should generally remain limited to:
+
+- `residential`
+- `unclassified`
+- `living_street`
+- very carefully approved municipal collector contexts
+
+It should **not** be the default path for:
+
+- `tertiary`
+- `secondary`
+- `primary`
+- `trunk`
+
+in urban/suburban areas unless explicit jurisdictional evidence is narrow and strong.
+
+## 6.2 `highway_area_baseline`
+
+### Allowed use
+
+`highway_area_baseline` is allowed when:
+
+1. stronger truth is absent
+2. state-specific prior is unavailable, too broad, or not trustworthy enough
+3. enough form/context is known to outperform pure highway class
+
+### Typical valid uses
+
+- rural two-lane state/US-numbered roads
+- rural county-road defaults
+- rural divided non-interstate multilane roads
+- freeway/motorway defaults where the source is clearly freeway-specific
+
+### Invalid uses
+
+Do not use `highway_area_baseline` for:
+
+- broad urban/suburban higher-order rows with unclear facility form
+- rows whose main support is a statewide statutory maximum
+- mixed mappings with low confidence
+- contexts that require municipality or district data we do not have
+
+---
+
+## 7. Higher-order road guardrails
+
+This section is the main protection against overstatement.
+
+## 7.1 `trunk` / expressway-like roads
+
+`trunk` must not imply “about 55” by default.
+
+Before a `trunk` prior is allowed to influence speed, the system must check:
+
+1. urbanicity
+2. municipality status
+3. access control
+4. dividedness
+5. corridor context if available
+
+### Allowed high-speed prior cases
+
+High-speed `trunk` priors are only acceptable when most of the following are true:
+
+- rural or outside municipality
+- access controlled or freeway-like
+- divided multilane facility
+- state/corridor support exists
+- source mapping confidence is high
+
+### Disallowed high-speed prior cases
+
+Do not allow rural/high-speed `trunk` priors to influence:
+
+- suburban retail corridors
+- urban state routes
+- municipal arterials
+- undivided signalized trunk-like roads
+- trunk rows whose source is really just a statewide “other highways” ceiling
+
+### Rider-facing caution
+
+Even when a `trunk` prior exists, rider-facing `~speed` should still prefer:
+
+1. propagated same-road truth
+2. nearby same-corridor truth
+3. authoritative segment speed
+4. `regional_prior`
+5. `highway_area_baseline`
+6. class baseline last
+
+## 7.2 `primary` and `secondary`
+
+Urban/suburban `primary` and `secondary` roads are especially prone to overstatement if rural defaults leak in.
+
+#### Rule
+
+Rural two-lane arterial defaults may only feed:
+
+- rural `highway_area_baseline`
+
+They must not be reused for urban/suburban `primary`/`secondary` approximation unless a stronger local/state rule explicitly supports it.
+
+## 7.3 `tertiary`
+
+`tertiary` is often too heterogeneous for aggressive prioring.
+
+#### Rule
+
+When `tertiary` lacks strong local or corridor evidence:
+
+- prefer lower-confidence, lower-impact fallback
+- do not “upgrade” tertiary to arterial-like speed just because a statute has a broad default
+
+---
+
+## 8. Selection algorithm
+
+When stronger speed evidence is absent, prior resolution must follow this order:
+
+1. determine whether same-road or same-corridor propagated truth exists
+2. determine whether authoritative segment-level inferred/posting exists
+3. if state and constrained context are known, evaluate `regional_prior`
+4. if `regional_prior` is absent or blocked, evaluate `highway_area_baseline`
+5. if both fail, fall through to `highway_baseline`
+
+### 8.1 `regional_prior` admission checks
+
+A row may be used as `regional_prior` only if all pass:
+
+- `primary_official` provenance or equivalent approved source
+- production-use approval exists
+- mapping confidence is not low
+- required context dimensions for that row are known
+- row is not flagged for manual validation
+- row does not represent a broad statewide ceiling without enough form/context
+
+### 8.2 `highway_area_baseline` admission checks
+
+A row may be used as `highway_area_baseline` only if all pass:
+
+- mapping confidence is not low
+- form/context is specific enough to outperform pure class baseline
+- row is not flagged for manual validation
+- row does not depend on missing municipality/district context
+
+---
+
+## 9. Provenance requirements
+
+Every prior row used operationally must preserve:
+
+- source title
+- source URL
+- citation / section
+- jurisdiction
+- officialness
+- confidence
+- mapping confidence
+- operational recommendation
+- production-use classification
+
+The runtime system must retain enough provenance to explain:
+
+- why the row qualified
+- which gating dimensions were satisfied
+- why stronger sources were absent
+
+---
+
+## 10. Future government-feed integration
+
+This system must assume future speed feeds will arrive separately from AADT.
+
+Therefore:
+
+- prior rows must be replaceable without schema confusion
+- feed semantics must distinguish:
+  - `posted_speed`
+  - `speed_zone`
+  - `average_speed`
+  - `mixed_or_unclear`
+- segment-level authoritative feeds must supersede priors cleanly
+
+The existence of a prior must never make it harder to adopt better government data later.
+
+---
+
+## 11. Launch guidance
+
+For launch-quality behavior:
+
+- be conservative in urban/suburban higher-order contexts
+- prefer omission over overstatement
+- treat statutory highs as weak rider-facing approximations
+- use motorway/freeway priors only where facility form is explicit
+- keep `highway_baseline` as the true last resort
+
+If uncertain, the system should choose the lower-confidence, less aggressive fallback rather than displaying an overconfident high speed.
+
+---
+
+## 12. Companion implementation notes
+
+Implementation should be split across:
+
+- shared speed policy tables and helpers
+- evidence-layer admission logic
+- provenance-preserving prior datasets
+
+But the behavioral rules above are the source of truth.
+
+No implementation convenience may weaken the guardrails in this spec without an explicit DS update.
+
+---
+
+## 13. Rider-facing provenance tooltip contract
+
+The speed source label may remain short:
+
+- `OSM posted`
+- `Government posted`
+- `Regional prior`
+- `Area baseline`
+
+But rider-facing surfaces may expose one additional level of detail via hover or click.
+
+That second layer must be structured, not freeform.
+
+### 13.1 Tooltip purpose
+
+The tooltip exists to answer:
+
+1. what source layer produced this speed
+2. what real-world source or citation backed that layer
+3. why that layer applied here
+4. what caveat or limitation still matters
+
+It must increase trust without overstating certainty.
+
+### 13.2 Required fields
+
+When available, the runtime provenance payload should support:
+
+- `sourceLabel`
+  - short rider-facing label already shown inline
+- `descriptor`
+  - short secondary phrase such as:
+    - `Arizona statutory default`
+    - `HPMS posted speed`
+    - `OSM maxspeed tag`
+- `title`
+  - canonical source/family title
+- `citation`
+  - exact statute section, rule section, or feed identifier
+- `explanation`
+  - one concise sentence explaining why this layer applied
+- `caveat`
+  - one concise sentence explaining any limitation
+- `jurisdiction`
+  - state / agency / county when relevant
+- `sourceUrl`
+  - only when available
+- `referenceType`
+  - one of:
+    - `official`
+    - `aggregator`
+    - `secondary`
+
+### 13.3 Presentation rules
+
+- Do not show long prose inline on the card.
+- Do not show a citation if we do not actually have one.
+- Do not imply posted truth when the value is inferred, prior-based, or baseline-based.
+- Do not hide caveats for priors or baseline layers.
+- Do not show ambiguous verification dates in rider-facing provenance.
+- If the visible link is not an official government source, label it honestly as an aggregator or secondary reference.
+
+Public-facing provenance must not include fields such as:
+
+- `lastVerifiedDate`
+- `verified on`
+- `verified by`
+
+because those imply a legal or editorial verification claim that may not actually exist.
+
+Internal records may preserve ingestion, snapshot, or access dates separately, but those are not rider-facing provenance fields.
+
+### 13.4 Layer-specific guidance
+
+#### `authoritative_posted`
+
+Expected tooltip shape:
+
+- label: `Government posted`
+- descriptor: `HPMS posted speed` or `State DOT speed feed`
+- citation: feed or statute identifier if available
+- caveat: none or minimal
+
+#### `osm_posted`
+
+Expected tooltip shape:
+
+- label: `OSM posted`
+- descriptor: `Matched OSM maxspeed tag`
+- citation: way id may appear later, but no fake legal citation
+- caveat: `OSM tag quality depends on mapper accuracy.`
+
+#### `authoritative_inferred`
+
+Expected tooltip shape:
+
+- label: `Government inferred`
+- descriptor: `Government feed or class-derived estimate`
+- caveat: `Grounded in government data, but not a directly posted segment limit.`
+
+#### `osm_inferred`
+
+Expected tooltip shape:
+
+- label: `OSM inferred`
+- descriptor: `Derived from matched OSM road attributes`
+- caveat: `Estimated from road tags because no posted speed was available.`
+
+#### `regional_prior`
+
+Expected tooltip shape:
+
+- label: `Regional prior`
+- descriptor: `${state} statutory/default prior`
+- citation: exact statute or administrative citation when available
+- explanation: `Used because no posted, propagated, or segment-level government speed was available.`
+- caveat: `This is a contextual prior, not a posted segment speed.`
+
+#### `highway_area_baseline`
+
+Expected tooltip shape:
+
+- label: `Area baseline`
+- descriptor: `Road-form and area baseline`
+- explanation: `Used because stronger local/state prior evidence was unavailable.`
+- caveat: `This is a generic fallback, not a posted segment speed.`
+
+#### `highway_baseline`
+
+Expected tooltip shape:
+
+- label: `Class baseline`
+- descriptor: `Highway-class fallback`
+- explanation: `Used only because no stronger speed source was available.`
+- caveat: `Lowest-fidelity speed source.`
+
+### 13.5 Example
+
+Example tooltip for a statutory prior:
+
+- source label: `Regional prior`
+- descriptor: `Arizona statutory default`
+- title: `Arizona Revised Statutes`
+- citation: `§28-701(B)(2)`
+- explanation: `Used because no posted or propagated segment speed was available.`
+- caveat: `Prima facie rule; this is not the same as a posted segment limit.`
+
+This level of detail is desirable when we truly have the citation. It must not be fabricated when we do not.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-023-government_feed_ingestion_and_triage_spec.md
+
+# DS-023 — Government Feed Ingestion and Triage Specification
+
+**Status:** Draft for review  
+**Date:** 2026-04-19  
+**Related:** [ADR-042](../../../docs/03-adrs/adr-042-evidence_resolution_and_truth_propagation_model.md), [DS-013](./ds-013-comparative_traffic_context_schema_spec.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-022](./ds-022-speed_prior_and_area_baseline_policy_spec.md), [ASS-011](../../assessments/ass-011-speed_truth_feed_audit_2026_04_19.md)
+
+---
+
+## 1. Purpose
+
+This spec defines how Lanterne evaluates, ingests, and operationalizes government transportation feeds.
+
+It applies to datasets such as:
+
+- speed limits
+- speed zones
+- AADT / traffic volumes
+- lane counts
+- bike lanes / bikeways
+- shoulder attributes
+- curves / curvature warnings
+- access control
+- route-class or inventory files
+
+This is a triage and operationalization spec, not a source-by-source registry.
+
+---
+
+## 2. Core rule
+
+Government feed presence is not enough for operational use.
+
+Every candidate feed must be classified before ingestion into one of four states:
+
+1. `production_ready`
+2. `adapter_required`
+3. `inventory_only`
+4. `rejected`
+
+No feed may be allowed to affect rider-facing truth or score until it has passed this triage.
+
+---
+
+## 3. Why this exists
+
+State feeds are messy.
+
+The same state may publish separate files for:
+
+- traffic
+- posted speed
+- speed zones
+- bike lanes
+- roadway curves
+- roadway inventory
+
+Those files may differ in:
+
+- geometry availability
+- update cadence
+- keying scheme
+- semantics
+- legal authority
+- operational usefulness
+
+This spec exists so feed ingestion is deliberate instead of opportunistic.
+
+---
+
+## 4. Feed families
+
+The system should classify each feed into one or more of these families:
+
+### 4.1 Segment-truth families
+
+- `posted_speed`
+- `speed_zone`
+- `aadt`
+- `lane_count`
+- `shoulder`
+- `bike_facility`
+- `access_control`
+
+These may directly influence canonical route truth once normalized.
+
+### 4.2 Structural / context families
+
+- `curve_inventory`
+- `functional_class`
+- `road_inventory`
+- `route_log`
+- `municipal_boundary_reference`
+
+These usually do not act as direct rider-facing truth by themselves, but may improve:
+
+- contextual priors
+- hazard inference
+- corridor matching
+- routing cost models
+
+### 4.3 Reference-only families
+
+- legal speed-order PDFs
+- statute digests
+- tabular summaries without geometry or stable join keys
+
+These may be useful for provenance or research but are not operational truth feeds by default.
+
+---
+
+## 5. Triage dimensions
+
+Every feed must be scored across the following dimensions.
+
+### 5.1 Source authority
+
+Allowed values:
+
+- `primary_official`
+- `official_but_interpreted`
+- `secondary_only`
+
+Only `primary_official` feeds may become `production_ready`.
+
+### 5.2 Data semantics
+
+The feed must clearly declare what it contains.
+
+Allowed speed semantics:
+
+- `posted_speed`
+- `speed_zone`
+- `average_speed`
+- `advisory_speed`
+- `mixed_or_unclear`
+
+Allowed traffic semantics:
+
+- `aadt`
+- `aadt_directional`
+- `peak_hour_volume`
+- `classification_count`
+- `mixed_or_unclear`
+
+If semantics are mixed or unclear, the feed cannot be `production_ready`.
+
+### 5.3 Geometry shape
+
+Allowed values:
+
+- `segment_geometry`
+- `point_geometry`
+- `route_milepost_table`
+- `tabular_no_geometry`
+
+### 5.4 Joinability
+
+Allowed values:
+
+- `direct_segment_join`
+- `stable_route_milepost_join`
+- `requires_custom_linear_referencing`
+- `manual_only`
+
+### 5.5 Update confidence
+
+Allowed values:
+
+- `clear_refresh_cycle`
+- `irregular_but_usable`
+- `stale_or_unknown`
+
+### 5.6 Operational specificity
+
+Allowed values:
+
+- `segment_specific`
+- `corridor_specific`
+- `class_or_region_specific`
+- `too_broad`
+
+This is critical.
+
+Broad statewide ceilings must not impersonate segment truth.
+
+---
+
+## 6. Triage outcomes
+
+## 6.1 `production_ready`
+
+A feed may be `production_ready` only if:
+
+- source authority is `primary_official`
+- semantics are explicit
+- geometry or join path is operationally usable
+- operational specificity is at least corridor-specific
+- provenance can be preserved cleanly
+
+Typical examples:
+
+- state GIS linework with posted segment speed
+- joined HPMS-like traffic segments
+- official bike-facility geometry
+
+## 6.2 `adapter_required`
+
+Use when the source is valuable but not directly ingestible yet.
+
+Typical examples:
+
+- speed-order tables keyed by route + milepost
+- roadway inventory tables needing a custom join
+- curve inventories requiring route-log alignment
+
+These feeds are good candidates for future ingestion, but must not silently act as truth yet.
+
+## 6.3 `inventory_only`
+
+Use when the feed is useful to know about but not yet fit for operational use.
+
+Typical examples:
+
+- reference PDFs
+- mixed-semantics exports
+- weakly keyed tables
+- jurisdictional datasets whose geometry cannot yet be aligned
+
+## 6.4 `rejected`
+
+Use when the feed is too weak, unclear, stale, or risky to rely on.
+
+Typical examples:
+
+- non-official mirrors
+- ambiguous summary exports
+- feeds whose semantics cannot be trusted
+
+---
+
+## 7. Field-family-specific rules
+
+## 7.1 Speed
+
+Segment-level posted speed geometry is the highest-value target.
+
+Priority within government speed ingestion:
+
+1. posted segment speed geometry
+2. speed-zone geometry with clear legal semantics
+3. route/milepost speed orders that can be normalized reliably
+4. statewide class/default tables only as prior inputs
+
+Do not treat:
+
+- average-speed feeds
+- advisory-speed feeds
+- broad statutory maxima
+
+as if they were posted segment speed.
+
+## 7.2 Traffic
+
+AADT is already operationally useful even when not perfectly segment-specific, but must still preserve:
+
+- source family
+- directionality
+- lane-count assumptions
+
+Traffic feeds may become `production_ready` sooner than speed feeds if the semantics are clearer.
+
+## 7.3 Bike facilities
+
+Bike-lane and bikeway geometry can be highly valuable, but only if:
+
+- geometry is accurate enough
+- facility semantics are explicit
+- the feed is not just a planning wishlist or project layer
+
+Planned/future facilities must never be merged into current truth.
+
+## 7.4 Curves
+
+Curve inventories should usually begin as:
+
+- `adapter_required`
+
+unless they already expose clean geometry or stable route-log keys.
+
+Curve data is best treated first as:
+
+- hazard/context enrichment
+
+not as speed truth.
+
+## 7.5 Shoulder / roadway inventory
+
+Roadway inventory fields can be high value, but only if:
+
+- the semantics are current-condition attributes
+- the geometry/join is reliable
+
+Inventory files often make strong `adapter_required` candidates.
+
+---
+
+## 8. Provenance rules
+
+Every ingested or inventoried feed must preserve:
+
+- source title
+- source owner
+- source URL
+- reference type
+  - `official`
+  - `aggregator`
+  - `secondary`
+- field family
+- semantics classification
+- geometry type
+- join strategy
+- triage outcome
+- justification
+
+Public-facing provenance must not imply legal verification beyond what the source actually provides.
+
+---
+
+## 9. Implementation guidance
+
+The system should keep three separate layers:
+
+1. `feed_inventory`
+   - every discovered feed, even if not operational
+2. `feed_triage`
+   - readiness classification and justification
+3. `feed_adapters`
+   - actual normalization logic for production-ready or adapter-required feeds
+
+This prevents “we know the URL exists” from being confused with “the feed is live in scoring.”
+
+---
+
+## 10. Launch guidance
+
+For launch and near-term implementation:
+
+- prefer high-value, high-clarity segment feeds first
+- prefer geometry-backed truth over broad defaults
+- use priors only where direct feeds are absent
+- do not ingest broad, ambiguous state exports just to claim coverage
+
+Coverage is less important than trustworthy semantics.
+
+---
+
+## 11. Practical sequence
+
+Recommended sequence for each new state or feed family:
+
+1. inventory the feed
+2. classify semantics
+3. classify geometry and joinability
+4. assign triage outcome
+5. write or reject adapter
+6. preserve provenance and source family
+7. only then allow it into truth/scoring
+
+This sequence applies equally to:
+
+- speed
+- traffic
+- bike support
+- shoulder
+- curves
+- other roadway inventory files
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-024-parallel_bike_facility_capture_and_corridor_ownership_spec.md
+
+# DS-024 — Parallel Bike Facility Capture & Corridor Ownership
+
+Status: Draft
+Date: 2026-04-20
+
+Related:
+- ADR-019 — Route Corridor & Proximity Rules
+- ADR-020 — Atomic Route Analysis Unit & OSM Variable Architecture
+- ADR-026 — Canonical Route Identity
+- DS-008 — Route Corridor Model
+- DS-017 — Truth Resolution & Propagation Specification
+
+---
+
+## 1. Purpose
+
+This document defines how Lanterne should handle the critical case where:
+
+- the GPX geometry rides near a motor road corridor
+- a real designated bike facility runs parallel beside that road
+- the raw matcher keeps preferring the motor road centerline
+- but rider truth should attach to the bike facility
+
+This is the canonical spec for fixing:
+
+- sidecar cycleways that hug arterials
+- separated paths that track the same corridor at grade
+- curbside or frontage-adjacent bike facilities that are offset from the route line
+
+This document defines two layers:
+
+1. `Parallel Bike Facility Capture`
+   Immediate targeted fix. Must ship first.
+
+2. `Corridor Ownership`
+   Fast follow. More authoritative corridor-level policy.
+
+The intention is:
+
+- ship `Parallel Bike Facility Capture` now
+- ship `Corridor Ownership` next
+- keep `Parallel Bike Facility Capture` as a fallback even after `Corridor Ownership` exists
+
+---
+
+## 2. Problem Statement
+
+The current matcher is still fundamentally road-centered.
+
+In corridors where:
+
+- `highway=secondary|primary|trunk`
+- and a parallel `highway=cycleway` or designated path runs beside it
+
+the system can:
+
+- see the sidepath in fetched OSM context
+- display the blue path line in roads-visible mode
+- yet still attach truth runs to the arterial for most of the corridor
+
+This produces rider-visible errors:
+
+- wrong speed truth
+- wrong road identity
+- wrong bike facility interpretation
+- receipts and review surfaces that imply the route is riding the road instead of the sidepath
+
+The failure is not “missing data.”
+
+The failure is:
+
+- route-carrier selection
+- corridor ownership
+- and over-trusting centerline proximity
+
+---
+
+## 3. Non-Goals
+
+This spec does not attempt to:
+
+- solve all sidewalk/path/road ambiguities globally
+- replace the general road matcher
+- infer protected facilities from weak tags
+- promote `cycleway=lane` on a motor road into separated infrastructure
+- reclassify parking aisles, driveways, or service roads as bike facilities
+
+This spec is only for:
+
+- real parallel bike facilities
+- that plausibly carry the route
+- but are being lost to an adjacent motor-road carrier
+
+---
+
+## 4. Definitions
+
+### 4.1 Parallel Bike Facility
+
+A nearby way is a `parallel bike facility` if all of the following are true:
+
+- it is not the same way as the current motor-road carrier
+- it is bike-eligible and non-sidewalk
+- it runs in the same corridor direction as the matched road
+- it persists for more than a trivial fragment
+
+### 4.2 Designated Facility
+
+A nearby way is `designated` if it satisfies one of:
+
+- `highway=cycleway`
+- `bicycle=designated`
+- `highway=path` with explicit bike allowance and not sidewalk
+- `highway=track` with explicit bike allowance and not sidewalk
+
+### 4.3 Sidewalk-Like
+
+A way is `sidewalk-like` if it matches existing sidewalk exclusion policy, including:
+
+- `footway=sidewalk`
+- explicit sidewalk tagging
+- connector/crossing-only pedestrian fragments that should not own corridor truth
+
+### 4.4 Corridor Ownership
+
+`Corridor ownership` means:
+
+- for a sustained corridor span,
+- the bike facility, not the motor road,
+- is treated as the canonical carrier of route truth
+
+This affects:
+
+- truth run identity
+- speed source choice
+- bike facility class
+- receipts and inspect surfaces
+
+---
+
+## 5. Immediate Layer: Parallel Bike Facility Capture
+
+## 5.1 Intent
+
+`Parallel Bike Facility Capture` is the immediate tactical layer.
+
+It must:
+
+- run after raw sample-to-road matching
+- run before truth snapshot and truth-run materialization
+- be able to override a motor-road carrier with a nearby real bike facility
+- be corridor-aware, not single-sample-only
+
+It exists specifically because raw matching alone is not enough.
+
+---
+
+## 5.2 Placement in Pipeline
+
+This pass must execute:
+
+1. after raw road matching and transition stabilization
+2. before truth snapshot
+3. before truth-run sanitizers that collapse small fragments
+
+Reason:
+
+- it needs the sample-level road map
+- it must be able to rewrite that map before truth is frozen
+
+---
+
+## 5.3 Candidate Eligibility
+
+For each matched sample currently attached to a motor road, search the nearby-context road universe for override candidates.
+
+A candidate is eligible only if:
+
+- `road.isSafePath === true`
+- highway is one of:
+  - `cycleway`
+  - `path`
+  - `track`
+- candidate is not sidewalk-like
+- candidate is not private-only access junk
+- candidate is not a tiny crossing connector
+
+Higher-confidence eligibility:
+
+- `highway=cycleway`
+- or `bicycle=designated`
+
+These should be preferred over generic path/track candidates.
+
+---
+
+## 5.4 Sample-Level Gating Rules
+
+A candidate may override a motor-road sample only if:
+
+- it is within a corridor-local offset threshold
+- it is directionally aligned with the route
+- it is sufficiently parallel to the current motor-road carrier
+
+Required sample gates:
+
+- maximum offset from route sample
+- maximum route-heading difference
+- maximum motor-road-to-path bearing difference
+
+Design principle:
+
+- designated cycleways get looser distance tolerance
+- generic path/track candidates get stricter tolerance
+- sidewalks never qualify
+
+### Target Production Thresholds
+
+The intended production thresholds for this layer are:
+
+- designated `highway=cycleway`
+  - soft offset: `<= 18 m`
+  - hard maximum offset: `<= 30 m`
+- designated `path/track`
+  - soft offset: `<= 12 m`
+  - hard maximum offset: `<= 20 m`
+- route-heading difference:
+  - target cap: `<= 30°`
+- motor-road-to-facility parallelism:
+  - target cap: `<= 20°`
+
+Meaning:
+
+- within the soft offset, the facility is plausibly sidecar and eligible
+- beyond the hard maximum offset, it must never be force-promoted
+
+The hard cap exists specifically to prevent:
+
+- nearby unrelated trails
+- frontage/internal circulation paths
+- off-corridor greenways
+from being stolen by this rule.
+
+---
+
+## 5.5 Sustained Run Requirement
+
+No single sample may be promoted on its own.
+
+Promotion only applies if the override candidate sustains as a run:
+
+- minimum sample count threshold
+  or
+- minimum mileage threshold
+
+This is required to prevent:
+
+- one-point blue blips
+- lane-divider noise
+- driveway/path adjacency false positives
+
+Immediate launch rule:
+
+- a promotion run must persist for at least `2` samples
+  or
+- at least `0.02 mi`
+
+This threshold can be tuned, but the sustained-run rule is mandatory.
+
+### Target Production Thresholds
+
+The intended production thresholds for this layer are:
+
+- minimum sustained mileage: `>= 0.08 mi`
+- minimum sustained samples: `>= 4`
+
+If we need to be stricter in suburban arterial contexts, `0.10 mi` is acceptable.
+
+Rationale:
+
+- `0.02 mi` is too small and invites chatter
+- the floor should be closer to the length of a city block
+- the rule must prefer sustained corridor truth over tiny tactical fragments
+
+---
+
+## 5.6 Winner Selection Policy
+
+If multiple eligible bike facilities compete:
+
+prefer in this order:
+
+1. `highway=cycleway`
+2. `bicycle=designated`
+3. lower offset from route
+4. better heading alignment
+5. longer sustained continuity
+
+Do not break ties using road name alone.
+
+Bike facility truth must not depend on whether the sidepath happens to share the arterial’s name.
+
+---
+
+## 5.7 Output of Parallel Bike Facility Capture
+
+When a sustained override run is accepted:
+
+- rewrite the affected sample-road map entries to the bike facility
+- preserve the original motor-road match only in debug/audit traces
+- allow later truth layers to treat the bike facility as the substrate
+
+This means:
+
+- the corridor becomes blue/safe-path where appropriate
+- speed truth falls to path/domain logic instead of arterial speed
+- receipts reflect the bike facility as the carrier
+
+---
+
+## 5.8 Failure Modes This Layer Must Avoid
+
+It must not:
+
+- steal routes onto sidewalks
+- steal routes onto parking-lot perimeter paths
+- steal routes onto random nearby trails that only briefly approach the corridor
+- steal routes onto crosswalk or connector fragments
+- turn `cycleway=lane` on a motor road into a separated path
+
+If uncertain, fail closed and keep the road.
+
+---
+
+## 5.9 Acceptance Criteria
+
+`Parallel Bike Facility Capture` is acceptable only if it fixes:
+
+- sustained sidecar cycleway corridors beside arterials
+- without creating obvious sidewalk theft
+- without increasing tiny blue fragment noise
+
+Required test corridors:
+
+- suburban arterial with hugging `highway=cycleway`
+- path beside a major road but offset from centerline
+- sidewalk beside a road that must not win
+- parking-lot/service adjacency that must not win
+- short crossing connector that must not win
+
+---
+
+## 6. Fast Follow Layer: Corridor Ownership
+
+## 6.1 Intent
+
+`Corridor Ownership` is the authoritative version of the same idea.
+
+Instead of promoting sample-by-sample, it determines:
+
+- which substrate owns a corridor span
+- road or bike facility
+
+This is the desired long-term architecture.
+
+`Parallel Bike Facility Capture` remains as fallback for edge cases and transitional safety.
+
+---
+
+## 6.2 Corridor Ownership Problem
+
+Raw matching is inherently local.
+
+But rider truth for this use case is corridor-level:
+
+- “the route is on the sidepath beside Volunteer Boulevard”
+
+not:
+
+- “some samples are on the road, some on the path, depending on centerline geometry”
+
+So corridor ownership must be decided across a span, not per point.
+
+---
+
+## 6.3 Corridor Ownership Candidate Set
+
+For each motor-road corridor run, identify candidate parallel facilities from nearby-context roads.
+
+Candidate families:
+
+- designated cycleway
+- designated path
+- designated track
+
+Reject:
+
+- sidewalks
+- crossing-only connectors
+- private access junk
+- service/parking fragments
+
+---
+
+## 6.4 Ownership Signals
+
+Ownership should be decided from corridor signals, not one score.
+
+Signals include:
+
+- percentage of samples with eligible parallel facility nearby
+- mean and max offset
+- mean and max heading deviation
+- continuity of the facility along the run
+- facility designation strength:
+  - cycleway > designated path/track > weaker path
+- contradiction signals:
+  - route obviously departs onto road
+  - facility disappears
+  - large separation or heading mismatch
+
+---
+
+## 6.5 Ownership Decision Rule
+
+A corridor span should transfer from motor road to bike facility only if:
+
+- the facility is present for a high share of the corridor span
+- it remains geometrically parallel
+- it is designated strongly enough
+- contradiction signals stay below threshold
+
+Ownership is binary at the span level:
+
+- either the bike facility owns the span
+- or the motor road owns the span
+
+Do not alternate ownership every few samples.
+
+If evidence is mixed, split into explicit subspans.
+
+---
+
+## 6.6 Relationship to Parallel Bike Facility Capture
+
+Once corridor ownership exists:
+
+- it becomes the primary authoritative layer
+- `Parallel Bike Facility Capture` stays enabled as fallback
+
+Fallback should only act when:
+
+- corridor ownership did not fire
+- but a local sustained designated facility is still clearly the right carrier
+
+This avoids indefinite dependence on the tactical layer.
+
+---
+
+## 6.7 Why Keep the Tactical Layer
+
+We should keep `Parallel Bike Facility Capture` even after ownership ships because:
+
+- local geometry can still fail corridor grouping
+- short but real bike-facility spans still exist
+- some facilities may be too fragmented for full ownership logic
+
+So the architecture should be:
+
+- corridor ownership first
+- targeted capture second
+- road-centered truth last
+
+---
+
+## 7. Implementation Sequence
+
+## Phase 1
+
+Ship `Parallel Bike Facility Capture`.
 
 Requirements:
 
-- conservative trigger thresholds
-- structured reason for showing the notice
-- no melodramatic “thinking” UI
-- no claim that the system is searching indefinitely
+- sample-map override pass
+- nearby-context search
+- designated cycleway preference
+- sustained-run requirement
+- strong sidewalk exclusion
+- debug logs for accepted promotions
+
+### Phase 1 Implementation Note
+
+Phase 1 should intentionally begin with a broad-brush rule set.
+
+The goal of Phase 1 is:
+
+- prove the seam is correct
+- verify that the system can capture obvious hugging cycleways
+- observe the real failure modes before hardening
+
+So Phase 1 should not begin with every target threshold above fully enforced.
+
+Recommended Phase 1 posture:
+
+- keep candidate families narrow
+  - `cycleway`
+  - designated `path/track`
+- keep sidewalk exclusion hard
+- keep sustained-run logic present
+- keep the implementation explainable
+- avoid introducing too many coupled thresholds in the first pass
+
+Then, once the seam is proven:
+
+- add soft offset caps
+- add hard maximum offset caps
+- tighten sustained-run thresholds toward the target production values
+- add more explicit contradiction handling
+
+Reason:
+
+- too many variables in step 1 will create reverse-debugging of our own complexity
+- the first job is to prove that the layer works at all
+- the second job is to harden it
+
+## Phase 2
+
+Ship `Corridor Ownership`.
+
+Requirements:
+
+- corridor-span grouping
+- candidate facility aggregation
+- ownership signals
+- explicit transfer decision
+- subspan splitting when mixed
+
+## Phase 3
+
+Demote `Parallel Bike Facility Capture` to fallback.
+
+Requirements:
+
+- ownership first
+- capture second
+- explicit audit logs indicating which layer won
 
 ---
 
-## 14. Legacy routing / optimizer audit requirement
+## 8. Debug / Audit Requirements
 
-Before final implementation, audit these areas:
+Both layers must emit structured diagnostics.
 
-- `src/lib/detour-routing.ts`
-- stale root-level `detour-routing.ts`
-- `src/components/RouteOptimizer.tsx`
-- any route/optimizer score path in `src/lib/routing.ts`
-- any old mode concepts such as `explore`, `race`, `brevet`
+For capture:
 
-### 14.1 Required verdict categories
+- candidate road id
+- highway type
+- designation strength
+- offset
+- heading diff
+- sustained run length
+- accepted / rejected reason
 
-For each major function/module:
+For ownership:
 
-- `reuse_directly`
-- `reuse_with_refactor`
-- `do_not_reuse`
-- `remove`
+- corridor span
+- candidate facility ids
+- ownership signals
+- final owner
+- contradiction reason when rejected
 
-### 14.2 Brevet preservation rule
-
-If old optimizer code contains brevet-distance-floor logic, preserve the policy concept even if the old implementation is discarded.
-
-### 14.3 Repo-specific audit notes
-
-Current repo audit guidance:
-
-- `src/lib/detour-routing.ts` may be reused with refactor for route splice/diverge/merge ideas
-- `useDetourHistory` may survive as an integration surface
-- root-level `detour-routing.ts` is a stale duplicate and removal candidate
-- `RouteOptimizer.tsx` should not survive as the launch routing architecture
-- `realtime-detour.ts` and `useRealtimeDetour.ts` are not the launch profile-routing foundation
-- preview scoring in `src/lib/routing.ts` must not become canonical route-selection truth
-
-See [ASS-010](../../assessments/ass-010-phase0_routing_audit.md).
+These diagnostics are mandatory because this class of bug is otherwise visually obvious but hard to localize in code.
 
 ---
 
-## 15. State model guidance
+## 9. Product Outcome
 
-Preferred alternate-route request/result state should be compact and explicit.
+When this policy is working:
 
-Suggested shape:
+- routes that truly ride a sidecar cycleway will show as riding that facility
+- arterial speed and road identity will stop leaking into those spans
+- receipts and inspect will tell the same story as the visible bike path
+- short tactical fragments will no longer be the only correctly-blue portion of a long sidepath corridor
 
-```ts
-export type AlternateRouteState =
-  | { kind: 'idle' }
-  | { kind: 'computing_direct' }
-  | { kind: 'computing_alternate'; profile: RoutingProfile }
-  | { kind: 'ready' }
-  | { kind: 'no_viable_alternate'; profile: RoutingProfile; reason: NoAlternateReason }
-  | { kind: 'failed'; profile?: RoutingProfile; error: string };
-```
-
-Avoid a sprawl of surface-owned booleans.
-
----
-
-## 16. Instrumentation contract
-
-Each alternate-route attempt should expose structured instrumentation data.
-
-### 16.1 Minimum fields
-
-- profile
-- route-size bucket
-- compute budget allowed
-- compute budget consumed
-- overlap ratio vs direct
-- distance delta
-- time delta
-- profile improvement metric
-- suppression reason if any
-- no-result reason if any
-- heavy-compute hint triggered or not
-
-### 16.2 Design rule
-
-The routing layer should expose instrumentation-friendly summaries. It should not own the whole logging universe.
-
----
-
-## 17. Open questions
-
-These do not change launch direction, but they should be answered during implementation:
-
-1. What is the best graph adapter foundation:
-   - extend current OSRM/route creation flows
-   - adapt corridor/road truth into a routing graph
-   - or combine both under one service boundary?
-
-2. How much of current detour splice logic should remain in `src/lib/detour-routing.ts` versus move into a new profile-route service?
-
-3. Which parts of preview path scoring should survive temporarily as evaluation helpers while the normalized edge model is being introduced?
+That is the acceptance bar.
 
 
 ---
@@ -25366,7 +26600,7 @@ Lanterne will implement a **shared profile-based routing preference engine**.
 
 This engine will:
 
-- use one underlying routable graph / normalized edge model
+- use one underlying routing-engine contract with one normalized edge / cost model at the Lanterne boundary
 - support multiple routing policies through different edge-cost functions
 - be reusable across:
   - `Route To`
@@ -25429,11 +26663,17 @@ Launch emphasis is:
 
 All visible route profiles must use:
 
-- the same underlying graph
-- the same normalized edge attributes
+- the same underlying routing engine for a given request
+- the same normalized edge attributes at the Lanterne integration boundary
 - the same route-comparison and suppression rules
 
 Visible route differences come from **policy**, not from separate hidden routing stacks.
+
+Implementation note:
+
+- this ADR does **not** require Lanterne to own or self-develop the underlying routing engine
+- the preferred long-term shape is an external engine integration, with GraphHopper as the leading candidate
+- Lanterne owns profile semantics, comparison rules, suppression rules, and presentation contract
 
 ### 4.2 Shared edge attributes
 

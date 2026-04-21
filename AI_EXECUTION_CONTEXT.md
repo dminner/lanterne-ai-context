@@ -8879,7 +8879,7 @@ Implement or extend clean modules for:
 
 At the end of Phase 1, stop and report before beginning:
 
-- Phase 2 — Routing graph adapter and normalized edge contract
+- Phase 2 — Routing-engine adapter and normalized route-cost contract
 - Phase 3 — Route To orchestration
 - Phase 4 — Draw leg recompute using the same engine
 
@@ -8887,27 +8887,27 @@ The next implementation pass must explicitly confirm how the remaining DS-021 op
 
 ---
 
-## Phase 2 — Routing graph adapter and normalized edge contract
+## Phase 2 — Routing-engine adapter and normalized route-cost contract
 
 ### Goal
 
-Thread a reusable routing-facing view of the graph without inventing a second fact universe.
+Thread a reusable routing-facing integration layer without inventing a second fact universe.
 
 ### Work
 
-1. Define the normalized routing-edge shape
-2. Create graph/edge adapters that map current route truth / corridor graph / routing inputs into policy-facing burdens
+1. Define the normalized routing integration shape
+2. Create adapter modules that map the chosen routing engine’s outputs and Lanterne route truth into policy-facing burdens
 3. Keep this layer independent from UI and surface concerns
 
 ### Hard rules
 
-- use one shared edge model for all profiles
+- use one shared normalized integration model for all profiles
 - do not bury derivation logic into request handlers or map components
 - keep policy-friendly normalized burdens readable and testable
 
 ### Deliverables
 
-- graph adapter modules
+- routing-engine adapter modules
 - edge-normalization helpers
 - test coverage for representative edges
 
@@ -9111,6 +9111,1539 @@ Return:
 7. no-result rule summary
 8. performance assumptions
 9. remaining constraints that could still limit alternate discovery
+
+
+---
+
+## Source File: docs/04-execution/exec-014-analyze_drawer_scorecard_method_receipts_launch_plan.md
+
+# Analyze Drawer Launch Plan
+
+This document defines the launch-phase plan for restructuring the Analyze drawer into three collapsible tabs:
+
+1. `Scorecard`
+2. `Method`
+3. `Receipts`
+
+Shared drawer rules:
+- remove the old `views` switch (`Normal`, `Randonneuring`, `Bikepacking/Gravel`)
+- all three tabs use collapsible sections
+- all three tabs share one compact common route header:
+  - route name
+  - miles
+  - score
+  - grade
+- `Receipts` breaks down into collapsible roads/sections
+
+Bucket definitions:
+- `Ship Immediately`: already present or very low-friction derivation/plumbing
+- `Phase 2`: valuable and likely feasible next, but requires non-trivial aggregation or UI/plumbing work
+- `Hold`: requires formalization, missing network/plumbing, or math we do not yet trust enough to ship
+
+---
+
+## Network Selector
+
+### Ship Immediately
+- city
+- state
+- national
+
+### Phase 2
+- metro
+- networks list display if memberships already exist in route metadata
+
+### Hold
+- `RUSA Perms for launch`
+- full network switcher that rebinds all drawer rankings and route tables live
+- network-linked route tables if network membership is not already first-class
+
+---
+
+## Scorecard
+
+### Scorecard
+
+#### Ship Immediately
+- Rank within selected network
+- Overall grade
+- Route characterization sentence
+
+#### Phase 2
+- `Safer than X% of comparable routes` phrasing if not already cleanly exposed from percentile/rank UI copy
+
+#### Hold
+- none
+
+---
+
+### Route Identity
+
+#### Ship Immediately
+- States: listed
+
+#### Phase 2
+- Dominant riding environment:
+  - urban
+  - suburban
+  - rural
+  - mixed
+- Networks: list all (linkable where possible)
+
+#### Hold
+- none
+
+---
+
+### Ride Stats
+
+#### Ship Immediately
+- Total mileage
+- Elevation gain
+
+#### Phase 2
+- number of climbs
+- Maximum sustained climb
+
+#### Hold
+- none
+
+---
+
+### Safety Snapshot
+
+#### Ship Immediately
+- Percent low-stress miles
+- Percent moderate-stress miles
+- Percent high-stress miles
+- Number of high-stress sections
+
+#### Phase 2
+- Longest high-stress stretch (distance, start & why)
+- “Pushed up by” factor
+- “Brought down by” factor
+
+#### Hold
+- Risk per mile
+  - belongs in Method, not Scorecard
+
+---
+
+### Infrastructure Snapshot
+
+#### Ship Immediately
+- Bike support: xx mi.
+- Percent on bike paths
+- Percent on protected lanes
+- Percent on painted lanes
+- Shoulder support: xx mi.
+- Percent narrow
+- Percent normal
+- Percent wide
+- Surface mix summary
+- Road Types
+  - Percent on trails / cycleways
+  - Percent on locals
+  - Percent on secondaries
+  - Percent on primaries
+  - Percent on trunks
+  - Percent on service roads
+
+#### Phase 2
+- none
+
+#### Hold
+- none
+
+---
+
+### Speed & Traffic Snapshot
+
+#### Ship Immediately
+- Percent of route in each speed band
+- Percent of route in each traffic band
+- Highest posted / inferred speed encountered
+- Longest high-speed corridor
+- Longest low-traffic corridor
+- Number of high-speed no-infra miles
+- Number of high-traffic no-infra miles
+
+#### Phase 2
+- none
+
+#### Hold
+- none
+
+---
+
+### Hazards & Friction
+
+#### Ship Immediately
+- Number of hazards
+- Hazard count by type
+- Number of crossings
+
+#### Phase 2
+- Percent of signalized intersections
+- Percent of unsignalized crossings
+- Percent of stop-controlled crossings
+- Percent of major-road crossings
+
+#### Hold
+- none
+
+---
+
+### Confidence / Trust Snapshot
+
+#### Ship Immediately
+- Percent exact vs inferred
+- Percent prior / baseline-backed
+- Number of admin overrides
+- Number of rider observations
+- Whether official feeds contributed
+
+#### Phase 2
+- Whether priors materially affected the result
+
+#### Hold
+- Whether uncertainty likely changes the verdict or not
+- Confidence summary label:
+  - mostly verified
+  - mapped majority
+  - mixed confidence
+  - estimate-heavy
+  - better suited to Method unless we formalize a compact scorecard-friendly trust pulse
+
+---
+
+## Method
+
+### Analysis Scope
+
+#### Ship Immediately
+- Total route miles analyzed
+- Total route points
+- Total road sections analyzed
+- Total cue entries
+- Total matched roads
+- Total fetched roads
+- States crossed
+
+#### Phase 2
+- Urban / suburban / rural mileage mix
+- Road class mix encountered
+- Facility type mix encountered
+
+#### Hold
+- none
+
+---
+
+### Source Coverage
+
+#### Ship Immediately
+- Number of source families used
+- Provenance mix by section count
+- Provenance mix by mileage
+- Exact vs inferred vs estimated mileage
+- Admin-verified miles
+- Official-posted miles
+- OSM-posted miles
+- OSM-inferred miles
+- Regional-prior miles
+- Area-baseline miles
+- Class-baseline miles
+- Segments with no strong source
+- Official feed coverage present / absent
+- Government source families present
+- States with government enrichments applied
+
+#### Phase 2
+- Segments with mixed evidence
+
+#### Hold
+- Segments with conflicting evidence
+
+---
+
+### Speed Inputs
+
+#### Ship Immediately
+- Segments with exact posted speed
+- Segments with official posted speed
+- Segments with OSM posted speed
+- Segments with mapped inferred speed
+- Segments with regional prior
+- Segments with area baseline
+- Segments with class baseline
+- Distribution of chosen speed source types
+- Speed band mileage mix
+- Highest speed encountered
+- Longest high-speed corridor
+- Number of high-speed segments with low confidence
+- Number of segments whose speed source came from priors
+- Number of segments whose speed source came from baselines
+
+#### Phase 2
+- none
+
+#### Hold
+- none
+
+---
+
+### Traffic Inputs
+
+#### Ship Immediately
+- Official traffic segments
+- Estimated traffic segments
+- Class-proxy traffic segments
+- Unknown/unavailable traffic segments
+- Traffic band mileage mix
+- Highest traffic band encountered
+- Number of high-traffic segments with no infra
+- Number of low-confidence traffic segments
+
+#### Phase 2
+- Number of segments where traffic materially shifted tier
+
+#### Hold
+- none
+
+---
+
+### Infrastructure Inputs
+
+#### Ship Immediately
+- Bike facility distribution by mileage
+- Shoulder distribution by mileage
+- Surface distribution by mileage
+- Number of separated path miles
+- Number of protected lane miles
+- Number of painted lane miles
+- Number of sharrow/shared-lane miles
+- Number of no-bike-infra miles
+- Number of wide/standard/narrow/no shoulder miles
+- Number of paved/unpaved/rough surface miles
+- Unknown bike infra miles
+- Unknown shoulder miles
+- Unknown surface miles
+
+#### Phase 2
+- none
+
+#### Hold
+- none
+
+---
+
+### Hazards / Crossings / Friction
+
+#### Ship Immediately
+- Hazard count by type
+- Crossing count by type
+- Signalized crossing count
+- Stop-controlled crossing count
+- Unsignalized crossing count
+- Number of continuity breaks
+- Number of long uninterrupted low-stress stretches
+
+#### Phase 2
+- Hazard count by severity
+- Major-road crossing count
+- Narrow bridge / underpass / rail / merge / blind-curve type counts
+- Number of high-risk chokepoints
+
+#### Hold
+- Number of high-friction segments
+
+---
+
+### Scoring Ingredients
+
+#### Ship Immediately
+- Formula version
+- Prior dataset version
+- Number of factor families modeled
+- Speed-only baseline score
+- Final composite score
+- Total Risk points
+- Risk points per mile
+
+#### Phase 2
+- Number of distinct variables modeled
+- Delta from speed baseline
+- Delta from traffic
+- Delta from bike infrastructure
+- Delta from shoulder
+- Delta from hazards / crossings
+- Positive mitigation points
+- Negative exposure points
+- Largest upward contributor
+- Largest downward contributor
+- Number of sections that changed tier due to non-speed factors
+- Number of sections that remained speed-determined
+
+#### Hold
+- Number of sections where uncertainty could move tier
+
+---
+
+### Route Composition
+
+#### Ship Immediately
+- Mileage by road class:
+  - cycleway
+  - residential / local
+  - tertiary
+  - secondary
+  - primary
+  - trunk
+  - service
+- Mileage on one-way roads
+- Mileage on bridges
+- Mileage in tunnels
+- Mileage on safe paths
+- Mileage on on-street infrastructure
+- Mileage with no dedicated support
+
+#### Phase 2
+- Mileage on divided roads
+- Mileage on access-controlled roads
+- Mileage on major arterials
+
+#### Hold
+- none
+
+---
+
+### Receipts-Adjacent Preview
+
+#### Ship Immediately
+- Number of contributing sections in final receipt
+- Top 5 harmful sections by points
+- Top 5 beneficial sections by reduction
+- Top 5 longest sections
+- Number of sections with admin/user overrides
+
+#### Phase 2
+- Number of sections with exact data and high impact
+- Number of sections with low-confidence data and high impact
+- Whether one crux section dominates total score
+
+#### Hold
+- Number of sections materially changed by inferred data
+
+---
+
+### Confidence / Trust
+
+#### Ship Immediately
+- Confidence distribution across route
+- Highest-confidence harmful section
+- Lowest-confidence harmful section
+- Miles where priors were required
+- Miles where baselines were required
+- Whether the route is source-rich or source-thin
+
+#### Phase 2
+- Whether government feeds meaningfully contributed
+- Whether regional priors meaningfully contributed
+- Whether class baselines were only a fallback or a substantial share
+
+#### Hold
+- Whether verdict is robust to uncertainty
+- Whether the route would likely remain same tier under conservative assumptions
+
+---
+
+## Receipts
+
+Receipts is intentionally dense and collapsible by road/section.
+
+### Ship Immediately
+- master score / formula header
+- collapsible roads or sections
+- section miles
+- section points
+- section tier
+- contribution to total route score
+- total points at bottom
+- final normalized route score
+- final grade
+
+### Phase 2
+- per-road factor deltas inside each collapsible section
+- inline deepcuts back into inspector section receipt
+
+### Hold
+- giant explicit “300 equations” machine-style expansion if it requires a bespoke serialization layer rather than reusing the canonical receipt
+
+---
+
+## Recommended Launch Shape
+
+### Launch `Scorecard`
+- keep it verdict-heavy
+- use collapsible groups
+- bias toward route identity, stress mix, infrastructure, speed/traffic, and hazards
+
+### Launch `Method`
+- keep it as the credible “what did we analyze?” tab
+- prioritize source coverage, factor families, route composition, and scoring ingredients
+
+### Launch `Receipts`
+- make it dense, collapsible, and obviously computed
+- do not over-design it
+- the point is proof, not pedagogy
+
+
+
+---
+
+## Source File: docs/04-execution/exec-015-analyze_drawer_component_migration_plan.md
+
+# Analyze Drawer Component Migration Plan
+
+This document maps the current Analyze drawer implementation onto the new target structure:
+
+1. `Scorecard`
+2. `Method`
+3. `Receipts`
+
+It identifies:
+- what already exists and can be reused
+- what should be split out of the current monolith
+- what should be deleted
+- what new view-models or summary builders are needed
+
+The intent is to replace the current hybrid of:
+- old mode/view switching
+- one monolithic score card
+- partially duplicated summary/math layers
+
+with a single drawer shell built around three collapsible tabs.
+
+---
+
+## Current State
+
+### Current Drawer Shell
+
+Primary shell:
+- [src/components/RouteAndAnalysisDrawer.tsx](/Users/derekminner/lanterne/src/components/RouteAndAnalysisDrawer.tsx)
+
+What it does today:
+- renders `ModeSelector`
+- renders one `RouteScoreExplanationPanel`
+- optionally renders:
+  - `PreRideReviewPanel`
+  - GPX export button
+  - admin score audit block
+- builds `scoreExplanation` from:
+  - existing `providedScoreExplanation`, or
+  - `buildExplanationFromSafetyResult(gpxAnalysis, heatmapOutput)`
+
+Architectural smell:
+- shell already knows the explanation object exists
+- but still routes everything through a mode-driven monolithic panel
+- this is where the old “two generations” problem begins
+
+### Current Main Analysis Card
+
+Primary card:
+- [src/components/RouteScoreExplanationPanel.tsx](/Users/derekminner/lanterne/src/components/RouteScoreExplanationPanel.tsx)
+
+What it does today:
+- owns the full rider-facing Analyze presentation
+- contains:
+  - Relative Safety Grade hero
+  - canonical risk summary box
+  - mode lens copy
+  - confidence/match quality badges
+  - collapsible sections:
+    - route summary
+    - traffic exposure
+    - speed environment
+    - bike infrastructure
+    - penalties & hazards
+    - support & services
+    - surface
+    - isolation / remoteness
+- supports map highlighting by metric
+- already contains collapsible section mechanics
+
+Architectural smell:
+- it is already partly a `Scorecard`
+- partly a `Method`
+- and partly a placeholder future mode lens
+
+### Current Explanation View-Model
+
+Primary view-model:
+- [src/domain/routeScoreExplanation.ts](/Users/derekminner/lanterne/src/domain/routeScoreExplanation.ts)
+
+What it does today:
+- maps `SafetyResult` into a deterministic rider-facing object
+- provides:
+  - route-level traffic buckets
+  - route-level infrastructure buckets
+  - many metrics:
+    - safe path miles
+    - shoulder coverage
+    - high-speed exposure
+    - low-speed miles
+    - railroad crossings
+    - unknown coverage
+    - left turns
+    - average speed
+    - elevation gain
+    - estimated gravel
+    - crossing counts
+  - score breakdown
+  - confidence summary
+  - comparative summary
+  - segment IDs by metric for highlighting
+
+Architectural opportunity:
+- this is already the right seed for `Scorecard`
+- but it is too thin for `Method`
+- and too abstract for `Receipts`
+
+### Current Canonical Artifact
+
+Primary canonical source:
+- [src/lib/v5-analysis-artifact.ts](/Users/derekminner/lanterne/src/lib/v5-analysis-artifact.ts)
+
+What it gives us:
+- `analysisReceipt`
+- `evidenceSummary`
+- `scoreTrace.continuousSlices`
+- `scoreTrace.crossingEvents`
+- `scoreRollup`
+- `comparativeInterpretation`
+
+Architectural opportunity:
+- `Scorecard` should remain mostly fed by `RouteScoreExplanation`
+- `Method` should primarily read from `analysisReceipt` + `evidenceSummary`
+- `Receipts` should primarily read from `scoreTrace`
+
+This is the clean split the current UI does not yet honor.
+
+---
+
+## Target Drawer Architecture
+
+### New Shell
+
+New Analyze drawer shell responsibilities:
+- own common route header:
+  - route name
+  - miles
+  - score
+  - grade
+- own top network selector
+- own top-level tabs:
+  - `Scorecard`
+  - `Method`
+  - `Receipts`
+- pass the correct view-models to each tab
+- continue to render:
+  - `PreRideReviewPanel`
+  - GPX export
+  - admin-only audit blocks
+
+The shell should stop owning:
+- mode-driven view switching
+- interpretive lens copy
+- monolithic all-in-one card rendering
+
+### New View-Model Split
+
+#### `Scorecard`
+Primary source:
+- `RouteScoreExplanation`
+
+Secondary source:
+- selected network/rank metadata
+- lightweight canonical receipt fields where needed
+
+#### `Method`
+Primary source:
+- `canonicalAnalysis.analysisReceipt`
+- `canonicalAnalysis.evidenceSummary`
+
+Secondary source:
+- `RouteScoreExplanation`
+- top-level `SafetyResult`
+
+#### `Receipts`
+Primary source:
+- `canonicalAnalysis.scoreTrace.continuousSlices`
+- `canonicalAnalysis.scoreTrace.crossingEvents`
+- `canonicalAnalysis.scoreRollup`
+
+Secondary source:
+- road naming / route section grouping helpers
+
+---
+
+## File-by-File Migration
+
+### 1. RouteAndAnalysisDrawer.tsx
+
+File:
+- [src/components/RouteAndAnalysisDrawer.tsx](/Users/derekminner/lanterne/src/components/RouteAndAnalysisDrawer.tsx)
+
+#### Reuse
+- all current shell states:
+  - no route
+  - analyzing
+  - scored route
+  - incomplete analysis
+- `scoreExplanation` memo
+- admin audit memo
+- GPX export logic
+- `PreRideReviewPanel`
+
+#### Remove
+- `ModeSelector`
+
+#### Replace With
+- shared Analyze drawer header block
+- network selector block
+- `Tabs` shell:
+  - `Scorecard`
+  - `Method`
+  - `Receipts`
+
+#### New Props / State Needed
+- selected network id / key
+- maybe route table deep-link callback
+- maybe inspected segment deepcut routing remains as-is
+
+#### Verdict
+- **Keep this file**
+- convert from “route shell + mode selector + monolithic card” to “route shell + tabs”
+
+---
+
+### 2. RouteScoreExplanationPanel.tsx
+
+File:
+- [src/components/RouteScoreExplanationPanel.tsx](/Users/derekminner/lanterne/src/components/RouteScoreExplanationPanel.tsx)
+
+#### Reuse
+- section collapse mechanics
+- section row styling
+- map highlighting behavior
+- hero-grade visual language
+- some existing grouped content:
+  - route summary
+  - traffic exposure
+  - speed environment
+  - bike infrastructure
+  - penalties & hazards
+  - surface
+
+#### Remove
+- ride-mode logic
+- mode-config-driven default expansion
+- mode lens copy
+- support/remoteness placeholder sections as active product surface
+
+#### Split Into
+- `AnalyzeScorecardTab.tsx`
+- maybe shared row/section primitives kept local or extracted
+
+#### What Survives As Scorecard Content
+- Relative Safety Grade hero
+- canonical risk summary box
+- traffic exposure section
+- speed environment section
+- bike infrastructure section
+- penalties & hazards section
+- surface section
+
+#### What Does Not Belong Here Long-Term
+- `Method` details
+- `Receipts` data
+- mode abstraction
+
+#### Verdict
+- **Do not keep this file as the final monolith**
+- split it
+- preserve styling patterns and row primitives
+
+---
+
+### 3. routeScoreExplanation.ts
+
+File:
+- [src/domain/routeScoreExplanation.ts](/Users/derekminner/lanterne/src/domain/routeScoreExplanation.ts)
+
+#### Reuse
+- keep as the core `Scorecard` summary builder
+- keep segment highlight IDs
+- keep comparative summary mapping
+- keep route-level distributions already exposed here
+
+#### Extend
+- add the missing scorecard launch metrics that are easy derivations, such as:
+  - number of high-stress sections
+  - longest high-stress stretch
+  - more direct infrastructure and road-type summaries
+- avoid putting `Method`-only metrics here if they are cleaner in canonical receipt space
+
+#### Avoid
+- turning this into the full kitchen-sink view-model for all tabs
+
+#### Verdict
+- **Keep and expand modestly**
+- this remains the `Scorecard` builder, not the global Analyze builder
+
+---
+
+### 4. v5-analysis-artifact.ts
+
+File:
+- [src/lib/v5-analysis-artifact.ts](/Users/derekminner/lanterne/src/lib/v5-analysis-artifact.ts)
+
+#### Reuse
+- `analysisReceipt` for `Method`
+- `evidenceSummary` for `Method`
+- `scoreTrace` for `Receipts`
+- `scoreRollup` for shared header and receipts footer
+
+#### Extend
+- only if some `Method` metrics are missing and belong canonically at artifact level
+
+#### Avoid
+- UI-specific formatting here
+
+#### Verdict
+- **Keep as canonical source**
+- extend only when the canonical analysis artifact itself is missing real route-analysis facts
+
+---
+
+### 5. config/modes.ts
+
+File:
+- [src/config/modes.ts](/Users/derekminner/lanterne/src/config/modes.ts)
+
+#### Remove From Analyze Drawer
+- `RideModeId`
+- `ModeConfig`
+- `ALL_MODES`
+- section expansion defaults tied to modes
+- lens copy
+
+#### Keep Elsewhere Only If Needed
+- if some other surface still needs POI defaults or mode concepts
+
+#### Verdict
+- **Analyze drawer should stop depending on this file**
+- likely safe to fully decouple from Analyze
+
+---
+
+### 6. ModeSelector.tsx
+
+File:
+- [src/components/ModeSelector.tsx](/Users/derekminner/lanterne/src/components/ModeSelector.tsx)
+
+#### Analyze Drawer Status
+- remove from Analyze drawer immediately
+
+#### Broader Product Status
+- may still survive elsewhere if route planning wants mode-like defaults
+
+#### Verdict
+- **Delete from Analyze drawer integration**
+
+---
+
+### 7. Section Receipt / Deepcut
+
+Files:
+- [src/components/inspection/SectionReceiptSection.tsx](/Users/derekminner/lanterne/src/components/inspection/SectionReceiptSection.tsx)
+- [src/components/RouteAndAnalysisDrawer.tsx](/Users/derekminner/lanterne/src/components/RouteAndAnalysisDrawer.tsx)
+- [src/pages/Index.tsx](/Users/derekminner/lanterne/src/pages/Index.tsx)
+
+#### Reuse
+- current deepcut path from Analyze to Inspect
+- section-level receipt logic
+
+#### New Role
+- `Receipts` tab should become the route-level sibling of this section receipt
+
+#### Verdict
+- **Keep**
+- use it as the conceptual template for the route-level `Receipts` tab
+
+---
+
+## New Components To Add
+
+### 1. AnalyzeDrawerHeader.tsx
+
+Purpose:
+- shared header for all tabs
+
+Contents:
+- route name
+- route miles
+- score
+- grade
+- maybe match quality / confidence pill if desired
+
+### 2. AnalyzeNetworkSelector.tsx
+
+Purpose:
+- top selector above tabs
+
+Launch values:
+- `RUSA Perms`
+- city
+- metro
+- state
+- national
+
+Notes:
+- network switching can launch with limited real coverage if selector state is honest
+
+### 3. AnalyzeScorecardTab.tsx
+
+Purpose:
+- human-facing route verdict
+
+Primary input:
+- `RouteScoreExplanation`
+
+Behavior:
+- collapsible sections
+- metric highlighting preserved where useful
+
+### 4. AnalyzeMethodTab.tsx
+
+Purpose:
+- “what did we analyze?” tab
+
+Primary input:
+- `canonicalAnalysis.analysisReceipt`
+- `canonicalAnalysis.evidenceSummary`
+- selected easy-derive summaries from `RouteScoreExplanation`
+
+Behavior:
+- collapsible grouped sections
+- little to no highlight behavior required at launch
+
+### 5. AnalyzeReceiptsTab.tsx
+
+Purpose:
+- route-total proof tab
+
+Primary input:
+- `canonicalAnalysis.scoreTrace`
+- `scoreRollup`
+
+Behavior:
+- collapsible roads or sections
+- sticky or strong footer total
+- intentionally dense
+
+### 6. analyzeMethodSummary.ts
+
+Purpose:
+- pure summary builder for `Method`
+
+Inputs:
+- `SafetyResult`
+- `CanonicalV5AnalysisArtifact`
+
+Outputs:
+- grouped route-level method facts
+- no UI
+
+### 7. analyzeReceiptGrouping.ts
+
+Purpose:
+- group `continuousSlices` and `crossingEvents` into route-level collapsible receipt units
+
+Possible grouping keys:
+- road name
+- route section ordering
+- fallback unnamed road buckets
+
+---
+
+## What Gets Deleted or Retired
+
+### Immediate Deletions From Active Drawer
+- `ModeSelector` inside Analyze
+- ride-mode lens copy in `RouteScoreExplanationPanel`
+- `support_services` placeholder section from active launch design
+- `isolation_remoteness` placeholder section from active launch design
+
+### Retire From Active UI, Keep on Disk Temporarily
+- monolithic `RouteScoreExplanationPanel` as the only Analyze surface
+- mode-based expansion config
+
+### Candidate Full Removal After Migration Settles
+- analyze-specific dependency on `config/modes.ts`
+- any now-dead mode-only section logic in the old score explanation panel
+
+---
+
+## Recommended Data Ownership
+
+### Scorecard Tab Owns
+- rank within selected network
+- overall grade
+- route characterization sentence
+- route identity
+- ride stats
+- stress mix
+- infrastructure snapshot
+- speed/traffic snapshot
+- hazard snapshot
+- compact confidence pulse
+
+Primary model:
+- `RouteScoreExplanation`
+
+### Method Tab Owns
+- analysis scope
+- source coverage
+- speed inputs
+- traffic inputs
+- infrastructure inputs
+- hazards / crossings / friction
+- scoring ingredients
+- route composition
+- confidence / trust framing
+
+Primary model:
+- canonical receipt + evidence summary
+
+### Receipts Tab Owns
+- formula header
+- route section contributions
+- road/section collapsibles
+- top harmful / top beneficial contributors
+- total route score rollup
+
+Primary model:
+- canonical score trace
+
+---
+
+## Launch Sequence
+
+### Phase 1
+- remove `ModeSelector`
+- add Analyze tab shell
+- split current monolith into `Scorecard` first
+- keep current deepcut section receipt behavior untouched
+
+### Phase 2
+- add `Method` tab with receipt/evidence-summary-backed grouped sections
+- surface network selector state even if only some networks are fully wired
+
+### Phase 3
+- add `Receipts` tab with collapsible route section math
+- then delete the old monolithic scorecard implementation
+
+---
+
+## Recommended First Coding Pass
+
+1. Create `AnalyzeDrawerHeader`
+2. Add tabs to `RouteAndAnalysisDrawer`
+3. Extract `Scorecard` content out of `RouteScoreExplanationPanel`
+4. Remove `ModeSelector`
+5. Leave `Method` and `Receipts` as scaffold tabs initially if needed
+
+This gives the user the new drawer architecture immediately without forcing a full rebuild in one patch.
+
+
+
+---
+
+## Source File: docs/04-execution/exec-016-analyze_drawer_architecture_spec.md
+
+# EXEC-016 — Analyze Drawer Architecture Spec
+
+**Status:** Accepted  
+**Date:** 2026-04-19  
+**Filename:** `exec-016-analyze_drawer_architecture_spec.md`  
+**Related:** [EXEC-014](./exec-014-analyze_drawer_scorecard_method_receipts_launch_plan.md), [EXEC-015](./exec-015-analyze_drawer_component_migration_plan.md), [ADR-042](../03-adrs/adr-042-evidence_resolution_and_truth_propagation_model.md), [ASS-012](../assessments/ass-012-inspector_truth_flow_and_rider_honesty_audit_2026_04_19.md), [ASS-013](../assessments/ass-013-inspector_truth_contract_deep_audit_2026_04_19.md), [ASS-014](../assessments/ass-014-inspector_value_color_chart_2026_04_19.md)
+
+---
+
+## 1. Purpose
+
+This document defines the future-minded architecture for the Analyze drawer rewrite.
+
+It exists to prevent the new drawer from becoming:
+
+- another monolithic React component
+- another mix of canonical facts and improvised presentation logic
+- another place where heavy compute lands on the hot path
+- another “two generations welded together” surface
+
+The drawer must be rebuilt as:
+
+1. a shell
+2. tab-specific pure view-model builders
+3. shared presentation primitives
+4. lazy, post-handoff hydration for heavy derivations
+
+This is not a styling note.  
+It is the architectural contract for the rewrite.
+
+---
+
+## 2. Core rule
+
+**Pull logic out of the drawer itself.**
+
+The drawer may render, expand, collapse, tab-switch, and deep-link.
+
+The drawer may not:
+
+- classify routes
+- compute ranking logic
+- derive stress mix
+- aggregate provenance coverage
+- rank drivers
+- group receipts
+- decide “largest contributor”
+- interpret canonical math on the fly
+
+Those responsibilities belong to pure builder modules.
+
+React components must consume already-decided view-models.
+
+---
+
+## 3. New Analyze surface
+
+The Analyze drawer will consist of:
+
+1. shared route header
+2. shared network selector
+3. tab shell
+4. three tabs:
+   - `Scorecard`
+   - `Method`
+   - `Receipts`
+
+All three tabs use collapsible sections.
+
+`Receipts` uses collapsible roads or route sections.
+
+---
+
+## 4. Architectural layers
+
+## 4.1 Canonical analysis layer
+
+Canonical sources remain:
+
+- `SafetyResult`
+- `CanonicalV5AnalysisArtifact`
+- `RouteScoreExplanation` as a rider-facing summary builder
+
+These are the facts.
+
+This layer may not know about:
+
+- tabs
+- disclosure state
+- network selector UI
+- drawer styling
+
+## 4.2 Analyze domain builder layer
+
+This is the new layer that must be introduced or expanded.
+
+It owns:
+
+- route-level interpretation for `Scorecard`
+- route-level scope/source/math summaries for `Method`
+- route-level grouped trace projection for `Receipts`
+
+This layer must be:
+
+- pure
+- deterministic
+- testable
+- UI-agnostic
+
+## 4.3 Presentation layer
+
+This is the drawer and tab component tree.
+
+It owns:
+
+- layout
+- tabs
+- collapsibles
+- click targets
+- formatting
+- disclosure state
+- map/deepcut interactions
+
+It must not own route-analysis interpretation.
+
+---
+
+## 5. Builder contract
+
+The Analyze drawer will use three primary builders:
+
+- `buildScorecardViewModel(...)`
+- `buildMethodViewModel(...)`
+- `buildReceiptsViewModel(...)`
+
+These builders may depend on smaller pure summarizers, for example:
+
+- `summarizeRouteIdentity(...)`
+- `summarizeStressMix(...)`
+- `summarizeInfrastructure(...)`
+- `summarizeSpeedAndTraffic(...)`
+- `summarizeHazardsAndCrossings(...)`
+- `summarizeSourceCoverage(...)`
+- `summarizeScoreIngredients(...)`
+- `groupReceiptSections(...)`
+
+Hard rule:
+
+- the shell must not call a pile of tiny helpers inline
+- the shell calls one builder per tab
+- builder internals stay outside React
+
+---
+
+## 6. View-model ownership
+
+## 6.1 Scorecard
+
+Primary source:
+
+- `RouteScoreExplanation`
+
+Secondary source:
+
+- `comparativeInterpretation`
+- selected route metadata
+- selected canonical receipt facts where already stable
+
+Owns:
+
+- rank within selected network
+- overall grade
+- route characterization sentence
+- route identity
+- ride stats
+- safety snapshot
+- infrastructure snapshot
+- speed & traffic snapshot
+- hazards & friction snapshot
+- compact confidence/trust pulse
+
+Does not own:
+
+- detailed source accounting
+- full formula explanation
+- per-road contribution table
+
+## 6.2 Method
+
+Primary source:
+
+- `canonicalAnalysis.analysisReceipt`
+- `canonicalAnalysis.evidenceSummary`
+
+Secondary source:
+
+- selected route-level summaries from `RouteScoreExplanation`
+- selected `SafetyResult` fields where still stable
+
+Owns:
+
+- analysis scope
+- source coverage
+- speed inputs
+- traffic inputs
+- infrastructure inputs
+- hazards / crossings / friction
+- scoring ingredients
+- route composition
+- confidence / trust framing
+
+Does not own:
+
+- rider verdict framing
+- comparative narrative
+- raw section receipts
+
+## 6.3 Receipts
+
+Primary source:
+
+- `canonicalAnalysis.scoreTrace.continuousSlices`
+- `canonicalAnalysis.scoreTrace.crossingEvents`
+- `canonicalAnalysis.scoreRollup`
+
+Owns:
+
+- formula header
+- grouped section receipts
+- collapsible roads or sections
+- contribution tables
+- route total rollup
+
+Does not own:
+
+- rider summary language
+- confidence prose
+- broad method explanation
+
+---
+
+## 7. UI primitives
+
+All three tabs should compose from shared primitives rather than custom one-offs.
+
+Required primitives:
+
+- `AnalyzeDrawerHeader`
+- `AnalyzeNetworkSelector`
+- `AnalyzeTabShell`
+- `AnalyzeSection`
+- `AnalyzeStatRow`
+- `AnalyzeMeter`
+- `AnalyzeBadge`
+- `AnalyzeDisclosureTable`
+
+Receipts-specific:
+
+- `ReceiptGroup`
+- `ReceiptRow`
+- `ReceiptTotalFooter`
+
+Hard rule:
+
+- one visual language
+- no special-case panel system per tab
+
+---
+
+## 8. Lazy hydration and runtime safety
+
+The loader work we just fixed must not be undone.
+
+Hard rules:
+
+- do not compute heavy tab models during first route handoff
+- do not group receipts during analysis completion
+- do not attach big new derivations to the hot path in `Index.tsx`
+
+Allowed:
+
+- route becomes usable first
+- light top-level summary can exist on initial handoff
+- heavy tab-specific builders run:
+  - after first interactive paint
+  - on first tab open
+  - or in deferred post-analysis work
+
+Recommended policy:
+
+- `Scorecard` can hydrate first because it is the default tab
+- `Method` hydrates deferred after route usability
+- `Receipts` hydrates lazily on first open unless already cheap enough from canonical trace
+
+If a tab model becomes expensive:
+
+- move its builder off the initial interaction path
+- never push that complexity back into the shell
+
+---
+
+## 9. Network selector architecture
+
+The network selector must be modeled as a provider boundary, not a hardcoded branch.
+
+Use a network abstraction shaped like:
+
+- selected network key
+- available memberships for this route
+- rank/percentile summary for each available network
+
+Launch values:
+
+- `RUSA Perms`
+- city
+- metro
+- state
+- national
+
+Hard rule:
+
+- the drawer should not contain corpus-specific ranking logic
+- ranking resolution belongs in provider/builders
+
+This prevents future drawer rewrites when new ranking corpora are added.
+
+---
+
+## 10. Receipts architecture
+
+Receipts must be a projection of canonical math, not a hand-authored explanation layer.
+
+That means:
+
+- grouping
+- sorting
+- labeling
+- collapsing
+
+are acceptable UI operations
+
+but:
+
+- recomputing contributions
+- inventing driver priority
+- narrating fake causal stories
+
+is not acceptable in the Receipts tab.
+
+The canonical trace remains the source of truth.
+
+If a receipt needs a grouped road or route-section abstraction, create a pure grouping module:
+
+- `groupReceiptSections(...)`
+
+That grouping may not change the underlying math.
+
+---
+
+## 11. Launch-tier handling
+
+Not every desired field is equally trustworthy or equally ready.
+
+Each builder must be able to classify fields internally as:
+
+- ready now
+- deferred
+- unavailable
+
+The UI should:
+
+- omit unavailable fields cleanly
+- avoid fake precision
+- avoid “coming soon” noise unless intentional
+
+This keeps the drawer honest while still future-proof.
+
+---
+
+## 12. Module map
+
+Recommended target modules:
+
+### Drawer shell
+
+- `src/components/analyze/AnalyzeDrawerShell.tsx`
+- `src/components/analyze/AnalyzeDrawerHeader.tsx`
+- `src/components/analyze/AnalyzeNetworkSelector.tsx`
+
+### Tabs
+
+- `src/components/analyze/tabs/AnalyzeScorecardTab.tsx`
+- `src/components/analyze/tabs/AnalyzeMethodTab.tsx`
+- `src/components/analyze/tabs/AnalyzeReceiptsTab.tsx`
+
+### Shared primitives
+
+- `src/components/analyze/primitives/AnalyzeSection.tsx`
+- `src/components/analyze/primitives/AnalyzeStatRow.tsx`
+- `src/components/analyze/primitives/AnalyzeMeter.tsx`
+- `src/components/analyze/primitives/AnalyzeBadge.tsx`
+- `src/components/analyze/primitives/AnalyzeDisclosureTable.tsx`
+
+### Builders
+
+- `src/domain/analyze/scorecard/buildScorecardViewModel.ts`
+- `src/domain/analyze/method/buildMethodViewModel.ts`
+- `src/domain/analyze/receipts/buildReceiptsViewModel.ts`
+
+### Summarizers
+
+- `src/domain/analyze/scorecard/summarizeRouteIdentity.ts`
+- `src/domain/analyze/scorecard/summarizeStressMix.ts`
+- `src/domain/analyze/scorecard/summarizeInfrastructure.ts`
+- `src/domain/analyze/method/summarizeSourceCoverage.ts`
+- `src/domain/analyze/method/summarizeScoreIngredients.ts`
+- `src/domain/analyze/receipts/groupReceiptSections.ts`
+
+This exact file split can vary slightly, but the layer split may not.
+
+---
+
+## 13. Migration rule
+
+Do not try to “improve the existing drawer in place” forever.
+
+Instead:
+
+1. keep current shell behavior working
+2. extract pure builders
+3. introduce new tab shell
+4. move current scorecard logic into `Scorecard`
+5. build `Method`
+6. build `Receipts`
+7. delete old mode/view plumbing
+
+This avoids preserving architectural confusion under new labels.
+
+---
+
+## 14. Non-goals
+
+This rewrite is not the place to:
+
+- redesign the safety model
+- change canonical route scoring semantics
+- add new ride modes
+- add new ranking corpora without provider plumbing
+- add huge interactive analytics dashboards
+
+It is specifically about:
+
+- clean boundaries
+- honest presentation
+- future-proof builder architecture
+- lazy and safe runtime behavior
+
+---
+
+## 15. Acceptance standard
+
+The rewrite is successful when:
+
+1. no route-analysis interpretation lives in the drawer components
+2. each tab consumes a dedicated pure view-model
+3. the old ride-mode view switch is gone
+4. `Method` and `Receipts` are fed from the right canonical sources
+5. heavy receipt/method derivation does not regress route-load responsiveness
+6. the drawer is easier to extend without touching the shell
+
 
 
 ---
@@ -13249,7 +14782,7 @@ AADT is an annual average for a typical day; real traffic varies by hour, direct
 **What is not robust now without targeted engineering:**
 
 - Distinguishing **right turn** vs **merge/join conflict** reliably across the entire network.
-- Identifying “path re-entry crossing” as a distinct class everywhere, unless your routing graph explicitly represents path-road crossings as nodes (varies).
+- Identifying “path re-entry crossing” as a distinct class everywhere, unless the underlying routing/topology representation explicitly models path-road crossings as nodes (varies).
 
 ### Control type counts in a report drawer (feasible now)
 
@@ -13476,6 +15009,7 @@ Even if rail-crossing risk is not part of the vehicle-strike headline score, rid
 - Keep rail crossings in a **separate hazard layer** and explain that the dominant mechanism is often **single-bicycle falls** (wheel–flangeway / skew angle), not motor-vehicle strike, so it is not part of the narrow “vehicle strike expected harm” score. (This distinction is consistent with the need to keep the headline score narrow and mechanism-consistent.) 
 
 ![Bicycle Crashes Involving Light Rail Tracks](https://images.openai.com/static-rsc-1/UxOkF1lcDp-1xBcSsXYDej2AQpbFu07hAzkIXIzIT9mm5cCCLOGQxLgetHT1mhLX9BlVlAl5wKBW-NYAZDx1YPxKabKWH30o6sDBBpEQcPww8Q7SkFZPAMVejRuTsicDD6_gC5lUhDkW4V92DSLxjQ)![Bicycle Crashes Involving Light Rail Tracks](https://images.openai.com/static-rsc-1/coN1WJno2Isw7gS_ZaqkfMJ1NLW0KbLu-MJ7MA90vOqf8ZbrdH90zEzeDhdQwQAupkvcw7uA_AyKN7C4jMzpiVA0Vt8BEu3sA3_2V_BL15ZQEOpdUrwTZdD0O0RUnQUeNGgnmGP1Jrgx4Wlp9fBYag)![11 - Rail Crossings | Ohio Department of Transportation](https://images.openai.com/static-rsc-1/5taVgi_PY50pZcFBb4kjJOi0_ln2UnPugxJNxOWmccoxGKRL_1EwrSoEDb1rotZTj07iWXSSBUf2FptSmsrlgwTIYTJ7kuWP7zqnGp4sOylThoJKctbj_qGEO5LujZmAfiMZtPzSBo6MJdDbxFCYFQ)
+
 
 ---
 
@@ -15395,6 +16929,11 @@ This document records the required Phase 0 audit for profile-based routing imple
 
 It is a repo-specific assessment of current routing, detour, and optimizer code. It does **not** change the product contract established by ADR-044 / DS-021 / EXEC-013.
 
+It should now be read with one explicit implementation constraint:
+
+- Lanterne is not pursuing a custom self-developed routing graph engine as the long-term foundation
+- the likely future direction is an external routing engine integration, with GraphHopper as the leading candidate
+
 Its job is to:
 
 - name the current routing worlds
@@ -15482,10 +17021,10 @@ This is the largest semantic risk area. It contains useful concepts, but it is n
 | `src/lib/detour-candidates.ts` | Circle-of-offset candidates for first detour drop | `do_not_reuse` | UI convenience for current detour editing. Not part of the new routing-policy foundation. |
 | `src/lib/realtime-detour.ts` | Local corridor-graph BFS detour suggestion engine | `do_not_reuse` | Separate runtime detour world with its own scoring and search behavior. Not the launch Route To / Draw profile engine. |
 | `src/hooks/useRealtimeDetour.ts` | React wrapper around local detour engine | `do_not_reuse` | Same reasoning as above. |
-| `src/lib/corridor-graph.ts` | Corridor graph builder for local detour engine | `reuse_with_refactor` | Graph-adapter ideas may be useful, but this exact local-detour shape is not the launch routing architecture. |
+| `src/lib/corridor-graph.ts` | Corridor graph builder for local detour engine | `reuse_with_refactor` | Local path/topology ideas may still be useful for edit workflows, but this exact local-detour shape is not the launch routing architecture. |
 | `src/lib/routing.ts` `scoreOsrmPath()` | Preview rescoring of arbitrary OSRM paths | `reuse_with_refactor` | May survive as an evaluation helper during migration. Must not become canonical route-policy truth. |
 | `src/lib/routing.ts` optimizer pipeline | OSRM alternative enumeration + density heuristics + preview optimization | `do_not_reuse` | Wrong public contract and wrong architecture for Direct / Safer / Lower Traffic / Bike Support. |
-| `src/lib/routing.ts` POI insertion helpers | Add-a-POI rerouting | `reuse_with_refactor` | Useful workflow concept. Should migrate behind the new shared routing engine instead of remaining in the legacy optimizer module. |
+| `src/lib/routing.ts` POI insertion helpers | Add-a-POI rerouting | `reuse_with_refactor` | Useful workflow concept. Should migrate behind the new shared routing-engine integration instead of remaining in the legacy optimizer module. |
 | `src/components/RouteOptimizer.tsx` | Hidden optimizer UI | `remove` | Already hidden. Encodes the wrong launch contract and old mode taxonomy. |
 | `src/components/route-map-candidate-audit-overlay.ts` | Candidate debug overlay | `reuse_directly` | Debug/instrumentation only. Safe to keep outside routing policy ownership. |
 | `src/hooks/useRouteCreation.ts` | Draw/create route surface using OSRM waypoint routing | `reuse_with_refactor` | Strong candidate integration surface for Draw leg recompute once backed by the new shared routing service. |
@@ -15530,8 +17069,8 @@ They also rely on:
 
 That is not the same thing as:
 
-- one shared routing graph
-- one normalized edge model
+- one shared routing-engine integration contract
+- one normalized route-cost boundary at the Lanterne layer
 - multiple policy cost functions
 - one shared comparison/suppression contract
 
@@ -15579,7 +17118,7 @@ Reuse these as the most promising foundations:
 - `useRouteCreation.ts` as a Draw / route-creation integration surface
 - `useDetourHistory.ts` as a route-edit history surface
 - selected splice/diverge/merge ideas from `src/lib/detour-routing.ts`
-- selected graph-adapter ideas from `src/lib/corridor-graph.ts`
+- selected local-topology ideas from `src/lib/corridor-graph.ts`
 - selected evaluation helpers from `scoreOsrmPath()` only as temporary migration aids
 
 ### 8.2 Refactor
@@ -15619,7 +17158,7 @@ The main repo-specific sharpening is:
 
 - the new profile-routing system should not be built on top of the hidden optimizer stack
 - the stale root-level duplicate should be deleted during cleanup
-- draw/edit history concepts are worth preserving, but only under the new shared engine
+- draw/edit history concepts are worth preserving, but only under the new shared routing-engine integration
 
 ---
 
@@ -15634,6 +17173,2154 @@ That pass should:
 - avoid reusing preview scoring as canonical truth
 - treat this audit document as the reuse/remove gate before touching legacy routing code
 
+
+---
+
+## Source File: docs/assessments/ass-011-speed_truth_feed_audit_2026_04_19.md
+
+# ASS-011 — Speed Truth Feed Audit
+
+Date: 2026-04-19
+Status: Working assessment
+Scope: Audit the live speed-truth ladder, the actual feeds entering it, where those feeds are robust vs thin vs theoretical, and how much trusted government speed data is truly being used.
+
+## Executive Summary
+
+Lanterne has a clean, explicit evidence ladder for truth resolution on paper, but speed is not yet using that full ladder in practice.
+
+For speed today, the pipeline is mostly driven by:
+
+- `observed` founder/admin overrides
+- `osm_posted`
+- `osm_inferred`
+- `highway_baseline`
+
+Regional priors exist in code but are underwired in the rider-facing resolver path. Government speed data also exists upstream in enrichment, but it is not preserved cleanly enough through canonical speed resolution. That means the current live speed system is materially thinner than the type system and ADRs imply.
+
+This is especially visible on `trunk`, where the system still falls back to blunt class defaults too often.
+
+## Audit Goal
+
+Answer these questions for speed truth:
+
+1. What are the evidence levels?
+2. What feeds each one today?
+3. Is each level robust, thin, scaffolding, or mostly theoretical?
+4. Are trusted government speed sources actually entering the live scoring/review path?
+5. What is being used well, poorly, or not really at all?
+
+## Canonical Ladder On Paper
+
+The canonical precedence order is defined in [src/lib/evidence/types.ts](/Users/derekminner/lanterne/src/lib/evidence/types.ts):
+
+1. `measured`
+2. `observed`
+3. `authoritative_posted`
+4. `osm_posted`
+5. `user_observation`
+6. `observation_inferred`
+7. `authoritative_inferred`
+8. `osm_inferred`
+9. `regional_prior`
+10. `highway_area_baseline`
+11. `highway_baseline`
+
+Related architectural references:
+
+- [docs/03-adrs/adr-042-evidence_resolution_and_truth_propagation_model.md](/Users/derekminner/lanterne/docs/03-adrs/adr-042-evidence_resolution_and_truth_propagation_model.md)
+- [src/lib/evidence/types.ts](/Users/derekminner/lanterne/src/lib/evidence/types.ts)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+
+## What Is Actually Live For Speed
+
+The live speed path is materially narrower than the ladder above.
+
+Today, the practical speed pipeline is:
+
+- `observed`
+- `osm_posted`
+- `osm_inferred`
+- `highway_baseline`
+
+With partial or underwired support for:
+
+- `observation_inferred`
+- `regional_prior`
+- `authoritative_posted`
+- `authoritative_inferred`
+
+And effectively non-live support for:
+
+- `measured`
+
+## Level-By-Level Audit
+
+### 1. `measured`
+
+Intended feed:
+
+- radar / sensor / direct measured events
+
+Code:
+
+- [src/lib/evidence/measured-events.ts](/Users/derekminner/lanterne/src/lib/evidence/measured-events.ts)
+
+Reality:
+
+- raw event storage exists
+- aggregate logic exists
+- the resolver explicitly excludes measured evidence from canonical truth today
+
+Assessment:
+
+- scaffolding only
+- not live for speed truth
+
+Quality:
+
+- not usable yet
+
+### 2. `observed`
+
+Intended feed:
+
+- founder/admin direct overrides
+
+Code:
+
+- [src/lib/evidence/store.ts](/Users/derekminner/lanterne/src/lib/evidence/store.ts)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+
+Reality:
+
+- live
+- clear precedence
+- reliably enters canonical resolution
+
+Assessment:
+
+- robust
+
+Quality:
+
+- great use
+
+### 3. `authoritative_posted`
+
+Intended feed:
+
+- DOT / HPMS / federal official speed limits
+
+Relevant code:
+
+- [src/lib/hpms.ts](/Users/derekminner/lanterne/src/lib/hpms.ts)
+- [src/lib/dot-enrichment.ts](/Users/derekminner/lanterne/src/lib/dot-enrichment.ts)
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+
+Reality:
+
+- government speed data exists upstream
+- route analysis can inject HPMS/DOT speed into `resolvedSpeedLimit`
+- but the canonical speed resolver does not explicitly collect HPMS/DOT speed as `authoritative_posted`
+- so government speed exists in the pipeline, but provenance is not preserved cleanly through the canonical speed truth path
+
+Assessment:
+
+- partially real upstream
+- under-realized downstream
+
+Quality:
+
+- thin / messy
+
+### 4. `osm_posted`
+
+Intended feed:
+
+- OSM `maxspeed`
+
+Code:
+
+- [src/lib/corridor.ts](/Users/derekminner/lanterne/src/lib/corridor.ts)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+
+Reality:
+
+- direct
+- clear
+- robustly used
+
+Assessment:
+
+- fully live
+
+Quality:
+
+- great use
+
+### 5. `user_observation`
+
+Intended feed:
+
+- community/session observation overlay
+
+Reality:
+
+- explicitly not canonical
+- used for presentation/session overlay only
+
+Assessment:
+
+- live as overlay
+- not part of canonical speed truth
+
+Quality:
+
+- intentionally non-canonical
+
+### 6. `observation_inferred`
+
+Intended feed:
+
+- propagated observed/admin speed from nearby continuous corridor segments
+
+Code:
+
+- [src/lib/evidence/propagation.ts](/Users/derekminner/lanterne/src/lib/evidence/propagation.ts)
+- [src/lib/evidence/types.ts](/Users/derekminner/lanterne/src/lib/evidence/types.ts)
+
+Reality:
+
+- propagation system is real
+- relabeling rules are real
+- but rider-facing speed resolution is not yet receiving the full context needed for propagation to consistently carry the load it should
+
+Assessment:
+
+- partially live
+
+Quality:
+
+- okay in theory, weaker in practice
+
+### 7. `authoritative_inferred`
+
+Intended feed:
+
+- DOT / HPMS inferred speed
+
+Reality:
+
+- more meaningful on traffic than speed
+- no strong, explicit live speed path here today
+
+Assessment:
+
+- mostly weak / mostly theoretical for speed
+
+Quality:
+
+- poor current use
+
+### 8. `osm_inferred`
+
+Intended feed:
+
+- non-posted speed inferred from OSM road data and analysis assumptions
+
+Code:
+
+- [src/lib/corridor.ts](/Users/derekminner/lanterne/src/lib/corridor.ts)
+- [src/lib/speed-utils.ts](/Users/derekminner/lanterne/src/lib/speed-utils.ts)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+
+Reality:
+
+- very live
+- this is one of the main ways speed enters the system when `maxspeed` is absent
+
+Assessment:
+
+- robustly used
+
+Quality:
+
+- good to great
+
+### 9. `regional_prior`
+
+Intended feed:
+
+- state + urbanicity + highway-type prior
+
+Code:
+
+- [src/lib/evidence/regional-prior.ts](/Users/derekminner/lanterne/src/lib/evidence/regional-prior.ts)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+
+Reality:
+
+- database-backed
+- cached
+- minimum sample threshold exists
+- contribution path exists
+- but rider-facing speed resolution often does not receive the state/context needed to actually apply it
+
+Important finding:
+
+- `collectSpeedEvidence(segment, state?, urbanicity?)` supports regional priors
+- but the live resolver path often calls it without state
+- so regional priors are underused in practice
+
+Assessment:
+
+- implemented
+- underwired
+
+Quality:
+
+- promising but weak current use
+
+### 10. `highway_area_baseline`
+
+Intended feed:
+
+- highway class + area type baseline
+
+Reality:
+
+- exists in the type system and semantics
+- not strongly distinct in the live speed resolver path
+- speed resolution still tends to collapse toward plain baseline behavior rather than a clearly separate area-sensitive canonical source
+
+Assessment:
+
+- mostly conceptual / placeholder for speed
+
+Quality:
+
+- weak
+
+### 11. `highway_baseline`
+
+Intended feed:
+
+- last-resort class baseline
+
+Code:
+
+- [src/lib/speed-utils.ts](/Users/derekminner/lanterne/src/lib/speed-utils.ts)
+
+Reality:
+
+- very live
+- historically overused
+- especially visible for `trunk`
+
+Assessment:
+
+- fully live
+- too dominant
+
+Quality:
+
+- necessary fallback, but currently doing too much work
+
+## Trusted Government Sources For Speed
+
+### Federal
+
+HPMS in [src/lib/hpms.ts](/Users/derekminner/lanterne/src/lib/hpms.ts) includes:
+
+- `aadt`
+- `speedLimit`
+- `throughLanes`
+- `shoulderWidthR`
+- `shoulderWidthL`
+
+So yes: federal speed is present in code.
+
+### State DOT
+
+Configured state DOT sources live in [src/lib/dot-enrichment.ts](/Users/derekminner/lanterne/src/lib/dot-enrichment.ts).
+
+Configured states:
+
+- AL
+- AZ
+- CO
+- FL
+- IA
+- IL
+- IN
+- KS
+- LA
+- MD
+- MI
+- MO
+- NC
+- NH
+- NJ
+- NM
+- NY
+- OH
+- OR
+- PA
+- TX
+- WA
+
+States with a configured speed field:
+
+- MO
+- NH
+- NJ
+- NY
+
+Field notes:
+
+- MO uses `SPEED_LIMIT`
+- NH uses `speed_limit`
+- NJ uses `speed_limit`
+- NY uses `AvgSpeed`, which is not the same thing as a posted limit
+
+Conclusion:
+
+- trusted government traffic data is broad
+- trusted government speed data is much narrower
+
+## Where Government Speed Actually Enters
+
+In [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts), route analysis does use enrichment speed:
+
+- HPMS speed can seed `resolvedSpeedLimit`
+- DOT speed can override `resolvedSpeedLimit` when OSM `maxspeed` is absent
+
+This is real.
+
+But the problem is provenance continuity:
+
+- that speed may enter route analysis
+- yet the canonical evidence resolver does not treat it as a first-class `authoritative_posted` speed source in the same clean way the ladder implies
+
+So government speed is:
+
+- present upstream
+- somewhat used
+- not cleanly represented in final canonical speed truth
+
+## What Feeds The Scoring Pipeline Well vs Poorly
+
+### Great use
+
+- `observed`
+- `osm_posted`
+- shared speed policy module in [src/lib/speed-utils.ts](/Users/derekminner/lanterne/src/lib/speed-utils.ts)
+- HPMS / DOT for traffic and AADT
+
+### Good use
+
+- `osm_inferred`
+- analysis-time HPMS/DOT speed overlay
+
+### Thin use
+
+- `regional_prior`
+- `observation_inferred`
+- `authoritative_posted` for speed provenance
+
+### Crap use
+
+- `measured` as canonical speed
+- distinct `highway_area_baseline` as a real speed layer
+- `trunk` rider-facing truth still falling too quickly to class baseline
+
+## Special Note On `trunk`
+
+The main behavioral problem is not just the numeric baseline.
+
+The real issue is that:
+
+- stronger layers above baseline are not fully carrying their weight
+- so `trunk` too often resolves to a highway-class default
+
+This is why `~55` has shown up too often.
+
+The intended precedence for rider-facing `trunk` should be:
+
+1. observed/admin override
+2. authoritative posted speed
+3. OSM posted speed
+4. propagated same-road truth
+5. authoritative inferred / nearby corridor truth
+6. regional prior
+7. area-sensitive baseline
+8. class baseline last
+
+Today, the system reaches class baseline too early.
+
+## Architectural Gap
+
+The most important current gap is:
+
+- the evidence ladder is richer than the live speed path
+
+Specifically:
+
+- regional priors exist, but the resolver path is underwired
+- government speed exists, but provenance is flattened before it becomes clean canonical truth
+- area-sensitive baseline is more notional than real
+
+That means the current system is not actually making full use of the feeds it already has.
+
+## Current Rating
+
+For speed specifically:
+
+- architecture: improving
+- policy centralization: now strong
+- evidence richness on paper: strong
+- actual live feed usage: medium at best
+- provenance fidelity: weak
+- baseline overreach: still too high
+
+## Recommended Next Steps
+
+1. Wire HPMS / state DOT speed into canonical speed resolution as explicit `authoritative_posted` or `authoritative_inferred`.
+2. Thread state and carry context through rider-facing speed resolution so `regional_prior` becomes truly live.
+3. Decide whether `highway_area_baseline` should become a real live layer or be removed as fake precision.
+4. Reduce rider-facing exposure of raw highway-class baseline for `trunk`.
+5. Make same-road and same-corridor propagation dominate before class fallback.
+
+## Final Assessment
+
+Lanterne does not currently have a fake speed system, but it does have an overstated one.
+
+The codebase suggests a rich, evidence-first, government-aware speed truth model.
+The live behavior is closer to:
+
+- OSM posted when available
+- OSM inferred when not
+- admin override when present
+- regional prior only sometimes
+- government speed not yet fully honored as canonical provenance
+- highway baseline too often doing the final job
+
+That is the core truth of the current speed pipeline.
+
+
+---
+
+## Source File: docs/assessments/ass-012-inspector_truth_flow_and_rider_honesty_audit_2026_04_19.md
+
+# ASS-012 — Inspector Truth Flow and Rider-Honesty Audit
+
+**Date:** 2026-04-19  
+**Scope:** Rider-facing truth panel, decision panel, value coloring, provenance/confidence semantics, and safe-path handling  
+**Context:** Audit prompted by Las Vegas route review after speed-waterfall hardening and prior-dataset integration
+
+---
+
+## 1. Summary
+
+The system is materially stronger than it was before the speed prior work, but the rider-facing truth flow is still not honest enough.
+
+The main failure pattern is not one bug. It is a **semantic split-brain**:
+
+- canonical truth may be reasonable
+- but the bullets, labels, confidence copy, decision sentence, and path handling still communicate a different story
+
+In practice, this produces rider-visible contradictions such as:
+
+- green bullet for `shoulder = unknown`
+- grey bullet for `Traffic = Moderate (est.)`
+- red decision sentence for a `35 mph` or `45 mph` road whose speed color is orange
+- safe paths showing `~30 mph` and “primarily due to 30 mph speed limit”
+- separate bike paths showing traffic and shoulder context that should likely be suppressed
+
+This audit focuses on what is confirmed from code and what remains unresolved.
+
+---
+
+## 2. Findings
+
+## Finding 1 — Bullets encode provenance confidence, not the meaning of the value
+
+**Severity:** High  
+**Status:** Confirmed root cause
+
+### Symptom
+
+Examples from the route review:
+
+- `shoulder = unknown` shows a green bullet
+- `bike lanes = separated path` can show a green bullet even when other surrounding truth is ambiguous
+- `Traffic = Moderate (est.)` shows a neutral grey bullet instead of a risk/estimate-aware indicator
+
+### Root cause
+
+[src/components/inspection/FieldRow.tsx](/Users/derekminner/lanterne/src/components/inspection/FieldRow.tsx) does not color the bullet based on the semantic meaning of the displayed value.
+
+Instead:
+
+- risk-driver rows use `RISK_CONFIDENCE_DOT_CLASS[confidence]`
+- metadata/confidence rows use `CONFIDENCE_DOT_CLASS[confidence]`
+
+That means:
+
+- high-confidence unknowns can look green/good
+- estimated traffic can look neutral grey because the row is marked `confidence_info`
+- the bullet is communicating source confidence, not the rider meaning of the field
+
+### Why this is dishonest
+
+The bullet is visually dominant and looks like a state-of-road signal.
+
+But in the current implementation it often means:
+
+- “we trust the source”
+
+not:
+
+- “this road condition is good”
+
+Those are not the same thing.
+
+### Evidence
+
+- [src/components/inspection/FieldRow.tsx](/Users/derekminner/lanterne/src/components/inspection/FieldRow.tsx:45)
+- [src/lib/presentation/semantic-tokens.ts](/Users/derekminner/lanterne/src/lib/presentation/semantic-tokens.ts:197)
+
+---
+
+## Finding 2 — Traffic row is intentionally neutral even when it is rider-meaningful
+
+**Severity:** High  
+**Status:** Confirmed root cause
+
+### Symptom
+
+Examples from the route review:
+
+- `Traffic = Moderate (est.)` shows a grey bullet
+- `Low-Moderate (est.)` does not read as `~Low-Moderate`
+- rider sees a meaningful traffic statement, but the dot communicates “metadata”
+
+### Root cause
+
+[src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx) renders traffic like this:
+
+- `semantic="confidence_info"`
+
+That forces `FieldRow` to use neutral confidence dots rather than risk-driver semantics.
+
+### Why this is dishonest
+
+Traffic is not metadata.  
+It is a rider-facing risk driver.
+
+If the system says:
+
+- `Moderate (est.)`
+- `Low-Moderate (est.)`
+
+then the row is already communicating rider consequence and should not visually downgrade itself into a neutral informational line.
+
+### Evidence
+
+- [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx:367)
+- [src/components/inspection/FieldRow.tsx](/Users/derekminner/lanterne/src/components/inspection/FieldRow.tsx:48)
+
+---
+
+## Finding 3 — Decision summary uses overall risk color with a non-quantitative dominant driver
+
+**Severity:** High  
+**Status:** Confirmed root cause
+
+### Symptom
+
+Examples from the route review:
+
+- `South Desert Foothills Drive is rated high risk — primarily due to 35 mph speed limit`
+- `West Charleston Boulevard is rated high risk — primarily due to 45 mph speed limit`
+
+This reads as if:
+
+- `35 mph` or `45 mph` alone caused the red classification
+
+even though the speed color itself is orange and other drivers may be contributing materially.
+
+### Root cause
+
+[src/components/inspection/DecisionSection.tsx](/Users/derekminner/lanterne/src/components/inspection/DecisionSection.tsx):
+
+- colors the summary using `truth.scoring.riskLevel`
+- then chooses the first `severe` or `negative` driver
+- then renders:
+  - `primarily due to ${dominant.label}`
+
+This is not a weighted dominance calculation.
+
+It is:
+
+- overall risk color from the full score
+- paired with the first sufficiently-negative driver
+
+So the sentence can sound more definitive than the underlying logic actually is.
+
+### Why this is dishonest
+
+The sentence strongly implies causality and primacy, but the implementation is not ranking quantitative contribution.
+
+### Evidence
+
+- [src/components/inspection/DecisionSection.tsx](/Users/derekminner/lanterne/src/components/inspection/DecisionSection.tsx:151)
+
+---
+
+## Finding 4 — Safe paths still participate in the speed prior waterfall
+
+**Severity:** High  
+**Status:** Confirmed root cause
+
+### Symptom
+
+Examples from the route review:
+
+- `Western Beltway Trail` shows `~30 mph`
+- source: `Area estimate`
+- decision says:
+  - `safe path — primarily due to 30 mph speed limit`
+
+This is absurd for a separated bike path.
+
+### Root cause
+
+The current canonical speed resolver does not explicitly suppress speed priors for safe paths.
+
+[src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts):
+
+- `collectSpeedEvidence(...)` still adds:
+  - `regional_prior`
+  - `highway_area_baseline`
+  - `highway_baseline`
+
+for any segment with highway type / state / urbanicity context.
+
+There is no early rule like:
+
+- “if `segment.isSafePath`, speed truth is not sourced from roadway priors”
+
+So safe-path segments can still inherit area/class speed assumptions.
+
+### Why this is dishonest
+
+Separated paths should not be framed as if their primary truth is a motor-road-style speed limit.
+
+At minimum:
+
+- speed on safe paths should be treated differently
+- and decision copy should not foreground “30 mph speed limit” on a cycleway
+
+### Evidence
+
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts:162)
+
+---
+
+## Finding 5 — Traffic and shoulder are not suppressed on safe paths
+
+**Severity:** High  
+**Status:** Confirmed product/semantic issue, not just a cosmetic bug
+
+### Symptom
+
+Examples from the route review:
+
+- `Western Beltway Trail` shows:
+  - `Shoulder: Unknown`
+  - `Traffic: Low-Moderate (est.)`
+
+for a cycleway / separated bike path
+
+### Root cause
+
+[src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx) always renders:
+
+- speed
+- shoulder
+- bike lanes
+- traffic
+
+It does not special-case:
+
+- `segment.isSafePath`
+- `segment.highwayType === cycleway/path/...`
+
+So rider-facing path semantics are not being respected at the panel level.
+
+### Why this is dishonest
+
+For a true separated path:
+
+- shoulder is often not a meaningful dimension
+- motor-traffic context should be hidden or reframed unless the path is truly sharing roadway exposure
+
+### Evidence
+
+- [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx:266)
+
+---
+
+## Finding 6 — Traffic estimate language is inconsistent and under-explained
+
+**Severity:** Medium  
+**Status:** Confirmed root cause
+
+### Symptom
+
+Examples from the route review:
+
+- `Moderate (est.)`
+- `Low-Moderate (est.)`
+- `No data available · unknown`
+- `factor: 1.10`
+- `factor: 1.50`
+
+The rider can see:
+
+- a label
+- a factor
+- a provenance string
+
+but not a coherent explanation of how they relate.
+
+### Root cause
+
+[src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts):
+
+- `trafficConfidenceToLabel(...)` returns strings like:
+  - `Moderate (est.)`
+  - `Low-Moderate (est.)`
+- `trafficConfidenceToProvenance(...)` returns:
+  - `Road class estimate`
+  - `Local area estimate`
+  - `No data available`
+
+Then [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx) surfaces the rider label and, for admin, the factor.
+
+That means:
+
+- estimate semantics are carried by suffix text, not by a consistent provenance grammar
+- `factor` is surfaced without rider-facing meaning
+
+### Why this is dishonest
+
+The system looks more precise than it is.
+
+The user sees:
+
+- a category label
+- a factor
+- a provenance phrase
+
+without a clear contract for what each means.
+
+### Evidence
+
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts:644)
+- [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx:388)
+
+---
+
+## Finding 7 — Decision logic and map speed-band logic are not the same semantic machine
+
+**Severity:** Medium  
+**Status:** Confirmed architecture gap
+
+### Symptom
+
+Examples from the route review:
+
+- map speed color says orange
+- decision summary says high risk in red due primarily to speed
+
+### Root cause
+
+Different subsystems are answering different questions:
+
+- map speed band:
+  - [src/lib/presentation/speed-presentation-controller.ts](/Users/derekminner/lanterne/src/lib/presentation/speed-presentation-controller.ts)
+  - `<=30 green`, `<=45 orange`, `>45 red`
+- segment scoring / decision:
+  - [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+  - full score from speed + shoulder + infra + traffic
+- decision summary:
+  - [src/components/inspection/DecisionSection.tsx](/Users/derekminner/lanterne/src/components/inspection/DecisionSection.tsx)
+  - simplified dominant-driver language
+
+The problem is not that these are different.
+
+The problem is that the UI presents them as if they were one coherent semantic story.
+
+### Why this is dishonest
+
+The rider sees:
+
+- one color on the route line
+- another tone in the decision sentence
+- no clear boundary between:
+  - speed color
+  - overall segment risk
+  - source confidence
+
+### Evidence
+
+- [src/lib/presentation/speed-presentation-controller.ts](/Users/derekminner/lanterne/src/lib/presentation/speed-presentation-controller.ts:34)
+- [src/components/inspection/DecisionSection.tsx](/Users/derekminner/lanterne/src/components/inspection/DecisionSection.tsx:151)
+
+---
+
+## Finding 8 — Bike-lane assignment onto side/service/parking-lot context still appears leaky
+
+**Severity:** Medium  
+**Status:** Product symptom confirmed; exact root cause still needs targeted forensic pass
+
+### Symptom
+
+Example from the route review:
+
+- parking/service road showing `Painted Lane`
+- OSM appears to have the bike lane only on the adjacent main road
+
+### What is likely happening
+
+This looks like either:
+
+- nearby continuity/propagation contamination
+- or route matching assigning adjacent-road bike facility to a side/service segment
+
+I have not fully proven the exact offending stage in this pass.
+
+### Why it matters
+
+Even if not fatal numerically, it undermines trust because the user can verify the mismatch immediately.
+
+### Next forensic target
+
+- bike-infra evidence collection
+- bike-infra propagation carry rules
+- truth-run export on short service/parking-lot runs
+
+---
+
+## Finding 9 — False “Admin verified” state is not fully dead
+
+**Severity:** Medium  
+**Status:** Symptom confirmed by user; exact remaining path not proven in this pass
+
+### Symptom
+
+User still observed false `Admin verified` states after earlier fixes.
+
+### Current understanding
+
+Previous fixes blocked:
+
+- unchanged selections
+- drag-browse clicks
+
+But the remaining symptom suggests one of:
+
+- a different picker interaction path still emits a selection
+- persisted override state from a previous accidental confirmation still survives
+- another component is writing founder/admin overrides outside the guarded path
+
+### Next forensic target
+
+- speed picker interaction event path
+- override persistence + rehydration path
+- any implicit write on focus/select/scroll settle
+
+---
+
+## 3. Priority order
+
+### P0 — semantic honesty
+
+1. Make bullets reflect field semantics, not source confidence.
+2. Stop safe paths from resolving speed via roadway priors.
+3. Suppress or reframe shoulder and traffic on true separated paths.
+4. Make decision summaries use quantified dominance or more cautious wording.
+
+### P1 — explanation integrity
+
+5. Unify traffic estimate language and stop exposing factor without context.
+6. Make the map/decision/inspector distinction explicit:
+   - speed color
+   - overall segment risk
+   - provenance confidence
+
+### P2 — remaining forensics
+
+7. Trace bike-lane contamination on service/parking-lot segments.
+8. Trace remaining false admin-verified path.
+
+---
+
+## 4. Most important conclusion
+
+The current system is no longer primarily suffering from “bad data only.”
+
+It is now suffering from:
+
+- **gooder data**
+- flowing through a **dishonest presentation contract**
+
+That means the next phase should not be framed as:
+
+- “improve some labels”
+
+It should be framed as:
+
+- **truth-flow hardening**
+- so that every visible element:
+  - value
+  - bullet
+  - source label
+  - confidence copy
+  - decision sentence
+
+is telling the same story.
+
+
+---
+
+## Source File: docs/assessments/ass-013-inspector_truth_contract_deep_audit_2026_04_19.md
+
+# ASS-013 — Inspector Truth Contract Deep Audit
+
+**Date:** 2026-04-19  
+**Scope:** End-to-end truth-to-presentation contract for the inspect panel, decision panel, and speed/traffic/bike/shoulder rider-facing semantics  
+**Relationship to ASS-012:** `ASS-012` was symptom-led. This pass is contract-led and identifies exact breakpoints plus the concrete fix shape for each.
+
+---
+
+## 1. Bottom line
+
+The previous audit was directionally right, but it was not deep enough.
+
+The main problem is not just "some UI colors are off." The system currently has **three competing semantic machines**:
+
+1. canonical truth resolution
+2. speed-only display presentation
+3. decision-summary storytelling
+
+Those three machines are not aligned, and the inspect panel stitches them together as if they were one coherent truth system.
+
+That is why close inspection still reveals contradictions even after the upstream speed waterfall work improved substantially.
+
+This pass confirms that there are at least **five distinct breakpoints**:
+
+1. value bullet semantics are derived from provenance confidence rather than value meaning
+2. safe paths still flow through motor-road speed priors and motor-road context rows
+3. decision summaries overclaim causality
+4. traffic rider language and provenance language are internally inconsistent
+5. at least one remaining false-override path still exists by design in the carousel interaction model
+
+There is also one likely upstream contamination issue:
+
+6. bike-lane attribution can leak onto service / connector context because facility detection has no road-type guard and route-analysis stamps the result too early
+
+---
+
+## 2. What the previous pass missed
+
+The earlier audit mostly described visible contradictions from the screenshots the user surfaced.
+
+What it did **not** fully pin down was:
+
+- which layer owns which meaning
+- whether the contradictions originate in resolution, formatting, or storytelling
+- whether any of the remaining bad outputs are caused by true bad data or by post-resolution reinterpretation
+- whether the remaining `Admin verified` issue is still an event-handling bug or something deeper
+
+This pass resolves those questions more precisely.
+
+---
+
+## 3. The actual contract, as implemented today
+
+### 3.1 Canonical truth resolution
+
+The canonical source is:
+
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+
+This layer resolves:
+
+- `speed`
+- `shoulder`
+- `bikeInfra`
+- `trafficResolved`
+- `scoring`
+
+It is the closest thing the app has to "what the system actually believes."
+
+### 3.2 Rider-facing speed formatting
+
+The rider-facing speed chip / color band logic is:
+
+- [src/lib/presentation/speed-presentation-controller.ts](/Users/derekminner/lanterne/src/lib/presentation/speed-presentation-controller.ts)
+
+This is **not** the same thing as:
+
+- canonical truth resolution
+- scoring
+- decision explanation
+
+It is a speed-only presentation heuristic.
+
+### 3.3 Inspector row semantics
+
+The inspect rows are rendered by:
+
+- [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx)
+- [src/components/inspection/FieldRow.tsx](/Users/derekminner/lanterne/src/components/inspection/FieldRow.tsx)
+- [src/lib/presentation/semantic-tokens.ts](/Users/derekminner/lanterne/src/lib/presentation/semantic-tokens.ts)
+
+This layer currently mixes:
+
+- risk meaning
+- confidence meaning
+- provenance meaning
+
+without a single explicit ownership rule.
+
+### 3.4 Decision storytelling
+
+The "Decision" section is:
+
+- [src/components/inspection/DecisionSection.tsx](/Users/derekminner/lanterne/src/components/inspection/DecisionSection.tsx)
+
+This uses:
+
+- overall segment scoring color
+- a first-negative-driver heuristic
+
+and presents the combination as if it were a quantified causal explanation.
+
+That is the deepest rider-facing honesty break in the current system.
+
+---
+
+## 4. Finding A — Bullets are still lying about what a row means
+
+**Severity:** P0  
+**Status:** Confirmed root cause
+
+### What is broken
+
+`FieldRow` uses:
+
+- `RISK_CONFIDENCE_DOT_CLASS`
+- `CONFIDENCE_DOT_CLASS`
+
+driven by:
+
+- `provenanceToConfidence(sourceType)`
+
+That means the bullet primarily communicates:
+
+- how "trustworthy" the source family is
+
+not:
+
+- whether the displayed road state is good, bad, unknown, or neutral
+
+### Why this matters
+
+The bullet is visually dominant and appears before the value text.
+
+So a rider naturally interprets it as:
+
+- "green means good"
+- "grey means neutral/unknown"
+- "red means bad"
+
+But the implementation means:
+
+- high-confidence unknown shoulder can look green-ish
+- estimated traffic can look neutral grey because the row is marked informational
+- a field can be semantically bad while visually calm if its provenance is "good"
+
+### Evidence
+
+- [src/components/inspection/FieldRow.tsx](/Users/derekminner/lanterne/src/components/inspection/FieldRow.tsx:43)
+- [src/lib/presentation/semantic-tokens.ts](/Users/derekminner/lanterne/src/lib/presentation/semantic-tokens.ts:189)
+
+### Fix shape
+
+Split bullet semantics from confidence semantics completely.
+
+Recommended contract:
+
+1. row bullet = **value meaning**
+2. provenance confidence = secondary text/icon only
+3. unknown remains unknown-colored, not "trusted" colored
+
+Concretely:
+
+- `FieldRow` should accept a required `meaningTone`
+  - `good`
+  - `caution`
+  - `danger`
+  - `neutral`
+  - `unknown`
+- rows should no longer derive bullet tone from `sourceType`
+- confidence should move into the expanded metadata line only
+
+---
+
+## 5. Finding B — Traffic is treated like metadata in the inspector even though it drives risk
+
+**Severity:** P0  
+**Status:** Confirmed root cause
+
+### What is broken
+
+`TruthSection` renders traffic with:
+
+- `semantic="confidence_info"`
+
+So `FieldRow` renders traffic using neutral confidence-dot logic rather than rider-meaningful logic.
+
+### Why this matters
+
+Traffic is not metadata.  
+It is a primary risk dimension.
+
+If the row says:
+
+- `Moderate (est.)`
+- `Low-Moderate (est.)`
+
+then the UI has already made a rider-facing traffic claim.
+
+Rendering it as a neutral informational row contradicts that claim.
+
+### Evidence
+
+- [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx:289)
+
+### Fix shape
+
+Traffic row must become a risk-driver row with separate handling for:
+
+- value tone
+- estimate marker
+- provenance detail
+
+Concretely:
+
+1. change traffic row to semantic/risk mode
+2. map:
+   - `Low` -> green
+   - `Low-Moderate` -> chartreuse/green-caution bridge
+   - `Moderate` -> orange
+   - `High` -> red
+   - `Unavailable/Unknown` -> unknown
+3. estimate-ness should be shown in text, not by demoting the row into metadata
+
+---
+
+## 6. Finding C — Safe paths still run through the wrong truth contract
+
+**Severity:** P0  
+**Status:** Confirmed root cause
+
+### What is broken
+
+In `collectSpeedEvidence(...)`, safe paths are not excluded from:
+
+- `regional_prior`
+- `highway_area_baseline`
+- `highway_baseline`
+
+So a cycleway/path can still acquire a motor-road-style `speed` truth.
+
+Then `TruthSection` and `DecisionSection` faithfully display that value.
+
+This is how a separated path can end up with:
+
+- `~30 mph`
+- `Area estimate`
+- `safe path — primarily due to 30 mph speed limit`
+
+### Evidence
+
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts:260)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts:305)
+
+### Why this matters
+
+This is not just bad wording. It is a category error.
+
+A separated bike path should not inherit motor-road speed priors as if it were a roadway risk segment.
+
+### Fix shape
+
+Hard rule:
+
+- if `segment.isSafePath === true`, do not admit:
+  - `regional_prior`
+  - `highway_area_baseline`
+  - `highway_baseline`
+for speed
+
+Instead:
+
+1. `truth.speed.value` should be `null` unless there is real path-specific speed truth
+2. `DecisionSection` should not narrate safe paths in terms of motor speed limit
+3. safe-path scoring should remain path-domain driven
+
+---
+
+## 7. Finding D — Safe paths still show roadway-only context rows
+
+**Severity:** P0  
+**Status:** Confirmed root cause
+
+### What is broken
+
+`TruthSection` always renders:
+
+- speed
+- shoulder
+- bike lanes
+- traffic
+
+There is no branch for:
+
+- `segment.isSafePath`
+
+### Why this matters
+
+For a separated path:
+
+- `shoulder` is usually irrelevant or misleading
+- `bike lanes` is the wrong framing for the facility itself
+- `traffic` may be irrelevant unless the path is directly roadway-exposed
+
+The inspector is currently using a roadway template for path-domain truth.
+
+### Evidence
+
+- [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx:211)
+
+### Fix shape
+
+Split the inspector contract by score domain:
+
+1. **road domain**
+   - speed
+   - shoulder
+   - bike lanes
+   - traffic
+   - surface
+
+2. **path domain**
+   - facility type / path separation
+   - surface
+   - crossings / interruptions if available
+   - nearby road exposure only if real and separately framed
+
+At minimum:
+
+- suppress `speed`, `shoulder`, and `traffic` on true separated paths
+- replace `Bike Lanes` label with `Facility` or `Path Type`
+
+---
+
+## 8. Finding E — The decision summary is not a causal explanation, but it is written like one
+
+**Severity:** P0  
+**Status:** Confirmed root cause
+
+### What is broken
+
+`DecisionSection` computes:
+
+- overall risk color from full scoring
+- then picks:
+  - first `severe` driver
+  - else first `negative` driver
+
+and writes:
+
+- `primarily due to ...`
+
+That is not a dominance calculation.
+
+It is a narrative shortcut.
+
+### Evidence
+
+- [src/components/inspection/DecisionSection.tsx](/Users/derekminner/lanterne/src/components/inspection/DecisionSection.tsx:147)
+
+### Why this matters
+
+This is exactly how the app ends up saying:
+
+- `high risk — primarily due to 35 mph speed limit`
+
+even when:
+
+- speed color is orange
+- traffic and infra also materially contribute
+
+The summary sentence overstates causal confidence.
+
+### Fix shape
+
+Replace the sentence contract.
+
+Do **not** say:
+
+- `primarily due to X`
+
+unless quantitative contribution actually supports it.
+
+Safer alternatives:
+
+- `High risk with contributing factors: 35 mph speed, no bike lanes, and moderate traffic.`
+- `High risk. Strongest visible concerns: 35 mph speed and lack of separation.`
+
+If keeping singular dominant-driver language:
+
+- compute ranked contribution magnitudes from scoring terms first
+
+---
+
+## 9. Finding F — Traffic estimate language is semantically muddy
+
+**Severity:** P1  
+**Status:** Confirmed root cause
+
+### What is broken
+
+`trafficConfidenceToLabel(...)` returns labels like:
+
+- `Low-Moderate (est.)`
+- `Moderate (est.)`
+
+while `trafficConfidenceToProvenance(...)` returns:
+
+- `Local area estimate`
+- `Road class estimate`
+- `No data available`
+
+and the admin details can show:
+
+- `factor: 1.50`
+
+This creates multiple unaligned interpretations:
+
+- rider label
+- provenance phrase
+- numeric factor
+
+### Evidence
+
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts:631)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts:646)
+- [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx:301)
+
+### Why this matters
+
+The app currently mixes:
+
+- categorical language
+- estimate markers
+- hidden numeric score factor
+
+without explaining how they relate.
+
+So riders see phrases like:
+
+- `No data available · unknown`
+- `Moderate (est.)`
+- `factor: 1.5`
+
+that do not resolve into a clear single claim.
+
+### Fix shape
+
+Define one rider-facing traffic contract:
+
+1. visible label
+   - `~Moderate`
+   - `~Low-Moderate`
+   - `Unknown`
+2. visible provenance descriptor
+   - `Road class estimate`
+   - `Local area estimate`
+   - `Government data`
+3. hide raw factor from non-debug rider-facing UI
+4. if `confidence === unknown`, do not show an apparently meaningful traffic band
+
+---
+
+## 10. Finding G — Remaining false `Admin verified` path is still real
+
+**Severity:** P1  
+**Status:** Confirmed likely root cause
+
+### What is broken
+
+The earlier picker fix suppressed:
+
+- click-after-drag accidental commit
+- unchanged direct click re-commit
+
+But `SpeedSignCarousel` still passes:
+
+- `commitOnScroll`
+
+to `RealityPicker`.
+
+That means scroll-settle itself is a commit path by design.
+
+So merely browsing to a newly centered speed and stopping can still call:
+
+- `onSelect(...)`
+-> `handleOverride(...)`
+-> `setOverride(...)`
+
+for admin/founder contexts.
+
+### Evidence
+
+- [src/components/inspection/SpeedSignCarousel.tsx](/Users/derekminner/lanterne/src/components/inspection/SpeedSignCarousel.tsx:69)
+- [src/components/inspection/RealityPicker.tsx](/Users/derekminner/lanterne/src/components/inspection/RealityPicker.tsx:92)
+- [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx:229)
+
+### Why this matters
+
+This is not just a UX annoyance. It pollutes truth provenance by turning browse gestures into canonical overrides.
+
+### Fix shape
+
+For canonical truth fields, remove `commitOnScroll` entirely.
+
+Recommended contract:
+
+1. browse/scroll only changes the preview focus
+2. explicit tap/click confirms selection
+3. admin override is never created by passive scroll settlement
+
+If a fast workflow is still desired:
+
+- use an explicit confirm button for admin mode
+
+---
+
+## 11. Finding H — Bike-lane contamination onto service/parking-lot context likely originates upstream
+
+**Severity:** P1  
+**Status:** Likely root cause, not yet proven with a route-specific reproducer
+
+### What is broken
+
+`route-analysis` stamps:
+
+- `bikeFacility: detectBikeFacility(nearestRoad?.tags)`
+
+for any non-safe-path matched road.
+
+`detectBikeFacility(...)` has no road-type guard against:
+
+- `service`
+- `parking_aisle`
+- driveway/service-like connector context
+
+So if the matched road tags carry cycleway metadata, the facility gets stamped before later bucketing/continuity.
+
+Then:
+
+- `infraToBucket(...)`
+- truth-run export
+- display continuity
+
+can preserve that facility as if it belonged to the service segment itself.
+
+### Evidence
+
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts:6449)
+- [src/lib/speed-utils.ts](/Users/derekminner/lanterne/src/lib/speed-utils.ts:678)
+- [src/lib/heatmap/types.ts](/Users/derekminner/lanterne/src/lib/heatmap/types.ts:220)
+
+### Why this matters
+
+This creates exactly the sort of dishonesty the user noticed:
+
+- bike lane shown on a parking-lot/service segment because the adjacent main road had it
+
+### Fix shape
+
+Add an upstream guard before facility attribution.
+
+Recommended rule:
+
+- if `highway === service`
+- or `service in {parking_aisle, driveway, alley, drive-through}`
+- or score domain / connector heuristics identify parking-lot-like context
+
+then:
+
+- do not inherit bike-facility tags from generic `cycleway=*` lane detection
+- require explicit segment-local facility evidence to keep a bike lane on that segment
+
+This should be fixed in:
+
+- `detectBikeFacility(...)`
+or at the call site in:
+- `route-analysis.ts`
+
+preferably both:
+
+1. detection helper becomes road-type aware
+2. route-analysis explicitly blocks facility stamping on excluded service contexts
+
+---
+
+## 12. Finding I — Safe-path and roadway semantics are being mixed even before the inspector
+
+**Severity:** P1  
+**Status:** Confirmed architectural issue
+
+### What is broken
+
+`speed-presentation-controller` still has a generic fallback path:
+
+- if truth speed is null, use `getPresentationFallbackSpeed(highwayType)`
+
+That is reasonable for roads.
+It is not automatically reasonable for paths.
+
+### Evidence
+
+- [src/lib/presentation/speed-presentation-controller.ts](/Users/derekminner/lanterne/src/lib/presentation/speed-presentation-controller.ts:57)
+- [src/lib/presentation/speed-presentation-controller.ts](/Users/derekminner/lanterne/src/lib/presentation/speed-presentation-controller.ts:107)
+
+### Why this matters
+
+Even after canonical truth improves, a rider-facing fallback layer can silently reintroduce a weaker story.
+
+### Fix shape
+
+Presentation fallback must respect score domain.
+
+If `segment.isSafePath`:
+
+- no motor-road speed fallback
+- no roadway speed band
+
+If road domain:
+
+- fallback remains allowed
+
+---
+
+## 13. Prescriptive fix order
+
+### P0 — honesty before nuance
+
+1. **Remove `commitOnScroll` from admin truth pickers**
+   - `SpeedSignCarousel`
+   - any other canonical override pickers using it
+
+2. **Stop safe paths from resolving speed via priors/baselines**
+   - resolver hard rule
+
+3. **Suppress/reframe roadway-only rows on safe paths**
+   - `TruthSection`
+   - likely `DecisionSection` too
+
+4. **Replace confidence-colored bullets with value-meaning bullets**
+   - `FieldRow`
+   - row-specific tone mapping in `TruthSection`
+
+5. **Rewrite decision summary contract**
+   - no more fake causal `primarily due to ...` without real ranking
+
+### P1 — truth-language hardening
+
+6. **Traffic labeling cleanup**
+   - unify visible label + provenance descriptor
+   - hide raw factor outside debug
+
+7. **Road/path presentation split**
+   - speed presentation controller
+   - inspector labels
+   - decision copy
+
+8. **Bike-facility service-road guard**
+   - `detectBikeFacility(...)`
+   - `route-analysis` call-site guard
+
+### P2 — cleanup and consistency
+
+9. **Audit remaining uses of provenance-confidence color in rider-facing surfaces**
+10. **Add tests for safe-path suppression and admin browse-without-commit**
+11. **Add tests for service-road bike-facility false-positive prevention**
+
+---
+
+## 14. Recommended tests before shipping
+
+### Admin picker
+
+- browsing the speed carousel without explicit confirm does not create override
+- same for shoulder/bike infra if any use commit-on-scroll
+
+### Safe path
+
+- `highway=cycleway` with no explicit speed does not resolve to:
+  - `regional_prior`
+  - `highway_area_baseline`
+  - `highway_baseline`
+- separated path does not render shoulder/traffic rows in inspector
+- decision text for safe path never says `primarily due to XX mph speed limit`
+
+### Bike-facility contamination
+
+- `service=parking_aisle` with adjacent main-road bike lane does not inherit painted/buffered lane
+- service connectors only show bike infra when explicit on that segment
+
+### Decision summary
+
+- `35 mph + no bike lane + moderate traffic` does not claim speed is primary unless scoring contribution ranking proves it
+
+---
+
+## 15. Final assessment
+
+The system is now much healthier upstream than it was before the speed prior work.
+
+The current problem is no longer mainly:
+
+- bad data in
+
+It is now:
+
+- bad truth storytelling out
+
+That is actually progress, because it means the next work is narrower and more defensible.
+
+But it is also more dangerous reputationally, because the system now has enough real grounding that the remaining dishonesty is easier for a careful user to notice.
+
+The right next step is not another broad audit.
+
+It is a targeted P0 honesty hardening pass on:
+
+1. admin picker commit semantics
+2. safe-path suppression
+3. bullet semantics
+4. decision summary contract
+
+Then follow immediately with:
+
+5. service-road bike-facility guardrails
+
+
+
+---
+
+## Source File: docs/assessments/ass-014-inspector_value_color_chart_2026_04_19.md
+
+# Inspector Value Color Chart
+
+This document is the rider-facing value-to-color contract for inspection rows and route-card display.
+
+Rule:
+- Color must encode the meaning of the shown value.
+- Color must not encode provenance confidence.
+- If a value is unknown or suppressed, render it neutral.
+
+Inspector structure:
+- top block = two tabs over the same four fields:
+  - `Data` = current believed values only
+  - `Confidence` = provenance/source quality only
+- `Verification` = external links and contribution actions
+- `Data` and `Confidence` must render the same field order:
+  - speed
+  - traffic
+  - bike lanes
+  - shoulder
+- `Data` rows are actionable/editable
+- `Confidence` rows are explanatory and expand into user-readable source meaning
+
+## Canonical Color Asset
+
+All rider-facing color, arrow, and severity behavior must derive from the single shared semantic asset in:
+
+- [src/lib/presentation/semantic-tokens.ts](/Users/derekminner/lanterne/src/lib/presentation/semantic-tokens.ts)
+
+The generic extensible layer is:
+
+- `IndicatorTone = good | caution | danger | neutral | info`
+
+Current tone mapping:
+
+| Tone | Meaning | Color |
+| --- | --- | --- |
+| `good` | favorable / beneficial / lower concern | <span style="color:#3ddc84;">Green</span> |
+| `caution` | moderate concern / caution | <span style="color:#f0a030;">Orange</span> |
+| `danger` | high concern / harmful / severe | <span style="color:#e05050;">Red</span> |
+| `neutral` | unknown / unavailable / metadata / no judgment | <span style="color:#556070;">Gray</span> |
+| `info` | separated-path / informational / non-risk roadway state | <span style="color:#60a5fa;">Blue</span> |
+
+Architectural rule:
+- rider-facing components must not hardcode local hex colors for semantic meaning
+- rider-facing components must not invent local severity tiers
+- they must ask the shared semantic asset for:
+  - tone
+  - text class
+  - background class
+  - hex
+
+This is intentionally broader than roads. The same asset is meant to support future rider-facing semantics such as:
+- weather
+- heart-rate zones
+- route alerts
+- operational warnings
+- other non-road indicators
+
+## Provenance Confidence
+
+The middle `Confidence` section uses the same shared semantic asset, but with provenance-tone mapping rather than road-state mapping.
+
+| Provenance family | Tone | Color |
+| --- | --- | --- |
+| `observed`, `authoritative_posted`, `osm_posted`, `user_observation`, `measured` | `good` | <span style="color:#3ddc84;">Green</span> |
+| `observation_inferred`, `authoritative_inferred`, `osm_inferred` | `caution` | <span style="color:#f0a030;">Orange</span> |
+| `regional_prior`, `highway_area_baseline`, `highway_baseline` | `danger` | <span style="color:#e05050;">Red</span> |
+| `unknown` | `neutral` | <span style="color:#556070;">Gray</span> |
+
+This is intentionally a trust/quality scale, not a risk scale.
+
+## Data Readability Override
+
+In the top `Data` section:
+- bullets still follow the semantic meaning of the shown value
+- but neutral/unknown text values may render in foreground/white for readability in the dark drawer
+- gray should not make the primary value unreadable at a glance
+
+## Current Rider-Facing Migration Scope
+
+As of this audit, the shared semantic asset is the active source for:
+
+- inspect truth bullets and value colors
+- inspect decision summary colors, arrows, and impact text
+- speed presentation colors
+- segment risk presentation colors
+- cue-sheet speed color
+- cue-sheet semantic warning/info states
+- rider-facing road cards / HUD speed color
+- segment inspector warning and action tones
+- analyze drawer grade-themed card chrome and risk-colored receipt rows
+- `Segments Worth Reviewing` category, priority, and review-action colors
+
+Debug, admin, and audit-only panels are not part of this contract yet.
+
+Interaction-only styling may remain local:
+- selected tabs
+- active rings
+- hover states
+- neutral layout chrome
+
+## Speed
+
+| Value / band | Color |
+| --- | --- |
+| Safe path / separated path speed suppressed | <span style="color:#60a5fa;">Blue</span> |
+| 0-15 mph | <span style="color:#60a5fa;">Blue</span> |
+| 16-30 mph | <span style="color:#3ddc84;">Green</span> |
+| 31-45 mph | <span style="color:#f0a030;">Orange</span> |
+| 46+ mph | <span style="color:#e05050;">Red</span> |
+| Unknown / unavailable | <span style="color:#556070;">Gray</span> |
+
+## Shoulder
+
+| Value | Color |
+| --- | --- |
+| Wide | <span style="color:#3ddc84;">Green</span> |
+| Standard / normal | <span style="color:#3ddc84;">Green</span> |
+| Narrow | <span style="color:#f0a030;">Orange</span> |
+| None | <span style="color:#e05050;">Red</span> |
+| Unknown | <span style="color:#556070;">Gray</span> |
+
+## Bike Infrastructure
+
+| Value | Color |
+| --- | --- |
+| Safe path / separated path | <span style="color:#60a5fa;">Blue</span> |
+| Protected lane / protected track | <span style="color:#60a5fa;">Blue</span> |
+| Buffered lane | <span style="color:#3ddc84;">Green</span> |
+| Painted lane | <span style="color:#3ddc84;">Green</span> |
+| Shared lane / sharrow | <span style="color:#f0a030;">Orange</span> |
+| None | <span style="color:#e05050;">Red</span> |
+| Unknown | <span style="color:#556070;">Gray</span> |
+
+## Traffic
+
+| Value | Color |
+| --- | --- |
+| Low | <span style="color:#3ddc84;">Green</span> |
+| ~Low | <span style="color:#3ddc84;">Green</span> |
+| Low-Moderate | <span style="color:#3ddc84;">Green</span> |
+| ~Low-Moderate | <span style="color:#3ddc84;">Green</span> |
+| Moderate | <span style="color:#f0a030;">Orange</span> |
+| ~Moderate | <span style="color:#f0a030;">Orange</span> |
+| High | <span style="color:#e05050;">Red</span> |
+| ~High | <span style="color:#e05050;">Red</span> |
+| Very High | <span style="color:#e05050;">Red</span> |
+| ~Very High | <span style="color:#e05050;">Red</span> |
+| Unknown / unavailable / suppressed | <span style="color:#556070;">Gray</span> |
+
+## Surface
+
+| Value | Color |
+| --- | --- |
+| Paved | <span style="color:#3ddc84;">Green</span> |
+| Unpaved / gravel | <span style="color:#f0a030;">Orange</span> |
+| Unknown | <span style="color:#556070;">Gray</span> |
+
+## Decision Summary Language
+
+Allowed:
+- `safe path`
+- `low risk`
+- `moderate risk`
+- `high risk`
+- `notable risk driver`
+
+Not allowed:
+- `primarily due to ...` unless contribution ranking is explicitly computed and defensible
+
+## Safe Path Overrides
+
+When `isSafePath === true`:
+- speed may be suppressed
+- traffic may be suppressed
+- shoulder may be suppressed
+- the segment must still render as <span style="color:#60a5fa;">Blue</span> unless an exact contrary speed truth is intentionally being shown
+
+## Decision Section Logic Appendix
+
+This section documents the current logic chain that produces the Decision row and its driver list.
+
+### Source Files
+
+- Scoring engine: [src/lib/safety-scoring.ts](/Users/derekminner/lanterne/src/lib/safety-scoring.ts)
+- Resolver thresholds: [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+- Decision UI: [src/components/inspection/DecisionSection.tsx](/Users/derekminner/lanterne/src/components/inspection/DecisionSection.tsx)
+- Shared semantic contract: [src/lib/presentation/semantic-tokens.ts](/Users/derekminner/lanterne/src/lib/presentation/semantic-tokens.ts)
+
+### Canonical Scoring Formula
+
+For ordinary road segments, the scorer computes:
+
+`riskPoints = localLikelihood * localSeverity`
+
+Where:
+
+- `localSeverity = speedRiskFactor(speedMph)`
+- `localLikelihood = lengthMiles * trafficFactor * infraFactor * shoulderFactor`
+
+If the segment has curvature subspans, curvature multiplies only the curved portion. If the segment is a safe path, the scorer short-circuits to near-zero risk and `safepath`.
+
+### Speed Severity Breakpoints
+
+These come from `V5_SEVERITY_BREAKPOINTS` in `safety-scoring.ts`.
+
+| Speed | Severity |
+| --- | --- |
+| 20 mph | 0.35 |
+| 25 mph | 1.0 |
+| 30 mph | 2.1 |
+| 35 mph | 3.6 |
+| 40 mph | 5.7 |
+| 45 mph | 8.5 |
+| 50 mph | 12.0 |
+| 55 mph | 16.3 |
+
+This is the first key reason the Decision section can look harsher than the speed color chart: a `35 mph` speed value is visually <span style="color:#f0a030;">Orange</span>, but the scorer treats `35 mph` as severity `3.6`, which is already a materially elevated harm term.
+
+### Traffic Factor Inputs
+
+Traffic is resolved before scoring. The main branches are:
+
+- authoritative per-lane / total
+- corridor inferred
+- local area prior
+- class proxy
+
+When numeric AADT is not available, the scorer falls back to `classProxyFactorFromHighway(...)`.
+
+Current class-proxy breakpoints in practice:
+
+- low proxy: about `0.60`
+- unknown: about `1.00`
+- medium proxy: about `1.50`
+- high proxy: about `2.50`
+
+### Bike Infrastructure Factor
+
+From `V5_FACILITY_FACTORS`:
+
+| Facility | Factor |
+| --- | --- |
+| Protected track | `0.50` |
+| Buffered lane | `0.68` |
+| Painted lane | `0.82` |
+| Shared lane | `1.00` |
+| Shoulder only | `1.00` |
+| None | `1.00` |
+| Unknown | `1.00` |
+
+Important:
+- `none` and `unknown` are both neutral in the canonical scorer right now.
+- this means “no bike lane” does not directly add penalty; it simply fails to reduce risk.
+
+### Shoulder Factor
+
+The scorer only gives shoulder benefit when:
+
+- speed is at least `30 mph`
+- there is no dedicated bike facility
+- and shoulder data is present
+
+Current factors:
+
+| Shoulder | Factor |
+| --- | --- |
+| Wide | `0.85` |
+| Usable | `0.90` |
+| Sub-usable | `1.00` |
+| None / unknown | `1.00` |
+
+Important:
+- shoulder currently reduces likelihood through `shoulderFactor`
+- `shoulderCredit` displayed in the Decision panel is always `0`
+- so the UI field `shoulder credit` is currently not the real mechanism
+
+### Risk-Level Thresholds
+
+After scoring, the resolver converts to normalized risk:
+
+`normalizedRisk = riskPoints / lengthMiles`
+
+Current thresholds:
+
+- `<= 3.15` => low
+- `<= 12.75` => medium
+- `> 12.75` => high
+
+These thresholds are anchored to the speed-severity breakpoints multiplied by the canonical `Moderate traffic = 1.5x` factor:
+
+- `30 mph => 2.1 * 1.5 = 3.15`
+- `45 mph => 8.5 * 1.5 = 12.75`
+
+This means the classifier is effectively operating on risk-per-mile style values, not the raw segment color bands used in the speed UI.
+
+### Worked Example: 35 mph Road With Inferred No Bike Lane, Unknown Shoulder, Low-Moderate Traffic
+
+If a segment is roughly `0.1 mi`, with:
+
+- speed `35 mph`
+- traffic factor `1.0`
+- bike infra factor `1.0`
+- shoulder factor `1.0`
+
+Then:
+
+- `localSeverity = 3.6`
+- `localLikelihood = 0.1 * 1.0 * 1.0 * 1.0 = 0.1`
+- `riskPoints = 0.36`
+- `normalizedRisk = 0.36 / 0.1 = 3.6`
+
+Because `3.6` is greater than `3.15` but less than or equal to `12.75`, the segment becomes `medium risk`.
+
+So the current scorer is internally consistent, but the resulting rider-facing output can feel dishonest because:
+
+- speed color says <span style="color:#f0a030;">Orange</span>
+- traffic may say <span style="color:#3ddc84;">Green</span> or <span style="color:#f0a030;">Orange</span>
+- and the normalized thresholding now keeps the overall decision in <span style="color:#f0a030;">Medium risk</span> unless additional factors push it above the `45 mph @ moderate traffic` threshold
+
+### Current Decision Driver Logic
+
+The Decision section does **not** compute exact contribution shares, but it now derives its visible impact semantics from the shared semantic contract instead of private local thresholds.
+
+It now builds driver labels as follows:
+
+- speed driver impact:
+  - `<= 25 mph` => positive
+  - `26-30 mph` => neutral
+  - `31-45 mph` => negative
+  - `46+ mph` => escalates using the `25 mph` what-if reduction
+- traffic driver impact:
+  - `<= 0.7` => positive
+  - `< 1.5` => neutral
+  - `>= 1.5` => negative
+  - `>= 2.0` => severe
+- bike lanes:
+  - when missing, uses the reduction from a `protected lane` counterfactual
+- shoulder:
+  - when `none` or `unknown`, uses the reduction from a `wide shoulder` counterfactual
+  - positive only when the actual `shoulderFactor` is already reducing risk
+
+So the current “notable risk driver” line is still a heuristic summary, but it is now aligned to the same shared tone/impact contract used by the visible Decision arrows and text.
+
+### Decision Contract Rule
+
+The Decision section must not run its own private color contract.
+
+Allowed:
+- deriving composite risk from the scorer
+- deriving impact levels from the shared semantic contract
+- rendering tones/classes/hex from the shared semantic contract
+
+Not allowed:
+- local `green/orange/red` hex tables inside the Decision component
+- local “severe if X > arbitrary threshold” color logic that bypasses the shared semantic layer
+- provenance-driven bullet or arrow colors
+
+### Red Flags Still Present
+
+1. The Decision section still does not expose exact contribution percentages by driver.
+
+2. Traffic impact is still based on factor bands, not a true traffic counterfactual delta.
+
+3. Bike infra `none` and `unknown` are both neutral in the scorer, which can make rider-facing “no bike lanes” language sound stronger than the actual scoring effect.
+
+4. Overall decision color is derived from normalized composite risk, not the visible speed band.
+
+### Practical Interpretation
+
+Today the Decision section means:
+
+- the segment’s overall normalized composite risk exceeded the threshold for its current band
+- speed is one of the strongest multiplicative inputs in that composite
+
+It does **not** yet mean:
+
+- speed alone determined the final band
+- or that the visible orange speed band should itself have been red
+
+That distinction must remain explicit in the UI and future decision-summary wording.
 
 
 ---
