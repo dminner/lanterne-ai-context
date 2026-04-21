@@ -17400,6 +17400,541 @@ That is a requirement, not a nice-to-have.
 
 ---
 
+## Source File: docs/02-architecture/design/ds-021-profile_based_routing_and_alternate_route_policy_spec.md
+
+# DS-021 — Profile-Based Routing and Alternate Route Policy Spec
+
+**Status:** Accepted  
+**Date:** 2026-04-17  
+**Filename:** `ds-021-profile_based_routing_and_alternate_route_policy_spec.md`  
+**ADR parent:** [ADR-044](../../03-adrs/adr-044-profile_based_routing_and_alternate_route_policies.md)  
+**Related:** ADR-001, ADR-002, ADR-005, ADR-032, DS-014, DS-020, [EXEC-013](../../04-execution/exec-013-profile_based_routing_implementation_plan.md), [ASS-010](../../assessments/ass-010-phase0_routing_audit.md)
+
+---
+
+## 1. Purpose
+
+This spec defines the implementation shape for Lanterne’s profile-based alternate routing system.
+
+It covers:
+
+- routing profile definitions
+- shared normalized edge attributes
+- cost-policy architecture
+- alternate comparison and suppression
+- search budgets and stop rules
+- Route To integration
+- Draw leg-recompute integration
+- heavy-compute behavior
+- legacy routing audit requirements
+
+It does not:
+
+- redefine Safety Score semantics
+- introduce arbitrary rider preference sliders
+- require routing policy ownership inside `RouteMap.tsx`
+
+---
+
+## 2. Scope
+
+This spec governs the first launchable version of:
+
+- `Route To` route alternatives
+- draw-leg recompute using the same policy engine
+
+### In scope
+
+- Direct baseline route
+- Safer alternate
+- Lower Traffic alternate
+- Bike Support alternate
+- search-budgeting and no-result behavior
+- delta reporting vs Direct
+- old-routing-code audit and cleanup guidance
+
+### Out of scope
+
+- public marketing copy
+- deep visual design
+- full event-aware brevet optimizer
+- arbitrary rider-defined weighting systems
+- point/span infrastructure authoring
+- canonical score-model changes
+
+---
+
+## 3. Public routing profiles
+
+### 3.1 Canonical visible profile set
+
+```ts
+export type RoutingProfile =
+  | 'direct'
+  | 'safer'
+  | 'lower_traffic'
+  | 'bike_support';
+```
+
+### 3.2 Internal optional profile set
+
+The implementation may include internal-only helpers such as `balanced` if that simplifies orchestration.
+
+`balanced` is **not** a visible launch option.
+
+### 3.3 Route To contract
+
+- compute `direct` first
+- compare alternates against `direct`
+- suppress trivial or weakly differentiated routes
+- show only meaningful alternatives
+
+---
+
+## 4. Architectural boundaries
+
+### 4.1 Required module ownership
+
+Routing-policy logic must live outside `RouteMap.tsx`.
+
+Recommended ownership:
+
+```text
+src/lib/routing-policies/
+  types.ts
+  config.ts
+  costs.ts
+  comparison.ts
+  budgets.ts
+  messages.ts
+  index.ts
+
+src/lib/routing-engine/
+  route-search.ts
+  alternative-generation.ts
+  profile-route-service.ts
+  route-size-buckets.ts
+  legacy-audit.ts
+
+src/lib/routing-graph/
+  edge-normalization.ts
+  graph-adapter.ts
+  graph-attributes.ts
+
+src/lib/routing-analysis/
+  route-delta.ts
+  overlap.ts
+  suppression.ts
+
+src/hooks/
+  useProfiledRouteTo.ts
+  useProfiledLegRecompute.ts
+
+src/components/routing/
+  RouteProfileChips.tsx
+  AlternateRouteDelta.tsx
+  AlternateRouteBusyNotice.tsx
+  AlternateRouteStatus.tsx
+```
+
+Equivalent clean homes may be used if the repo already has stronger ownership boundaries.
+
+### 4.2 Prohibited ownership
+
+Do not place the following into `RouteMap.tsx` except minimal plumbing:
+
+- profile formulas
+- profile labels
+- suppression rules
+- search budgets
+- no-result logic
+- heavy-compute thresholds
+
+### 4.3 Shared-engine rule
+
+Draw leg recompute is not a second routing architecture.
+
+Route To and Draw leg recompute must use one shared policy engine and one shared graph/edge worldview.
+
+---
+
+## 5. Normalized edge attribute contract
+
+The routing engine operates on a compact normalized edge shape derived from existing route truth / scoring primitives where possible.
+
+### 5.1 Canonical launch shape
+
+```ts
+export type RoutingEdgeInput = {
+  edgeId: string;
+  distanceMeters: number;
+  estimatedSeconds: number;
+
+  speedBurden: number;
+  trafficBurden: number;
+  bikeSupportBurden: number;
+  shoulderBurden: number;
+  hazardBurden: number;
+  turnBurden: number;
+  intersectionBurden: number;
+
+  confidencePct?: number;
+  provenanceClass?: string;
+  roadClass?: string;
+  hasDedicatedBikeFacility?: boolean;
+  isPathLike?: boolean;
+};
+```
+
+### 5.2 Design rules
+
+- use normalized burdens/credits where possible
+- derive from existing truth inputs instead of inventing a second fact universe
+- do not reuse presentation-only speed paint as route-policy truth
+- do not treat missing bike-support evidence as equivalent to positive bike-support truth
+
+---
+
+## 6. Shared cost-policy contract
+
+### 6.1 Required cost function signature
+
+```ts
+computeEdgeCost(edge: RoutingEdgeInput, profile: RoutingProfile): number
+```
+
+### 6.2 Launch composition rule
+
+Launch cost should use explicit readable weighted-sum logic.
+
+Conceptual form:
+
+```ts
+cost =
+  w.time * estimatedSeconds +
+  w.speed * speedBurden +
+  w.traffic * trafficBurden +
+  w.bikeSupport * bikeSupportBurden +
+  w.shoulder * shoulderBurden +
+  w.hazard * hazardBurden +
+  w.turns * (turnBurden + intersectionBurden);
+```
+
+### 6.3 Profile intent
+
+#### `direct`
+
+- shortest / fastest reasonable contract
+- very low alternate penalties
+- primarily travel-oriented
+
+#### `safer`
+
+- stronger penalties on absolute risk-bearing burdens
+- modest willingness to spend more time/distance to reduce route risk
+
+#### `lower_traffic`
+
+- stronger penalties on traffic burden and stressful motor-vehicle context
+- more willing to accept detours to find calmer roads
+
+#### `bike_support`
+
+- strongest penalty on weak bike-support / shoulder context where known
+- should prefer supportive cycling environments where the system has meaningful evidence
+
+### 6.4 Hard semantic rule
+
+Safety Score semantics remain unchanged.  
+Routing cost is not score semantics.
+
+---
+
+## 7. Central config requirements
+
+All major weights and thresholds must be centralized.
+
+### 7.1 Required config categories
+
+#### A. Cost weights by profile
+
+For each profile:
+
+- time/distance weight
+- speed weight
+- traffic weight
+- bike-support weight
+- shoulder weight
+- hazard weight
+- turn/intersection weight
+
+#### B. Distinctness thresholds
+
+- max overlap ratio before suppression
+- minimum route improvement requirement by profile
+- minimum distance/time separation for “meaningfully different”
+
+#### C. Search budgets
+
+- max expansion budget by route-size bucket
+- max compute time by route-size bucket
+- max extra distance tolerance by profile
+- max extra time tolerance by profile
+
+#### D. Heavy-compute thresholds
+
+- route-size bucket at which heavy-compute UI may show
+- payload threshold at which heavier busy notice may show
+
+### 7.2 Hard rule
+
+No profile-defining constants may be embedded in component files.
+
+---
+
+## 8. Route-size buckets and search budgets
+
+### 8.1 Required bucket family
+
+Launch should use route-size buckets such as:
+
+- `small`
+- `medium`
+- `large`
+- `extra_large`
+
+These may be determined by distance, graph size, expected candidate volume, or an equivalent bounded heuristic.
+
+### 8.2 Required per-bucket outputs
+
+For each bucket define:
+
+- `maxProfileComputeMs`
+- `maxTotalRequestComputeMs`
+- `maxExpansionBudget`
+- `maxExtraDistanceMeters`
+- `maxExtraTimeSeconds`
+- `showHeavyComputeHint`
+
+### 8.3 Design rule
+
+A 3-mile route and an 80-mile route may not receive identical search budgets.
+
+---
+
+## 9. Search-horizon separation rule
+
+### 9.1 Display corridor
+
+The display corridor may remain optimized for:
+
+- map responsiveness
+- heatmap rendering
+- bounded overlay cost
+
+### 9.2 Routing search horizon
+
+Alternate-route discovery requires a distinct search-horizon policy.
+
+This policy may:
+
+- widen beyond display-only corridor limits
+- use bounded expansion budgets
+- remain route-size-aware
+- remain payload-aware
+
+### 9.3 Hard rule
+
+Do not silently reuse display/heatmap corridor limits if they suppress alternate discovery.
+
+---
+
+## 10. Alternative route comparison contract
+
+Each alternate must be compared against `direct`.
+
+### 10.1 Required comparison outputs
+
+```ts
+export type RouteComparisonSummary = {
+  profile: RoutingProfile;
+  overlapRatio: number;
+  distanceDeltaMeters: number;
+  timeDeltaSeconds: number;
+  riskDeltaPct?: number;
+  profileImprovementMetric?: number;
+  isMeaningfullyDistinct: boolean;
+  suppressionReason?: RouteSuppressionReason;
+};
+```
+
+### 10.2 Required suppression reasons
+
+Examples:
+
+- `too_similar`
+- `insufficient_risk_gain`
+- `insufficient_traffic_gain`
+- `insufficient_bike_support_gain`
+- `too_costly_for_gain`
+- `budget_exhausted_before_meaningful_candidate`
+
+### 10.3 Hard rule
+
+The app may not present a fake alternate merely because a technically different polyline exists.
+
+---
+
+## 11. No-result contract
+
+The system must support structured no-result handling.
+
+Examples:
+
+- no viable alternate found within current budget
+- alternate was too similar to Direct
+- alternate was too costly for the gain
+- route size exceeded current compute allowance
+
+No-result behavior must be:
+
+- bounded
+- profile-aware
+- honest
+- reusable across Route To and Draw leg recompute
+
+---
+
+## 12. Draw leg recompute contract
+
+### 12.1 Scope rule
+
+Draw mode uses the same routing engine, but its working scope is one selected leg between anchors.
+
+### 12.2 Rules
+
+- recompute only the selected leg
+- preserve the rest of the route
+- preserve current detour/history semantics unless intentionally changed
+- use the same cost-policy and comparison modules as Route To
+
+### 12.3 Hard rule
+
+Draw leg recompute is not a second routing architecture.
+
+---
+
+## 13. Heavy-compute behavior
+
+Heavy-compute notices are allowed only when justified by route size or search budget.
+
+Requirements:
+
+- conservative trigger thresholds
+- structured reason for showing the notice
+- no melodramatic “thinking” UI
+- no claim that the system is searching indefinitely
+
+---
+
+## 14. Legacy routing / optimizer audit requirement
+
+Before final implementation, audit these areas:
+
+- `src/lib/detour-routing.ts`
+- stale root-level `detour-routing.ts`
+- `src/components/RouteOptimizer.tsx`
+- any route/optimizer score path in `src/lib/routing.ts`
+- any old mode concepts such as `explore`, `race`, `brevet`
+
+### 14.1 Required verdict categories
+
+For each major function/module:
+
+- `reuse_directly`
+- `reuse_with_refactor`
+- `do_not_reuse`
+- `remove`
+
+### 14.2 Brevet preservation rule
+
+If old optimizer code contains brevet-distance-floor logic, preserve the policy concept even if the old implementation is discarded.
+
+### 14.3 Repo-specific audit notes
+
+Current repo audit guidance:
+
+- `src/lib/detour-routing.ts` may be reused with refactor for route splice/diverge/merge ideas
+- `useDetourHistory` may survive as an integration surface
+- root-level `detour-routing.ts` is a stale duplicate and removal candidate
+- `RouteOptimizer.tsx` should not survive as the launch routing architecture
+- `realtime-detour.ts` and `useRealtimeDetour.ts` are not the launch profile-routing foundation
+- preview scoring in `src/lib/routing.ts` must not become canonical route-selection truth
+
+See [ASS-010](../../assessments/ass-010-phase0_routing_audit.md).
+
+---
+
+## 15. State model guidance
+
+Preferred alternate-route request/result state should be compact and explicit.
+
+Suggested shape:
+
+```ts
+export type AlternateRouteState =
+  | { kind: 'idle' }
+  | { kind: 'computing_direct' }
+  | { kind: 'computing_alternate'; profile: RoutingProfile }
+  | { kind: 'ready' }
+  | { kind: 'no_viable_alternate'; profile: RoutingProfile; reason: NoAlternateReason }
+  | { kind: 'failed'; profile?: RoutingProfile; error: string };
+```
+
+Avoid a sprawl of surface-owned booleans.
+
+---
+
+## 16. Instrumentation contract
+
+Each alternate-route attempt should expose structured instrumentation data.
+
+### 16.1 Minimum fields
+
+- profile
+- route-size bucket
+- compute budget allowed
+- compute budget consumed
+- overlap ratio vs direct
+- distance delta
+- time delta
+- profile improvement metric
+- suppression reason if any
+- no-result reason if any
+- heavy-compute hint triggered or not
+
+### 16.2 Design rule
+
+The routing layer should expose instrumentation-friendly summaries. It should not own the whole logging universe.
+
+---
+
+## 17. Open questions
+
+These do not change launch direction, but they should be answered during implementation:
+
+1. What is the best graph adapter foundation:
+   - extend current OSRM/route creation flows
+   - adapt corridor/road truth into a routing graph
+   - or combine both under one service boundary?
+
+2. How much of current detour splice logic should remain in `src/lib/detour-routing.ts` versus move into a new profile-route service?
+
+3. Which parts of preview path scoring should survive temporarily as evaluation helpers while the normalized edge model is being introduced?
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
@@ -24768,4 +25303,319 @@ Provenance answers **why**.
 
 Those must remain separate.
 
+
+
+---
+
+## Source File: docs/03-adrs/adr-044-profile_based_routing_and_alternate_route_policies.md
+
+# ADR-044 — Profile-Based Routing and Alternate Route Policies
+
+**Status:** Accepted  
+**Date:** 2026-04-17  
+**Related:** ADR-001, ADR-002, ADR-005, ADR-032, [DS-021](../02-architecture/design/ds-021-profile_based_routing_and_alternate_route_policy_spec.md), [EXEC-013](../04-execution/exec-013-profile_based_routing_implementation_plan.md), [ASS-010](../assessments/ass-010-phase0_routing_audit.md)
+
+---
+
+## 1. Context
+
+Lanterne’s current pre-ride contract is meaningful but still narrow:
+
+- upload or create a route
+- analyze it
+- inspect risk and truth
+- manually adjust the route if needed
+
+That is useful, but it does not fully answer the practical rider question:
+
+> “I know where I want to go. Can Lanterne offer a better way to get there?”
+
+The existing Route To and draw/edit surfaces already prove that routing is within reach. The problem is not capability in the abstract. The problem is that the current routing-related code is fragmented across multiple overlapping systems:
+
+- Route To / route creation via OSRM waypoint routing
+- live detour editing via `src/lib/detour-routing.ts`
+- hidden optimizer concepts and preview scoring via `src/lib/routing.ts` and `RouteOptimizer.tsx`
+- separate local detour exploration via `realtime-detour.ts`
+
+This fragmentation creates architectural risk:
+
+1. **Score drift**
+   - Safety Score must remain narrow and absolute.
+   - Routing preferences may not redefine score semantics.
+
+2. **RouteMap bloat**
+   - routing policy may not accumulate inside `RouteMap.tsx`
+
+3. **Split-brain routing behavior**
+   - Route To, draw-leg recompute, detours, and any future optimizer work may not each invent a separate policy model
+
+4. **Fake alternatives**
+   - nearly identical routes may not be shown as distinct rider-facing choices just to create the appearance of intelligence
+
+5. **Unbounded search**
+   - alternate discovery must be budgeted and honest about failure/no-result outcomes
+
+6. **Loss of niche value**
+   - old optimizer ideas such as brevet-safe distance constraints may still matter, even if the implementation does not survive
+
+---
+
+## 2. Decision
+
+Lanterne will implement a **shared profile-based routing preference engine**.
+
+This engine will:
+
+- use one underlying routable graph / normalized edge model
+- support multiple routing policies through different edge-cost functions
+- be reusable across:
+  - `Route To`
+  - draw-mode leg recomputation
+
+Launch rider-facing route choices are:
+
+- **Direct**
+- **Safer**
+- **Lower Traffic**
+- **Bike Support**
+
+`Direct` is the default contract.  
+The other three are alternates.
+
+`Balanced` may exist internally if it is useful for engineering orchestration, but it is **not** a visible launch option.
+
+---
+
+## 3. Product contract
+
+### 3.1 Route To
+
+When a rider searches for a destination:
+
+- compute **Direct** first
+- treat Direct as the comparison baseline
+- offer **Safer**, **Lower Traffic**, and **Bike Support** only when they are meaningfully different
+
+### 3.2 Draw
+
+When a rider has created a route with anchor points:
+
+- the same routing-preference engine must be usable to recompute an individual leg between anchors
+- this is not a second routing architecture
+- this is the same policy engine applied to a narrower working scope
+
+### 3.3 Non-goals
+
+This decision does not introduce:
+
+- freeform rider preference sliders
+- rider-editable route-policy weights
+- giant routing-settings panels
+- “AI optimizer” positioning
+- a second policy system just for Draw mode
+
+Launch emphasis is:
+
+- understandable choices
+- honest compute limits
+- real route tradeoffs
+- clear architectural ownership
+
+---
+
+## 4. Core routing principle
+
+### 4.1 One graph, many policies
+
+All visible route profiles must use:
+
+- the same underlying graph
+- the same normalized edge attributes
+- the same route-comparison and suppression rules
+
+Visible route differences come from **policy**, not from separate hidden routing stacks.
+
+### 4.2 Shared edge attributes
+
+The policy engine should reason over normalized edge attributes such as:
+
+- distance
+- estimated travel time
+- speed burden
+- traffic burden
+- bike-support burden
+- shoulder burden
+- hazard burden
+- turn / crossing / intersection burden
+
+### 4.3 Shared route comparison rules
+
+All alternates must be compared against Direct using a common contract.
+Alternates that are too similar, too weakly differentiated, or too costly for the gain must be suppressed.
+
+---
+
+## 5. Safety Score separation rule
+
+The headline Safety Score remains:
+
+> the absolute risk to the rider from motor-vehicle collision likelihood and resulting severity.
+
+That meaning is fixed.
+
+Routing profiles influence:
+
+- pathfinding preference
+- route selection
+
+Routing profiles do **not** influence:
+
+- the semantic meaning of Safety Score
+- canonical risk interpretation
+- the score curve
+
+Examples:
+
+- a dangerous road does not become “safe” because it is common locally
+- a route chosen under `bike_support` still receives the same canonical score logic as any other route
+
+---
+
+## 6. Visible launch profiles
+
+### 6.1 Direct
+
+The most direct reasonable route.
+
+Use when:
+
+- the rider primarily wants straightforward travel
+- alternates are comparisons against a familiar baseline
+
+### 6.2 Safer
+
+A route willing to spend modest extra distance or time to reduce absolute rider risk.
+
+### 6.3 Lower Traffic
+
+A route more strongly biased away from stressful motor-vehicle context, even when overall risk and bike-support considerations do not fully overlap.
+
+### 6.4 Bike Support
+
+A route that more strongly prefers bike-supportive roads where the system has meaningful truth.
+
+This includes known infrastructure / shoulder context where available. It does **not** promise continuous bike lanes.
+
+---
+
+## 7. Brevet policy preservation
+
+The old optimizer’s brevet-aware concept is strategically valuable and should not be discarded as generic legacy clutter.
+
+Lanterne will preserve **brevet-safe routing constraints** as a specialized policy / constraint capability.
+
+### 7.1 Launch posture
+
+Brevet is **not** a default visible Route To button at launch.
+
+### 7.2 Preservation rule
+
+Brevet remains a specialized policy / constraint family for:
+
+- brevet-aware route optimization
+- route-adjustment workflows where shortening the route could invalidate the rider’s effort
+- future event/control-aware routing work
+
+### 7.3 Constraint rule
+
+A brevet-aware mode may not shorten a qualifying route below the applicable route-distance floor unless explicitly allowed by the rider or by the surrounding workflow contract.
+
+The old implementation does not need to survive for this rule to survive.
+
+Preserve the concept.  
+Refactor or reimplement the mechanics if needed.
+
+---
+
+## 8. Search-budget rule
+
+Alternate-route discovery must be **bounded**.
+
+The routing engine may not grind indefinitely in pursuit of tiny marginal improvements.
+
+The system must support:
+
+- explicit search budgets
+- explicit extra-distance / extra-time tolerances
+- route-size-aware limits
+- profile-aware early-stop logic
+- honest “no better route found within current limits” behavior
+
+This is a launch requirement, not an optional optimization.
+
+---
+
+## 9. Display corridor vs routing-search corridor
+
+The display corridor and the routing search horizon are not the same thing.
+
+Lanterne may continue using display-oriented constraints for:
+
+- map responsiveness
+- heatmap rendering
+- bounded overlay cost
+
+But alternate-route discovery may not be silently crippled by those same limits.
+
+A distinct routing-search horizon / budget policy is required.
+
+---
+
+## 10. Legacy routing audit rule
+
+Existing routing, detour, and optimizer code must be audited before implementation continues.
+
+For each major legacy path, classify it as:
+
+- `reuse_directly`
+- `reuse_with_refactor`
+- `do_not_reuse`
+- `remove`
+
+The required Phase 0 audit is captured in [ASS-010](../assessments/ass-010-phase0_routing_audit.md).
+
+---
+
+## 11. Repo-specific audit notes
+
+The current repo audit does **not** change the product contract above, but it sharpens implementation posture:
+
+- `src/lib/detour-routing.ts` may be reusable with refactor for diverge/merge/splice concepts
+- `useDetourHistory` may survive as an integration surface
+- root-level `detour-routing.ts` is a stale duplicate and is a removal candidate
+- `RouteOptimizer.tsx` should not survive as the launch routing architecture
+- `realtime-detour.ts` and `useRealtimeDetour.ts` are not the launch profile-routing foundation
+- preview scorers and old optimizer modes may not become canonical routing truth
+
+---
+
+## 12. Consequences
+
+### Positive
+
+- clearer rider-facing route choices
+- one routing policy family instead of multiple hidden ones
+- easier comparison and suppression of weak alternates
+- cleaner reuse between Route To and Draw
+- stronger basis for future specialized policies such as brevet constraints
+
+### Costs
+
+- legacy routing code will need quarantine or removal
+- search budgets and stop rules must be implemented explicitly
+- a new routing-policy layer must be introduced outside `RouteMap.tsx`
+
+### Explicit non-consequence
+
+This ADR does **not** redefine Safety Score semantics.
 

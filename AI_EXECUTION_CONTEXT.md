@@ -8655,6 +8655,466 @@ That is the plan.
 
 ---
 
+## Source File: docs/04-execution/exec-013-profile_based_routing_implementation_plan.md
+
+# EXEC-013 — Profile-Based Routing Implementation Plan
+
+**Status:** Accepted  
+**Date:** 2026-04-17  
+**Filename:** `exec-013-profile_based_routing_implementation_plan.md`  
+**Related:** [ADR-044](../03-adrs/adr-044-profile_based_routing_and_alternate_route_policies.md), [DS-021](../02-architecture/design/ds-021-profile_based_routing_and_alternate_route_policy_spec.md), ADR-001, ADR-002, ADR-005, EXEC-008v2, EXEC-012b, [ASS-010](../assessments/ass-010-phase0_routing_audit.md)
+
+---
+
+## 1. Purpose
+
+This document turns the profile-based routing decision into an execution-grade implementation program for Codex.
+
+This is not a brainstorming memo.  
+It is the build sequence for launching:
+
+- Direct baseline routing
+- Safer alternates
+- Lower Traffic alternates
+- Bike Support alternates
+- Draw leg recompute using the same policy engine
+
+while keeping the implementation:
+
+- clean-architecture-friendly
+- bounded in compute cost
+- honest about no-result cases
+- resistant to `RouteMap.tsx` bloat
+- compatible with future brevet-aware policy work
+
+---
+
+## 2. Why this exists
+
+This feature touches three layers at once:
+
+1. **decision layer**
+   - what the product contract is
+   - what the visible choices mean
+   - what must not change semantically
+
+2. **spec layer**
+   - where the code should live
+   - how policies are shaped
+   - how search budgets and stop rules work
+
+3. **execution layer**
+   - what order to implement things
+   - how to audit and quarantine legacy routing code
+   - how to avoid fake alternatives and split-brain behavior
+
+Without this separation, implementation will drift toward:
+
+- improvised routing policy semantics
+- `RouteMap.tsx` ownership bloat
+- accidental reuse of stale optimizer logic
+- fake alternatives
+- unbounded compute behavior
+
+---
+
+## 3. Read-first package for Codex
+
+Before coding:
+
+1. `docs/03-adrs/adr-044-profile_based_routing_and_alternate_route_policies.md`
+2. `docs/02-architecture/design/ds-021-profile_based_routing_and_alternate_route_policy_spec.md`
+3. `docs/assessments/ass-010-phase0_routing_audit.md`
+4. `docs/03-adrs/adr-001-route-acquisition-model.md`
+5. `docs/02-architecture/arch-004-system_guide.md`
+6. `docs/04-execution/exec-008v2-experience_runtime_and_surface_architecture_program.md`
+7. `docs/04-execution/exec-012b-codex_safety_score_v5_execution_plan.md`
+8. relevant current files:
+   - `src/lib/detour-routing.ts`
+   - root-level `detour-routing.ts` if still present
+   - `src/components/RouteOptimizer.tsx`
+   - `src/lib/routing.ts`
+   - `src/hooks/useDetourHistory.ts`
+   - `src/hooks/useRouteCreation.ts`
+   - `src/components/RouteMap.tsx`
+
+Hard rule:
+
+- ADRs override implementation assumptions
+- DS fixes the shape
+- EXEC fixes the sequence
+
+---
+
+## 4. Implementation posture
+
+### 4.1 Launch bias
+
+Bias toward:
+
+- 4 clear rider-facing route choices total
+- clean module boundaries
+- real alternatives only
+- bounded search cost
+- conservative heavy-compute behavior
+
+### 4.2 Do not build
+
+Do not build at launch:
+
+- freeform preference sliders
+- rider-editable policy weights
+- giant optimization dashboards
+- magical “AI route optimization” language
+- a second routing engine for Draw mode
+- giant new state machines inside surface components
+
+### 4.3 Preserve
+
+Preserve the **brevet policy concept** if useful.  
+Discard the old optimizer implementation if it conflicts with the new contract.  
+The concept matters more than the legacy architecture.
+
+### 4.4 Approval boundary
+
+This execution document is accepted as the source of truth, but implementation approval is currently limited to:
+
+- **Phase 1 — Shared policy foundation only**
+
+This document does **not** approve an end-to-end sprint through Phases 2–7 in one shot.
+
+Because DS-021 still leaves real implementation questions open around:
+
+- best graph-adapter foundation
+- how much current detour splice logic survives
+- which preview scoring helpers survive temporarily during migration
+
+the implementation must stop and report after Phase 1 before proceeding further.
+
+---
+
+## 5. Phase-by-phase plan
+
+## Phase 0 — Legacy routing audit and policy freeze
+
+### Goal
+
+Audit what already exists and freeze what the launch feature actually is.
+
+### Work
+
+1. Audit these areas:
+   - `src/lib/detour-routing.ts`
+   - stale root-level `detour-routing.ts`
+   - `src/components/RouteOptimizer.tsx`
+   - `src/lib/routing.ts`
+   - any hidden or debug route-optimization surface
+
+2. For each major module/function, classify:
+   - `reuse_directly`
+   - `reuse_with_refactor`
+   - `do_not_reuse`
+   - `remove`
+
+3. Freeze launch visible routing choices:
+   - Direct
+   - Safer
+   - Lower Traffic
+   - Bike Support
+
+4. Freeze semantic rules:
+   - Safety Score meaning does not change
+   - profile routing affects path choice, not score semantics
+   - `balanced` is not visible
+   - brevet is preserved as a specialized constraint capability, not a launch Route To button
+
+### Deliverables
+
+- concise routing audit report
+- explicit reuse/remove table
+- explicit verdict on stale root-level `detour-routing.ts`
+- explicit brevet-mode assessment
+
+### Why first
+
+If this phase is skipped, implementation will almost certainly build on routing ghosts or silently fork route logic.
+
+Reference: [ass-010-phase0_routing_audit.md](../assessments/ass-010-phase0_routing_audit.md)
+
+---
+
+## Phase 1 — Shared policy foundation
+
+### Goal
+
+Create the canonical routing-profile policy layer.
+
+### Work
+
+Implement or extend clean modules for:
+
+- routing profile types
+- centralized config
+- edge-cost policies
+- route comparison
+- suppression rules
+- search budgets / route-size buckets
+- no-result structured reasons
+- heavy-compute trigger helper
+
+### Hard rules
+
+- no profile math in `RouteMap.tsx`
+- no profile constants in components
+- no second routing truth model
+- no presentation-only speed paint reused as pathfinding truth
+
+### Deliverables
+
+- created/updated files under routing policy modules
+- tests for policy logic
+- config summary
+
+### Stop rule
+
+At the end of Phase 1, stop and report before beginning:
+
+- Phase 2 — Routing graph adapter and normalized edge contract
+- Phase 3 — Route To orchestration
+- Phase 4 — Draw leg recompute using the same engine
+
+The next implementation pass must explicitly confirm how the remaining DS-021 open questions will be handled.
+
+---
+
+## Phase 2 — Routing graph adapter and normalized edge contract
+
+### Goal
+
+Thread a reusable routing-facing view of the graph without inventing a second fact universe.
+
+### Work
+
+1. Define the normalized routing-edge shape
+2. Create graph/edge adapters that map current route truth / corridor graph / routing inputs into policy-facing burdens
+3. Keep this layer independent from UI and surface concerns
+
+### Hard rules
+
+- use one shared edge model for all profiles
+- do not bury derivation logic into request handlers or map components
+- keep policy-friendly normalized burdens readable and testable
+
+### Deliverables
+
+- graph adapter modules
+- edge-normalization helpers
+- test coverage for representative edges
+
+---
+
+## Phase 3 — Route To orchestration
+
+### Goal
+
+Make `Route To` use Direct first, then support alternate profile requests.
+
+### Work
+
+1. Compute Direct as baseline
+2. Compute requested alternate profile route using bounded search
+3. Compare alternate against Direct
+4. Suppress trivial alternates
+5. Return deltas and status metadata
+
+### Hard rules
+
+- visible buttons may not map to fake/trivial alternates
+- “no better route found” must be explicit and bounded
+- route comparison must use shared comparison helpers
+
+### Deliverables
+
+- route-to hook/service
+- Direct + alternate orchestration
+- comparison + suppression plumbing
+- basic Route To UI surface wiring
+
+---
+
+## Phase 4 — Draw leg recompute using the same engine
+
+### Goal
+
+Allow the same routing engine to recompute a selected anchor-to-anchor leg in Draw mode.
+
+### Work
+
+1. Add a leg-recompute hook/service on top of the same policy layer
+2. Limit working scope to the selected leg
+3. Preserve route composition outside the selected leg
+4. Reuse the same comparison / no-result / budget machinery
+
+### Hard rules
+
+- do not build a second route-optimization engine for Draw
+- do not duplicate policy code
+- do not conflate draw detour preview math with canonical route analysis semantics
+
+### Deliverables
+
+- draw leg recompute integration
+- local route replacement contract
+- regression checks against existing draw/edit workflows
+
+---
+
+## Phase 5 — Search-budget discipline and heavy-compute UX
+
+### Goal
+
+Prevent the feature from becoming a performance grenade.
+
+### Work
+
+1. Finalize route-size buckets
+2. Finalize per-bucket compute/search budgets
+3. Implement early-stop logic
+4. Implement max extra distance / time tolerance logic
+5. Implement conservative heavy-compute notice triggers
+
+### Hard rules
+
+- stop searching when bounded tolerances are exhausted
+- do not spin forever chasing tiny improvements
+- heavy-compute notice is only for genuinely large workloads
+- no melodramatic “thinking” UI
+
+### Deliverables
+
+- stop-rule implementation
+- no-result reason mapping
+- busy-notice trigger helper
+- performance logs for budget use
+
+---
+
+## Phase 6 — Legacy cleanup and quarantine
+
+### Goal
+
+Remove or quarantine stale routing code so the new system is not undermined by ghost logic.
+
+### Work
+
+1. Remove stale root-level `detour-routing.ts` if audit confirms it is dead
+2. Quarantine preview-only scoring / optimization logic if it survives temporarily
+3. Mark any remaining non-canonical route scorers clearly as non-canonical until parity or deletion
+4. Ensure `RouteOptimizer.tsx` is either:
+   - retired
+   - adapted intentionally
+   - or kept hidden with explicit status, not accidental semi-life
+
+### Hard rules
+
+- no zombie files
+- no hidden “maybe still used someday” routing codepaths
+- no reuse of preview scorer as canonical route-selection truth
+
+### Deliverables
+
+- cleanup PR changes
+- comments/docs only where needed to prevent future confusion
+- clear note on what survived and why
+
+---
+
+## Phase 7 — Validation and regression review
+
+### Goal
+
+Prove the feature is real and not a UI illusion.
+
+### Required checks
+
+1. Short city Route To case
+   - Direct vs Safer visibly differ
+2. Medium urban/suburban case
+   - Lower Traffic chooses meaningfully calmer path or is honestly suppressed
+3. Bike Support case
+   - chooses meaningfully more supportive roads where system truth exists
+4. Draw leg case
+   - selected leg recomputes without corrupting the rest of the route
+5. No-result case
+   - clear bounded message appears
+6. Heavy-compute case
+   - notice appears only when justified
+7. Regression case
+   - existing manual detour editing still works
+8. Brevet concept check
+   - preserved brevet-distance rules are not accidentally lost
+
+### Acceptance questions
+
+- are visible alternates meaningfully different?
+- are compute costs bounded?
+- is `RouteMap.tsx` still a composition surface rather than the owner of routing policy?
+- is any legacy optimizer/scorer still creating semantic confusion?
+
+---
+
+## 8. Explicit guardrails for Codex
+
+### Must do
+
+- keep routing policy logic centralized
+- preserve Safety Score semantics
+- separate display corridor limits from routing-search corridor limits
+- audit old optimizer code before extending it
+- preserve brevet concept if valuable
+- use honest suppression and no-result behavior
+- add tests for policy/comparison/budget logic
+
+### Must not do
+
+- add large profile logic into `RouteMap.tsx`
+- create a separate Draw-only routing stack
+- add sliders at launch
+- force bike-support profile to promise perfect bike lane continuity
+- keep dead optimizer code out of fear
+- present nearly identical routes as meaningful alternatives
+
+---
+
+## 9. Open implementation notes from Phase 0
+
+These do not change the plan, but they should shape implementation:
+
+- `src/lib/detour-routing.ts` is live and may contribute splice/diverge/merge concepts
+- `useDetourHistory` is a plausible integration surface for draw-leg replacement
+- `src/lib/routing.ts` is a mixed legacy module and should not become the new policy home
+- `RouteOptimizer.tsx` encodes the wrong public contract and should not define launch architecture
+- `realtime-detour.ts` is runtime suggestion logic, not the launch Route To foundation
+
+---
+
+## 10. Deliverables expected from the next implementation pass
+
+Return:
+
+1. code changes
+2. files added/changed
+3. legacy routing audit summary
+4. reuse/remove table
+5. routing policy summary
+6. search-budget summary
+7. no-result rule summary
+8. performance assumptions
+9. remaining constraints that could still limit alternate discovery
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
@@ -14916,6 +15376,265 @@ Wire a lightweight async AADT enrichment into the ad-hoc road inspect path — c
  \- pipeline/src/run-analysis.ts
 
  \- pipeline/src/__tests__/slice-scorer-real.test.ts
+
+---
+
+## Source File: docs/assessments/ass-010-phase0_routing_audit.md
+
+# Phase 0 — Routing Audit
+
+**Status:** Completed audit, docs-only pass  
+**Date:** 2026-04-17  
+**Related:** [ADR-044](../03-adrs/adr-044-profile_based_routing_and_alternate_route_policies.md), [DS-021](../02-architecture/design/ds-021-profile_based_routing_and_alternate_route_policy_spec.md), [EXEC-013](exec-013-profile_based_routing_implementation_plan.md)
+
+---
+
+## 1. Purpose
+
+This document records the required Phase 0 audit for profile-based routing implementation.
+
+It is a repo-specific assessment of current routing, detour, and optimizer code. It does **not** change the product contract established by ADR-044 / DS-021 / EXEC-013.
+
+Its job is to:
+
+- name the current routing worlds
+- classify reuse vs removal candidates
+- prevent implementation from building on dead or semantically misleading code
+- preserve valuable concepts such as brevet constraints without preserving the wrong architecture
+
+---
+
+## 2. Files reviewed
+
+Primary files reviewed:
+
+- `src/lib/detour-routing.ts`
+- `detour-routing.ts` (repo root)
+- `src/lib/routing.ts`
+- `src/components/RouteOptimizer.tsx`
+- `src/lib/realtime-detour.ts`
+- `src/hooks/useRealtimeDetour.ts`
+- `src/lib/detour-candidates.ts`
+- `src/hooks/useDetourHistory.ts`
+- `src/hooks/useRouteCreation.ts`
+- `src/lib/corridor-graph.ts`
+- `src/components/route-map-candidate-audit-overlay.ts`
+- `src/pages/Index.tsx`
+- `src/components/RouteMap.tsx`
+- `src/components/RouteAndAnalysisDrawer.tsx`
+
+---
+
+## 3. Current routing architecture summary
+
+The repo currently contains **three overlapping routing worlds**.
+
+### 3.1 Route creation / Route To world
+
+Primary characteristics:
+
+- driven by `routeWithWaypoints(...)`
+- used by `useRouteCreation.ts`
+- waypoint-based OSRM routing
+- draw/create route focus
+
+This is the most obvious integration surface for future Route To and Draw leg recompute, but it is not currently a shared routing-policy engine.
+
+### 3.2 Detour editing world
+
+Primary characteristics:
+
+- lives in `src/lib/detour-routing.ts`
+- orchestrated by `useDetourHistory.ts`
+- supports manual detour waypoints, splice/rejoin logic, and route replacement
+- explicitly uses **non-canonical preview scoring**
+
+This world is active and useful, but it is not the correct architecture for launch profile routing as-is.
+
+### 3.3 Legacy optimizer / local detour world
+
+Primary characteristics:
+
+- `src/lib/routing.ts`
+- `src/components/RouteOptimizer.tsx`
+- `src/lib/realtime-detour.ts`
+- `src/hooks/useRealtimeDetour.ts`
+
+This world mixes:
+
+- preview path rescoring
+- OSRM alternative enumeration
+- old visible modes (`explore`, `brevet`, `race`)
+- local corridor-graph BFS detours
+- POI insertion flows
+
+This is the largest semantic risk area. It contains useful concepts, but it is not the correct shared policy foundation for ADR-044 / DS-021.
+
+---
+
+## 4. Reuse / refactor / do-not-reuse / remove table
+
+| Area | Current role | Verdict | Notes |
+|---|---|---|---|
+| `src/lib/detour-routing.ts` | Live manual detour splice/recompute pipeline | `reuse_with_refactor` | Preserve diverge/merge/splice ideas and local edit semantics where useful. Do not preserve preview scoring ownership as canonical routing truth. |
+| `detour-routing.ts` (repo root) | Stale duplicate detour pipeline | `remove` | Dead duplicate of the canonical `src/lib/detour-routing.ts`. High ghost-code risk. |
+| `src/hooks/useDetourHistory.ts` | Undo/redo orchestration for detour edits | `reuse_with_refactor` | Good integration surface for Draw leg recompute and route editing, provided it delegates to the new shared profile route service. |
+| `src/lib/detour-candidates.ts` | Circle-of-offset candidates for first detour drop | `do_not_reuse` | UI convenience for current detour editing. Not part of the new routing-policy foundation. |
+| `src/lib/realtime-detour.ts` | Local corridor-graph BFS detour suggestion engine | `do_not_reuse` | Separate runtime detour world with its own scoring and search behavior. Not the launch Route To / Draw profile engine. |
+| `src/hooks/useRealtimeDetour.ts` | React wrapper around local detour engine | `do_not_reuse` | Same reasoning as above. |
+| `src/lib/corridor-graph.ts` | Corridor graph builder for local detour engine | `reuse_with_refactor` | Graph-adapter ideas may be useful, but this exact local-detour shape is not the launch routing architecture. |
+| `src/lib/routing.ts` `scoreOsrmPath()` | Preview rescoring of arbitrary OSRM paths | `reuse_with_refactor` | May survive as an evaluation helper during migration. Must not become canonical route-policy truth. |
+| `src/lib/routing.ts` optimizer pipeline | OSRM alternative enumeration + density heuristics + preview optimization | `do_not_reuse` | Wrong public contract and wrong architecture for Direct / Safer / Lower Traffic / Bike Support. |
+| `src/lib/routing.ts` POI insertion helpers | Add-a-POI rerouting | `reuse_with_refactor` | Useful workflow concept. Should migrate behind the new shared routing engine instead of remaining in the legacy optimizer module. |
+| `src/components/RouteOptimizer.tsx` | Hidden optimizer UI | `remove` | Already hidden. Encodes the wrong launch contract and old mode taxonomy. |
+| `src/components/route-map-candidate-audit-overlay.ts` | Candidate debug overlay | `reuse_directly` | Debug/instrumentation only. Safe to keep outside routing policy ownership. |
+| `src/hooks/useRouteCreation.ts` | Draw/create route surface using OSRM waypoint routing | `reuse_with_refactor` | Strong candidate integration surface for Draw leg recompute once backed by the new shared routing service. |
+
+---
+
+## 5. Explicit stale-file verdict
+
+### `detour-routing.ts` at repo root
+
+**Verdict:** `remove`
+
+Reason:
+
+- it is a stale duplicate of `src/lib/detour-routing.ts`
+- it overlaps in naming and intent
+- it increases the likelihood of accidental reuse during implementation
+- it has no defensible long-term ownership under the new routing architecture
+
+This file should be removed in the cleanup phase, not preserved out of caution.
+
+---
+
+## 6. RouteOptimizer / legacy optimizer assessment
+
+`RouteOptimizer.tsx` and the surrounding optimizer logic in `src/lib/routing.ts` are not an acceptable foundation for launch profile routing.
+
+### Why
+
+They encode the wrong rider-facing worldview:
+
+- `explore`
+- `brevet`
+- `race`
+
+They also rely on:
+
+- waypoint densification
+- OSRM alternative enumeration
+- preview rescoring
+- distance-window heuristics
+
+That is not the same thing as:
+
+- one shared routing graph
+- one normalized edge model
+- multiple policy cost functions
+- one shared comparison/suppression contract
+
+### Conclusion
+
+- preserve any valuable concepts
+- do not preserve the optimizer architecture
+- do not let this module family define launch semantics
+
+---
+
+## 7. Brevet Mode Assessment
+
+Brevet should survive as a **policy concept**, not as a visible launch routing mode or as a justification for preserving the old optimizer structure.
+
+### 7.1 What is worth preserving
+
+- route-distance floor semantics
+- control-aware route validity semantics
+- the idea that some route adjustments must not invalidate a brevet effort
+- buffer / penalty concepts from brevet-aware detour logic
+
+### 7.2 What should not survive as-is
+
+- `brevet` as a default visible Route To button at launch
+- the old `explore / brevet / race` public mode taxonomy
+- distance-window heuristics as the main routing architecture
+- the hidden optimizer UI as the policy owner
+
+### 7.3 Assessment
+
+The audit confirms ADR-044 / DS-021 direction:
+
+- **preserve brevet semantics**
+- **discard old optimizer structure**
+
+---
+
+## 8. Recommendation for the new routing foundation
+
+### 8.1 Reuse
+
+Reuse these as the most promising foundations:
+
+- `useRouteCreation.ts` as a Draw / route-creation integration surface
+- `useDetourHistory.ts` as a route-edit history surface
+- selected splice/diverge/merge ideas from `src/lib/detour-routing.ts`
+- selected graph-adapter ideas from `src/lib/corridor-graph.ts`
+- selected evaluation helpers from `scoreOsrmPath()` only as temporary migration aids
+
+### 8.2 Refactor
+
+Refactor these heavily before they participate in the new system:
+
+- `src/lib/detour-routing.ts`
+- `useDetourHistory.ts`
+- `useRouteCreation.ts`
+- `src/lib/corridor-graph.ts`
+- `src/lib/routing.ts` POI helpers
+
+### 8.3 Remove
+
+Remove or retire these in the cleanup phase:
+
+- root-level `detour-routing.ts`
+- `RouteOptimizer.tsx`
+- legacy optimizer mode ownership
+
+### 8.4 Do not reuse as the launch routing foundation
+
+Do not use these as the basis of the new profile-routing engine:
+
+- `src/lib/realtime-detour.ts`
+- `src/hooks/useRealtimeDetour.ts`
+- old optimizer distance-window heuristics
+- preview scoring as canonical route-policy truth
+
+---
+
+## 9. Audit notes
+
+This audit does not identify a contradiction with the locked architecture package.
+
+The main repo-specific sharpening is:
+
+- the new profile-routing system should not be built on top of the hidden optimizer stack
+- the stale root-level duplicate should be deleted during cleanup
+- draw/edit history concepts are worth preserving, but only under the new shared engine
+
+---
+
+## 10. Recommendation for the next pass
+
+The next implementation pass should begin with **Phase 1 — Shared policy foundation**.
+
+That pass should:
+
+- create the canonical routing profile types/config/cost modules
+- stay outside `RouteMap.tsx`
+- avoid reusing preview scoring as canonical truth
+- treat this audit document as the reuse/remove gate before touching legacy routing code
+
+
 
 ---
 
