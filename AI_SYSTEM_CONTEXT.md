@@ -3419,6 +3419,10 @@ Safety Score must remain:
 | DS-022 | Speed Prior and Area-Baseline Policy | ADR-042, DS-017 | Draft |
 | DS-023 | Government Feed Ingestion and Triage | ADR-042, DS-013, DS-017 | Draft |
 | DS-024 | Parallel Bike Facility Capture and Corridor Ownership | ADR-019, ADR-020, ADR-026, DS-008, DS-017 | Draft |
+| DS-025 | Transition Candidate, Claim, and Projection Spec | ADR-005, ADR-019, ADR-042 | Draft |
+| DS-026 | Keyboard Shortcuts and Map Input | ADR-027, ADR-029, ADR-030 | Draft |
+| DS-027 | POI Ingestion, Selection, and Cluster Interaction | ADR-017, ADR-019, ADR-027, DS-008, DS-018 | Draft |
+| DS-028 | Hazard Ingestion, Normalization, and Presentation | ADR-017, ADR-019, ADR-020, ADR-027, DS-008 | Draft |
 
 ---
 
@@ -19165,6 +19169,384 @@ When this policy is working:
 - short tactical fragments will no longer be the only correctly-blue portion of a long sidepath corridor
 
 That is the acceptance bar.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-027-poi_ingestion_selection_and_cluster_interaction_spec.md
+
+# DS-027 — POI Ingestion, Selection, and Cluster Interaction Spec
+
+Status: Draft
+Date: 2026-04-22
+
+Related:
+- ADR-017 — Local OSM-Derived Data Strategy
+- ADR-019 — Route Corridor & Proximity Rules
+- ADR-027 — Lantern Screen Model
+- DS-008 — Route Corridor Model
+- DS-018 — Viewport Overlay Hydration and Client Budget
+
+---
+
+## 1. Purpose
+
+This document defines the canonical architecture for POIs in Lanterne.
+
+It exists because the current POI stack still reflects the original prototype:
+
+- raw fetch and cache semantics are mixed with category inference
+- route-distributed selection is partially present but undone later by global pruning
+- cluster counts and cluster-open behavior do not share one truth model
+- map rendering, cluster interaction, and selection budgeting are coupled too tightly
+
+The goal of this spec is to make POIs follow the same architecture pattern already used successfully for speed and traffic:
+
+1. multiple raw inputs
+2. one canonical normalized POI object
+3. one canonical selection and budgeting layer
+4. one canonical cluster/reveal interaction model
+5. many subscribers
+
+---
+
+## 2. Current Failure Modes
+
+Observed prototype failures:
+
+- POIs concentrated in one or two dense pockets on long routes
+- bubble counts that do not match what becomes visible after opening a cluster
+- cluster click behaving like incremental zoom rather than reveal
+- custom OMS responses causing category or name loss
+- cached tiles preserving stale `unknown` category/type data
+
+These are not separate bugs. They are consequences of missing ownership boundaries.
+
+---
+
+## 3. Canonical Layers
+
+### 3.1 Raw Source Layer
+
+Inputs may include:
+
+- Overpass / custom OMS tile responses
+- cached tile records
+- future government or commercial service feeds
+
+Raw inputs must not be treated as UI-ready POIs.
+
+### 3.2 Canonical POI Object
+
+Every raw record must normalize into one canonical object:
+
+```ts
+interface CanonicalPoi {
+  id: string;
+  sourceType: 'osm_node' | 'osm_way' | 'osm_relation' | 'feed';
+  sourceId: string;
+  lat: number;
+  lon: number;
+  canonicalType: PoiType;
+  displayName?: string;
+  hours?: string;
+  phone?: string;
+  website?: string;
+  category: PoiCategory;
+  provenance: {
+    queryType?: string;
+    rawTags?: Record<string, string>;
+    tileKey?: string;
+    cacheAgeMs?: number;
+  };
+}
+```
+
+Rules:
+
+- raw query intent may be used as a fallback when tag-based type inference fails
+- name fallback chain must be explicit
+- `unknown` is allowed internally but should be rare and observable
+
+### 3.3 Route Selection Layer
+
+Route selection must own:
+
+- corridor filtering
+- route-distance relevance
+- route-distributed budgeting
+- per-category balancing
+
+It must not globally rank by nearest-to-route and then cap from the top.
+
+The selector must allocate along the route by chunks / mile bands so a 100+ mile loop cannot collapse into one town.
+
+### 3.4 Cluster Interaction Layer
+
+Cluster bubbles and revealed leaves must come from the same POI universe.
+
+Required rule:
+
+- if a bubble says `N`, a single cluster-open action must be able to reveal all `N` members at the current zoom
+
+Allowed implementations:
+
+- spiderfy / fan-out reveal at current zoom
+- local expanded-cluster rendering state
+
+Disallowed default:
+
+- “click cluster, zoom a little, maybe reveal some”
+
+### 3.5 Presentation Layer
+
+Subscribers must consume canonical POI presentation data:
+
+- label
+- category
+- icon
+- marker color
+- route context fields
+
+Map popups, cards, and future POI lists must not each invent their own fallback naming logic.
+
+---
+
+## 4. Non-Negotiable Invariants
+
+1. Category truth must survive cache reads.
+2. Cluster counts must match revealable membership.
+3. Route distribution beats dense-pocket nearest sorting.
+4. Rendering caps may limit work, but they may not lie about cluster membership.
+5. Query intent may rescue malformed raw tags, but provenance must record that fallback.
+
+---
+
+## 5. Immediate Implementation Direction
+
+The next implementation pass must:
+
+1. keep canonical type fallback from query intent
+2. normalize cached `unknown` category/type records on read
+3. replace global nearest-to-route pruning with route-band allocation
+4. replace cluster click incremental zoom with reveal-all-at-current-zoom behavior
+5. move POI label/category/icon formatting into a shared presentation helper
+
+---
+
+## 6. Deferred Work
+
+- POI trust levels and provenance badges
+- route-time aware POI availability filtering by opening hours
+- bidirectional route-phase aware service relevance
+- ride-mode POI presentation surfaces
+
+---
+
+## 7. Success Criteria
+
+A long loop should show:
+
+- POIs spread around the route
+- cluster counts that match revealable items
+- meaningful names instead of `Unknown`
+- one-click cluster reveal semantics
+
+If any one of those fails, the subsystem is still behaving like the prototype.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-028-hazard_ingestion_normalization_and_presentation_spec.md
+
+# DS-028 — Hazard Ingestion, Normalization, and Presentation Spec
+
+Status: Draft
+Date: 2026-04-22
+
+Related:
+- ADR-017 — Local OSM-Derived Data Strategy
+- ADR-019 — Route Corridor & Proximity Rules
+- ADR-020 — Atomic Route Analysis Unit & OSM Variable Architecture
+- ADR-027 — Lantern Screen Model
+- DS-008 — Route Corridor Model
+
+---
+
+## 1. Purpose
+
+This document defines the canonical hazard architecture for Lanterne.
+
+It exists because the hazard stack still reflects the original prototype:
+
+- different fetch/parser paths do not ingest the same hazard-supporting OSM elements
+- hazard normalization is mixed into corridor parsing and route-analysis export
+- labels and marker semantics are duplicated in subscribers
+- some hazards are route-truth facts, others are rider-facing presentation artifacts, and the system does not cleanly separate those roles
+
+This spec moves hazards toward the same model already used for speed and traffic:
+
+1. multiple raw inputs
+2. one canonical normalized hazard object
+3. one presentation helper
+4. many subscribers
+
+---
+
+## 2. Hazard Families
+
+Current supported families:
+
+- railroad crossings
+- controlled crossings
+  - signals
+  - stop-controlled nodes
+- bridge and span hazards
+  - metal grate bridge
+  - metal plate bridge
+  - dismount bridge
+  - covered bridge
+  - no-shoulder bridge
+  - narrow underpass
+- node hazards
+  - cattle guard
+
+Future hazard families may include rider reports, agency feeds, and surface incidents, but they must normalize into the same canonical contract.
+
+---
+
+## 3. Canonical Layers
+
+### 3.1 Raw Ingestion Layer
+
+Hazard-relevant OSM elements may arrive from:
+
+- corridor tile fetch
+- legacy overpass fetch
+- future observation/feed systems
+
+All live fetch paths must request the same minimum hazard-supporting elements:
+
+- `railway=level_crossing|crossing`
+- `barrier=cattle_grid`
+- `highway=traffic_signals`
+- `highway=stop`
+- `railway=rail`
+- `man_made=bridge`
+- road ways carrying hazard-relevant bridge/tunnel/surface tags
+
+Any parser that omits one of these is non-canonical.
+
+### 3.2 Canonical Hazard Object
+
+Every raw hazard candidate must normalize into one canonical object:
+
+```ts
+interface CanonicalHazard {
+  id: string;
+  kind: HazardKind;
+  severity: 1 | 2 | 3;
+  lat: number;
+  lon: number;
+  spanEntry?: [number, number];
+  spanExit?: [number, number];
+  sourceType: 'osm_node' | 'osm_way' | 'bridge_outline' | 'feed';
+  osmWayId?: number;
+  osmNodeId?: number;
+  routeSnap?: {
+    distM: number;
+    routeMile: number;
+  };
+  provenance: {
+    rawTags?: Record<string, string>;
+    inheritedFromOutline?: boolean;
+    detectionMode?: 'explicit_node' | 'line_intersection' | 'way_tags';
+  };
+}
+```
+
+Rules:
+
+- ingestion and normalization own hazard truth
+- downstream consumers may project or filter hazards, but may not reinterpret kind or label semantics
+
+### 3.3 Route Attachment Layer
+
+Route-analysis owns:
+
+- route snapping
+- attachment to route distance
+- on-route filtering thresholds
+- export to canonical analysis payload
+
+This layer must not invent new hazard kinds.
+
+### 3.4 Presentation Layer
+
+One shared hazard presentation helper must own:
+
+- rider-facing label
+- emoji / icon semantics
+- marker family
+- severity-facing styling hooks
+
+Route map, ride overlay, and future cards must subscribe to that helper instead of duplicating strings or marker choices.
+
+---
+
+## 4. Current Failure Modes
+
+Prototype-shaped failures already observed:
+
+- some hazard-supporting node types requested in one fetch path but not another
+- parser drift between corridor and legacy overpass code
+- duplicate label dictionaries inside map rendering
+- hazard disappearance caused by ingestion mismatch rather than detector logic
+
+These failures are architectural, not just bug-level.
+
+---
+
+## 5. Non-Negotiable Invariants
+
+1. All analysis fetch paths must ingest the same hazard-supporting OSM primitives.
+2. Hazard kind normalization happens once.
+3. Presentation labels happen once.
+4. Subscribers may choose visibility policy, but not invent new hazard meaning.
+5. Route snapping thresholds must be explicit and auditable.
+
+---
+
+## 6. Immediate Implementation Direction
+
+The next implementation pass must:
+
+1. unify corridor and legacy fetch hazard-node coverage
+2. keep `detectHazardsFromRoads()` as the canonical raw detector
+3. centralize rider-facing label/icon decisions in a hazard presentation helper
+4. remove duplicated hazard label dictionaries from subscriber surfaces
+5. preserve provenance about explicit-node vs geometry-fallback detection
+
+---
+
+## 7. Deferred Work
+
+- hazard confidence/trust display
+- hazard provenance receipts
+- rider-report hazard integration
+- hazard-specific inspect surfaces
+- canonical hazard feed persistence
+
+---
+
+## 8. Success Criteria
+
+The hazard subsystem is considered healthy when:
+
+- the same route yields the same hazard families regardless of fetch path
+- controlled crossings, railroad crossings, and bridge hazards all survive corridor ingestion
+- map and overlay surfaces agree on labels and marker meaning
+- hazard regressions are diagnosable at the canonical object layer, not by chasing duplicated UI logic
 
 
 ---
