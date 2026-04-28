@@ -672,117 +672,73 @@ Prevent idea thrash, keep development focused, and make it obvious what is activ
 
 ## Current Priorities
 
-### 1. Canonical schema + route intelligence foundation
+### 1. RUSA Events 
 
-Lock the schema and supporting route-intelligence structure tightly enough that ingestion, analysis, and downstream scoring can stop shifting underneath the product.
+- ingest, json download to storage, extract to normalized json and table structure (route info, hazards, cues, POIs,etc)
 
-https://chatgpt.com/g/g-p-69a5a40f6d9c81919302f52ccc4cdd32-lanterne/c/69c7cb36-6418-832f-b4aa-63876cd873d0
+- Set up vault to have 2 sections at first: perms and rides
 
-### 2. Safety Scoring Model Hardening: DS15 & Lovable Prompt
+  - Perms - table that is filterable and sortable by every important field - 
 
-Deep Reserach: https://chatgpt.com/c/69c7cee2-bb58-8330-8cc5-eea6a0d6f96c
-CGPT Pro (AFTER RESEARCH IS DONE: 
-I want you to act as a senior product + systems reviewer and pressure test my current safety scoring approach for Lanterne.
+  - | Starting location: *(or ending location) * | --all locations-- AK AL AR AS AZ CA CO CT DC DE FL GA GU HI IA ID IL IN KS KY LA MA MD ME MI MN MO MP MS MT NC ND NE NH NJ NM NV NY OH OK ON OR PA PR RI SC SD TN TX UT VA VI VT WA WI WV WY |
+    | ------------------------------------------ | ------------------------------------------------------------ |
+    | Distance:                                  | --all distances-- 100-199 km 200-299 km 300-399 km 400-599 km 600+ km |
+    | Climbing:                                  | to  feet meters                                              |
 
-Context:
-Lanterne is a route intelligence system for long-distance cyclists. Its current architecture deliberately keeps the Safety Score narrow and separate from route-reality and conditions layers. That overall philosophy is intentional. The goal is a production-grade score riders can trust, not a giant kitchen-sink score. This aligns with the project’s current principles and analysis model. :contentReference[oaicite:0]{index=0} 
+    Shape: loop out & back point-to-point
 
-Current scoring direction:
-- Safety Score = collision likelihood with motor vehicles + expected injury severity
-- Core live scoring is primarily based on speed environment and traffic exposure, with infrastructure mitigation and hazard penalties
-- Other route intelligence dimensions like remoteness, fatigue, surface, descent risk, and weather are intentionally separate for now :contentReference[oaicite:2]{index=2} :contentReference[oaicite:3]{index=3}
+    | Within or through: | --all states-- AK AL AR AS AZ CA CO CT DC DE FL GA GU HI IA ID IL IN KS KY LA MA MD ME MI MN MO MP MS MT NC ND NE NH NJ NM NV NY OH OK ON OR PA PR QC RI SC SD TN TX UT VA VI VT WA WI WV WY |
+    | :----------------: | ------------------------------------------------------------ |
+    |   Name includes:   |                                                              |
+    |                    |                                                              |
+    |      Sort by:      | starting location distance distance (unpaved) climbing       |
 
-Current implemented shape:
-- speed-related risk
-- traffic-related risk / AADT when available
-- lane / roadway context
-- rail crossing contribution
-- bike infrastructure mitigation
-- shoulder credit
-- left-turn penalty
-- selected micro-hazard penalties
-- route-level risk-per-mile transformed into a rider-facing score/grade :contentReference[oaicite:4]{index=4} :contentReference[oaicite:5]{index=5} :contentReference[oaicite:6]{index=6}
+     Contains unpaved sections
 
-Attached:
-1. Deep Research critique of the model
-2. Relevant internal docs / scoring docs / ADRs
+    
 
-Your task:
-Take the research critique and my current architecture direction, then recommend the best production-grade scoring approach for Lanterne Phase 0 / Phase 1.
+     Missing unpaved data
 
-Deliverables:
-1. Verdict on whether the current scoring philosophy is fundamentally right or needs correction
-2. The 5 biggest weaknesses in the current model
-3. The 5 highest-value improvements, ranked
-4. A blunt section called:
-   “What is likely bullshit or fragile in the current score”
-5. A section called:
-   “What is defensible enough to ship now”
-6. A section called:
-   “What should stay out of the Safety Score”
-7. A section called:
-   “Recommended scoring architecture for Lanterne”
-   Include:
-   - factor families
-   - whether each should be core, modifier, penalty, or separate index
-   - how to avoid double-counting
-8. A section called:
-   “Recommended route rollup strategy”
-   Include:
-   - how not to wash out short dangerous stretches
-   - whether to use weighted mean, percentile emphasis, worst reasonable stretch, etc.
-9. A section called:
-   “Recommended implementation order”
-   Break into:
-   - ship now
-   - next version
-   - later / research only
-10. A final section called:
-   “If I were locking the production score this month, I would do this”
+    
 
-Rules:
-- Do not give me a tutorial version
-- Do not give me an academic survey
-- Do not suggest a giant complex model unless the gain is worth it
-- Assume I want the strongest production approach that is still practical
-- Be explicit about tradeoffs
-- Call out where my product instincts are right
-- Call out where I’m fooling myself
-- If the research and the current product direction conflict, resolve that conflict and explain why
-- Write like you are trying to save me 6 months of wrong implementation
+     Only show SR 600K routes
 
-Output format:
-Use these headings exactly:
-1. Overall Verdict
-2. Biggest Weaknesses
-3. Highest-Value Improvements
-4. What Is Fragile or Likely Bullshit
-5. What Is Defensible Enough to Ship
-6. What Should Stay Out of the Safety Score
-7. Recommended Scoring Architecture
-8. Recommended Route Rollup Strategy
-9. Recommended Implementation Order
-10. Final Production Recommendation
+    
 
-### 3. Bike Crash research project (future but planning for it while subscriped to CGPT Pro)
+     Include inactive routes
 
-​	https://chatgpt.com/c/69c76e27-f64c-8330-9afd-0d5e56a856eb
+    Safety rank, any lanterne specific value adds etc. - need to come up iwht a master list for events and then a subset of that list of filters/sorts will be perms
+
+  - Rides - are essentially perms + club + date/time/location (start address)
+
+- Harden seed routes (back to DC)
+
+- Harden safety score.  
+
+  - Did we drop crossings as a factor or are we really calculating?  
+  - Scorecard/method receipt structure, format, and accuracy
+
+- Traffic issues
+
+  - AADT #s not showing up consistently
+  - how to represent on map itself
+
+- Toggles: Stops, Hazards, Overlays
+
+- UX redo/refactor
+
+  - state machine
+  - extractinng code from index, routemap and drawers and into central system
+  - building interdependencies of state to avoid drawers opening over one another etc.
+  - Hiding lantern, disappearing lantern - keep map clean
+  - Bottom slide up info (like cancel button) - keep map clean
+  - 
+
+
 
 ### 4. Front-end architecture refactor - PAUSED
 
-Move the front end away from page-level state sprawl and toward a cleaner workflow/session model.
-
-Current sub-focus:
-
-- shrink the main page/god component
-- separate workflow/lifecycle ownership from rendering
-- plan workerization for heavy analysis so the app stays usable during loading
-- reduce map monolith / surface sprawl
-- make loading/analysis state part of a coherent workflow model rather than one-off UI patches
-
-Reference thread:
-
-- See bottom section of this doc for remaining steps
+- 
 
 ### 5. Cue points formatting - The RWGPS-imported cues flow through as **nativeCues** (type GpxCuePoint[]) into resolveCues(), which outputs them as **cuePoints** — that's what CueMarkerLayer receives as its prop to render the markers on the map.
 
@@ -792,11 +748,37 @@ Reference thread:
 
 These are the threads that are allowed to drive current work:
 
-- Canonical schema finalization
-- Slice engine implementation
-- Front-end architecture refactor
-- Expedition system state persistence
-- Traffic cohort architecture
+- #### Canonical schema finalization - PAUSED
+
+- FAILED to stabilize enough to get routes to recognize even the exact same route if generated through a different tool or any deviation in route whatsoever
+
+- Canonical schema + route intelligence foundation
+
+  Lock the schema and supporting route-intelligence structure tightly enough that ingestion, analysis, and downstream scoring can stop shifting underneath the product.
+
+  https://chatgpt.com/g/g-p-69a5a40f6d9c81919302f52ccc4cdd32-lanterne/c/69c7cb36-6418-832f-b4aa-63876cd873d0
+
+- #### Slice engine implementation - FAILED
+
+- #### Front-end architecture refactor - PAUSED
+
+- Move the front end away from page-level state sprawl and toward a cleaner workflow/session model.
+
+  Current sub-focus:
+
+  - shrink the main page/god component
+  - separate workflow/lifecycle ownership from rendering
+  - plan workerization for heavy analysis so the app stays usable during loading
+  - reduce map monolith / surface sprawl
+  - make loading/analysis state part of a coherent workflow model rather than one-off UI patches
+
+  Reference thread:
+
+  - See bottom section of this doc for remaining steps
+
+- #### Expedition system state persistence - PAUSED
+
+- #### Traffic cohort architecture - PAUSED
 
 ------
 
@@ -804,10 +786,9 @@ These are the threads that are allowed to drive current work:
 
 These matter, but should not steal priority from the current execution threads unless directly required:
 
-- Hazard taxonomy refinement
-- Loader / analysis presentation polish
-- Route review patterning / explainability
-- Comparative traffic context
+- Hazard taxonomy refinement - PAUSED
+- Route review patterning / explainability - PAUSED
+- Comparative traffic context - PAUSED
 
 ------
 
@@ -859,6 +840,10 @@ This focus window is complete when:
 ------
 
 ## Completed
+
+### 2026-04-24 
+
+- Loader / analysis presentation polish - COMPLETE
 
 ### 2026-03-28
 
@@ -1660,82 +1645,99 @@ After that, execute front-end Phases 1 → 4 in order.
 
 ## Source File: docs/04-execution/exec-008-drawer refactor_plan_and_implementation_spec.md
 
-# EXEC-008 — UI/Domain Refactor Program
+# EXEC-008 — Unified Surface Runtime and Domain Refactor Program
 
-Status: Draft  
-Owner: Derek Minner  
-Scope: Cross-surface UI architecture refactor for Lanterne  
-Related: Map Visibility System, Push Intelligence, Vault expansion, scoring overhaul, unified drawer architecture
+Status: Draft
+Owner: Derek Minner
+Scope: Cross-surface UI/runtime refactor for Lanterne
+Related: Map Visibility System, Push Intelligence, Vault expansion, scoring overhaul, unified surface architecture
 
 ---
 
 ## 1. Purpose
 
-This document defines the go-forward refactor program for Lanterne's UI and adjacent domain architecture.
+This document defines the go-forward refactor program for Lanterne's UI shell architecture and adjacent domain boundaries.
 
-The immediate trigger is the drawer-handle / drawer-shell problem, but the real issue is broader:
+The old problem statement was too narrow:
 
-- drawer behavior is not unified
-- too much product logic lives inside `RouteMap.tsx` and individual drawers
-- multiple systems that should become first-class domains are still embedded inside UI surfaces
-- upcoming product work will otherwise worsen the architecture rather than improve it
+- detached drawer handles
+- RouteMap sprawl
+- floating cards colliding with drawers
+- one-off mobile exceptions
 
-This refactor is therefore not a cosmetic cleanup.
-It is a structural program to:
+Those were symptoms, not the actual system boundary problem.
 
-1. reduce blast radius in the main map surface
-2. centralize product logic by system boundary
-3. make future features land in domain modules rather than drawer-local hacks
-4. enforce consistent motion, sizing, layering, and state ownership across all drawers
-5. create a stable foundation for Vault, Push Intelligence, hazard/POI visibility, and future scoring work
+The real issue is that Lanterne currently has too many competing surface primitives:
+
+- side drawers
+- bottom drawers
+- floating cards
+- info overlays
+- route edit cards
+- mobile exceptions layered on top of desktop assumptions
+
+At the same time, too much product logic still lives inside `RouteMap.tsx`, `Index.tsx`, and surface-local components.
+
+This refactor is therefore not a drawer cleanup. It is a structural program to:
+
+1. establish a unified surface-state system
+2. centralize product logic by domain boundary
+3. make future features land in domain/runtime modules rather than surface-local hacks
+4. enforce consistent motion, docking, escalation, layering, and state ownership across all surfaces
+5. create a stable foundation for Vault, Push Intelligence, hazard/POI visibility, score explanation, route editing, and future ride-time UX
 
 ---
 
 ## 2. Why this needs to happen now
 
-This is the right moment because every major drawer is about to change anyway:
+This is the right moment because every major surface is already under pressure:
 
-- **Top drawer**: Vault expansion, including organizations/collections like RUSA, Bikepacking.com, and future curated collections
-- **Right drawer**: Cue Sheet expansion and Push Intelligence / ride-execution systems
-- **Bottom drawer**: hazard / POI / layer visibility refactor
-- **Left drawer**: safety scoring overhaul and future score explanation changes
+- **Vault / top entry surface**: expanding to curated organizations, event listings, and public route access
+- **Cue / inspect / analysis surfaces**: increasingly need different mobile vs desktop behavior without diverging truth
+- **Bottom controls / lantern / stops & layers**: already behave like a proto surface host rather than a simple drawer
+- **Route editing / detour preview / commit flow**: exposes the cost of ad hoc cards and local state
+- **Future score explanation and review surfaces**: will multiply the problem if they keep inventing their own shells
 
-If these all land into the existing architecture, the main map file and drawer surfaces will become even more coupled and harder to reason about.
+If this work lands into the current architecture, Lanterne will deepen the monolith and harden the wrong interaction grammar.
 
-The goal of EXEC-008 is to force those changes through clean seams instead of letting each feature deepen the monolith.
+The goal of EXEC-008 is to force those changes through clean seams instead of letting each feature bolt on another overlay.
 
 ---
 
 ## 3. Executive decision
 
-Lanterne will move from **drawer-owned feature logic** and **map-surface conditional sprawl** to a model based on:
+Lanterne will move from **drawer-owned feature logic**, **floating-card proliferation**, and **map-surface conditional sprawl** to a model based on:
 
-- centralized domain/state modules
-- shared drawer shell primitives
-- registry/resolver systems for map-visible intelligence
-- drawers as presentation surfaces that consume shared domain data
-- map as a composition/render surface, not the policy brain for the product
+- centralized runtime and domain state
+- a unified surface-state model
+- shared shell primitives for docked panels and bottom sheets
+- registry/resolver systems for map-visible and route-visible intelligence
+- surfaces as presentation adapters that consume shared domain/runtime data
+- map as composition/render surface, not the policy brain for the product
 
 In plain English:
 
 - the drawers stop owning the world
+- the floating cards stop inventing their own behavior
 - the map stops being the app's nervous system
 - feature systems become modular and reusable across multiple surfaces
+- mobile and desktop can diverge in behavior without diverging in truth
 
 ---
 
 ## 4. Core refactor principles
 
-### 4.1 Drawers are shells, not feature brains
+### 4.1 Surfaces are shells, not feature brains
 
-A drawer should own:
+A surface should own:
 
-- layout
-- open/closed/peek/full state presentation
+- docking behavior
+- peek/compact/medium/full presentation
 - local UI affordances
 - local scroll and tab state
+- motion and dismissal behavior
 
-A drawer should **not** own:
+A surface should **not** own:
 
 - canonical business data
 - feature truth
@@ -1744,111 +1746,155 @@ A drawer should **not** own:
 - cue derivation
 - route collection semantics
 
-### 4.2 RouteMap becomes a renderer/composer
+### 4.2 One surface-state model, many shells
+
+Lanterne needs one interaction framework, not one literal visual container.
+
+The system should unify:
+
+- hidden / peek / compact / medium / full / pinned states
+- escalation rules
+- dismissal rules
+- mobile vs desktop policy
+- shell layering and collision rules
+
+It should **not** force every surface to look identical.
+
+Expected shell families:
+
+- bottom sheet / mobile primary surface
+- side rail / desktop primary deep-dive surface
+- lightweight inline overlays only where truly justified
+
+### 4.3 RouteMap becomes a renderer/composer
 
 `RouteMap.tsx` should move toward owning:
 
 - map container composition
 - layer mounting
 - event wiring
-- interaction handoff
+- interaction handoff into shared surface/runtime state
 
 It should move away from owning:
 
 - visibility rules
-- feature category policy
-- drawer policy
+- drawer/sheet policy
 - domain-specific derivations
 - duplicated feature state
+- ad hoc inspection and overlay semantics
 
-### 4.3 Domain logic lives by future product boundary
+### 4.4 Domain logic lives by future product boundary
 
-The right extraction seams are not "misc helper files." They are future systems:
+The right extraction seams are future systems, not helper-file junk drawers:
 
 - Vault
 - Cue Sheet / Route Guidance
 - Push Intelligence
 - Hazard / POI / visibility policy
 - Scoring / score explanation
-- Drawer shell / motion system
+- Route editing and route preview
+- Surface runtime / motion system
 
-### 4.4 One system, many surfaces
+### 4.5 One system, many surfaces
 
-If a system is expected to appear in multiple places later, it should not live inside one drawer now.
+If a system is expected to appear in multiple places later, it should not live inside one drawer or one card now.
 
 Examples:
 
-- cue data should not be "owned by the right drawer"
-- map visibility should not be "owned by RouteMap"
-- Vault collections should not be "owned by the top drawer"
-- score explanation should not be "owned by the left drawer"
+- cue data should not be owned by the right drawer
+- map visibility should not be owned by RouteMap
+- Vault collections should not be owned by a top drawer implementation detail
+- score explanation should not be owned by the left drawer
+- detour preview should not be owned by a transient bottom card
 
-### 4.5 Registry + resolver over special-case branching
+### 4.6 Registry + resolver over special-case branching
 
-Wherever categories/policies are expanding, use:
+Wherever categories, policies, or defaults are expanding, use:
 
 - canonical registry/config
 - centralized resolver
 - typed outputs
 
-Do not keep adding `if / else` feature branches inside map and drawer components.
+Do not keep adding `if / else` branches inside map and surface components.
 
-### 4.6 Desktop rails are fixed; map is elastic
+### 4.7 Desktop rails are fixed; mobile surfaces are elastic
 
-Desktop drawers use fixed pixel dimensions.
-The map expands/contracts around them.
-Desktop drawer sizing should not vary with screen percentage except for explicit safety breakpoints.
+Desktop should support fixed and deliberate rails where that improves side-by-side work.
 
-### 4.7 Mobile interaction is gesture-first
+Mobile should support gesture-first elastic surfaces with unified snap logic.
 
-On mobile, drawer shells should support JS-driven gesture behavior with unified snap logic.
-Handles must be physically part of the shell and never separate floating siblings.
+The key rule is not “everything is a drawer.”
+The rule is:
+
+- one surface-state contract
+- device-aware shell policy
+- no detached handles or orphan overlays
+
+### 4.8 Surface policy is centralized
+
+Interaction differences such as:
+
+- mobile segment click should not open a full inspect surface
+- desktop segment click should open inspect
+- Street View return should restore the same surface target
+
+must live in a centralized surface/interaction policy seam, not spread through map event handlers.
 
 ---
 
 ## 5. Program scope
 
-EXEC-008 includes five parallel refactor tracks.
+EXEC-008 includes six parallel refactor tracks.
 
-### Track A — Drawer Shell System
-Build the shared drawer primitive and motion/state model.
+### Track A — Surface Runtime System
+Build the shared surface-state model, shell primitives, and motion/policy contracts.
 
 ### Track B — Vault Domain Extraction
-Move top-drawer route collections and future organizations into a real Vault domain.
+Move curated route/event/library logic into a real Vault domain.
 
 ### Track C — Cue / Guidance / Push Domain Extraction
-Move cue and ride-execution logic out of the right drawer into shared route-guidance and push-intelligence domains.
+Move cue and ride-execution logic out of local surfaces into shared route-guidance and push-intelligence domains.
 
 ### Track D — Map Visibility / Hazard / POI Extraction
-Implement the map visibility system as registry + resolver and remove ad hoc visibility logic from RouteMap and bottom drawer surfaces.
+Implement the visibility system as registry + resolver and remove ad hoc visibility logic from RouteMap and local control surfaces.
 
 ### Track E — Score / Score Explanation Extraction
-Prepare left-drawer scoring overhaul by centralizing score state, explanation payloads, and versioned score presentation contracts.
+Prepare score overhaul by centralizing score state, explanation payloads, and versioned score presentation contracts.
+
+### Track F — Route Edit / Preview Surface Extraction
+Split cheap edit preview surfaces from canonical committed analysis, and make route editing consume the shared surface runtime instead of local cards.
 
 ---
 
 ## 6. Target architecture
 
-## 6.1 UI shell layer
+## 6.1 Surface runtime layer
 
 Proposed modules:
 
-- `src/ui/drawers/DrawerShell.tsx`
-- `src/ui/drawers/DrawerHandle.tsx`
-- `src/ui/drawers/useDrawerMotion.ts`
-- `src/ui/drawers/drawer-store.ts`
-- `src/ui/drawers/drawer-registry.ts`
-- `src/ui/drawers/drawer-constants.ts`
+- `src/ui/surfaces/SurfaceHost.tsx`
+- `src/ui/surfaces/SurfaceShell.tsx`
+- `src/ui/surfaces/SurfaceHandle.tsx`
+- `src/ui/surfaces/useSurfaceMotion.ts`
+- `src/ui/surfaces/surface-store.ts`
+- `src/ui/surfaces/surface-registry.ts`
+- `src/ui/surfaces/surface-policy.ts`
+- `src/ui/surfaces/surface-constants.ts`
 
 Responsibilities:
 
-- fixed vs responsive sizing
+- canonical surface states
+- mobile vs desktop shell selection
+- fixed vs elastic sizing
 - snap points
 - gesture physics
 - shell transforms
-- desktop/mobile behavior
 - attached handles
-- shell layering
+- shell layering and collision management
+- shared dismissal/escalation rules
+
+Note:
+this does **not** require immediate deletion of all drawers. The first step is to place drawers and bottom sheets under one runtime contract.
 
 ## 6.2 Domain layer
 
@@ -1862,6 +1908,7 @@ Proposed modules:
 - `src/domain/hazards/*`
 - `src/domain/scoring/*`
 - `src/domain/route-review/*`
+- `src/domain/route-edit/*`
 
 Responsibilities:
 
@@ -1879,28 +1926,32 @@ Proposed modules:
 - `src/map/layers/*`
 - `src/map/controllers/*`
 - `src/map/selectors/*`
+- `src/map/interactions/*`
 
 Responsibilities:
 
 - consume resolved layer outputs
 - mount render layers
-- wire map interactions to shared state
+- wire map interactions to shared surface/runtime state
 - avoid category policy logic in component branches
 
-## 6.4 Drawer surface layer
+## 6.4 Surface adapter layer
 
 Proposed modules:
 
-- `src/features/vault/VaultDrawerView.tsx`
-- `src/features/cues/CueDrawerView.tsx`
-- `src/features/analysis/ScoreDrawerView.tsx`
-- `src/features/map-layers/RouteLayersDrawerView.tsx`
+- `src/features/vault/VaultSurfaceView.tsx`
+- `src/features/cues/CueSurfaceView.tsx`
+- `src/features/analysis/ScoreSurfaceView.tsx`
+- `src/features/map-layers/RouteLayersSurfaceView.tsx`
+- `src/features/inspect/InspectSurfaceView.tsx`
+- `src/features/route-edit/DetourPreviewSurfaceView.tsx`
 
 Responsibilities:
 
-- present domain data
+- present domain/runtime data
 - dispatch UI actions
 - own local tabs/scroll only
+- remain agnostic to whether they are mounted in a side rail or bottom sheet
 
 ---
 
@@ -1914,31 +1965,35 @@ Define ownership before moving code.
 ### Deliverables
 
 - canonical module ownership map
-- list of existing drawer-owned feature logic to migrate
-- route map responsibility audit
-- no-new-special-cases rule for drawer logic
+- list of existing surface-owned feature logic to migrate
+- RouteMap responsibility audit
+- current card/drawer/overlay inventory
+- no-new-special-cases rule for surface logic
 
 ### Rules
 
-- no new feature-specific drawer hacks while EXEC-008 is active
+- no new feature-specific surface hacks while EXEC-008 is active
 - all new work must target its future domain boundary where possible
+- no new floating card primitive unless it is explicitly temporary and documented
 
 ---
 
-## Stage 1 — Drawer shell foundation
+## Stage 1 — Surface runtime foundation
 
 ### Goal
-Make detached handles structurally impossible.
+Make detached handles, orphan cards, and shell-specific motion logic structurally impossible.
 
 ### Work
 
-- create unified `DrawerShell`
-- create shared drawer state store
-- create desktop fixed rail sizing tokens
+- create unified `SurfaceHost`
+- create shared surface state store
+- define canonical `hidden/peek/compact/medium/full/pinned` states
+- create desktop fixed rail tokens
 - implement mobile gesture engine
-- migrate one side drawer first
-- migrate bottom lantern shell
+- migrate one side surface first
+- migrate the bottom lantern shell under the same runtime
 - remove separate handle movement logic
+- define centralized interaction policy seam
 
 ### Acceptance criteria
 
@@ -1946,12 +2001,13 @@ Make detached handles structurally impossible.
 - handle lives inside shell
 - no pixel drift
 - no separate bounce behavior
-- desktop drawer dimensions fixed in px
-- map expands/contracts instead
+- desktop deep-dive surfaces use fixed px rails where intended
+- mobile surfaces use unified snap logic
+- map interactions dispatch through shared surface policy
 
 ---
 
-## Stage 2 — Extract route guidance / cues from right drawer
+## Stage 2 — Extract route guidance / cues from local surfaces
 
 ### Goal
 Make cues a shared route-guidance domain.
@@ -1972,27 +2028,23 @@ Optional paired push modules:
 - `src/domain/push/store.ts`
 - `src/domain/push/selectors.ts`
 
-Move out of right drawer:
+Move out of cue/inspect surfaces:
 
 - cue sorting/grouping
 - current/next cue derivation
 - route-progress-linked cue state
 - future timing/projection scaffolding
 
-Right drawer becomes:
+Cue surfaces become:
 
-- cue presentation surface
-- push intelligence presentation surface
+- cue presentation surfaces
+- push intelligence presentation surfaces
 
 Not the place where route guidance truth is authored.
 
-### Why now
-
-Push Intelligence clearly makes ride execution a system, not a drawer-local UI concern.
-
 ---
 
-## Stage 3 — Extract hazard / POI / map visibility system from bottom drawer + RouteMap
+## Stage 3 — Extract hazard / POI / map visibility system
 
 ### Goal
 Implement registry + resolver architecture for map-visible entities.
@@ -2018,28 +2070,24 @@ Resolver outputs should include:
 - `aggregateMode`
 - `suppressionReasons`
 
-Move out of bottom drawer / RouteMap:
+Move out of RouteMap / local control surfaces:
 
 - ad hoc zoom-dependent visibility logic
 - per-category special casing
-- drawer-local marker logic
+- surface-local marker logic
 - context logic for browse/plan/review/ride/admin
 
-Bottom drawer becomes:
+Layer-control surfaces become:
 
-- a layer control / summary / toggle surface
+- a control / summary / toggle surface
 - not the owner of category policy
-
-### Why now
-
-The map visibility system is already conceptually defined. It should become executable architecture now rather than a doc that RouteMap ignores.
 
 ---
 
-## Stage 4 — Extract Vault domain from top drawer
+## Stage 4 — Extract Vault domain
 
 ### Goal
-Support real Vault growth without top-drawer feature sprawl.
+Support real Vault growth without surface-local feature sprawl.
 
 ### Work
 
@@ -2060,26 +2108,19 @@ Vault model should support:
 - route family concepts
 - future provider ingestion
 
-Top drawer becomes:
+Vault surfaces become:
 
-- browse/open surface for Vault
-- search/filter/switching surface
+- browse/open surfaces
+- search/filter/switching surfaces
 
 Not the place where provider semantics are implemented.
 
-### Initial provider examples
-
-- RUSA
-- Bikepacking.com
-- Randonneurs Canada
-- future org-based curated collections
-
 ---
 
-## Stage 5 — Extract scoring + score explanation state for left drawer overhaul
+## Stage 5 — Extract scoring + score explanation state
 
 ### Goal
-Prepare for scoring overhaul without pinning new scoring behavior to left-drawer local state.
+Prepare for scoring overhaul without pinning new scoring behavior to a single surface's local state.
 
 ### Work
 
@@ -2097,29 +2138,54 @@ Support:
 - explanation cards/sections
 - factor breakdowns
 - confidence/warning payloads
-- future comparison/explanation surfaces outside left drawer
+- future comparison/explanation surfaces outside one desktop rail
 
-Left drawer becomes:
+Score surfaces become:
 
-- score presentation surface
-- explanation surface
+- score presentation surfaces
+- explanation surfaces
 
 Not the owner of score assembly logic.
 
 ---
 
-## Stage 6 — Reduce RouteMap to composition surface
+## Stage 6 — Extract route edit / preview surface system
+
+### Goal
+Split cheap edit preview from canonical committed analysis and get route editing onto the shared surface runtime.
+
+### Work
+
+Create:
+
+- `src/domain/route-edit/types.ts`
+- `src/domain/route-edit/store.ts`
+- `src/domain/route-edit/selectors.ts`
+- `src/domain/route-edit/preview-facts.ts`
+- `src/domain/route-edit/commit-analysis.ts`
+- `src/features/route-edit/DetourPreviewSurfaceView.tsx`
+
+Rules:
+
+- live drag/add preview uses cheap preview facts only
+- committed edits trigger canonical analysis
+- preview surfaces never pretend to be canonical risk truth
+- preview surfaces mount through the shared surface host, not bespoke cards
+
+---
+
+## Stage 7 — Reduce RouteMap to composition surface
 
 ### Goal
 Shrink the main file by removing policy and domain logic.
 
 ### Work
 
-After Stages 1–5, RouteMap should mostly:
+After Stages 1–6, RouteMap should mostly:
 
 - mount layers
 - consume resolved visibility data
-- consume selected drawer/open state
+- consume shared surface/open state
 - route interactions to shared stores
 - manage map events and composition
 
@@ -2138,19 +2204,28 @@ The file is smaller because ownership changed, not because helpers were scattere
 
 ## 8. Detailed technical boundaries
 
-## 8.1 Drawer state contract
+## 8.1 Surface state contract
 
-Use typed drawer IDs and shared snap states.
+Use typed surface IDs, shell kinds, and shared snap states.
 
 Example:
 
 ```ts
-export type DrawerId = 'top' | 'left' | 'right' | 'bottom';
-export type DrawerSnap = 'closed' | 'peek' | 'open' | 'full';
+export type SurfaceId =
+  | 'vault'
+  | 'analysis'
+  | 'cues'
+  | 'inspect'
+  | 'layers'
+  | 'route_edit_preview';
 
-export interface DrawerRuntimeState {
-  id: DrawerId;
-  snap: DrawerSnap;
+export type SurfaceSnap = 'hidden' | 'peek' | 'compact' | 'medium' | 'full' | 'pinned';
+export type SurfaceShellKind = 'left_rail' | 'right_rail' | 'bottom_sheet' | 'top_strip';
+
+export interface SurfaceRuntimeState {
+  id: SurfaceId;
+  shellKind: SurfaceShellKind;
+  snap: SurfaceSnap;
   dragging: boolean;
   measuredSizePx: number;
   offsetPx: number;
@@ -2160,10 +2235,10 @@ export interface DrawerRuntimeState {
 ## 8.2 Desktop sizing tokens
 
 ```ts
-export const DESKTOP_DRAWER_DIMENSIONS = {
-  leftWidthPx: 360,
-  rightWidthPx: 420,
-  topHeightPx: 88,
+export const DESKTOP_SURFACE_DIMENSIONS = {
+  leftRailWidthPx: 360,
+  rightRailWidthPx: 420,
+  topStripHeightPx: 88,
   bottomPeekPx: 92,
   bottomOpenPx: 340,
 };
@@ -2171,384 +2246,74 @@ export const DESKTOP_DRAWER_DIMENSIONS = {
 
 Rules:
 
-- desktop drawers use fixed px rails
+- desktop deep-dive rails use fixed px dimensions
 - map flexes
-- mobile can use viewport-aware sizing
+- mobile uses viewport-aware sizing and shared snap logic
 
-## 8.3 Cue domain contract
+## 8.3 Interaction policy seam
 
-```ts
-export interface RouteCue {
-  id: string;
-  index: number;
-  distanceFromStartM: number;
-  roadName?: string;
-  instruction: string;
-  turnType: string;
-  severity?: 'minor' | 'major';
-}
+A centralized interaction policy must answer things like:
 
-export interface CueState {
-  cues: RouteCue[];
-  currentCueId?: string;
-  nextCueId?: string;
-  lastPassedCueId?: string;
-}
-```
+- does segment click open inspect on this device/context?
+- does a tap create a peek surface or a full surface?
+- does Street View return restore a surface target?
+- when does a bottom sheet supersede a side rail?
 
-## 8.4 Push domain contract
+This policy must live outside `RouteMap` event handlers.
+
+## 8.4 Route edit preview contract
+
+Cheap preview outputs should be facts, not canonical score truth.
+
+Example:
 
 ```ts
-export interface PushPlan {
-  id: string;
-  routeId: string;
-  pushType: '200k' | '300k' | '400k' | '600k' | '1000k' | '1200k' | 'custom';
-  plannedStartAt?: string;
-  plannedFinishAt?: string;
-}
-
-export interface PushProjection {
-  projectedFinishAt?: string;
-  gapToPlanMin?: number;
-  gapToCutoffMin?: number;
-  requiredMovingSpeedMph?: number;
-  requiredPowerWatts?: number;
-  stopBudgetRemainingMin?: number;
+export interface RouteEditPreviewDelta {
+  distanceDeltaMiles: number;
+  elevationDeltaFt: number;
+  avgSpeedDeltaMph?: number;
+  bikeLaneMilesDelta?: number;
+  shoulderMilesDelta?: number;
+  highSpeedMilesDelta?: number;
+  potentialCrossingsDelta?: number;
 }
 ```
 
-## 8.5 Visibility resolver contract
-
-```ts
-export interface VisibilityDecision {
-  categoryKey: string;
-  shouldFetch: boolean;
-  fetchScope: 'viewport' | 'local_radius' | 'route_corridor' | 'regional_cache';
-  shouldRender: boolean;
-  renderMode: 'hidden' | 'aggregate' | 'marker' | 'threshold_overlay' | 'analysis_only' | 'debug_detail';
-  suppressionReasons: string[];
-}
-```
-
-## 8.6 Vault contract
-
-```ts
-export interface VaultProvider {
-  id: string;
-  slug: string;
-  name: string;
-  type: 'organization' | 'editorial' | 'internal';
-}
-
-export interface VaultCollection {
-  id: string;
-  providerId?: string;
-  slug: string;
-  title: string;
-  mode?: 'road' | 'gravel' | 'mixed';
-  visibility: 'public' | 'private' | 'unlisted';
-}
-```
-
-## 8.7 Score explanation contract
-
-```ts
-export interface ScoreExplanationSection {
-  id: string;
-  title: string;
-  summary: string;
-  severity?: 'info' | 'caution' | 'warning';
-  factors: Array<{
-    key: string;
-    label: string;
-    contribution?: number;
-    explanation?: string;
-  }>;
-}
-```
+Canonical committed analysis remains a separate contract.
 
 ---
 
-## 9. SQL / schema work
+## 9. What success looks like
 
-EXEC-008 should keep SQL disciplined.
-Not every extraction needs SQL.
-Only introduce schema where a domain clearly needs persistence or canonical queryability.
+When EXEC-008 is done:
 
-## 9.1 Recommended SQL in this phase
-
-### A. Vault provider + collection scaffold
-
-This is worth doing now because Vault is explicitly expanding beyond a simple top-drawer concept.
-
-```sql
-create table if not exists vault_providers (
-  id uuid primary key default gen_random_uuid(),
-  slug text not null unique,
-  name text not null,
-  provider_type text not null check (provider_type in ('organization', 'editorial', 'internal')),
-  website_url text,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists vault_collections (
-  id uuid primary key default gen_random_uuid(),
-  provider_id uuid references vault_providers(id) on delete set null,
-  slug text not null unique,
-  title text not null,
-  description text,
-  mode text check (mode in ('road', 'gravel', 'mixed')),
-  visibility text not null default 'public' check (visibility in ('public', 'private', 'unlisted')),
-  sort_order int not null default 0,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists idx_vault_collections_provider_id on vault_collections(provider_id);
-create index if not exists idx_vault_collections_visibility on vault_collections(visibility);
-```
-
-### B. Vault route membership scaffold
-
-```sql
-create table if not exists vault_collection_routes (
-  id uuid primary key default gen_random_uuid(),
-  collection_id uuid not null references vault_collections(id) on delete cascade,
-  canonical_route_id uuid not null references canonical_routes(id) on delete cascade,
-  added_at timestamptz not null default now(),
-  sort_order int not null default 0,
-  unique (collection_id, canonical_route_id)
-);
-
-create index if not exists idx_vault_collection_routes_collection_id on vault_collection_routes(collection_id);
-create index if not exists idx_vault_collection_routes_route_id on vault_collection_routes(canonical_route_id);
-```
-
-### C. Push scaffold
-
-Only do this now if you want persistence to exist immediately rather than keeping push intelligence client-only at first.
-
-```sql
-create table if not exists ride_pushes (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  canonical_route_id uuid references canonical_routes(id) on delete set null,
-  route_history_id uuid references route_history(id) on delete set null,
-  push_type text not null,
-  planned_start_at timestamptz,
-  planned_finish_at timestamptz,
-  projected_finish_at timestamptz,
-  status text not null default 'planned' check (status in ('planned', 'active', 'completed', 'abandoned')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists idx_ride_pushes_user_id on ride_pushes(user_id);
-create index if not exists idx_ride_pushes_status on ride_pushes(status);
-```
-
-### D. Optional push stop plan scaffold
-
-```sql
-create table if not exists ride_push_stops (
-  id uuid primary key default gen_random_uuid(),
-  ride_push_id uuid not null references ride_pushes(id) on delete cascade,
-  stop_type text not null,
-  label text,
-  planned_at_distance_m numeric,
-  planned_duration_min numeric,
-  actual_started_at timestamptz,
-  actual_ended_at timestamptz,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists idx_ride_push_stops_push_id on ride_push_stops(ride_push_id);
-```
-
-## 9.2 SQL explicitly not required in EXEC-008
-
-Do **not** force schema changes yet for:
-
-- drawer state
-- map visibility resolver
-- cue centralization
-- score explanation centralization
-
-Those should become code/domain refactors first unless a clear persistence requirement emerges.
-
----
-
-## 10. File and module recommendations
-
-## 10.1 New modules to create
-
-```text
-src/ui/drawers/
-  DrawerShell.tsx
-  DrawerHandle.tsx
-  useDrawerMotion.ts
-  drawer-store.ts
-  drawer-registry.ts
-  drawer-constants.ts
-
-src/domain/vault/
-  types.ts
-  store.ts
-  selectors.ts
-  collections.ts
-  providers.ts
-
-src/domain/cues/
-  types.ts
-  store.ts
-  selectors.ts
-  derivations.ts
-  presentation.ts
-
-src/domain/push/
-  types.ts
-  store.ts
-  selectors.ts
-  projections.ts
-
-src/domain/map-visibility/
-  types.ts
-  category-registry.ts
-  context-resolver.ts
-  presets.ts
-  suppression.ts
-
-src/domain/scoring/
-  types.ts
-  store.ts
-  selectors.ts
-  explanations.ts
-  versioning.ts
-
-src/map/layers/
-  HazardLayer.tsx
-  PoiLayer.tsx
-  CueLayer.tsx
-  RouteOverlayLayer.tsx
-```
-
-## 10.2 Existing files likely to shrink or simplify
-
-- `RouteMap.tsx`
-- bottom drawer files
-- top drawer files
-- cue drawer files
-- score/analysis drawer files
-- ad hoc map layer logic modules
-
----
-
-## 11. Delivery sequencing recommendation
-
-### Sprint / thread 1
-Drawer shell foundation + desktop fixed rail sizing
-
-### Sprint / thread 2
-Cue domain extraction + right drawer conversion
-
-### Sprint / thread 3
-Map visibility resolver + hazard/POI extraction + bottom drawer conversion
-
-### Sprint / thread 4
-Vault domain extraction + top drawer conversion + SQL rollout
-
-### Sprint / thread 5
-Scoring domain extraction + left drawer conversion + score explanation contracts
-
-### Sprint / thread 6
-RouteMap reduction pass + dead code deletion + test hardening
-
----
-
-## 12. Testing requirements
-
-### Required code-level tests
-
-- drawer snap resolution logic
-- drawer measurement / breakpoint rules
-- visibility resolver category/context decisions
-- cue selector derivations
-- push projection calculation selectors
-- vault collection/provider selectors
-- score explanation payload shaping
-
-### Required integration smoke paths
-
-- open/close each drawer on desktop
-- swipe each drawer on mobile
-- switch between map contexts without layer drift/regression
-- cue drawer renders from central cue store
-- bottom drawer toggles affect resolver, not local marker hacks
-- top drawer renders provider/collection structure from central domain
-- score drawer renders explanation payloads from central scoring domain
-
----
-
-## 13. Exit criteria
-
-EXEC-008 is complete when:
-
-1. drawer motion and handle attachment are unified across all drawers
-2. desktop drawers are fixed-size rails
-3. `RouteMap` is no longer the owner of visibility policy
-4. cue data is centrally owned and reusable outside the right drawer
-5. Vault is centrally owned and reusable outside the top drawer
-6. scoring/explanation payloads are centrally owned and reusable outside the left drawer
-7. bottom drawer no longer owns hazard/POI feature truth
-8. the main map file is materially reduced because ownership changed, not because code was shuffled
-9. new feature work lands into domain modules rather than drawer-local hacks
-
----
-
-## 14. Anti-goals
-
-Do not do the following under the banner of refactoring:
-
-- split files without changing ownership
-- create shallow helper files that still depend on RouteMap state spaghetti
-- move logic into drawers with nicer names
-- invent generic abstractions with no product boundary behind them
-- add SQL for code-only concerns
-
----
-
-## 15. Practical bottom line
-
-EXEC-008 is the program that turns four upcoming drawer overhauls from a monolith-worsening event into an architecture reset.
-
-Without it:
-- each drawer gets smarter and the system gets dumber
-
-With it:
-- each drawer becomes a clean window into a shared product system
-
-That is the right direction for where Lanterne is headed.
-
+- Lanterne has one shared surface runtime instead of competing drawers/cards/overlays
+- mobile and desktop differ in behavior through policy, not duplicated truth systems
+- RouteMap is a composition surface rather than a policy monolith
+- Vault, cues, visibility, score explanation, and route editing are domain-owned
+- transient info panes no longer invent their own shell behavior
+- future ride-time and review UX can expand without adding more UI grammar debt
 
 
 ---
 
 ## Source File: docs/04-execution/exec-008v2-experience_runtime_and_surface_architecture_program.md
 
-# EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
+# EXEC-008 v2 — Experience Runtime, Unified Surface Architecture, and Domain Migration Program
 
-**Status:** Draft v2  
-**Owner:** Derek Minner  
-**Scope:** Master architecture and implementation program for Lanterne’s runtime model, ride surfaces, drawers, review layers, and adjacent domain migrations  
-**Supersedes:** `exec-008-refactor_plan_and_implementation_spec.md`  
+**Status:** Draft v2
+**Owner:** Derek Minner
+**Scope:** Master architecture and implementation program for Lanterne’s runtime model, unified surface system, ride surfaces, review layers, and adjacent domain migrations
+**Supersedes:** `exec-008-refactor_plan_and_implementation_spec.md`
 **Related:** DS-012, DS-014, DS-015, ADR-028, ADR-036, PROD-010, PROD-012, PROD-014
 
 ---
 
 ## 1. Purpose
 
-This document replaces the narrower “drawer refactor” framing with the actual program Lanterne now needs.
+This document replaces the narrower drawer-refactor framing with the actual program Lanterne now needs.
 
-The old framing was directionally right but too UI-centric. Lanterne is no longer just dealing with drawer-shell cleanup, RouteMap sprawl, and a few future domain extractions.
+The old framing was directionally right but too shell-centric. Lanterne is no longer just dealing with drawer cleanup, RouteMap sprawl, and a few future domain extractions.
 
 The product now clearly spans:
 
@@ -2559,22 +2324,23 @@ The product now clearly spans:
 - push-based execution intelligence
 - expedition durability and bounded long-route analysis
 - mode-aware POIs, hazards, and visibility rules
-- future rider-contributed route truth
+- route editing and cheap preview vs committed analysis
 - public route surfaces and stronger route history / shareability
 
-The result is a broader architectural need:
+The architectural need is therefore broader and more precise:
 
-> Lanterne requires a shared runtime model with multiple presentation surfaces.
+> Lanterne requires a shared runtime core and one unified surface-state system with multiple shell adapters.
 
 This program exists to ensure that:
 
 1. the map is no longer the app’s god organ
 2. drawers stop owning feature truth
-3. ride mode becomes map-first and runtime-driven
-4. route intelligence and ride intelligence remain separate but composable
-5. push and expedition become durable, legible system concepts
-6. score explanation, review surfaces, POIs, hazards, and cues become centrally owned domains
-7. future growth lands in durable seams instead of spreading conditional logic everywhere
+3. floating cards stop inventing their own UX rules
+4. mobile and desktop diverge through policy, not duplicated data flows
+5. route intelligence and ride intelligence remain separate but composable
+6. push and expedition become durable, legible system concepts
+7. score explanation, review surfaces, POIs, hazards, cues, and route editing become centrally owned domains
+8. future growth lands in durable seams instead of spreading conditional logic everywhere
 
 ---
 
@@ -2585,8 +2351,9 @@ Lanterne will move to an architecture based on:
 - a **shared runtime core**
 - a small set of **canonical user-facing modes**
 - a separate **audience role system** for truth depth and admin/debug access
-- **domain-owned feature state** instead of drawer-owned feature logic
-- **surface adapters** for map, drawers, tiles, lantern stack, route pages, and review views
+- **domain-owned feature state** instead of surface-owned feature logic
+- a **unified surface-state model** with multiple shell adapters
+- **surface adapters** for map, rails, bottom sheets, tiles, lantern stack, route pages, and review views
 - **bounded SQL persistence** only where the domain clearly requires durability
 
 In plain English:
@@ -2595,8 +2362,9 @@ In plain English:
 - the domains shape the truth
 - the surfaces present the truth
 - the map renders and composes
-- the drawers inspect and control
-- the bike-computer UI becomes the central active-ride access point
+- the rails and bottom sheets inspect, control, and explain
+- ride-time UI becomes map-first and runtime-driven
+- cards and drawers no longer compete as separate interaction grammars
 
 ---
 
@@ -2611,9 +2379,9 @@ During an active ride, the primary surface is:
 - ride computer tiles
 - push-derived ride intelligence
 
-Drawers are secondary deep-dive surfaces while riding.
+Rails and bottom sheets are secondary deep-dive surfaces while riding.
 
-During planning, breaks, and review, drawers may become primary exploration surfaces.
+During planning, breaks, and review, those surfaces may become primary exploration surfaces.
 
 ### 3.2 Launch visible modes
 
@@ -2649,7 +2417,7 @@ Role is system-facing.
 
 - **Vault** remains curated
 - **History** remains personal
-- public route pages / stable route URLs become a separate route-library/public-surface track, not part of Vault
+- public route pages / stable route URLs remain a separate route-library/public-surface track, not part of Vault
 
 ---
 
@@ -2657,27 +2425,46 @@ Role is system-facing.
 
 ### 4.1 Runtime first, surface second
 
-The application’s durable architecture starts with the runtime model, not with drawers.
+The application’s durable architecture starts with the runtime model, not with drawers, cards, or map overlays.
 
 ### 4.2 One truth, many surfaces
 
-Any domain expected to appear in multiple places must not be authored inside one drawer or one map file.
+Any domain expected to appear in multiple places must not be authored inside one rail, one sheet, or one map file.
 
-### 4.3 Route intelligence and ride intelligence remain separate
+### 4.3 One surface-state system, many shells
+
+The app needs one interaction framework that can express:
+
+- hidden
+- peek
+- compact
+- medium
+- full
+- pinned
+
+That system should support multiple shell kinds:
+
+- desktop side rails
+- mobile bottom sheets
+- top strips where justified
+
+The goal is to unify state, motion, escalation, and dismissal rules without forcing every surface to look identical.
+
+### 4.4 Route intelligence and ride intelligence remain separate
 
 Route intelligence explains what the road is.
 Ride intelligence explains what the ride becomes.
 
 These systems must compose, not collapse into one mushy model.
 
-### 4.4 Push and expedition are structure, not mode
+### 4.5 Push and expedition are structure, not mode
 
 - a push is a first-class execution unit
 - an expedition is a durable journey container that may contain one or more pushes
 - a push may stand alone without an expedition
 - mode never acts as SQL truth for journey structure
 
-### 4.5 Audience controls truth depth
+### 4.6 Audience controls truth depth
 
 The same internal observation, score, or hazard pattern may surface differently for:
 
@@ -2685,7 +2472,7 @@ The same internal observation, score, or hazard pattern may surface differently 
 - power users / curators
 - admins / developers
 
-### 4.6 Registry and resolver over branching sprawl
+### 4.7 Registry and resolver over branching sprawl
 
 Where categories, defaults, visibility, or explanation behavior expand, use:
 
@@ -2693,14 +2480,24 @@ Where categories, defaults, visibility, or explanation behavior expand, use:
 - typed contracts
 - centralized resolvers
 
-### 4.7 SQL only when durability matters
+### 4.8 SQL only when durability matters
 
 Not every extraction deserves schema work.
 Only persistent identity, progress, preferences, library records, and durable domain truth should go into SQL.
 
-### 4.8 Architecture must stay elastic
+### 4.9 Architecture must stay elastic
 
 The app should feel bespoke for randos at launch without hard-coding randonneuring into every artery.
+
+### 4.10 Interaction policy is centralized
+
+Differences such as:
+
+- desktop segment click opens inspect
+- mobile segment click sets inspect context but does not expand a full surface
+- Street View return restores the same target surface
+
+must be resolved through shared interaction policy, not repeated in event handlers.
 
 ---
 
@@ -2765,6 +2562,18 @@ Canonical durable/runtime concepts:
 - `expedition`
 - `expedition_push_membership`
 
+### 5.5 Surface units
+
+Canonical surface/runtime concepts:
+
+- `surface_id`
+- `surface_shell_kind`
+- `surface_snap`
+- `surface_target`
+- `interaction_policy`
+
+These are runtime concerns, not durable domain truth.
+
 ---
 
 ## 6. Target runtime architecture
@@ -2823,7 +2632,30 @@ Responsibilities:
 - define reset/orchestration boundaries
 - provide derived signals to surfaces
 
-## 6.2 Domain layer
+## 6.2 Surface runtime layer
+
+```text
+src/ui/surfaces/
+  SurfaceHost.tsx
+  SurfaceShell.tsx
+  SurfaceHandle.tsx
+  useSurfaceMotion.ts
+  surface-store.ts
+  surface-registry.ts
+  surface-policy.ts
+  surface-constants.ts
+```
+
+Responsibilities:
+
+- hold canonical surface states
+- map surface ids to shell kinds by device/context
+- own motion and snap rules
+- keep handles physically attached to shells
+- define layering and collision policy
+- support restoration of surface targets after route/session restores
+
+## 6.3 Domain layer
 
 ```text
 src/domain/
@@ -2839,6 +2671,7 @@ src/domain/
   scoring/
   review/
   observations/
+  route-edit/
 ```
 
 Responsibilities:
@@ -2849,25 +2682,25 @@ Responsibilities:
 - surface-ready payload shaping
 - versioning where needed
 
-## 6.3 Surface layer
+## 6.4 Surface adapter layer
 
 ```text
-src/ui/
-  drawers/
-  lantern/
-  tiles/
-  review/
-  route-pages/
+src/features/
+  vault/
+  cues/
+  analysis/
+  inspect/
+  map-layers/
+  route-edit/
 ```
 
 Responsibilities:
 
-- shell behavior
-- gestures and motion
-- local tabs/scroll
-- presentation only
+- bind domain/runtime outputs into surface views
+- remain agnostic to rail vs sheet when possible
+- own local tabs and scroll only
 
-## 6.4 Map composition layer
+## 6.5 Map composition layer
 
 ```text
 src/map/
@@ -2882,7 +2715,7 @@ Responsibilities:
 
 - mount layers
 - compose outputs from domain/runtime selectors
-- route interactions to shared stores
+- route interactions to shared stores and policies
 - avoid owning policy truth
 
 ---
@@ -2979,7 +2812,26 @@ interface Expedition {
 }
 ```
 
-## 7.5 Observations
+## 7.5 Surface runtime
+
+Purpose:
+
+- track which surfaces exist, where they are mounted, and how they are expanded
+- enable device-aware behavior without duplicating domain truth
+
+Minimum contract:
+
+```ts
+interface SurfaceRuntimeState {
+  id: string;
+  shellKind: 'left_rail' | 'right_rail' | 'bottom_sheet' | 'top_strip';
+  snap: 'hidden' | 'peek' | 'compact' | 'medium' | 'full' | 'pinned';
+  target?: { kind: string; id?: string; lat?: number; lng?: number };
+  dragging: boolean;
+}
+```
+
+## 7.6 Observations
 
 Purpose:
 
@@ -3008,27 +2860,21 @@ Future sibling system:
 
 ## 8. Surface architecture
 
-## 8.1 Drawer shell system
+## 8.1 Unified surface system
 
-Drawers become shared shells with:
+Surfaces become shared shells with:
 
-- fixed desktop rails
+- fixed desktop rails where side-by-side work is appropriate
 - gesture-first mobile behavior
 - one transform per shell
 - attached handles
 - unified snap logic
+- centralized dismissal and escalation rules
 
-Proposed modules:
+Important:
 
-```text
-src/ui/drawers/
-  DrawerShell.tsx
-  DrawerHandle.tsx
-  useDrawerMotion.ts
-  drawer-store.ts
-  drawer-registry.ts
-  drawer-constants.ts
-```
+- a bottom sheet on mobile and a side rail on desktop may present the same feature view
+- this is one interaction system with multiple shells, not separate UX stacks
 
 ## 8.2 Ride computer tile system
 
@@ -3055,844 +2901,45 @@ Tile inputs may come from:
 - navigation
 - future environmental overlays
 
-## 8.3 Lantern stack
+## 8.3 Route edit preview surfaces
 
-The lantern remains the global ride-time controller and fast state-clearing / overlay-control surface.
-It must not become a dumping ground for domain logic.
+Route editing should use two distinct contracts:
 
-## 8.4 Review surfaces
+- cheap preview facts while dragging or exploring
+- canonical committed analysis after commit/save
 
-Review surfaces become audience-aware adapters over shared review/scoring/hazard truth.
+Preview surfaces should show:
 
-Expected families:
+- distance delta
+- elevation delta
+- speed/facility/shoulder deltas where cheaply available
+- potential crossing candidates only if clearly labeled as preview facts
 
-- rider review
-- power-user review
-- admin/debug review
+Preview surfaces should **not** pretend to be canonical safety truth.
 
-## 8.5 Public route surfaces
+## 8.4 Surface policy examples
 
-Add a separate route-page/public-surface layer for:
+The architecture must support policy choices like:
 
-- stable route URLs
-- route-page rendering
-- score version disclosure
-- shareable public route previews
-- route review and route metadata rendering
-
----
-
-## 9. Domain programs
-
-## 9.1 Cues / guidance
-
-Goal:
-
-- move cue truth out of the right drawer
-- make cues available to drawer, map, tiles, and future route pages
-
-Modules:
-
-```text
-src/domain/cues/
-  types.ts
-  store.ts
-  selectors.ts
-  derivations.ts
-  presentation.ts
-```
-
-## 9.2 Push
-
-Goal:
-
-- make push first-class in code and persistence
-- expose projections to ride tiles, drawers, and future summaries
-
-Modules:
-
-```text
-src/domain/push/
-  types.ts
-  store.ts
-  selectors.ts
-  projections.ts
-  presentation.ts
-```
-
-## 9.3 Expedition
-
-Goal:
-
-- preserve durable multi-day continuity
-- support bounded windows and resume logic
-
-Modules:
-
-```text
-src/domain/expedition/
-  types.ts
-  store.ts
-  selectors.ts
-  windows.ts
-  resume.ts
-```
-
-## 9.4 Map visibility / hazards / POIs
-
-Goal:
-
-- unify registry + resolver architecture
-- respect mode and audience
-- separate policy from rendering
-
-Modules:
-
-```text
-src/domain/map-visibility/
-  types.ts
-  category-registry.ts
-  context-resolver.ts
-  mode-defaults.ts
-  audience-rules.ts
-  suppression.ts
-
-src/domain/pois/
-  types.ts
-  store.ts
-  registry.ts
-  preferences.ts
-
-src/domain/hazards/
-  types.ts
-  store.ts
-  selectors.ts
-```
-
-## 9.5 Scoring / explanations
-
-Goal:
-
-- keep score assembly, versioning, and explanation contracts out of the left drawer
-- support multiple score versions concurrently
-
-Modules:
-
-```text
-src/domain/scoring/
-  types.ts
-  store.ts
-  selectors.ts
-  explanations.ts
-  versioning.ts
-  confidence.ts
-```
-
-## 9.6 Vault
-
-Goal:
-
-- keep curated collections separate from personal history
-- support providers, organizations, and collection metadata
-
-Modules:
-
-```text
-src/domain/vault/
-  types.ts
-  store.ts
-  selectors.ts
-  collections.ts
-  providers.ts
-```
-
-## 9.7 History / route library / route pages
-
-Goal:
-
-- make personal route history durable and searchable
-- support stable route URLs and public route pages
-- keep personal history separate from curated Vault
-
-Modules:
-
-```text
-src/domain/history/
-  types.ts
-  store.ts
-  selectors.ts
-  search.ts
-
-src/domain/route-library/
-  route-page-types.ts
-  route-page-selectors.ts
-  route-share.ts
-```
-
-## 9.8 Observations / Pre-Ride Notes
-
-Goal:
-
-- future-proof rider truth capture without shipping full Field Notes yet
-- support model correction and structured caution markers
-
-Modules:
-
-```text
-src/domain/observations/
-  types.ts
-  store.ts
-  selectors.ts
-  capture-policy.ts
-  confidence.ts
-  presentation.ts
-```
-
-Launch classes:
-
-- `speed_limit_confirmation`
-- `shoulder_class_confirmation`
-- `structured_caution_marker`
+- desktop segment click opens inspect rail
+- mobile segment click records inspect context but does not auto-expand a full surface
+- Street View return restores the same popup/surface target
+- route edit preview appears as a bottom-sheet family surface rather than a bespoke floating card
 
 ---
 
-## 10. SQL program and sequencing
+## 9. Program migration posture
 
-This sequence is the go-forward order.
+The point of this program is not to immediately delete every drawer.
 
-## Phase SQL-0 — No-regret groundwork
+The migration sequence should be:
 
-Do now only if missing:
+1. unify runtime and surface state
+2. put current drawers/sheets under that runtime
+3. migrate feature truth out of local surfaces
+4. only then converge on cleaner long-term shells and reduce ad hoc overlays
 
-- ensure new work can reference `canonical_route_id`
-- retain `route_history_id` only as compatibility / provenance linkage where needed
-
-## Phase SQL-1 — Vault scaffold
-
-```sql
-create table if not exists vault_providers (
-  id uuid primary key default gen_random_uuid(),
-  slug text not null unique,
-  name text not null,
-  provider_type text not null check (provider_type in ('organization', 'editorial', 'internal')),
-  website_url text,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists vault_collections (
-  id uuid primary key default gen_random_uuid(),
-  provider_id uuid references vault_providers(id) on delete set null,
-  slug text not null unique,
-  title text not null,
-  description text,
-  mode text check (mode in ('road', 'rando', 'ultra_endurance')),
-  visibility text not null default 'public' check (visibility in ('public', 'private', 'unlisted')),
-  sort_order int not null default 0,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists vault_collection_routes (
-  id uuid primary key default gen_random_uuid(),
-  collection_id uuid not null references vault_collections(id) on delete cascade,
-  canonical_route_id uuid not null references canonical_routes(id) on delete cascade,
-  added_at timestamptz not null default now(),
-  sort_order int not null default 0,
-  unique (collection_id, canonical_route_id)
-);
-```
-
-## Phase SQL-2 — Mode-aware user preferences
-
-```sql
-create table if not exists user_poi_preferences (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
-  subcategory_id text not null,
-  enabled boolean not null,
-  updated_at timestamptz not null default now(),
-  unique (user_id, mode_id, subcategory_id)
-);
-
-create table if not exists user_ride_tile_preferences (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
-  layout_json jsonb not null,
-  updated_at timestamptz not null default now(),
-  unique (user_id, mode_id)
-);
-```
-
-## Phase SQL-3 — Push scaffold
-
-```sql
-create table if not exists ride_pushes (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  canonical_route_id uuid references canonical_routes(id) on delete set null,
-  route_history_id uuid references route_history(id) on delete set null,
-  expedition_id uuid,
-  push_type text not null,
-  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
-  structure_type text not null check (structure_type in ('standalone', 'expedition_member')),
-  planned_start_at timestamptz,
-  planned_finish_at timestamptz,
-  projected_finish_at timestamptz,
-  status text not null default 'planned' check (status in ('planned', 'active', 'paused', 'completed', 'abandoned')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-```
-
-## Phase SQL-4 — Expedition revision
-
-Revise expedition persistence so new records are architecturally centered on `canonical_route_id`, with `route_history_id` retained only where compatibility is still needed.
-
-If replacing DS-014 tables is too risky immediately, add forward-compatible columns first, then migrate writes.
-
-## Phase SQL-5 — Route library / public surface scaffold
-
-```sql
-create table if not exists public_route_pages (
-  id uuid primary key default gen_random_uuid(),
-  canonical_route_id uuid not null references canonical_routes(id) on delete cascade,
-  slug text not null unique,
-  visibility text not null default 'private' check (visibility in ('private', 'unlisted', 'public')),
-  title text,
-  summary text,
-  created_by uuid references auth.users(id) on delete set null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (canonical_route_id)
-);
-```
-
-## Phase SQL-6 — Observations / Pre-Ride Notes scaffold
-
-```sql
-create table if not exists rider_observations (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete set null,
-  canonical_route_id uuid references canonical_routes(id) on delete cascade,
-  route_history_id uuid references route_history(id) on delete set null,
-  observation_type text not null check (
-    observation_type in (
-      'speed_limit_confirmation',
-      'shoulder_class_confirmation',
-      'structured_caution_marker'
-    )
-  ),
-  route_mile numeric,
-  point_index integer,
-  lat numeric,
-  lon numeric,
-  payload jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
-```
-
-### SQL explicitly deferred
-
-Do **not** introduce schema yet for:
-
-- drawer runtime
-- visibility resolver internals
-- cue centralization itself
-- score explanation shaping itself
-- full open-ended field-note comments
-- media attachments for observations
-
----
-
-## 11. Execution programs
-
-This architecture is too large to execute as one blob.
-It should be run as three linked programs.
-
-## Program A — Runtime foundation
-
-Goal:
-
-- define the central contracts before surface refactor work deepens
-
-Includes:
-
-- canonical mode system
-- audience role system
-- route session contracts
-- ride runtime contracts
-- push / expedition relationship
-- resetRouteSession orchestration
-- persistence boundaries
-
-### Deliverables
-
-- `src/runtime/*` baseline
-- canonical mode registry
-- audience resolver
-- route session + ride runtime contracts
-- push + expedition contracts
-- migration note for canonical route centering
-
-## Program B — Surface architecture
-
-Goal:
-
-- make the UI consume shared truth instead of authoring it
-
-Includes:
-
-- drawer shell system
-- tile system integration
-- lantern stack cleanup
-- RouteMap reduction
-- review surfaces
-- route pages/public route surfaces
-
-### Deliverables
-
-- shared drawer shell primitives
-- tile registry/selectors
-- map composition cleanup
-- audience-aware review surfaces
-- route page surface contract
-
-## Program C — Domain migrations
-
-Goal:
-
-- move feature truth into durable domains
-
-Includes:
-
-- cues/guidance
-- push
-- expedition
-- map visibility
-- POIs/hazards
-- scoring/explanations
-- Vault
-- history / route library
-- observations / Pre-Ride Notes
-
-### Deliverables
-
-- domain-owned stores/selectors/contracts
-- versioned explanation payloads
-- mode-aware defaults
-- public-vs-curated route separation
-
----
-
-## 12. Recommended phase order
-
-## Phase 0 — Freeze contracts and baseline harness
-
-Do before deep movement:
-
-- preserve/refine smoke tests and perf instrumentation
-- freeze canonical runtime contracts
-- freeze route-analysis boundaries where possible
-- document no-shadow-mode and no-drawer-owned-truth rules
-
-## Phase 1 — Runtime foundation
-
-- canonical mode system
-- audience role system
-- route session
-- ride runtime
-- push / expedition contracts
-- reset path
-
-## Phase 2 — Drawer shell + tile runtime
-
-- shared drawer shells
-- tile registry and persistence
-- lantern stack cleanup
-- one pilot drawer migration
-
-## Phase 3 — Domain migrations I
-
-- cues / guidance
-- push
-- expedition
-- map visibility
-
-## Phase 4 — Domain migrations II
-
-- POIs / hazards
-- scoring / explanations
-- Vault
-- history / route library
-
-## Phase 5 — RouteMap reduction + review surfaces
-
-- RouteMap becomes composition surface
-- audience-aware review surfaces
-- route page surface
-
-## Phase 6 — Observations / Pre-Ride Notes
-
-- constrained rider truth capture
-- model correction capture policy
-- structured caution markers
-- later bridge to Field Notes
-
----
-
-## 13. Sequenced Lovable prompts
-
-These are the prompts to run in order. They are intentionally narrow and phase-scoped.
-
-## Prompt 1 — Runtime foundation scaffolding
-
-```text
-You are implementing Program A of EXEC-008 v2 for Lanterne.
-
-Read first:
-- exec-008-v2-experience-runtime-and-surface-architecture-program
-- ds-014-route_expedition_state_and_windowed_analysis_spec.md
-- adr-036-push_based_ride_intelligence.md
-- ds-012-ride_computer_tile_system_spec.md
-- PROJECT_MAP.md
-- DATA_MODEL.md
-- PRODUCT_PRINCIPLES.md
-
-Goal:
-Create the runtime foundation only. Do not refactor drawers yet.
-
-Implement:
-- src/runtime/mode/*
-- src/runtime/audience/*
-- src/runtime/route-session/*
-- src/runtime/ride-runtime/*
-- src/runtime/push/*
-- src/runtime/expedition/*
-
-Hard rules:
-- mode != structure
-- audience role is system-facing, not rider-facing
-- push can stand alone or belong to expedition
-- expedition is the durable parent for multi-push journeys
-- canonical_route_id is the architectural center for new persistence contracts
-- do not invent UI beyond what is necessary to prove the contracts
-
-Return:
-- created files
-- updated type contracts
-- any assumptions and unresolved seams
-```
-
-## Prompt 2 — Drawer shell foundation
-
-```text
-You are implementing the drawer shell program from EXEC-008 v2.
-
-Read first:
-- exec-008-v2-experience-runtime-and-surface-architecture-program
-- current drawer files
-- RouteMap.tsx
-
-Goal:
-Build shared drawer shell primitives and make detached handles structurally impossible.
-
-Implement:
-- src/ui/drawers/DrawerShell.tsx
-- src/ui/drawers/DrawerHandle.tsx
-- src/ui/drawers/useDrawerMotion.ts
-- src/ui/drawers/drawer-store.ts
-- src/ui/drawers/drawer-registry.ts
-- src/ui/drawers/drawer-constants.ts
-
-Hard rules:
-- one transform per shell
-- handles are physically attached to shells
-- desktop uses fixed px rails
-- map expands/contracts around drawers
-- mobile gestures use unified snap logic
-- do not let drawers own domain truth
-
-Return:
-- created files
-- migration approach for first pilot drawer
-- any compatibility shims needed temporarily
-```
-
-## Prompt 3 — Ride tiles and lantern integration
-
-```text
-You are implementing the ride tile integration layer for EXEC-008 v2.
-
-Read first:
-- ds-012-ride_computer_tile_system_spec.md
-- adr-036-push_based_ride_intelligence.md
-- exec-008-v2-experience-runtime-and-surface-architecture-program
-
-Goal:
-Make ride computer tiles a central ride-time presentation surface fed by shared runtime/domain selectors.
-
-Implement:
-- src/ui/tiles/TileShell.tsx
-- src/ui/tiles/RideComputerGrid.tsx
-- src/ui/tiles/tile-registry.ts
-- src/ui/tiles/tile-selectors.ts
-- src/ui/tiles/tile-persistence.ts
-
-Requirements:
-- per-mode defaults
-- durable user layout persistence
-- tiles can consume push-derived signals
-- tiles remain calm and map-first
-- no Garmin clone behavior
-
-Return:
-- created files
-- any local storage or backend persistence assumptions
-- minimal integration plan for current ride mode
-```
-
-## Prompt 4 — Cues and push domain extraction
-
-```text
-You are implementing the cues and push domain extraction program from EXEC-008 v2.
-
-Read first:
-- exec-008-v2-experience-runtime-and-surface-architecture-program
-- adr-036-push_based_ride_intelligence.md
-- existing cue drawer files
-- existing cue derivation logic
-
-Goal:
-Move cue and push truth out of the right drawer and make them reusable by drawers, map, and ride tiles.
-
-Implement:
-- src/domain/cues/*
-- src/domain/push/*
-
-Hard rules:
-- the right drawer becomes a presentation surface only
-- push outputs must be selector-driven and explainable
-- do not collapse official constraints, rider plan, actual ride state, and guidance layer into one opaque ETA
-
-Return:
-- created files
-- migration notes
-- any missing source contracts blocking completion
-```
-
-## Prompt 5 — Map visibility + POI/hazard extraction
-
-```text
-You are implementing the map visibility and stop-system extraction program from EXEC-008 v2.
-
-Read first:
-- exec-008-v2-experience-runtime-and-surface-architecture-program
-- prod-010-poi_categories.md
-- prod-012-review_surfaces.md
-- existing bottom drawer files
-- existing RouteMap.tsx visibility logic
-
-Goal:
-Move visibility policy, POI defaults, and hazard rendering decisions out of RouteMap and the bottom drawer into registry/resolver domains.
-
-Implement:
-- src/domain/map-visibility/*
-- src/domain/pois/*
-- src/domain/hazards/*
-
-Hard rules:
-- use canonical mode IDs
-- respect audience role in truth depth
-- category toggles are convenience UI, not source of truth
-- preserve small rider-facing taxonomy
-- no shadow mode system
-
-Return:
-- created files
-- resolver contract
-- migration notes for current bottom drawer
-```
-
-## Prompt 6 — Scoring and explanation extraction
-
-```text
-You are implementing the scoring domain extraction program from EXEC-008 v2.
-
-Read first:
-- ds-015-safety_scoring_model_v2.md
-- exec-008-v2-experience-runtime-and-surface-architecture-program
-- existing score drawer files
-- existing score explanation/render files
-
-Goal:
-Centralize score payloads, versioning, and explanation contracts so the left drawer becomes a presentation surface only.
-
-Implement:
-- src/domain/scoring/*
-
-Hard rules:
-- support multiple score versions concurrently
-- keep canonical baseline score separate from contextual overlays
-- explanation depth may vary by audience role
-- do not let drawer-local state own score truth
-
-Return:
-- created files
-- versioning strategy
-- migration notes for legacy score payloads
-```
-
-## Prompt 7 — Vault + history + route pages
-
-```text
-You are implementing the Vault, History, and Route Library program from EXEC-008 v2.
-
-Read first:
-- exec-008-v2-experience-runtime-and-surface-architecture-program
-- adr-002-vault-concept.md
-- adr-001-route-acquisition-model.md
-- current history and saved-route files
-
-Goal:
-Keep Vault curated, make History personal and searchable, and establish the contract for stable public route pages.
-
-Implement:
-- src/domain/vault/*
-- src/domain/history/*
-- src/domain/route-library/*
-
-Hard rules:
-- Vault remains curated
-- History remains personal
-- public route pages are a separate surface concern
-- do not merge personal history into Vault
-
-Return:
-- created files
-- route page contract
-- search/share assumptions
-```
-
-## Prompt 8 — Observations / Pre-Ride Notes scaffold
-
-```text
-You are implementing the constrained rider-observation scaffold from EXEC-008 v2.
-
-Read first:
-- exec-008-v2-experience-runtime-and-surface-architecture-program
-- adr-028-field_note_confirmation_model.md
-- ds-015-safety_scoring_model_v2.md
-
-Goal:
-Create the narrow observation system that launches as Pre-Ride Notes, without shipping the full future Field Notes system.
-
-Implement:
-- src/domain/observations/*
-
-Launch scope only:
-- speed_limit_confirmation
-- shoulder_class_confirmation
-- structured_caution_marker
-
-Hard rules:
-- this is not a generic comments system
-- keep inputs structured and high-signal
-- future-proof for confirmations later
-- do not build open-ended rider commentary yet
-
-Return:
-- created files
-- observation payload proposal
-- capture-policy recommendations for active ride UX
-```
-
----
-
-## 14. Testing and phase gates
-
-### Required code-level tests
-
-- mode registry resolution
-- audience role resolution
-- route session reset behavior
-- drawer snap/state logic
-- tile selector outputs
-- cue derivations
-- push projection selectors
-- visibility resolver decisions
-- POI preference merging
-- score explanation version routing
-
-### Required integration smoke paths
-
-- open/close each drawer on desktop
-- mobile swipe / snap behavior
-- start ride with ride tiles visible
-- cue drawer and ride tiles consume same cue truth
-- score drawer renders from central scoring domain
-- map visibility changes via resolver, not local marker hacks
-- Vault renders curated provider/collection structure
-- history/search route library does not collapse into Vault
-- public route page renders correct score model version
-
-### Required ride-runtime smoke paths
-
-- standalone push launch
-- expedition launch with active window
-- ride resume from durable state
-- tile layout persistence across relaunch
-- POI prefs persist by mode
-- observation capture does not block ride runtime
-
----
-
-## 15. Exit criteria
-
-EXEC-008 v2 is complete when:
-
-1. the runtime core owns route session, ride runtime, push, and expedition truth
-2. mode and audience role are canonical and reused across systems
-3. drawers are shells, not feature brains
-4. ride tiles are a central active-ride surface fed by shared selectors
-5. RouteMap is materially reduced because ownership changed
-6. score explanation is centrally versioned and not drawer-owned
-7. POI, hazard, and visibility policy are centrally owned and mode-aware
-8. Vault remains curated while History and route pages become stronger separate systems
-9. push is first-class and expedition is the durable multi-push parent
-10. Pre-Ride Notes exist as a constrained observation system without prematurely shipping full Field Notes
-
----
-
-## 16. Anti-goals
-
-Do not do the following under the banner of this program:
-
-- split files without changing ownership
-- build a second shadow mode system
-- use mode as a proxy for journey structure
-- keep RouteMap as policy brain behind helper-file theater
-- move domain logic from one drawer to another drawer with a nicer name
-- merge Vault and personal history
-- collapse push and expedition into one ambiguous concept
-- ship open-ended note/comment systems too early
-- add SQL for every refactor just because it feels serious
-
----
-
-## 17. Practical bottom line
-
-This program is the architecture reset that lets Lanterne grow without losing its soul.
-
-It preserves what makes the app feel bespoke for randos while building runtime and domain seams strong enough to support broader ultra-endurance riding later.
-
-If this program is executed well:
-
-- the ride stays map-first
-- the product stays explainable
-- the code stops rotting around the drawers
-- route intelligence and ride intelligence finally live in the same house without sleeping in the same bed
-
+That is how Lanterne gets the long-term benefit without attempting a one-shot rewrite.
 
 
 ---
@@ -3903,8 +2950,8 @@ If this program is executed well:
 
 **Status:** Draft
 **Owner:** Derek Minner
-**Purpose:** Step-by-step implementation manual for the Experience Runtime, Surface Architecture, and Domain Migration Program
-**Companion:** `EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program`
+**Purpose:** Step-by-step implementation manual for the Experience Runtime, Unified Surface Architecture, and Domain Migration Program
+**Companion:** `EXEC-008 v2 — Experience Runtime, Unified Surface Architecture, and Domain Migration Program`
 
 ------
 
@@ -3919,9 +2966,9 @@ Use it to:
 
 - sequence implementation work
 - know what SQL to run and when
-- know which Lovable prompts to use and in what order
-- avoid starting the wrong phase too early
 - keep runtime, surface, and domain work from tangling into one blob
+- avoid starting the wrong phase too early
+- avoid accidentally treating cards/drawers as the architecture
 
 ## Hard rule
 
@@ -3929,6 +2976,9 @@ Do **not** run this as one giant refactor.
 
 Run it as gated phases.
 Each phase must pass its own acceptance criteria before the next one begins.
+
+The immediate goal is not “replace every drawer.”
+The immediate goal is to establish one shared runtime and one shared surface-state system, then migrate existing surfaces under it.
 
 ------
 
@@ -3945,9 +2995,9 @@ During an active ride, the primary surface is:
 - ride computer tiles
 - push-derived ride intelligence
 
-Drawers are secondary deep-dive surfaces while riding.
+Rails and bottom sheets are secondary deep-dive surfaces while riding.
 
-During planning, breaks, and review, drawers may become primary deep-dive surfaces.
+During planning, breaks, and review, those surfaces may become primary deep-dive surfaces.
 
 ## 1.2 Launch visible modes
 
@@ -4001,7 +3051,24 @@ But it is **not** the long-term identity center.
 - History remains personal
 - public route pages are a separate route-library/public-surface concern
 
-## 1.8 Pre-Ride Notes
+## 1.8 Surface runtime is the new shell contract
+
+The app will converge on one shared surface-state system that supports multiple shells.
+
+At minimum this system must centralize:
+
+- surface ids
+- snap states
+- shell kinds
+- motion rules
+- dismissal rules
+- restoration targets
+- mobile vs desktop interaction policy
+
+This does **not** mean every surface becomes visually identical.
+It means shell behavior stops being reinvented per feature.
+
+## 1.9 Pre-Ride Notes
 
 Do **not** ship full open-ended Field Notes in this program.
 
@@ -4019,7 +3086,7 @@ Launch observation classes only:
 
 # 2. Program structure
 
-This implementation is split into **three linked programs**.
+This implementation is split into **four linked programs**.
 
 ## Program A — Runtime foundation
 
@@ -4033,16 +3100,17 @@ Builds:
 - reset/orchestration boundaries
 - durable preference foundations
 
-## Program B — Surface architecture
+## Program B — Surface runtime foundation
 
 Builds:
 
-- shared drawer shell system
+- shared surface host
+- shell registry and shell policy
+- rail/sheet motion system
+- handle docking rules
+- restoration targets and interaction policy
 - tile system integration
 - lantern stack cleanup
-- RouteMap reduction
-- review surfaces
-- route page/public surface contract
 
 ## Program C — Domain migrations
 
@@ -4056,7 +3124,18 @@ Builds:
 - scoring/explanations
 - Vault
 - history/route library
+- route edit preview/commit contracts
 - observations / Pre-Ride Notes
+
+## Program D — Surface conversions
+
+Builds:
+
+- rail/sheet adapters for existing drawers
+- inspect and analysis conversions
+- route-edit preview surface conversion
+- RouteMap reduction
+- route page/public surface contract
 
 ------
 
@@ -4066,7 +3145,7 @@ These are the “don’t be stupid” rules.
 
 ## Fence 1 — Runtime before deep surfaces
 
-Do **not** start deep drawer or RouteMap decomposition before:
+Do **not** start deep rail/sheet decomposition before:
 
 - mode IDs are frozen
 - audience role contract exists
@@ -4074,9 +3153,21 @@ Do **not** start deep drawer or RouteMap decomposition before:
 - ride runtime contract exists
 - push/expedition relationship is typed
 
-## Fence 2 — Shared domains before surface rewrites
+## Fence 2 — Surface runtime before shell proliferation cleanup
 
-Do **not** rewrite a drawer as if it owns feature truth.
+Do **not** rewrite cards/drawers individually as if each one defines its own shell semantics.
+
+Before broad surface conversion, freeze:
+
+- surface ids
+- shell kinds
+- snap states
+- interaction policy seam
+- restoration target contract
+
+## Fence 3 — Shared domains before surface rewrites
+
+Do **not** rewrite a surface as if it owns feature truth.
 
 If a system will appear in multiple places, extract the domain first or at least freeze the domain contract first.
 
@@ -4089,21 +3180,22 @@ Applies to:
 - hazards
 - Vault
 - route library
+- route edit preview facts
 
-## Fence 3 — SQL only when durability is real
+## Fence 4 — SQL only when durability is real
 
 Do not add SQL for:
 
-- drawer internals
+- shell internals
 - visibility resolver mechanics
 - local presentation details
-- temporary shell state
+- temporary surface state
 
-## Fence 4 — Canonical route first
+## Fence 5 — Canonical route first
 
 Any new persistence for push/expedition/route pages/observations must support `canonical_route_id`.
 
-## Fence 5 — Phase gates are real
+## Fence 6 — Phase gates are real
 
 No parallel “nibbling” into later phases unless the earlier phase has passed its own acceptance criteria.
 
@@ -4119,8 +3211,8 @@ Create the guardrails before the real movement starts.
 
 ### Tasks
 
-1. Preserve and verify Phase 0 front-end harness
-   - 4 fixture GPX files
+1. Preserve and verify front-end harness
+   - fixture GPX files
    - smoke paths
    - perf markers
    - perf budgets
@@ -4130,7 +3222,14 @@ Create the guardrails before the real movement starts.
    - push/expedition relationship
    - canonical route centering
    - Vault/history separation
-3. Add this implementation manual and treat it as the source of sequencing truth
+   - shared surface-state direction
+3. Inventory current shell sprawl
+   - rails
+   - bottom controls
+   - floating cards
+   - route edit surfaces
+   - inspect overlays
+4. Add this implementation manual and treat it as the source of sequencing truth
 
 ### Acceptance criteria
 
@@ -4138,6 +3237,7 @@ Create the guardrails before the real movement starts.
 - smoke flows documented
 - perf instrumentation still works
 - no unresolved argument about mode/structure/role semantics
+- no unresolved argument about the shared surface-state direction
 
 ------
 
@@ -4187,7 +3287,7 @@ src/runtime/
 
 - mode and audience must be globally reusable
 - `resetRouteSession(reason)` becomes the only teardown path
-- ride runtime must be tile-friendly and drawer-friendly
+- ride runtime must be tile-friendly and surface-friendly
 - push and expedition contracts must be typed before surface extraction begins
 
 ### Acceptance criteria
@@ -4197,15 +3297,62 @@ src/runtime/
 - route session is typed and usable
 - ride runtime is typed and usable
 - push and expedition contracts exist
-- no deep drawer refactor has started yet
+- no deep surface refactor has started yet
 
 ------
 
-## Phase 2 — SQL foundation
+## Phase 2 — Surface runtime foundation
 
 ### Goal
 
-Land the durable schema needed by future surface and domain work.
+Create the shared shell system before trying to “fix” individual cards or drawers.
+
+### Files to create
+
+```text
+src/ui/surfaces/
+  SurfaceHost.tsx
+  SurfaceShell.tsx
+  SurfaceHandle.tsx
+  useSurfaceMotion.ts
+  surface-store.ts
+  surface-registry.ts
+  surface-policy.ts
+  surface-constants.ts
+
+src/ui/tiles/
+  TileShell.tsx
+  RideComputerGrid.tsx
+  tile-registry.ts
+  tile-selectors.ts
+  tile-persistence.ts
+```
+
+### Rules
+
+- one transform per shell
+- handle physically attached to shell
+- desktop rails fixed in px where side-by-side work is intended
+- mobile bottom sheets use shared snap logic
+- map expands/contracts around active desktop rails
+- tiles are real runtime consumers, not ornamental UI
+- restoration targets are part of the surface runtime, not bespoke per feature
+
+### Acceptance criteria
+
+- no detached handle behavior in migrated shells
+- tile persistence works
+- tiles can consume runtime selectors
+- one migrated desktop shell and the bottom lantern shell share the same motion contract
+- drawers still do not own domain truth
+
+------
+
+## Phase 3 — SQL foundation
+
+### Goal
+
+Land the durable schema needed by future runtime and domain work.
 
 ### Recommended order
 
@@ -4224,53 +3371,11 @@ Land the durable schema needed by future surface and domain work.
 
 ------
 
-## Phase 3 — Drawer shell + tile foundation
-
-### Goal
-
-Create shared surface primitives without yet pretending the domain migration is finished.
-
-### Files to create
-
-```text
-src/ui/drawers/
-  DrawerShell.tsx
-  DrawerHandle.tsx
-  useDrawerMotion.ts
-  drawer-store.ts
-  drawer-registry.ts
-  drawer-constants.ts
-
-src/ui/tiles/
-  TileShell.tsx
-  RideComputerGrid.tsx
-  tile-registry.ts
-  tile-selectors.ts
-  tile-persistence.ts
-```
-
-### Rules
-
-- one transform per shell
-- handle physically attached to shell
-- desktop rails fixed in px
-- map expands/contracts
-- ride tiles are real runtime consumers, not ornamental UI
-
-### Acceptance criteria
-
-- no detached handle behavior
-- tile persistence works
-- tiles can consume runtime selectors
-- drawers still do not own domain truth
-
-------
-
 ## Phase 4 — Domain migrations I
 
 ### Goal
 
-Move the systems most central to active ride execution out of drawers.
+Move the systems most central to active ride execution out of local surfaces.
 
 ### Scope
 
@@ -4278,6 +3383,7 @@ Move the systems most central to active ride execution out of drawers.
 - push
 - expedition
 - map visibility core
+- route edit preview facts contract
 
 ### Files to create
 
@@ -4310,14 +3416,21 @@ src/domain/map-visibility/
   mode-defaults.ts
   audience-rules.ts
   suppression.ts
+
+src/domain/route-edit/
+  types.ts
+  store.ts
+  selectors.ts
+  preview-facts.ts
 ```
 
 ### Acceptance criteria
 
-- right drawer no longer authors cue truth
+- cue surfaces no longer author cue truth
 - push outputs are selector-driven
 - expedition window logic is domain-owned
 - visibility resolver exists outside RouteMap
+- route edit preview facts are domain-owned and reusable
 
 ------
 
@@ -4325,7 +3438,7 @@ src/domain/map-visibility/
 
 ### Goal
 
-Move the rest of the major feature truth out of drawers and ad hoc files.
+Move the rest of the major feature truth out of local surfaces and ad hoc files.
 
 ### Scope
 
@@ -4333,6 +3446,7 @@ Move the rest of the major feature truth out of drawers and ad hoc files.
 - scoring / explanations
 - Vault
 - history / route library
+- route edit commit-analysis contract
 
 ### Files to create
 
@@ -4373,18 +3487,44 @@ src/domain/route-library/
   route-page-types.ts
   route-page-selectors.ts
   route-share.ts
+
+src/domain/route-edit/
+  commit-analysis.ts
 ```
 
 ### Acceptance criteria
 
-- left drawer no longer owns score assembly/explanation truth
-- top drawer no longer owns Vault semantics
+- score surfaces no longer own score assembly/explanation truth
+- Vault surfaces no longer own Vault semantics
 - history and route pages are separate from Vault
 - POI/hazard state is centrally owned and mode-aware
+- committed route edits have a domain-owned canonical analysis path
 
 ------
 
-## Phase 6 — RouteMap reduction + surface conversions
+## Phase 6 — Surface conversions
+
+### Goal
+
+Migrate existing rails, sheets, and transient panes onto the shared surface runtime.
+
+### Expected work
+
+- migrate current drawers to central runtime/domain selectors
+- convert small floating cards into bottom-sheet or rail-family surfaces where appropriate
+- route inspect, analysis, layers, and route-edit preview through surface host
+- reduce local shell logic in `Index.tsx` and `RouteMap.tsx`
+
+### Acceptance criteria
+
+- current major surfaces mount through the shared surface runtime
+- detour preview no longer relies on a bespoke card shell
+- inspect and analysis are policy-driven by device/context
+- cards no longer invent their own motion and collision rules
+
+------
+
+## Phase 7 — RouteMap reduction + public/review adapters
 
 ### Goal
 
@@ -4392,21 +3532,21 @@ Make RouteMap a composition surface instead of the policy brain.
 
 ### Expected work
 
-- migrate drawers to central runtime/domain selectors
 - reduce RouteMap prop sprawl
 - mount layers from shared visibility resolver outputs
 - add audience-aware review surface adapters
 - wire route-page/public route rendering
+- keep interaction policy outside direct map event branching
 
 ### Acceptance criteria
 
 - RouteMap is materially smaller because ownership changed
-- drawers are shell/presentation surfaces
+- surfaces are presentation adapters, not policy owners
 - map no longer owns visibility policy or feature truth
 
 ------
 
-## Phase 7 — Observations / Pre-Ride Notes
+## Phase 8 — Observations / Pre-Ride Notes
 
 ### Goal
 
@@ -4419,713 +3559,31 @@ src/domain/observations/
   types.ts
   store.ts
   selectors.ts
-  capture-policy.ts
-  confidence.ts
+  policy.ts
+  validation.ts
   presentation.ts
 ```
 
-### Rules
-
-- this is not a generic comment system
-- keep rider input structured and fast
-- no full open-ended Field Notes yet
-- future-proof for confirmation logic later
-
 ### Acceptance criteria
 
-- observation types limited to launch classes
-- ride-time capture policy is explicit
-- observations attach to route identity and location cleanly
+- rider-facing label is Pre-Ride Notes
+- only constrained launch classes exist
+- no full Field Notes surface ships in this program
 
 ------
 
-# 5. SQL migrations — exact sequence
+# 5. Immediate implementation posture
 
-Below is the recommended SQL order.
+Before any broader UX refactor implementation begins, use these rules:
 
-Run them in this sequence, not randomly.
+1. no new ad hoc floating-card systems
+2. no new feature-owned shell logic if the surface runtime equivalent is obvious
+3. route-edit preview stays cheap until commit
+4. committed route edits use canonical analysis
+5. mobile/desktop differences should be introduced through policy seams whenever feasible
 
-------
+This keeps current product work aligned with the long-term surface architecture instead of fighting it.
 
-## SQL-1 — Vault scaffold
-
-```sql
-create table if not exists vault_providers (
-  id uuid primary key default gen_random_uuid(),
-  slug text not null unique,
-  name text not null,
-  provider_type text not null check (provider_type in ('organization', 'editorial', 'internal')),
-  website_url text,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists vault_collections (
-  id uuid primary key default gen_random_uuid(),
-  provider_id uuid references vault_providers(id) on delete set null,
-  slug text not null unique,
-  title text not null,
-  description text,
-  mode text check (mode in ('road', 'rando', 'ultra_endurance')),
-  visibility text not null default 'public' check (visibility in ('public', 'private', 'unlisted')),
-  sort_order int not null default 0,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists vault_collection_routes (
-  id uuid primary key default gen_random_uuid(),
-  collection_id uuid not null references vault_collections(id) on delete cascade,
-  canonical_route_id uuid not null references canonical_routes(id) on delete cascade,
-  added_at timestamptz not null default now(),
-  sort_order int not null default 0,
-  unique (collection_id, canonical_route_id)
-);
-
-create index if not exists idx_vault_collections_provider_id on vault_collections(provider_id);
-create index if not exists idx_vault_collections_visibility on vault_collections(visibility);
-create index if not exists idx_vault_collection_routes_collection_id on vault_collection_routes(collection_id);
-create index if not exists idx_vault_collection_routes_route_id on vault_collection_routes(canonical_route_id);
-```
-
-------
-
-## SQL-2 — User preference durability
-
-```sql
-create table if not exists user_poi_preferences (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
-  subcategory_id text not null,
-  enabled boolean not null,
-  updated_at timestamptz not null default now(),
-  unique (user_id, mode_id, subcategory_id)
-);
-
-create table if not exists user_ride_tile_preferences (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
-  layout_json jsonb not null,
-  updated_at timestamptz not null default now(),
-  unique (user_id, mode_id)
-);
-```
-
-------
-
-## SQL-3 — POI registry and defaults
-
-```sql
-create table if not exists poi_subcategory_registry (
-  subcategory_id text primary key,
-  rider_label text not null,
-  icon_key text,
-  confidence_class text not null check (
-    confidence_class in ('confirmed_service', 'likely_commercial', 'rider_inferred', 'untreated_natural')
-  ),
-  launch_status text not null check (launch_status in ('launch', 'deferred', 'hidden')),
-  sort_order integer not null default 0,
-  active boolean not null default true
-);
-
-create table if not exists poi_subcategory_category_membership (
-  subcategory_id text not null references poi_subcategory_registry(subcategory_id) on delete cascade,
-  category_id text not null,
-  primary key (subcategory_id, category_id)
-);
-
-create table if not exists poi_mode_defaults (
-  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
-  subcategory_id text not null references poi_subcategory_registry(subcategory_id) on delete cascade,
-  default_enabled boolean not null,
-  sort_order integer not null default 0,
-  primary key (mode_id, subcategory_id)
-);
-```
-
-------
-
-## SQL-4 — Push scaffold
-
-```sql
-create table if not exists ride_pushes (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  canonical_route_id uuid references canonical_routes(id) on delete set null,
-  route_history_id uuid references route_history(id) on delete set null,
-  expedition_id uuid,
-  push_type text not null,
-  mode_id text not null check (mode_id in ('road', 'rando', 'ultra_endurance')),
-  structure_type text not null check (structure_type in ('standalone', 'expedition_member')),
-  planned_start_at timestamptz,
-  planned_finish_at timestamptz,
-  projected_finish_at timestamptz,
-  status text not null default 'planned' check (status in ('planned', 'active', 'paused', 'completed', 'abandoned')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create index if not exists idx_ride_pushes_user_id on ride_pushes(user_id);
-create index if not exists idx_ride_pushes_status on ride_pushes(status);
-create index if not exists idx_ride_pushes_canonical_route_id on ride_pushes(canonical_route_id);
-```
-
-------
-
-## SQL-5 — Push stop scaffold
-
-```sql
-create table if not exists ride_push_stops (
-  id uuid primary key default gen_random_uuid(),
-  ride_push_id uuid not null references ride_pushes(id) on delete cascade,
-  stop_type text not null,
-  label text,
-  planned_at_distance_m numeric,
-  planned_duration_min numeric,
-  actual_started_at timestamptz,
-  actual_ended_at timestamptz,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists idx_ride_push_stops_push_id on ride_push_stops(ride_push_id);
-```
-
-------
-
-## SQL-6 — Expedition revision / alignment
-
-This one depends on how much of DS-014 you have already created.
-
-### If expedition tables do not exist yet
-
-Use a canonical-route-centered version immediately.
-
-### If expedition tables already exist
-
-Add compatibility columns first:
-
-```sql
-alter table route_expeditions
-  add column if not exists canonical_route_id uuid references canonical_routes(id) on delete set null;
-
-create index if not exists idx_route_expeditions_canonical_route_id
-  on route_expeditions(canonical_route_id);
-```
-
-Then update application writes so new expedition records populate `canonical_route_id`.
-
-Do the same for any expedition-adjacent tables that need direct route reference later.
-
-------
-
-## SQL-7 — Public route pages scaffold
-
-```sql
-create table if not exists public_route_pages (
-  id uuid primary key default gen_random_uuid(),
-  canonical_route_id uuid not null references canonical_routes(id) on delete cascade,
-  slug text not null unique,
-  visibility text not null default 'private' check (visibility in ('private', 'unlisted', 'public')),
-  title text,
-  summary text,
-  created_by uuid references auth.users(id) on delete set null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (canonical_route_id)
-);
-
-create index if not exists idx_public_route_pages_visibility on public_route_pages(visibility);
-create index if not exists idx_public_route_pages_created_by on public_route_pages(created_by);
-```
-
-------
-
-## SQL-8 — Rider observations / Pre-Ride Notes scaffold
-
-```sql
-create table if not exists rider_observations (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid references auth.users(id) on delete set null,
-  canonical_route_id uuid references canonical_routes(id) on delete cascade,
-  route_history_id uuid references route_history(id) on delete set null,
-  observation_type text not null check (
-    observation_type in (
-      'speed_limit_confirmation',
-      'shoulder_class_confirmation',
-      'structured_caution_marker'
-    )
-  ),
-  route_mile numeric,
-  point_index integer,
-  lat numeric,
-  lon numeric,
-  payload jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists idx_rider_observations_canonical_route_id on rider_observations(canonical_route_id);
-create index if not exists idx_rider_observations_type on rider_observations(observation_type);
-create index if not exists idx_rider_observations_created_at on rider_observations(created_at);
-```
-
-------
-
-# 6. Lovable prompt sequence
-
-Use these prompts in order.
-Do not jump ahead unless the previous step is complete.
-
-------
-
-## Prompt 1 — Runtime foundation
-
-You are implementing Program A of EXEC-008 v2 for Lanterne.
-
-Read first:
-
-- EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
-- EXEC-008 v2 — Master Implementation Manual
-- ds-014-route_expedition_state_and_windowed_analysis_spec.md
-- adr-036-push_based_ride_intelligence.md
-- ds-012-ride_computer_tile_system_spec.md
-- PROJECT_MAP.md
-- DATA_MODEL.md
-- PRODUCT_PRINCIPLES.md
-
-Goal:
-Create the runtime foundation only. Do not refactor drawers yet.
-
-Implement:
-
-- src/runtime/mode/*
-- src/runtime/audience/*
-- src/runtime/route-session/*
-- src/runtime/ride-runtime/*
-- src/runtime/push/*
-- src/runtime/expedition/*
-
-Hard rules:
-
-- mode != structure
-- audience role is system-facing, not rider-facing
-- push can stand alone or belong to expedition
-- expedition is the durable parent for multi-push journeys
-- canonical_route_id is the architectural center for new persistence contracts
-- do not invent UI beyond what is necessary to prove the contracts
-- create a single resetRouteSession(reason) orchestration contract
-
-Deliverables:
-
-- created files
-- updated type contracts
-- any assumptions and unresolved seams
-- note exactly what existing files still depend on old route/session state
-
-------
-
-## Prompt 2 — SQL migrations
-
-You are preparing SQL migrations for Program A / B groundwork from EXEC-008 v2.
-
-Read first:
-
-- EXEC-008 v2 — Master Implementation Manual
-- ds-014-route_expedition_state_and_windowed_analysis_spec.md
-- DATA_MODEL.md
-- adr-002-vault-concept.md
-- prod-010-poi_categories.md
-
-Goal:
-Generate migration-ready SQL files in the exact sequence described in the implementation manual.
-
-Generate separate migration files for:
-
-1. Vault scaffold
-2. User preference durability
-3. POI registry and defaults
-4. Push scaffold
-5. Push stop scaffold
-6. Expedition canonical_route_id compatibility alignment
-7. Public route pages scaffold
-8. Rider observations / Pre-Ride Notes scaffold
-
-Hard rules:
-
-- use canonical_route_id wherever the manual says it is the architectural center
-- keep route_history_id only where compatibility/provenance still matters
-- do not invent schema for drawer internals or code-only concerns
-- include indexes
-- include safe IF NOT EXISTS / compatibility-aware patterns where appropriate
-
-Deliverables:
-
-- one SQL file per migration
-- a short migration order note
-- any assumptions or risky dependencies you found
-
-------
-
-## Prompt 3 — Drawer shell foundation
-
-You are implementing the shared drawer shell foundation from EXEC-008 v2.
-
-Read first:
-
-- EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
-- EXEC-008 v2 — Master Implementation Manual
-- current drawer files
-- RouteMap.tsx
-
-Goal:
-Build shared drawer shell primitives and make detached handles structurally impossible.
-
-Implement:
-
-- src/ui/drawers/DrawerShell.tsx
-- src/ui/drawers/DrawerHandle.tsx
-- src/ui/drawers/useDrawerMotion.ts
-- src/ui/drawers/drawer-store.ts
-- src/ui/drawers/drawer-registry.ts
-- src/ui/drawers/drawer-constants.ts
-
-Hard rules:
-
-- one transform per shell
-- handles are physically attached to shells
-- desktop uses fixed px rails
-- map expands/contracts around drawers
-- mobile gestures use unified snap logic
-- drawers do not own domain truth
-- do not bury business logic in shell code
-
-Deliverables:
-
-- created files
-- pilot migration plan for one drawer
-- any compatibility shims needed temporarily
-
-------
-
-## Prompt 4 — Ride tiles and persistence
-
-You are implementing ride computer tile integration for EXEC-008 v2.
-
-Read first:
-
-- ds-012-ride_computer_tile_system_spec.md
-- adr-036-push_based_ride_intelligence.md
-- EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
-- EXEC-008 v2 — Master Implementation Manual
-
-Goal:
-Make ride computer tiles a central active-ride presentation surface fed by shared runtime/domain selectors.
-
-Implement:
-
-- src/ui/tiles/TileShell.tsx
-- src/ui/tiles/RideComputerGrid.tsx
-- src/ui/tiles/tile-registry.ts
-- src/ui/tiles/tile-selectors.ts
-- src/ui/tiles/tile-persistence.ts
-
-Requirements:
-
-- per-mode defaults
-- durable user layout persistence
-- tiles can consume push-derived signals
-- tiles remain calm and map-first
-- no Garmin-clone dashboard drift
-
-Deliverables:
-
-- created files
-- persistence strategy (local + backend where relevant)
-- integration note for ride runtime and lantern stack
-
-------
-
-## Prompt 5 — Cues and push domain extraction
-
-You are implementing the cues and push domain extraction program from EXEC-008 v2.
-
-Read first:
-
-- EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
-- EXEC-008 v2 — Master Implementation Manual
-- adr-036-push_based_ride_intelligence.md
-- existing cue drawer files
-- existing cue derivation logic
-
-Goal:
-Move cue and push truth out of the right drawer and make them reusable by drawers, map, and ride tiles.
-
-Implement:
-
-- src/domain/cues/*
-- src/domain/push/*
-
-Hard rules:
-
-- the right drawer becomes a presentation surface only
-- push outputs must be selector-driven and explainable
-- keep official constraints, rider plan, actual ride state, and guidance layer separate
-- do not collapse everything into a single opaque ETA
-
-Deliverables:
-
-- created files
-- migration notes
-- exact list of remaining drawer dependencies after extraction
-
-------
-
-## Prompt 6 — Expedition domain extraction
-
-You are implementing the expedition domain extraction program from EXEC-008 v2.
-
-Read first:
-
-- ds-014-route_expedition_state_and_windowed_analysis_spec.md
-- EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
-- EXEC-008 v2 — Master Implementation Manual
-
-Goal:
-Turn expedition continuity and window logic into a real shared domain instead of scattered runtime glue.
-
-Implement:
-
-- src/domain/expedition/*
-
-Requirements:
-
-- preserve expedition as the durable parent for multi-push journeys
-- keep push as first-class and able to stand alone
-- preserve bounded window logic and resume behavior
-- align domain contracts with canonical_route_id direction
-
-Deliverables:
-
-- created files
-- migration notes for old expedition/session logic
-- any schema alignment issues discovered
-
-------
-
-## Prompt 7 — Map visibility, POIs, and hazards
-
-You are implementing the map visibility and stop-system extraction program from EXEC-008 v2.
-
-Read first:
-
-- EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
-- EXEC-008 v2 — Master Implementation Manual
-- prod-010-poi_categories.md
-- prod-012-review_surfaces.md
-- existing bottom drawer files
-- existing RouteMap.tsx visibility logic
-
-Goal:
-Move visibility policy, POI defaults, and hazard rendering decisions out of RouteMap and the bottom drawer into registry/resolver domains.
-
-Implement:
-
-- src/domain/map-visibility/*
-- src/domain/pois/*
-- src/domain/hazards/*
-
-Hard rules:
-
-- use canonical mode IDs
-- respect audience role in truth depth
-- category toggles are convenience UI, not source of truth
-- preserve the small rider-facing taxonomy
-- no shadow mode system
-
-Deliverables:
-
-- created files
-- resolver contract
-- migration notes for current bottom drawer
-
-------
-
-## Prompt 8 — Scoring and explanation extraction
-
-You are implementing the scoring domain extraction program from EXEC-008 v2.
-
-Read first:
-
-- ds-015-safety_scoring_model_v2.md
-- EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
-- EXEC-008 v2 — Master Implementation Manual
-- existing score drawer files
-- existing score explanation/render files
-
-Goal:
-Centralize score payloads, versioning, and explanation contracts so the left drawer becomes a presentation surface only.
-
-Implement:
-
-- src/domain/scoring/*
-
-Hard rules:
-
-- support multiple score versions concurrently
-- keep canonical baseline score separate from contextual overlays
-- explanation depth may vary by audience role
-- drawer-local state must not own score truth
-
-Deliverables:
-
-- created files
-- versioning strategy
-- migration notes for legacy score payloads
-
-------
-
-## Prompt 9 — Vault, history, and route pages
-
-You are implementing the Vault, History, and Route Library program from EXEC-008 v2.
-
-Read first:
-
-- EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
-- EXEC-008 v2 — Master Implementation Manual
-- adr-002-vault-concept.md
-- adr-001-route_acquisition_model.md
-- current history and saved-route files
-
-Goal:
-Keep Vault curated, make History personal and searchable, and establish the contract for stable public route pages.
-
-Implement:
-
-- src/domain/vault/*
-- src/domain/history/*
-- src/domain/route-library/*
-
-Hard rules:
-
-- Vault remains curated
-- History remains personal
-- public route pages are a separate surface concern
-- do not merge personal history into Vault
-
-Deliverables:
-
-- created files
-- route page contract
-- search/share assumptions
-
-------
-
-## Prompt 10 — Pre-Ride Notes / observations scaffold
-
-You are implementing the constrained rider-observation scaffold from EXEC-008 v2.
-
-Read first:
-
-- EXEC-008 v2 — Experience Runtime, Surface Architecture, and Domain Migration Program
-- EXEC-008 v2 — Master Implementation Manual
-- adr-028-field_note_confirmation_model.md
-- ds-015-safety_scoring_model_v2.md
-
-Goal:
-Create the narrow observation system that launches rider-facing as Pre-Ride Notes, without shipping the full future Field Notes system.
-
-Implement:
-
-- src/domain/observations/*
-
-Launch scope only:
-
-- speed_limit_confirmation
-- shoulder_class_confirmation
-- structured_caution_marker
-
-Hard rules:
-
-- this is not a generic comments system
-- keep inputs structured and high-signal
-- future-proof for confirmations later
-- do not build open-ended rider commentary yet
-
-Deliverables:
-
-- created files
-- observation payload proposal
-- capture-policy recommendations for active ride UX
-
-------
-
-# 7. Manual verification checklist
-
-Run this after each phase.
-
-## Runtime foundation
-
--  mode IDs are central and reused
--  audience role exists and is not rider-facing UI
--  push can stand alone
--  expedition can own multiple pushes
--  resetRouteSession(reason) is the only teardown path
-
-## Drawer shell / tiles
-
--  no detached handles
--  fixed desktop rail sizing
--  tile layout persists
--  tiles consume shared selectors
-
-## Domain migrations
-
--  cues no longer authored by right drawer
--  score truth no longer authored by left drawer
--  visibility rules no longer authored by RouteMap
--  Vault semantics no longer authored by top drawer
--  history remains separate from Vault
-
-## RouteMap reduction
-
--  file got smaller because ownership moved
--  no policy brain helper-file theater
-
-## Observations
-
--  only structured launch classes exist
--  no open-ended comments shipped accidentally
-
-------
-
-# 8. Known assumptions
-
-These assumptions are currently baked into the manual.
-
-1. `road` is supported in architecture even if quiet in launch product.
-2. `canonical_route_id` is the center of new durable work.
-3. public route pages belong in scope now, not as a totally separate future program.
-4. Pre-Ride Notes are intentionally constrained and do not yet become full Field Notes.
-5. ride computer preferences and meaningful rider-facing preferences are worth backend durability.
-
-If any of those change, update this manual first before the implementation sequence drifts.
-
-------
-
-# 9. Practical bottom line
-
-This manual is designed to keep Lovable from doing what tools like Lovable always want to do when left unsupervised:
-
-- flatten boundaries
-- overbuild UI before truth exists
-- move complexity without reducing it
-- treat drawers as products
-- write SQL for vibes
-
-Use the sequence.
-Respect the fences.
-Keep the runtime central.
-
-That’s how this thing grows like a pleasure instead of like a tumor.
 
 ---
 
@@ -6279,7 +4737,7 @@ ROUTE LOADER IMPROVEMENTS - CODEX**Pass 2 Sequence**
 
  full pipeline, align safety structure to docs/02-architecture/
 
- design/ds-015-safety_scoring_model_v3_final.md, and start pulling
+ design/ds-015-safety_scoring_model.md, and start pulling
 
  orchestration out of Index.tsx / RouteMap.tsx into worker/
 
@@ -6749,7 +5207,7 @@ This document translates:
 - the Codex current-state scoring audit
 - the GPT-5.4 Pro architecture review
 - the target documents:
-  - DS-015 — Safety Scoring Model V5
+  - DS-015 — Safety Scoring Model
   - DS-019 — Score Tracing
   - ADR-043 — Confidence and Provenance Model
 
@@ -7781,7 +6239,7 @@ That is the plan.
 
     cgpt_pro_safety_score_improvement_plan.md:124
 
-   \- docs/02-architecture/design/ds-015-safety_scoring_model_v5.md:117
+   \- docs/02-architecture/design/ds-015-safety_scoring_model.md:117
 
    \- docs/02-architecture/design/ds-019-score_tracing.md:49
 
@@ -10644,6 +9102,5260 @@ The rewrite is successful when:
 5. heavy receipt/method derivation does not regress route-load responsiveness
 6. the drawer is easier to extend without touching the shell
 
+
+
+---
+
+## Source File: docs/04-execution/exec-017-transition_ownership_rebuild_plan.md
+
+# EXEC-017 — Transition Ownership Rebuild Plan
+
+**Status:** Draft  
+**Date:** 2026-04-21  
+**Related:** [DS-025](../02-architecture/design/ds-025-transition_candidate_claim_and_projection_spec.md), [DS-017](../02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md), [EXEC-005](./exec-005-debugging_logs.md)
+
+---
+
+## 1. Purpose
+
+This execution plan turns DS-025 into an implementation order that avoids another round of ad hoc seam hardening.
+
+The immediate goal is:
+
+- stop adding local seam ownership hacks
+- introduce a central transition model
+- migrate truth, display, cue, and debug to consume it
+
+This is not a “small fix” plan.
+It is the plan for replacing seam ownership.
+
+---
+
+## 2. Current state at plan start
+
+Already done:
+
+- white-dot route-corner baseline exists
+- a shared geometry-first resolver exists
+- truth boundary canonicalization now uses geometry-first logic
+- presentation boundary snapping now uses geometry-first logic
+- transition debug/cue correction now prefers geometry-first logic
+
+What remains wrong:
+
+- multiple adjacent seams can still surround one real corner
+- some corners remain unclaimed
+- truth/display/cue/debug still do not share one canonical transition object
+- downstream modules can still act like seam owners
+
+So this plan starts from a better scaffold, not from zero.
+
+---
+
+## 3. Core delivery principle
+
+### Shadow mode first
+
+Do not replace the whole seam pipeline blind.
+
+Instead:
+
+1. build the new transition layer
+2. run it alongside the existing system
+3. compare outputs explicitly
+4. switch ownership only when the comparisons are stable
+
+---
+
+## 4. Deliverables
+
+## Phase 0 — Replay corpus, taxonomies, and governance freeze
+
+Create before implementation begins:
+
+- a golden route corpus for seam replay
+- a shadow diff harness
+- route-measure normalization rules
+- candidate / claim / resolution reason-code enums
+- deterministic identity rules for:
+  - `candidateId`
+  - `claimId`
+  - `zoneId`
+  - `transitionId`
+- a versioned machine-readable trace schema
+- a freeze on new local seam heuristics unless they are audit-only
+
+Outcome:
+
+- shadow mode becomes decisive, not just informative
+
+Acceptance:
+
+- at least one stable machine-readable trace artifact exists per replay route
+- the migration has explicit pass/fail metrics rather than “looks better”
+- identity and trace contracts are fixed before zone builder work begins
+
+---
+
+## Phase 1 — Core types and candidate builder
+
+Create:
+
+- `src/lib/transitions/transition-types.ts`
+- `src/lib/transitions/transition-candidates.ts`
+- `src/lib/transitions/transition-zone-builder.ts`
+
+Move or wrap:
+
+- `src/lib/route-boundary-geometry.ts`
+
+Outcome:
+
+- one reusable candidate builder
+- one type system for candidates, claims, zones, and canonical transitions
+
+Acceptance:
+
+- white-dot logic is no longer scattered
+- route-corner candidates can be generated without touching truth/display/cue modules
+- zones are first-class types before ownership swaps begin
+
+---
+
+## Phase 2 — Claim adapters and claim normalization in shadow mode
+
+Create:
+
+- `src/lib/transitions/transition-claim-adapters/`
+- `src/lib/transitions/transition-claim-normalizer.ts`
+
+Emit shadow claims from:
+
+- truth/name boundary logic
+- display/color seam logic
+- cue/transition logic
+- matcher / road identity logic
+
+Do not change current production ownership yet.
+
+Outcome:
+
+- each subsystem says what changed and where it thinks it happened
+- nothing else
+- claims share normalized domains, windows, and reason codes
+
+Acceptance:
+
+- logs can show claims from each source
+- claims include normalized delta state
+- no claim mutates seams directly
+
+---
+
+## Phase 3A — Zone construction in shadow mode
+
+Create / implement:
+
+- `src/lib/transitions/transition-zone-builder.ts`
+
+Implement:
+
+- claim clustering into transition zones
+- candidate attachment
+- complex / ambiguous area classification
+
+Outcome:
+
+- zones exist in memory
+- legacy outputs still render
+
+Acceptance:
+
+- zones can be inspected independently of canonical transitions
+- every claim is attached to or dismissed from a zone with a reason
+- zones do not yet need transition ids to exist
+
+---
+
+## Phase 3B — Central transition resolver in shadow mode
+
+Create / implement:
+
+- `src/lib/transitions/transition-resolver.ts`
+
+Implement:
+
+- canonical transition creation from zones
+- non-corner transition handling
+- split / ambiguous zone handling
+
+Outcome:
+
+- canonical transitions exist in memory
+- legacy outputs still render
+
+Acceptance:
+
+- one route can emit:
+  - candidates
+  - claims
+  - zones
+  - canonical transitions
+  - legacy seams
+- all are inspectable together
+
+---
+
+## Phase 4 — Canonical debug readout
+
+Refactor:
+
+- `route-map-transition-debug-overlay.ts`
+
+Goal:
+
+- debug becomes a pure readout of:
+  - candidates
+  - claims
+  - zones
+  - canonical transitions
+  - projections
+
+Remove:
+
+- reconstructed “alternative truth” debug ownership
+
+Acceptance:
+
+- white/green/cyan/yellow/pink style markers all map back to canonical objects
+- no debug-only seam invention remains
+
+---
+
+## Phase 5 — Shadow projectors before ownership swaps
+
+Create:
+
+- `src/lib/transitions/projectors/truth.ts`
+- `src/lib/transitions/projectors/display.ts`
+- `src/lib/transitions/projectors/cue.ts`
+
+Goal:
+
+- all projectors run in shadow mode first
+- compare projected outputs vs legacy outputs numerically and visually
+- all projected seams carry `transitionId`
+
+Acceptance:
+
+- every projected seam maps to a canonical transition id
+- projectors stay within their owning zone unless explicit offset is allowed
+- projector modules do not import raw candidate or claim modules
+
+---
+
+## Phase 6 — Truth projection ownership swap
+
+Refactor:
+
+- `route-analysis.ts`
+
+Goal:
+
+- truth runs derive transition boundaries from canonical transitions
+- route-analysis emits claims, not final seam truth
+
+Acceptance:
+
+- truth/name seams are projections of canonical transitions
+- local seam ownership logic is deleted or reduced to claim emission
+
+---
+
+## Phase 7 — Display projection ownership swap
+
+This phase must land in two substeps:
+
+1. physical display seam projection from canonical transitions
+2. presentation suppression cleanup so suppression is presentation-only
+
+Refactor:
+
+- `heatmap/builder.ts`
+- `display-continuity.ts`
+
+Goal:
+
+- display/color seams derive from canonical transitions
+- continuity suppression becomes presentation-only
+
+Acceptance:
+
+- display continuity can hide or merge visible seams
+- it cannot discover or relocate physical transitions
+
+---
+
+## Phase 8 — Cue projection ownership swap
+
+Refactor:
+
+- `transition-chain.ts`
+- `cue-continuity.ts`
+
+Goal:
+
+- cues anchor from canonical transitions
+- cue offsets become explicit projection rules, not separate corrected seam ownership
+
+Acceptance:
+
+- cue logic consumes canonical transitions
+- cue-only offsets are visible and justified
+
+---
+
+## Phase 9 — Legacy seam-owner deletion
+
+Delete or neutralize:
+
+- remaining local seam ownership rules in truth, display, cue, and debug modules
+
+Acceptance:
+
+- central transition resolver is the only physical transition owner
+
+---
+
+## 5. Required instrumentation
+
+Before ownership swaps, add logs or dev-readouts for:
+
+- candidate id, kind, idx, strength
+- claim id, source, nominal idx, before/after state
+- zone id, claim ids, candidate ids, classification, resolution status
+- canonical transition id, anchor idx, zone, reason codes
+- projected truth seam idx
+- projected display seam idx
+- projected cue seam idx
+- legacy seam idx for comparison
+
+Also emit:
+
+- machine-readable per-route trace artifacts
+- dismissals
+- offset distances from anchor / zone center
+- stable ids for candidates, claims, zones, transitions, and projected seams
+
+This instrumentation is not optional.
+
+It is the only way to keep the migration honest.
+
+---
+
+## 6. Required invariants
+
+Enforce during migration:
+
+1. every projected seam maps to a canonical transition id
+2. every canonical transition belongs to exactly one zone id
+3. every claim ends attached or dismissed with a reason
+4. every dismissed strong candidate has a reason
+5. every non-corner transition has an explicit reason code
+6. no consumer invents a transition outside the central resolver
+7. no projector reads raw claims or raw candidates directly
+8. every projector stays within zone unless explicit offset is allowed
+9. presentation suppression never mutates physical transition ownership
+10. ambiguous zone rate stays below agreed replay-corpus threshold
+11. unresolved zone rate stays below agreed replay-corpus threshold
+12. projector out-of-zone violations remain zero on the replay corpus
+
+---
+
+## 7. Review loop
+
+Before Phase 1 implementation begins in earnest:
+
+1. review DS-025
+2. get external critique on the candidate/claim/transition split
+3. revise the design if needed
+4. then implement
+
+This is intentional.
+
+The system is now architectural enough that one more good design pass is worth more than another fast local cut.
+
+---
+
+## 8. Do not do this during migration
+
+Do not:
+
+- add another display-only force-seam rule
+- add another cue-only corrected-boundary rule
+- cluster raw truth seams instead of claims
+- cluster proximity-only without state/delta awareness
+- skip shadow mode
+- let debug remain a canonical seam inventor
+- let audit payloads become normative logic inputs
+- compare only seam indices in shadow mode; compare the decision trace
+- allow projectors to convenience-import resolver internals, raw claims, or raw candidates
+
+If a new bug appears during migration, prefer:
+
+- instrumenting candidates / claims / zones / transitions / projections
+
+over:
+
+- adding another local seam heuristic
+
+---
+
+## 9. Definition of success
+
+This migration is successful when:
+
+- white-dot geometry remains the backbone candidate substrate
+- road changes, color changes, cues, and debug all resolve against one canonical transition model
+- seams can still differ by projection where justified
+- and recurring drift stops being a layered ownership problem
+
+
+---
+
+## Source File: docs/04-execution/exec-018-route_annotation_archive_and_hydration_contract.md
+
+# EXEC-018 — Route Annotation Archive and Hydration Contract
+
+**Status:** Binding implementation contract  
+**Date:** 2026-04-23  
+**Related:** [DS-005](../02-architecture/design/ds-005-canonical_route_schema_spec.md), [DS-027](../02-architecture/design/ds-027-poi_ingestion_selection_and_cluster_interaction_spec.md), [DS-028](../02-architecture/design/ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [ADR-026](../03-adrs/adr-026-canonical_route_identity.md)
+
+---
+
+## 1. Purpose
+
+Define the exact implementation contract for RWGPS corpus ingestion, archival storage, hydration, and backfill so that:
+
+- no RWGPS route data or metadata is lost during harvest
+- POIs, cues, and controls are related but independent first-class entities
+- rider-useful route narrative and route-owner annotations are preserved
+- point-level route attributes such as elevation and surface/road codes remain queryable
+- backfill and new ingest use the same parser and produce the same schema
+- no source field is silently discarded because the app does not currently use it
+
+This contract exists because the previous RWGPS pipeline was selective and therefore brittle.
+
+The new rule is:
+
+> Preserve everything first. Project second. Simplify only at the consumption layer.
+
+---
+
+## 2. Core Principles
+
+### 2.1 Raw source must remain recoverable
+
+The exact upstream RWGPS route JSON remains stored in Supabase Storage and addressable by `raw_json_path`.
+
+This is the archival source of truth.
+
+### 2.2 A source mirror must exist
+
+The ingest pipeline must build a full-fidelity parsed mirror of the RWGPS route JSON so future fields are not silently discarded.
+
+This mirror may live in JSONB, but it is not sufficient by itself.
+
+### 2.3 Full-fidelity preservation is mandatory
+
+The system must assume every field in the upstream RWGPS payload is important until proven otherwise.
+
+That means:
+
+- every top-level key must be preserved
+- every nested key must be preserved
+- every array member object must be preserved without field trimming
+- unknown or newly appearing keys must still be stored
+
+No implementation step may discard a field merely because the current app does not use it.
+
+### 2.4 Core entities must also be relational
+
+The following must be materialized into first-class relational tables:
+
+- route points
+- route cues
+- route controls
+- shared POIs
+- shared hazards
+- route-to-POI links
+- route-to-hazard links
+
+These entities must not be available only through `normalized_data` JSONB.
+
+### 2.5 Controls are related to cues and POIs, but not reducible to either
+
+Controls often appear in:
+
+- `course_points`
+- `points_of_interest`
+
+The system must:
+
+- preserve both original source entities independently
+- also create first-class canonical route controls
+- preserve provenance links back to the cue and/or POI rows that implied them
+
+### 2.6 Hazard-like RWGPS annotations are hints, not canonical hazard truth
+
+RWGPS route-owner annotations are valuable and must be preserved, but they do not replace the canonical hazard model.
+
+RWGPS-derived hazard-like data is:
+
+- curated
+- route-specific
+- semantically useful
+- lower-confidence than canonical OSM/DOT hazard truth
+
+Therefore RWGPS hazard signals are stored as:
+
+- POI / cue metadata
+- optional derived hazard hints
+
+but not merged directly into canonical hazards without corroboration.
+
+---
+
+## 3. Canonical RWGPS Storage Layers
+
+## 3.1 Layer A — Raw archive
+
+Existing:
+
+- `external_route_catalog.raw_json_path`
+
+Contract:
+
+- every successful RWGPS harvest writes the full unmodified upstream JSON to storage
+- backfill always reads from this archive, never from a re-fetched remote response
+
+## 3.2 Layer B — Source mirror
+
+Purpose:
+
+- full-fidelity parsed RWGPS-shaped representation
+- protects against future regret when fields become important later
+
+Contract:
+
+- `external_route_catalog.normalized_data.source_mirror` must preserve the complete upstream payload
+- no top-level key may be dropped
+- no nested key may be dropped
+- no array member fields may be dropped
+- if a new upstream field appears, it must still be preserved automatically
+
+This layer is allowed to be JSONB.
+This layer is not allowed to be selective.
+
+## 3.3 Layer C — Relational projection
+
+Purpose:
+
+- scalable access
+- indexed filtering
+- straightforward hydration
+- no dependency on ad hoc JSON traversal for core entities
+
+Contract:
+
+The following must be materialized into dedicated tables:
+
+- `route_points`
+- `route_cues`
+- `route_controls`
+- `route_control_sources`
+- `pois`
+- `hazards`
+- `route_poi_links`
+- `route_hazard_links`
+- `route_aggregates`
+
+This is mandatory.
+
+---
+
+## 4. Existing Table Responsibilities
+
+## 4.1 `external_route_catalog`
+
+This remains the authoritative harvested RWGPS route catalog.
+
+Keep using it for:
+
+- source route identity
+- harvest state
+- route-level summary columns
+- `raw_json_path`
+- source mirror JSON
+- route-level projection summary
+
+Do not overload `canonical_routes` with RWGPS-specific metadata.
+
+## 4.2 `canonical_routes`
+
+This remains lean and geometry-identity oriented.
+
+It is not the archival home for:
+
+- RWGPS POIs
+- RWGPS controls
+- RWGPS cues
+- route narrative
+- route-owner notes
+
+## 4.3 `imported_routes`
+
+This remains the user/import runtime route table.
+
+It may continue to store `raw_json` for imported objects, but it is not the authoritative corpus archive for harvested RWGPS routes.
+
+## 4.4 Existing Lanterne-native route and hazard tables
+
+The following existing tables remain authoritative for Lanterne-native route analysis and rider/runtime state:
+
+- `canonical_routes`
+- `route_sources`
+- `route_analysis_runs`
+- `route_analysis_summary`
+- `route_slices`
+- `route_hazard_detections`
+- `route_hazards`
+
+RWGPS ingest must integrate with these tables without collapsing source identity.
+
+That means:
+
+- RWGPS data remains source-scoped and traceable
+- canonical route identity remains geometry-centric
+- Lanterne-derived hazards remain canonical hazard truth
+- RWGPS annotations may inform presentation and future corroboration workflows, but do not replace canonical hazard records by default
+
+## 4.5 Naming normalization and scaffold consolidation
+
+The current schema contains early scaffold names that should be normalized now, before they accumulate production data.
+
+The key naming rule moving forward is:
+
+- shared world/location entities use plain plural nouns:
+  - `pois`
+  - `hazards`
+- route-native entities use `route_` prefixes:
+  - `route_points`
+  - `route_cues`
+  - `route_controls`
+  - `route_aggregates`
+- many-to-many or contextual route attachments use `route_<entity>_links`:
+  - `route_poi_links`
+  - `route_hazard_links`
+- user interaction tables hang off the shared entity noun:
+  - `poi_comments`
+  - `hazard_comments`
+  - `hazard_confirmations`
+
+This is the optimal convention because it tells the truth about ownership:
+
+- POIs and many hazards are not route-owned
+- cues and controls are route-owned
+- route membership and applicability are separate relationships, not embedded identity
+
+### 4.5.1 Hazard scaffold remap
+
+Given the current empty scaffold, the contract adopts this remap:
+
+- `route_hazards` should be renamed/reworked into `hazards`
+- `route_hazard_detections` should be renamed/reworked into `route_hazard_links`
+- `hazard_comments` should remain `hazard_comments`, but its foreign key target should be `hazards(id)`
+- `hazard_confirmations` should remain `hazard_confirmations`, but its foreign key target should be `hazards(id)`
+
+Why:
+
+- current `route_hazards` already has the shape of a shared locatable entity:
+  - lat/lon
+  - snapped point
+  - hazard type
+  - severity
+  - description
+- current `route_hazard_detections` already has the shape of route-contextual applicability:
+  - route id
+  - hazard kind
+  - segment index
+  - road name
+  - metadata
+
+So the current names are backwards relative to the long-term model.
+
+Because these tables do not yet contain production data, the correct move is to rename/reform them now rather than preserve misleading names.
+
+### 4.5.2 POI scaffold remap
+
+The current schema has:
+
+- `poi_comments`
+
+but no canonical shared `pois` table yet.
+
+The contract therefore adopts:
+
+- `poi_comments` remains the right table name
+- but it should eventually reference `pois(id)`, not only raw `osm_id` / `osm_type`
+
+Reason:
+
+- the app is moving toward a unified shared POI entity model
+- OSM is one source of POI truth, not the only one
+- RWGPS-curated POIs, future Komoot/Garmin POIs, and Lanterne-native POIs must all be able to land on the same shared `pois` entity layer
+
+### 4.5.3 Source naming rule
+
+Source should not appear in primary table names unless the table is explicitly an archive or source-specific staging layer.
+
+Therefore:
+
+- `external_route_catalog` may remain source-shaped because it is a harvest/archive table
+- `raw_json_path` and `source_mirror` may remain source-shaped because they are archive layers
+- operational entity tables should not be named:
+  - `rwgps_*`
+  - `route_source_*`
+
+Instead, source distinction belongs in columns such as:
+
+- `source_platform`
+- `source_kind`
+- `source_route_id`
+- `source_entity_id`
+
+This avoids schema sprawl such as:
+
+- `rwgps_pois`
+- `garmin_pois`
+- `komoot_pois`
+
+and keeps feature code querying one entity table per concept.
+
+### 4.5.4 The “forever clean mode” rule
+
+Because the current scaffold tables are effectively empty, this contract explicitly chooses clean long-term names now rather than preserving transitional names for compatibility.
+
+The rule is:
+
+- if an existing scaffold name does not match the long-term ownership model, rename/rework it now
+- do not preserve a misleading table name just because it already exists
+- do not add a second better-named table beside an empty worse-named one
+
+This applies not only to hazards, but to all future route annotation and evidence tables, including:
+
+- POIs
+- route points
+- point-level elevation evidence
+- point-level surface/road-code evidence
+- controls
+- cues
+- route aggregates
+
+The goal is to enter a stable naming regime once and avoid another schema cleanup later.
+
+### 4.5.5 Elevation and surface naming implications
+
+Point-level elevation and surface information should not receive their own source-branded table family.
+
+Instead:
+
+- route-owned point evidence lives in `route_points`
+- route-level summary metrics live in `route_aggregates`
+- source distinction for RWGPS, GPX, Garmin, Komoot, or Lanterne-derived point evidence lives in columns, not table names
+
+Therefore future additions should prefer:
+
+- `route_points.ele_m`
+- `route_points.surface_code`
+- `route_points.road_code`
+- `route_points.raw_point`
+
+and should avoid fragmenting into separate table families such as:
+
+- `rwgps_route_points`
+- `gpx_route_points`
+- `surface_points`
+- `elevation_points`
+
+Those distinctions belong in:
+
+- source columns
+- raw payload columns
+- projection contracts
+
+not in table proliferation.
+
+### 4.5.6 POI naming implications
+
+The same pattern applies to POIs.
+
+The clean permanent model is:
+
+- shared entity table: `pois`
+- route attachment table: `route_poi_links`
+- user interaction tables: `poi_comments`
+- future source or equivalence tables only if later proven necessary
+
+Not:
+
+- `rwgps_pois`
+- `route_source_pois`
+- `osm_pois`
+
+as separate operational entity tables.
+
+This keeps the app aligned with the likely product future:
+
+- one POI concept
+- many provenance sources
+- route-specific attachment/context modeled separately
+
+### 4.5.7 Canonical model summary
+
+The long-term schema model is:
+
+| Model class | Meaning | Naming pattern | Current / target examples |
+|---|---|---|---|
+| Shared world entity | A thing in the world that may be referenced by many routes | plain plural noun | `pois`, `hazards` |
+| Route-owned entity | A thing that belongs to one route definition | `route_<noun>` | `route_points`, `route_cues`, `route_controls`, `route_aggregates` |
+| Route link / applicability | A relationship between a route and a shared world entity | `route_<entity>_links` | `route_poi_links`, `route_hazard_links` |
+| User interaction | User-generated conversation, confirmation, moderation, or review attached to an entity | `<entity>_<interaction>` | `poi_comments`, `hazard_comments`, `hazard_confirmations` |
+| Archive / source staging | Raw source archive or source-shaped mirror used for ingest/backfill fidelity | source-shaped name allowed | `external_route_catalog`, `raw_json_path`, `normalized_data.source_mirror` |
+| Source identity | Provenance that explains where a row came from | columns, not table family | `source_platform`, `source_kind`, `source_route_id`, `source_entity_id` |
+
+This table is normative.
+
+When introducing a new table, the first question must be:
+
+- is this a shared entity?
+- a route-owned entity?
+- a route link?
+- a user interaction table?
+- or an archive/source-staging table?
+
+The answer determines the name.
+
+It should never be necessary to invent a new source-branded operational table family if the model is being followed correctly.
+
+---
+
+## 5. Required Relational Tables
+
+## 5.1 `route_points`
+
+Purpose:
+
+- preserve point-level route truth
+- keep per-point elevation and point-level codes queryable
+- keep route geometry source-specific while still using neutral table naming
+
+Required columns:
+
+- `id uuid primary key`
+- `external_route_catalog_id uuid references public.external_route_catalog(id) on delete cascade`
+- `canonical_route_id uuid references public.canonical_routes(id) on delete cascade`
+- `source_platform text not null`
+- `source_kind text not null default 'route'`
+- `source_route_id bigint not null`
+- `source_entity_id text`
+- `point_index integer not null`
+- `lat double precision not null`
+- `lng double precision not null`
+- `ele_m numeric`
+- `dist_m numeric`
+- `road_code integer`
+- `surface_code integer`
+- `raw_point jsonb not null default '{}'::jsonb`
+- `created_at timestamptz not null default now()`
+
+Unique key:
+
+- `(source_platform, source_route_id, point_index)`
+
+Important:
+
+- route-level elevation gain/loss is not a substitute for `ele_m`
+- route-level `surface` is not a substitute for `surface_code`
+
+## 5.2 `route_cues`
+
+Purpose:
+
+- store all source route cues as independent route-native entities
+- allow future multi-source cue ingestion without new tables
+
+Required columns:
+
+- `id uuid primary key`
+- `external_route_catalog_id uuid references public.external_route_catalog(id) on delete cascade`
+- `canonical_route_id uuid references public.canonical_routes(id) on delete cascade`
+- `source_platform text not null`
+- `source_kind text not null default 'route'`
+- `source_route_id bigint not null`
+- `source_entity_id text`
+- `cue_index integer not null`
+- `lat double precision not null`
+- `lng double precision not null`
+- `dist_m numeric`
+- `track_point_index integer`
+- `cue_type text`
+- `cue_name text`
+- `cue_description text`
+- `extra_code integer`
+- `visibility integer`
+- `privacy_code text`
+- `raw_cue jsonb not null default '{}'::jsonb`
+- `created_at timestamptz not null default now()`
+
+Unique key:
+
+- `(source_platform, source_route_id, cue_index)`
+
+## 5.3 `pois`
+
+Purpose:
+
+- represent reusable world/location POIs that may be discovered through RWGPS, OSM, Lanterne, or future sources
+- keep POIs distinct from route membership
+
+Required columns:
+
+- `id uuid primary key`
+- `source_platform text not null`
+- `source_kind text not null`
+- `source_route_id bigint`
+- `source_entity_id text`
+- `source_poi_id bigint`
+- `lat double precision not null`
+- `lng double precision not null`
+- `poi_name text`
+- `poi_description text`
+- `poi_type_id integer`
+- `poi_type_name text`
+- `website text`
+- `phone text`
+- `full_address text`
+- `parent_id bigint`
+- `parent_type text`
+- `community_poi_id bigint`
+- `visibility integer`
+- `privacy_code text`
+- `locality text`
+- `administrative_area text`
+- `country_code text`
+- `location_hex text`
+- `photo_ids jsonb not null default '[]'::jsonb`
+- `source_created_at timestamptz`
+- `source_updated_at timestamptz`
+- `canonical_status text not null default 'source_observation'`
+- `confidence numeric`
+- `raw_poi jsonb not null default '{}'::jsonb`
+- `created_at timestamptz not null default now()`
+
+Indexes:
+
+- `(source_platform, source_poi_id)`
+- `(poi_type_name)`
+- `(parent_type, parent_id)`
+- `gist` or spatial index on coordinates if later materialized as geometry
+
+Important:
+
+- source/provenance columns live directly on `pois` in v1
+- a separate `poi_sources` table is explicitly deferred unless multi-source merge pressure proves it necessary
+
+## 5.4 `route_poi_links`
+
+Purpose:
+
+- link shared POIs to routes without making POIs route-owned
+- preserve route-specific notes, mileage, role, and visibility context
+
+Required columns:
+
+- `id uuid primary key`
+- `external_route_catalog_id uuid references public.external_route_catalog(id) on delete cascade`
+- `canonical_route_id uuid references public.canonical_routes(id) on delete cascade`
+- `source_platform text not null`
+- `source_route_id bigint not null`
+- `poi_id uuid not null references public.pois(id) on delete cascade`
+- `route_role text`
+- `route_note text`
+- `dist_m numeric`
+- `mile_mark numeric`
+- `is_control boolean not null default false`
+- `is_finish boolean not null default false`
+- `created_at timestamptz not null default now()`
+
+Unique key:
+
+- `(source_platform, source_route_id, poi_id)`
+
+## 5.5 `route_controls`
+
+Purpose:
+
+- represent official route controls/checkpoints/finish markers as first-class route entities
+- independent of whether they originated from cues, POIs, or both
+
+Required columns:
+
+- `id uuid primary key`
+- `external_route_catalog_id uuid references public.external_route_catalog(id) on delete cascade`
+- `canonical_route_id uuid references public.canonical_routes(id) on delete cascade`
+- `source_platform text not null`
+- `source_kind text not null`
+- `source_route_id bigint not null`
+- `source_entity_id text`
+- `control_key text not null`
+- `lat double precision not null`
+- `lng double precision not null`
+- `dist_m numeric`
+- `control_name text not null`
+- `control_type text`
+- `control_description text`
+- `is_finish boolean not null default false`
+- `visibility integer`
+- `privacy_code text`
+- `raw_resolution jsonb not null default '{}'::jsonb`
+- `created_at timestamptz not null default now()`
+
+Unique key:
+
+- `(source_platform, source_route_id, control_key)`
+
+`control_key` must be deterministic, built from:
+
+- normalized name/type
+- coarse location
+
+## 5.6 `route_control_sources`
+
+Purpose:
+
+- preserve the relationship between route controls and the source rows that implied them
+
+Required columns:
+
+- `id uuid primary key`
+- `control_id uuid not null references public.route_controls(id) on delete cascade`
+- `source_kind text not null check (source_kind in ('cue','poi'))`
+- `source_row_id uuid not null`
+- `source_route_id bigint not null`
+- `confidence text not null default 'direct'`
+- `created_at timestamptz not null default now()`
+
+Unique key:
+
+- `(control_id, source_kind, source_row_id)`
+
+This is the key to “related but independent.”
+
+## 5.7 `hazards`
+
+Purpose:
+
+- represent locatable hazard entities that can be referenced across many routes
+- preserve source hazard hints and future canonical promotion in the same durable location model
+
+Required columns:
+
+- `id uuid primary key`
+- `source_platform text not null`
+- `source_kind text not null`
+- `source_route_id bigint`
+- `source_entity_id text`
+- `lat double precision not null`
+- `lng double precision not null`
+- `hazard_class text not null`
+- `severity text`
+- `title text`
+- `description text`
+- `visibility integer`
+- `privacy_code text`
+- `canonical_status text not null default 'source_hint'`
+- `confidence numeric`
+- `osm_way_id bigint`
+- `osm_node_id bigint`
+- `osm_relation_id bigint`
+- `osm_tags jsonb not null default '{}'::jsonb`
+- `raw_hazard jsonb not null default '{}'::jsonb`
+- `created_at timestamptz not null default now()`
+
+Important:
+
+- source/provenance columns live directly on `hazards` in v1
+- a separate `hazard_sources` table is explicitly deferred unless one hazard routinely needs many independent source rows
+
+## 5.8 `route_hazard_links`
+
+Purpose:
+
+- preserve route-contextual applicability of shared hazards
+- support directionality, segment applicability, and route-specific caution notes
+
+Required columns:
+
+- `id uuid primary key`
+- `external_route_catalog_id uuid references public.external_route_catalog(id) on delete cascade`
+- `canonical_route_id uuid references public.canonical_routes(id) on delete cascade`
+- `source_platform text not null`
+- `source_route_id bigint not null`
+- `hazard_id uuid not null references public.hazards(id) on delete cascade`
+- `direction text`
+- `applies_from_mile numeric`
+- `applies_to_mile numeric`
+- `approach_context text`
+- `route_note text`
+- `created_at timestamptz not null default now()`
+
+Unique key:
+
+- `(source_platform, source_route_id, hazard_id, coalesce(direction, 'both'))`
+
+## 5.9 `route_aggregates`
+
+Purpose:
+
+- preserve route-level aggregates and metadata in a stable relational form rather than only top-level catalog columns or JSON
+
+Required columns:
+
+- `id uuid primary key`
+- `external_route_catalog_id uuid references public.external_route_catalog(id) on delete cascade`
+- `canonical_route_id uuid references public.canonical_routes(id) on delete cascade`
+- `source_platform text not null`
+- `source_kind text not null default 'route'`
+- `source_route_id bigint not null unique`
+- `source_entity_id text`
+- `route_name text`
+- `route_description text`
+- `distance_m numeric`
+- `distance_km numeric`
+- `elevation_gain_m numeric`
+- `elevation_loss_m numeric`
+- `surface_type text`
+- `terrain_type text`
+- `difficulty text`
+- `track_type text`
+- `unpaved_pct numeric`
+- `visibility integer`
+- `privacy_code text`
+- `locality text`
+- `postal_code text`
+- `administrative_area text`
+- `country_code text`
+- `track_id text`
+- `user_id bigint`
+- `has_course_points boolean`
+- `pavement_type text`
+- `pavement_type_id integer`
+- `recreation_type_ids jsonb not null default '[]'::jsonb`
+- `activity_types jsonb not null default '[]'::jsonb`
+- `tag_names jsonb not null default '[]'::jsonb`
+- `photo_ids jsonb not null default '[]'::jsonb`
+- `bounding_box jsonb`
+- `first_lat double precision`
+- `first_lng double precision`
+- `last_lat double precision`
+- `last_lng double precision`
+- `source_created_at timestamptz`
+- `source_updated_at timestamptz`
+- `raw_route_meta jsonb not null default '{}'::jsonb`
+- `created_at timestamptz not null default now()`
+
+Reason:
+
+- `external_route_catalog` is the harvest control table
+- `route_aggregates` is the durable cross-source route metadata table
+- this avoids overloading the harvest table with every future route-level read concern
+
+---
+
+## 6. JSON Contract Inside `external_route_catalog.normalized_data`
+
+`normalized_data` must contain two top-level objects:
+
+```json
+{
+  "schema_version": "rwgps.v2",
+  "source_mirror": {},
+  "projection": {}
+}
+```
+
+## 6.1 `source_mirror`
+
+Full-fidelity parsed RWGPS structure.
+
+Must include the entire upstream RWGPS route payload.
+
+Binding requirement:
+
+```json
+{
+  "schema_version": "rwgps.v2",
+  "source_mirror": {
+    "raw_route_json": {
+      "...": "entire parsed upstream JSON payload with no field trimming"
+    }
+  },
+  "projection": {}
+}
+```
+
+The exact wrapper may evolve, but `source_mirror` must always retain a complete untrimmed representation of the upstream route JSON.
+
+## 6.2 `projection`
+
+App-facing normalized representation.
+
+Must include:
+
+- `geometry`
+- `cue_points`
+- `points_of_interest`
+- `control_points`
+- `waypoints`
+- `route_meta`
+- `tags`
+
+Important:
+
+- `projection` is not allowed to replace `source_mirror`
+- `projection` may omit some source-specific fields
+- `source_mirror` must not
+
+## 6.3 Projection minimums
+
+Even though source fidelity is complete, `projection` must expose a stable app-friendly contract for:
+
+- `geometry`
+- `cue_points`
+- `points_of_interest`
+- `control_points`
+- `hazard_hints`
+- `route_meta`
+- `tags`
+
+This is the compatibility layer that lets product code evolve without learning raw RWGPS structure.
+
+---
+
+## 7. Point-Level Route Contract
+
+The ingest system must preserve point-level data for each RWGPS track point when present.
+
+At minimum:
+
+- `lat/lng`
+- `ele_m`
+- `dist_m`
+- `road_code`
+- `surface_code`
+
+And also:
+
+- every additional raw point key exactly as supplied upstream
+- preserved in `source_mirror.raw_route_json.track_points[*]`
+- copied into `raw_point` in the relational table row
+
+If a source route has route aggregates like:
+
+- `surface`
+- `terrain`
+- `unpaved_pct`
+- `elevation_gain`
+
+those must be preserved too, but they are not substitutes for per-point data.
+
+This is a hard requirement.
+
+RWGPS point-level attributes remain source truth, not canonical road truth.
+
+They must stay:
+
+- distinct from Lanterne-derived road truth
+- queryable at scale
+- available for future product features such as:
+  - source-aware elevation profiles
+  - source-aware surface transition views
+  - source-versus-derived route audits
+
+---
+
+## 8. POI Contract
+
+POIs must preserve both:
+
+- robust archival provenance
+- app-facing normalized fields
+
+### 8.1 Raw/mirror fields that must not be dropped
+
+For every RWGPS POI, preserve every source field exactly as supplied upstream.
+
+Known example fields from sampled routes include:
+
+- `id`
+- `user_id`
+- `visibility`
+- `poi_type`
+- `poi_type_name`
+- `lng`
+- `lat`
+- `name`
+- `url`
+- `description`
+- `mongo_id`
+- `parent_id`
+- `parent_type`
+- `created_at`
+- `updated_at`
+- `community_poi_id`
+- `locality`
+- `administrative_area`
+- `country_code`
+- `location_hex`
+- `photo_ids`
+
+But this list is illustrative, not limiting.
+
+The binding rule is:
+
+- no POI key may be dropped, even if it appears only rarely
+
+### 8.2 Projection fields
+
+For app use, normalize to:
+
+- `lat/lng`
+- `name`
+- `type`
+- `type_id`
+- `description`
+- `website`
+- `phone`
+- `full_address`
+- `parent_id`
+- `parent_type`
+- `community_poi_id`
+- `visibility`
+- `locality`
+- `administrative_area`
+- `country_code`
+- `location_hex`
+- `photo_ids`
+- `is_control`
+- `is_finish`
+- `hazard_hint_class`
+
+`hazard_hint_class` is optional and advisory only.
+
+### 8.3 RWGPS POIs versus Lanterne POIs
+
+RWGPS-curated POIs and Lanterne/OSM POIs must remain distinct source classes even when they eventually point at the same shared `pois` row.
+
+Rules:
+
+- RWGPS-curated POIs are route-curated source annotations
+- Lanterne POIs are nearby amenity inventory
+- they may be co-presented
+- they may be correlated
+- they may not be silently merged into one undifferentiated POI pool
+
+Future subscriber surfaces may present:
+
+- `Official Route POI`
+- `Nearby POI`
+
+---
+
+## 9. Cue Contract
+
+Cues are not controls.
+
+Every RWGPS `course_point` must be preserved independently even if:
+
+- it is also a control
+- it duplicates a POI
+- it is later transformed into rider-facing cues differently
+
+Preserve:
+
+- source index
+- lat/lng
+- distance along route
+- track point reference
+- cue type
+- cue name
+- cue description
+- extra source code fields
+- every additional raw cue key in `raw_cue`
+
+No cue may be discarded solely because it “looks like a control.”
+
+### 9.1 Cue integration with Lanterne cue systems
+
+RWGPS cues are source cues.
+
+They are not automatically equivalent to:
+
+- generated rider-facing cues
+- route-analysis-derived turn cues
+- cue-sheet arbitration output
+
+The system must preserve them separately and allow later arbitration or presentation layers to decide how to use them.
+
+---
+
+## 10. Control Contract
+
+Controls are independent entities derived from route-owner-authored route meaning.
+
+They may be inferred from:
+
+- POIs
+- cues
+- both
+
+They must:
+
+- live in their own relational table
+- have provenance links to source POIs/cues
+- be queryable directly without JSON traversal
+
+Controls are not a subset of:
+
+- `route_poi_links`
+- `route_cues`
+
+They are a separate route entity class.
+
+### 10.1 Controls versus POIs versus cues
+
+Controls must support all of these truths simultaneously:
+
+- the source route had a POI
+- the source route had a cue
+- the route conceptually has an official control/checkpoint
+
+That is why:
+
+- `pois`
+- `route_poi_links`
+- `route_cues`
+- `route_controls`
+- `route_control_sources`
+
+all exist together.
+
+---
+
+## 11. Hazard Hint Contract
+
+RWGPS may contain hazard-like annotations through:
+
+- `poi_type_name`
+- POI `name`
+- POI `description`
+- cue `name`
+- cue `description`
+
+These are valuable but non-canonical.
+
+If hazard hints are derived, they must be stored as:
+
+- hint metadata on POI/cue projection rows
+- or as source/provenance columns on shared `hazards` rows plus `route_hazard_links`
+
+They must not overwrite canonical hazard truth.
+
+### 11.1 RWGPS hazard hints versus Lanterne hazards
+
+Lanterne canonical hazards remain in:
+
+- `route_hazard_detections`
+- `route_hazards`
+
+RWGPS-derived hazard hints remain source-scoped even when stored in shared `hazards` rows.
+
+They may later contribute to:
+
+- rider messaging
+- admin review
+- hazard confirmation workflows
+- cross-source corroboration
+
+But they must stay explicitly typed as RWGPS-derived hints unless independently promoted.
+
+---
+
+## 12. Canonical Integration Contract
+
+RWGPS-derived route data must remain distinct from but operate seamlessly with Lanterne-native data.
+
+This means:
+
+- `route_sources` continues to identify the canonical route’s source lineage
+- `canonical_routes` remains the geometry identity layer
+- RWGPS harvest rows continue to hang off `external_route_catalog`
+- route-native tables (`route_points`, `route_cues`, `route_controls`, `route_aggregates`) map directly to canonical routes through existing source relationships
+- shared entities (`pois`, `hazards`) remain reusable across many routes
+- route links (`route_poi_links`, `route_hazard_links`) preserve route membership and context
+- runtime readers can join:
+  - canonical geometry
+  - route aggregates
+  - route description
+  - route controls
+  - route-linked curated POIs
+  - route-linked hazards
+  - Lanterne-native hazards
+  - Lanterne-generated cues
+
+without collapsing these concepts into one table
+
+### 12.1 Distinct-but-seamless rule
+
+The binding rule is:
+
+- distinct in storage
+- unified in consumption only through explicit domain/presentation layers
+
+That is the same architectural pattern already used successfully for speed and traffic.
+
+---
+
+## 13. Hydration Contract
+
+Any route reconstructed from harvested RWGPS data must be able to access:
+
+- route description
+- cue points
+- POIs
+- controls
+- point-level elevation
+- point-level surface/road codes
+- full cue/POI/control provenance when needed
+
+without needing to fetch and reparsed `raw_json_path` at read time.
+
+Hydration should read primarily from:
+
+- relational tables for entities
+- top-level route summary columns
+- `normalized_data.projection` only as a fallback or convenience layer
+
+Hydration must not depend on `source_mirror` for ordinary runtime access.
+
+---
+
+## 14. Backfill Contract
+
+Backfill must:
+
+- read raw JSON from existing `raw_json_path`
+- run the same singular RWGPS normalizer used by new ingest
+- rebuild:
+  - `normalized_data`
+  - `route_points`
+  - `route_cues`
+  - `pois`
+  - `route_poi_links`
+  - `route_controls`
+  - `route_control_sources`
+  - `hazards` when source hazard hints are derived
+  - `route_hazard_links` when source hazard hints are derived
+
+Backfill is not allowed to use a separate parsing codepath.
+
+---
+
+## 15. Migration Sequence
+
+## Phase 1 — Parser and JSON contract
+
+Implement:
+
+- singular shared RWGPS normalizer
+- `normalized_data.schema_version = 'rwgps.v2'`
+- `source_mirror` + `projection`
+
+## Phase 2 — Relational tables
+
+Add:
+
+- `route_points`
+- `route_cues`
+- `pois`
+- `route_poi_links`
+- `route_controls`
+- `route_control_sources`
+- `hazards` if source hazard hint derivation is enabled now
+- `route_hazard_links` if source hazard hint derivation is enabled now
+- `route_aggregates`
+
+## Phase 3 — Dual write
+
+Harvester and hydrator must both:
+
+- write `external_route_catalog` summaries
+- write `normalized_data`
+- write the relational entity tables
+- maintain distinct source identity for all route-derived and shared entities
+
+## Phase 4 — Backfill
+
+Run backfill from `raw_json_path` for existing corpus rows.
+
+## Phase 5 — Runtime hydration migration
+
+Shift runtime hydration to prefer:
+
+- relational entity tables
+- top-level route summary columns
+
+and stop depending on ad hoc JSON structure.
+
+## Phase 6 — Presentation and domain subscriber migration
+
+Subscribers must move to canonical domain readers that can combine:
+
+- canonical route identity
+- route aggregates
+- route description
+- route controls
+- route-linked POIs
+- route-linked hazards
+- Lanterne-native hazards
+- generated cues
+
+without source confusion.
+
+---
+
+## 16. Non-Negotiable Rules
+
+1. Every field and subfield in the upstream RWGPS payload must be preserved somewhere durable.
+2. POIs, cues, and controls must be stored as separate but related entity classes.
+3. Point-level elevation and point-level route codes must be preserved.
+4. New ingest and backfill must share the same parser.
+5. Canonical route geometry tables remain lean; RWGPS archive richness lives in the harvest layer.
+6. The implementation must assume every raw RWGPS field is important until proven otherwise.
+7. RWGPS source entities must remain distinct from Lanterne-native entities in storage.
+8. Seamless rider-facing consumption must happen through explicit domain/presentation layers, not by collapsing source models prematurely.
+9. Route-level aggregates, point-level data, POIs, cues, controls, and hazard hints must all be queryable without raw JSON reparse.
+
+---
+
+## 17. Immediate Recommendation
+
+Implement this contract against `external_route_catalog` rather than redesigning the route corpus architecture.
+
+That means:
+
+- keep `raw_json_path`
+- upgrade `normalized_data`
+- add the relational child tables
+- backfill from storage
+
+This is the lowest-risk path that avoids having to redo RWGPS ingest again later.
+
+## 17A. Implementation Appendix — Exact Migration Map
+
+This appendix is binding.
+
+Its purpose is to convert the model above into a concrete build contract against the schema that exists today.
+
+This section answers four questions only:
+
+- what existing tables stay as they are
+- what existing tables are renamed or reworked
+- what new tables are added
+- what ideas are explicitly deferred
+
+If implementation work is proposed that does not fit this appendix, the appendix must be updated first.
+
+### 17A.1 Keep as-is
+
+These tables keep their current names and primary role:
+
+- `external_route_catalog`
+  - remains the source harvest/archive control table
+  - remains the owner of `raw_json_path`
+  - remains the owner of `normalized_data`
+- `canonical_routes`
+  - remains the geometry/canonical identity table
+- `route_sources`
+  - remains the source-lineage join between external/corpus routes and canonical routes
+- `imported_routes`
+  - remains the user/import runtime table
+- `hazard_comments`
+  - remains the user discussion table attached to the shared hazard entity layer
+- `hazard_confirmations`
+  - remains the user confirmation table attached to the shared hazard entity layer
+- `poi_comments`
+  - remains the user discussion table attached to the shared POI entity layer
+
+### 17A.2 Rename or rework existing scaffold
+
+Because the current scaffold is empty, these are not “eventual” ideas. They are the intended first migration moves.
+
+#### A. `route_hazards` -> `hazards`
+
+Reason:
+
+- current structure is that of a shared locatable entity, not a route-owned row
+- it already stores:
+  - location
+  - snapped location
+  - type/class
+  - severity
+  - description
+
+Target role after rename/rework:
+
+- shared hazard/world entity table
+- may contain:
+  - RWGPS-derived hazard hints
+  - Lanterne-derived hazards
+  - future corroborated hazard entities
+
+Required follow-on:
+
+- `hazard_comments.hazard_id` must reference `hazards(id)`
+- `hazard_confirmations.hazard_id` must reference `hazards(id)`
+
+#### B. `route_hazard_detections` -> `route_hazard_links`
+
+Reason:
+
+- current structure is route-contextual applicability, not a standalone hazard entity
+- it already stores:
+  - route id
+  - kind
+  - segment index
+  - road name
+  - metadata
+
+Target role after rename/rework:
+
+- route-to-hazard attachment/applicability table
+- stores:
+  - route membership
+  - direction/applicability
+  - approach context
+  - route-specific notes
+  - derived/detected linkage metadata
+
+Important:
+
+- this table should not pretend to be the canonical hazard itself
+- it is the route context for a hazard
+
+#### C. `poi_comments` foreign-key model -> shared `pois`
+
+Current issue:
+
+- `poi_comments` points at raw OSM identity concepts (`osm_id`, `osm_type`)
+- that blocks unified POI identity across RWGPS, OSM, and future sources
+
+Target role after rework:
+
+- `poi_comments` should reference `pois(id)`
+- any raw OSM identifiers should move into:
+  - `pois.source_platform`
+  - `pois.source_entity_id`
+  - `pois.raw_poi`
+
+The table name stays.
+Its foreign-key semantics change.
+
+### 17A.3 New tables to add in v1
+
+These are the tables the first implementation pass should add:
+
+- `route_points`
+- `route_cues`
+- `route_controls`
+- `route_control_sources`
+- `pois`
+- `route_poi_links`
+- `route_aggregates`
+
+These should be created immediately, not deferred, because they are required for:
+
+- point-level route truth
+- route-native cues
+- route-native controls
+- shared POIs
+- route-to-POI membership
+- route-level aggregate hydration
+
+### 17A.4 Hazard table strategy in v1
+
+Hazards should use the reworked existing scaffold, not a parallel fresh table family.
+
+So in v1:
+
+- do not add a brand-new second hazard entity table beside `route_hazards`
+- instead rename/rework `route_hazards` into `hazards`
+- rename/rework `route_hazard_detections` into `route_hazard_links`
+
+This keeps the schema clean and avoids carrying both:
+
+- an old wrong name
+- and a new right name
+
+### 17A.5 Optional hazard payload expansion in v1
+
+When `route_hazards` is reworked into `hazards`, it should gain the fields needed by the long-term model rather than remaining minimal scaffold.
+
+That includes at minimum:
+
+- `source_platform`
+- `source_kind`
+- `source_route_id`
+- `source_entity_id`
+- `canonical_status`
+- `confidence`
+- `visibility`
+- `privacy_code`
+- `osm_way_id`
+- `osm_node_id`
+- `osm_relation_id`
+- `osm_tags`
+- `raw_hazard`
+
+So the rename is not cosmetic.
+It is a semantic rework.
+
+### 17A.6 `route_hazard_links` minimum shape
+
+When `route_hazard_detections` is reworked into `route_hazard_links`, the target shape should include:
+
+- `hazard_id`
+- `canonical_route_id`
+- `source_platform`
+- `source_route_id`
+- `direction`
+- `applies_from_mile`
+- `applies_to_mile`
+- `approach_context`
+- `route_note`
+- `metadata`
+
+Legacy fields like:
+
+- `segment_index`
+- `road_name`
+
+may remain if useful, but only as part of route applicability context, not as a substitute for the link model.
+
+### 17A.7 Deferred in v1
+
+These are explicitly deferred and should not block the first migration set:
+
+- `poi_sources`
+- `hazard_sources`
+- cue-source provenance tables beyond what is already in `route_cues`
+- POI equivalence/dedupe tables
+- hazard equivalence/dedupe tables
+- generalized route annotation equivalence tables
+- canonical cross-source arbitration tables
+
+Reason:
+
+- source identity is already preserved in columns
+- the corpus needs the core entity model first
+- provenance tables can be added later only if the single-row-per-entity model proves insufficient
+
+### 17A.8 Sequence of physical database work
+
+The migration/build order must be:
+
+1. Add new route-native tables:
+   - `route_points`
+   - `route_cues`
+   - `route_controls`
+   - `route_control_sources`
+   - `route_aggregates`
+2. Add shared POI tables:
+   - `pois`
+   - `route_poi_links`
+3. Rename/rework hazard scaffold:
+   - `route_hazards` -> `hazards`
+   - `route_hazard_detections` -> `route_hazard_links`
+4. Repoint interaction tables:
+   - `hazard_comments` -> `hazards`
+   - `hazard_confirmations` -> `hazards`
+   - `poi_comments` -> `pois`
+5. Update harvester/hydrator dual-write paths
+6. Run backfill from `raw_json_path`
+7. Migrate runtime readers to relational hydration
+
+### 17A.9 Naming veto rule
+
+While building this contract, the following names are now prohibited for operational tables:
+
+- `rwgps_*`
+- `route_source_*`
+- `*_source_rows`
+- `*_archive_rows`
+
+unless the table is explicitly an archive/staging table.
+
+That veto exists to prevent implementation drift during buildout.
+
+---
+
+## 18. Future-Proofing Addendum — Concerns That Must Be Designed Now
+
+This addendum captures the structural concerns that are easy to defer during implementation and painful to retrofit later.
+
+It exists because the immediate temptation in ingestion work is always:
+
+- get the parser working
+- get the fields into storage
+- move on
+
+That is not sufficient here.
+
+The RWGPS redo is not just a parser rewrite.
+It is the foundation for a future cross-source route annotation model.
+
+So the following concerns are part of the contract even if they are not all implemented in phase 1.
+
+## 18.1 Source schema is product research, not just import payload
+
+The upstream RWGPS schema is itself a source of product intelligence.
+
+Fields such as:
+
+- `privacy`
+- `visibility`
+- `parent_type`
+- `community_poi_id`
+- `poi_type`
+- `poi_type_name`
+- `track_type`
+- `difficulty`
+- `tag_names`
+- `activity_types`
+- `photo_ids`
+
+do not merely carry values.
+
+They reveal:
+
+- what entity distinctions RWGPS found necessary over time
+- what user permissions and sharing models emerged in real use
+- what they considered route-level versus point-level
+- what they considered personal versus shared
+- what they considered author-curated versus system-derived
+
+This matters because future Lanterne product design should be able to learn from those distinctions.
+
+Therefore:
+
+- preserving source structure is not only about data completeness
+- it is also about preserving source product semantics
+
+The contract must continue to treat the full source schema as a design artifact worth studying later.
+
+## 18.2 The system must support round-trip growth, not only one-way ingest
+
+This redo must not assume Lanterne is only a passive importer.
+
+If Lanterne later becomes capable of:
+
+- authoring route descriptions
+- editing official controls
+- adding curated route POIs
+- adding route-specific caution notes
+- managing private versus shared annotations
+
+then the schema should not block future export or synchronization models.
+
+That does not mean we must implement full RWGPS-compatible export now.
+
+It does mean:
+
+- we should preserve distinctions that would make future export possible
+- we should not flatten the model in ways that destroy authoring semantics
+
+Examples:
+
+- `controls` should remain distinct from generic `POIs`
+- `visibility` and `privacy` should be preserved even when unused
+- `parent_type` and `community_poi_id` should be kept because they hint at source hierarchy and sharing models
+
+The design principle is:
+
+> ingestion should preserve enough shape that authoring remains possible later.
+
+## 18.3 Parser versioning and row-level schema versioning are required
+
+The corpus will not be trustworthy long-term unless every harvested/backfilled route can answer:
+
+- which parser version produced this row?
+- which normalization schema version produced this row?
+- which backfill pass touched this row?
+- which raw payload fingerprint was used?
+
+Without that, future audits become guesswork.
+
+So the system should support, either as columns or as stable JSON metadata:
+
+- `source_payload_fingerprint`
+- `source_mirror_schema_version`
+- `projection_schema_version`
+- `ingest_parser_version`
+- `hydrator_version`
+- `last_hydrated_at`
+- `last_hydrated_from_raw_json_path`
+
+These fields do not need to all be top-level table columns in phase 1, but they must exist somewhere durable and queryable.
+
+The preferred rule is:
+
+- anything used for operations or debugging at scale should become top-level or indexed
+- anything used mainly for artifact traceability may begin inside JSON
+
+But the absence of versioning is not acceptable.
+
+## 18.4 Diffability is a first-class requirement
+
+Backfill and rehydration are not safe if the operator can only see:
+
+- success
+- failure
+
+That is insufficient.
+
+The system should eventually support route-level diff summaries such as:
+
+- route description changed
+- cue count changed from `N` to `M`
+- POI count changed from `N` to `M`
+- control count changed from `N` to `M`
+- point count changed from `N` to `M`
+- bounding box changed
+- source fields newly discovered
+
+And preferably also:
+
+- a sample of new POIs
+- a sample of removed POIs
+- newly-derived controls
+- changed hazard hints
+
+This is especially important because:
+
+- raw source may remain constant
+- but parser logic may evolve
+- projection rules may evolve
+- control derivation rules may evolve
+
+Therefore the system needs a way to compare old versus new normalized/projection results.
+
+The hydrator preview added during this redo is a start, not the finished answer.
+
+The contract should assume:
+
+- rehydration is an auditable transformation
+- not a black box mutation
+
+## 18.5 Identity and dedupe strategy must be designed before multi-source fusion
+
+This is one of the largest future risks.
+
+The system is moving toward neutral route-native tables plus shared world-entity tables, which is correct.
+But neutral storage alone does not solve identity.
+
+At some point the system must decide:
+
+- when is a cue from source A the “same” as a cue from source B?
+- when is a POI from source A the “same place” as a POI from source B?
+- when is a control implied by a cue the same as a control implied by a POI?
+- when does a RWGPS-derived hazard hint correspond to a canonical hazard?
+
+These are not trivial questions.
+
+So the contract should anticipate a future identity model with distinct concepts:
+
+- `source row identity`
+- `cross-source equivalence`
+- `canonical promoted entity`
+
+For example:
+
+- `pois.id` is an entity identity, not a full source-history model
+- `route_poi_links.id` is a route-membership identity
+- a future `route_annotation_equivalences` table could express likely sameness across sources
+- a future canonical route control could be promoted from several source rows
+
+The mistake to avoid is:
+
+- assuming storage unification solves semantic identity
+
+It does not.
+
+The contract must therefore preserve enough raw and provenance detail to support later identity modeling.
+
+## 18.6 Searchability and admin ergonomics must be designed into the schema
+
+One reason to avoid hiding everything in JSON is operational usefulness.
+
+The future admin/operator should be able to ask questions like:
+
+- show all routes with controls but no finish
+- show all routes with private POIs
+- show all routes whose POI count changed after rehydration
+- show all routes with hazard-like source annotations
+- show all routes missing point-level elevation
+- show all routes where `source_mirror` contains a field not yet projected
+- show all routes where the parser detected new upstream keys
+
+That means the schema should be designed with:
+
+- queryable summary columns
+- indexed provenance fields
+- entity-class tables
+- route-level counts
+
+The contract therefore favors:
+
+- top-level summary columns on `external_route_catalog`
+- dedicated entity tables
+- explicit source metadata columns
+
+over:
+
+- JSON-only discovery for everything
+
+## 18.7 Provenance and trust layers must become explicit
+
+Source provenance is not just `source_platform`.
+
+Eventually the system should be able to distinguish:
+
+- RWGPS route-owner annotation
+- RWGPS community/shared POI
+- Lanterne-derived canonical hazard
+- Lanterne-generated cue
+- organization-published official route metadata
+- future user-private route annotation
+
+These are different trust classes.
+
+So the contract should leave room for provenance attributes like:
+
+- `source_platform`
+- `source_kind`
+- `source_visibility`
+- `source_curation_level`
+- `source_trust_class`
+- `source_review_status`
+
+Not all of these must exist now.
+But the system must not collapse source rows into a model that cannot later express them.
+
+The big design principle is:
+
+> provenance is multi-dimensional, not a single string field.
+
+## 18.8 Export symmetry matters
+
+If the ingest becomes high-fidelity, but every export remains lossy, the system will still be structurally weak.
+
+Future export surfaces may include:
+
+- GPX export
+- route JSON export
+- API responses
+- admin review exports
+- route sharing bundles
+
+Those exports should be able to preserve, when desired:
+
+- route description
+- route controls
+- curated route POIs
+- source cues
+- hazard hints
+- point-level elevation
+- point-level source surface codes
+
+The contract does not require implementing all exports now.
+It does require designing storage so that future export is possible without another redo.
+
+## 18.9 Multi-source arbitration policy will eventually be required
+
+Once the route annotation model becomes multi-source, the system will need explicit arbitration rules.
+
+Examples:
+
+- RWGPS has one description, organization-published route page has another
+- RWGPS has 4 controls, committee admin overrides one
+- RWGPS has a POI marked `control`, Lanterne admin marks it deprecated
+- RWGPS hazard hint conflicts with canonical hazard truth
+
+The system should not answer these questions ad hoc in random UI code.
+
+So the schema and contract must leave room for:
+
+- source coexistence
+- override layers
+- promoted/canonical entities
+- subscriber-specific resolution rules
+
+This means:
+
+- source tables preserve independent facts
+- resolution happens later in explicit domain layers
+
+which is the same pattern already validated by speed and traffic truth.
+
+## 18.10 Upstream change, deletion, and supersession must be modeled
+
+Source routes will change.
+
+Over time:
+
+- POIs will disappear
+- controls will move
+- route descriptions will be edited
+- privacy semantics may change
+- community POIs may be detached or replaced
+
+The schema must be able to represent:
+
+- present upstream
+- removed upstream
+- superseded locally
+- hidden locally
+- overridden by a more authoritative source
+
+If we only model the latest snapshot, we lose too much context.
+
+This does not require full temporal history on day one.
+But the contract should anticipate:
+
+- `is_active`
+- `superseded_by`
+- `source_deleted_at`
+- `local_override_state`
+
+especially for source entity tables.
+
+## 18.11 Projection completeness audits should be built in
+
+Because the parser will never be perfect forever, the system should be able to detect:
+
+- raw keys present but not projected
+- projected entities missing expected source rows
+- routes whose `source_mirror` evolved after a parser update
+
+So the contract should assume future audit artifacts such as:
+
+- `raw_keys_present`
+- `projection_coverage_summary`
+- `unknown_key_count`
+- `unmapped_key_paths`
+
+This makes the system self-auditing instead of relying on memory and occasional spot checks.
+
+## 18.12 The archive and the projection have different jobs
+
+This is worth stating plainly.
+
+The archive exists to answer:
+
+- what did the source say?
+
+The projection exists to answer:
+
+- how should Lanterne work with that source today?
+
+Those are not the same question.
+
+The system gets into trouble when projection concerns overwrite archival concerns.
+
+So the contract should maintain a hard separation:
+
+- archive must be complete
+- projection may be simplified
+- relational entities must be queryable
+- canonical integration must stay explicit
+
+## 18.13 Final design posture
+
+The system should be built with the assumption that:
+
+- additional route sources will come
+- future product features will use currently-ignored source concepts
+- canonical route intelligence will coexist with source-specific route intelligence
+- archival completeness is cheaper now than rediscovery later
+
+So the correct posture is not:
+
+- “what do we need today?”
+
+It is:
+
+- “what structure will prevent us from ever having to redo this again?”
+
+That is the bar this EXEC is intended to enforce.
+
+
+---
+
+## Source File: docs/04-execution/exec-019-ds015_full_hardening_and_hydration_gate.md
+
+# EXEC-019 — DS-015 Full Hardening and Hydration Gate
+
+**Status:** Draft  
+**Owner:** Derek Minner  
+**Purpose:** Drive the remaining DS-015 hardening work from partially complete implementation to fully canonical scoring, paint, projection, and hydration gates  
+**Related:** [DS-015](/Users/derekminner/lanterne/docs/02-architecture/design/ds-015-safety_scoring_model.md), [ASS-016](/Users/derekminner/lanterne/docs/assessments/ass-016-ds015_spec_to_code_trace_audit_2026_04_25.md)
+
+---
+
+## 1. Why this program exists
+
+The app is no longer architecturally lost, but it is still not at true DS-015 completion.
+
+The current state is mixed:
+
+- the browser canonical scorer is much closer to DS-015
+- canonical route risk fields exist
+- crossing eligibility was materially improved
+- some tests already enforce DS-015 expectations
+- some surfaces already read canonical totals instead of 0–100 score
+
+But the system is still not cleanly finished because:
+
+- canonical artifact naming is still partially legacy
+- canonical and legacy constants still coexist
+- route paint is not yet hard-separated from speed-based presentation fallback
+- preview and pipeline scorers are not yet fully fenced from canonical truth
+- analyze surfaces still carry mixed score language
+- hydration is ahead of the formal invariant gate
+
+This execution plan exists to finish the job.
+
+---
+
+## 2. Program objective
+
+Bring all ten DS-015 hardening goals to true completion:
+
+1. canonical scoring types module
+2. DS-015 traffic constants everywhere canonical scoring can touch
+3. DS-015 facility and shoulder constants everywhere canonical scoring can touch
+4. crossing eligibility parity between trace and score math
+5. canonical risk vocabulary cleanup
+6. no canonical 0–100 score truth
+7. hard separation of Route Risk Paint and Road-Stress Overlay
+8. quarantine of pipeline and preview scorers from canonical cache/rank writes
+9. seed invariant suite as a hard gate
+10. staged hydration only after invariant success
+11. first-class field parity across all inspectable factors
+
+---
+
+## 3. Definition of done
+
+This program is only complete when all of the following are true:
+
+- no canonical path imports legacy scoring constants
+- no canonical artifact exposes 0–100 score truth
+- no excluded crossing event can contribute risk
+- analyzed route paint cannot silently fall back to speed paint
+- preview and pipeline scorers cannot write canonical cache or rank truth
+- scorecard, method, and receipts are projections of canonical trace only
+- all inspectable factors use a consistent first-class field contract for value, provenance, confidence, and rider-facing detail
+- DS-015 invariant suite is green
+- seed hydration passes before any broad corpus hydration
+
+---
+
+## 4. Delivery posture
+
+This program should be shipped in clean checkpoints, not held locally until the entire DS-015 hardening effort is complete.
+
+Publish a checkpoint when all of the following are true for that slice:
+
+- the slice is internally coherent
+- `npx tsc --noEmit` passes
+- relevant tests for the slice pass
+- the user-facing app is not left in a mixed-semantic halfway state
+
+Recommended checkpoint boundaries:
+
+- Phase A1 as its own low-risk internal checkpoint
+- Phase A2 and A3 together
+- Phase A4, A5, and A6 together
+- Phase A7 as its own canonical parity checkpoint unless it is safely folded into a nearby slice
+- Phase B1 as its own visible paint-contract checkpoint
+- Phase B2 and B3 together unless one is strictly non-production
+- Phase C1 as its own analyze-surface checkpoint
+
+The goal is to keep main and production continuously trustworthy while avoiding a large local divergence blob.
+
+---
+
+## 5. Execution phases
+
+## Phase A — Freeze canonical truth
+
+### Goal
+Finish the canonical artifact, constants, vocabulary, and crossing parity work.
+
+### Step A1 — Canonical artifact/type rename
+
+**Goal:** replace legacy `V5` conceptual naming with DS-015-first canonical names.
+
+**Primary files:**
+- [src/lib/v5-analysis-artifact.ts](/Users/derekminner/lanterne/src/lib/v5-analysis-artifact.ts)
+- potential new canonical file, e.g. `src/lib/canonical-analysis-artifact.ts`
+
+**Actions:**
+- define the real canonical types:
+  - `CanonicalRouteRiskArtifact`
+  - `ScoreTraceRoadSlice`
+  - `ScoreTraceCrossingEvent`
+  - `ScoreRollup`
+  - `ProjectionMetadata`
+- migrate the codebase to use those names as the canonical source of truth
+- leave compatibility aliases only at boundary points if still needed
+
+**Done means:**
+- no canonical type name contains `V5`
+- canonical artifact fields are DS-015-first names
+- legacy aliases are outside the canonical type system
+
+### Step A2 — Canonical constant isolation
+
+**Goal:** make DS-015 contract constants the only canonical scoring constant source.
+
+**Primary files:**
+- [src/shared/scoring/ds015-contract.ts](/Users/derekminner/lanterne/src/shared/scoring/ds015-contract.ts)
+- [src/shared/scoring/safety-constants.ts](/Users/derekminner/lanterne/src/shared/scoring/safety-constants.ts)
+
+**Actions:**
+- keep all canonical scoring constants in `ds015-contract.ts`
+- explicitly mark `safety-constants.ts` as legacy or non-canonical only
+- remove canonical imports from legacy constants
+
+**Done means:**
+- canonical scoring code cannot import from `safety-constants.ts`
+
+### Step A3 — Canonical traffic/facility/shoulder migration
+
+**Goal:** ensure every canonical-touching path uses DS-015 numeric tables.
+
+**Primary files:**
+- [src/lib/safety-scoring.ts](/Users/derekminner/lanterne/src/lib/safety-scoring.ts)
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- [src/domain/comparativeSnapshotBuilder.ts](/Users/derekminner/lanterne/src/domain/comparativeSnapshotBuilder.ts)
+- [src/domain/canonicalCorpusHydration.ts](/Users/derekminner/lanterne/src/domain/canonicalCorpusHydration.ts)
+
+**Required constants:**
+- facility:
+  - protected `0.50`
+  - buffered `0.75`
+  - painted `0.80`
+  - none `1.00`
+- shoulder:
+  - usable `0.85`
+  - wide `0.80`
+- traffic:
+  - DS-015 exact interpolation and high-volume tail
+
+**Done means:**
+- no canonical path can silently use older traffic/facility/shoulder constants
+
+### Step A4 — Vocabulary cleanup
+
+**Goal:** remove legacy score vocabulary from canonical paths.
+
+**Primary files:**
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- [src/lib/safety-scoring.ts](/Users/derekminner/lanterne/src/lib/safety-scoring.ts)
+- [src/domain/routeScoreExplanation.ts](/Users/derekminner/lanterne/src/domain/routeScoreExplanation.ts)
+- [src/domain/analyze/method/buildMethodViewModel.ts](/Users/derekminner/lanterne/src/domain/analyze/method/buildMethodViewModel.ts)
+- [src/domain/analyze/scorecard/buildScorecardViewModel.ts](/Users/derekminner/lanterne/src/domain/analyze/scorecard/buildScorecardViewModel.ts)
+
+**Actions:**
+- eliminate canonical use of:
+  - `localHarm`
+  - `finalSafetyScore`
+  - `effectiveCrossingRPM`
+  - canonical `grade`
+- rename critical-stretch “cap” language to report/diagnostic language only
+
+**Done means:**
+- canonical artifacts and analyze surfaces no longer present V3/V5 score vocabulary as truth
+
+### Step A5 — Crossing inclusion parity lock
+
+**Goal:** make it impossible for excluded crossing events to affect score math.
+
+**Primary files:**
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- [src/lib/safety-scoring.ts](/Users/derekminner/lanterne/src/lib/safety-scoring.ts)
+- [src/lib/safety-scoring.test.ts](/Users/derekminner/lanterne/src/lib/safety-scoring.test.ts)
+
+**Actions:**
+- filter excluded events before scorer inputs are built
+- keep scorer-side defensive exclusion
+- add invariant that included crossing count in trace equals scored crossing count in math
+
+**Done means:**
+- excluded left turns and controlled crossings cannot contribute risk in any canonical path
+
+### Step A6 — Remove canonical 0–100 score truth
+
+**Goal:** eliminate 0–100 score from all canonical outputs and storage.
+
+**Primary files:**
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- [src/domain/canonicalCorpusHydration.ts](/Users/derekminner/lanterne/src/domain/canonicalCorpusHydration.ts)
+- any persistence layer touching canonical scoring fields
+
+**Actions:**
+- canonical outputs store:
+  - `totalRouteRisk`
+  - `routeRiskPerMile`
+  - `roadRiskTotal`
+  - `crossingRiskTotal`
+  - confidence
+  - comparative metadata if projected
+- if shell scores are retained temporarily, rename them explicitly as preview or non-canonical
+
+**Done means:**
+- canonical artifacts and canonical cache rows do not expose a 0–100 score as truth
+
+### Step A7 — First-class field parity contract
+
+**Goal:** ensure every inspectable factor is modeled and projected as the same kind of first-class object.
+
+This is not safety-only cleanup. It is an architectural rule for Lanterne generally.
+
+Current in-scope safety fields:
+- speed
+- traffic
+- shoulder
+- bike lanes
+
+Future factor families must follow the same contract shape:
+- weather
+- remoteness
+- surface quality
+- effort / exertion
+- and any later rider-facing factor domain
+
+**Primary files:**
+- [src/lib/evidence/types.ts](/Users/derekminner/lanterne/src/lib/evidence/types.ts)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+- [src/components/inspection/TruthSection.tsx](/Users/derekminner/lanterne/src/components/inspection/TruthSection.tsx)
+- [src/components/inspection/ConfidenceSection.tsx](/Users/derekminner/lanterne/src/components/inspection/ConfidenceSection.tsx)
+- any shared rider-facing field-row / inspector presentation layer
+
+**Actions:**
+- define one consistent first-class field contract for inspectable factors:
+  - resolved value
+  - provenance/source family
+  - confidence
+  - structured rider-facing provenance/detail payload
+  - optional propagation/anchor metadata when applicable
+- define one shared presentation contract for inspectable factors that is derived centrally, not per-surface:
+  - display value text
+  - unit choice / normalization
+  - approximation markering
+  - semantic tone / color
+  - compact and expanded provenance/confidence labels
+- remove special-case downgraded field models where one factor has flatter or weaker provenance treatment than its peers
+- ensure rider-facing inspection surfaces project every in-scope factor through the same provenance/confidence contract
+- require the rider-facing confidence tab to show provenance/source family and confidence for every in-scope factor, not just a selected subset
+- require rider-facing surfaces to consume the shared presentation contract rather than recomputing field display semantics locally
+- prohibit field rows from suppressing provenance detail for one factor while presenting it as available for its peers, unless the surface is explicitly debug-only and labeled as such
+- require new non-safety factor systems to adopt the same object contract instead of inventing bespoke per-factor evidence shapes
+
+**Done means:**
+- speed, traffic, shoulder, and bike lanes are all first-class inspectable objects with equivalent provenance/confidence/detail treatment
+- the confidence tab shows provenance for speed, traffic, shoulder, and bike lanes using the same rider-facing contract
+- inspector, road card, receipts, and future rider-facing surfaces are consumers of centrally-derived field presentation outputs rather than re-implementing per-field display logic
+- the rider-facing inspector does not provide materially richer provenance UX for one canonical factor than another without an explicit spec exception
+- future factor domains have a declared extension path through the same field-object contract
+
+---
+
+## Phase B — Separate canonical from preview
+
+### Goal
+Hard-separate route risk truth from display and preview proxies.
+
+### Step B1 — Route Risk Paint vs Road-Stress Overlay
+
+**Goal:** make paint contracts explicit in code, not just docs.
+
+**Primary files:**
+- [src/lib/heatmap/gradient-renderer.ts](/Users/derekminner/lanterne/src/lib/heatmap/gradient-renderer.ts)
+- route-line paint selectors/controllers feeding it
+
+**Actions:**
+- create explicit modes:
+  - `route_risk_paint`
+  - `road_stress_overlay`
+- `route_risk_paint` must use only:
+  - canonical score-bearing trace normalized risk
+  - cached normalized route risk
+- remove speed-presentation fallback in canonical analyzed-route paint mode
+- keep viewport overlay as fast proxy layer
+
+**Done means:**
+- analyzed route paint cannot become speed paint
+- overlay paint remains clearly proxy-labeled and separate
+
+### Step B2 — Fence preview scorers
+
+**Goal:** keep preview scoring usable without letting it masquerade as DS-015 truth.
+
+**Primary files:**
+- [src/lib/noncanonical-score-projection.ts](/Users/derekminner/lanterne/src/lib/noncanonical-score-projection.ts)
+- [src/lib/routing.ts](/Users/derekminner/lanterne/src/lib/routing.ts)
+- [src/lib/detour-routing.ts](/Users/derekminner/lanterne/src/lib/detour-routing.ts)
+- [src/components/RouteOptimizer.tsx](/Users/derekminner/lanterne/src/components/RouteOptimizer.tsx)
+- [src/lib/realtime-detour.ts](/Users/derekminner/lanterne/src/lib/realtime-detour.ts)
+
+**Actions:**
+- rename and label preview outputs explicitly as non-canonical
+- block preview outputs from:
+  - canonical artifact generation
+  - canonical cache writes
+  - comparative ranking writes
+
+**Done means:**
+- preview math can exist without contaminating canonical scoring artifacts
+
+### Step B3 — Fence pipeline scorer
+
+**Goal:** prevent offline legacy scoring from writing canonical truth until migrated.
+
+**Primary files:**
+- [pipeline/src/slice-scorer.ts](/Users/derekminner/lanterne/pipeline/src/slice-scorer.ts)
+- [pipeline/src/route-rollup.ts](/Users/derekminner/lanterne/pipeline/src/route-rollup.ts)
+
+**Actions:**
+- either migrate pipeline to DS-015 now
+- or explicitly flag it non-canonical and prevent canonical cache/rank writes
+
+**Done means:**
+- pipeline cannot populate canonical route cache or rankings with legacy math
+
+---
+
+## Phase C — Surface convergence
+
+### Goal
+Make rider-facing analyze surfaces pure DS-015 projections.
+
+### Step C1 — Analyze drawer cleanup
+
+**Primary files:**
+- [src/domain/analyze/scorecard/buildScorecardViewModel.ts](/Users/derekminner/lanterne/src/domain/analyze/scorecard/buildScorecardViewModel.ts)
+- [src/domain/analyze/method/buildMethodViewModel.ts](/Users/derekminner/lanterne/src/domain/analyze/method/buildMethodViewModel.ts)
+- [src/domain/analyze/receipts/buildReceiptsViewModel.ts](/Users/derekminner/lanterne/src/domain/analyze/receipts/buildReceiptsViewModel.ts)
+
+**Actions:**
+- Scorecard leads with:
+  - rank
+  - curved grade
+  - route risk per mile
+  - total route risk
+  - confidence
+- Method explains the DS-015 model directly:
+  - road risk = likelihood × severity
+  - crossing risk = likelihood × severity
+- Receipts remain projection-only and do not recompute alternate truth
+
+**Done means:**
+- scorecard, method, and receipts all tell the same DS-015 story from the same canonical trace
+
+---
+
+## Phase D — Invariant gate
+
+### Goal
+Turn DS-015 from a best-effort implementation into a gated system.
+
+### Step D1 — Seed invariant suite
+
+**Primary files:**
+- [src/lib/safety-scoring.test.ts](/Users/derekminner/lanterne/src/lib/safety-scoring.test.ts)
+- [src/lib/__tests__/*](/Users/derekminner/lanterne/src/lib/__tests__)
+- domain-level projection tests as needed
+
+**Required invariants:**
+- exact AADT interpolation
+- high-AADT tail behavior
+- path/MUP zero road risk with preserved crossing risk
+- left-turn exclusion
+- controlled-crossing exclusion
+- sustained high-risk stretch behavior
+- provenance family rollup including `relationship_inferred`
+- canonical artifact contains no 0–100 score
+- route paint consumes canonical risk when present
+- scored crossing count equals included crossing count
+
+**Done means:**
+- regressions in DS-015 behavior fail the suite immediately
+
+### Step D2 — Remove legacy-contract tests
+
+**Actions:**
+- rewrite or remove tests that still encode:
+  - old crossing caps
+  - old 0–100 canonical semantics
+  - mixed V3/V5 route cache expectations
+
+**Done means:**
+- the test suite enforces DS-015 and nothing else as canonical truth
+
+---
+
+## Phase E — Hydration gate
+
+### Goal
+Only hydrate the corpus after DS-015 invariants are green.
+
+### Step E1 — Cache eligibility/version gate
+
+**Primary files:**
+- [src/domain/canonicalCorpusHydration.ts](/Users/derekminner/lanterne/src/domain/canonicalCorpusHydration.ts)
+- any route-analysis cache writer
+
+**Actions:**
+- canonical cache write allowed only when:
+  - score model version matches DS-015
+  - artifact version matches canonical artifact schema
+  - evidence/provenance schema version matches
+  - paint contract version matches current rule set
+  - invariant suite passes
+
+**Done means:**
+- stale or non-canonical math cannot silently hydrate the corpus
+
+### Step E2 — Staged hydration rollout
+
+**Stages:**
+1. seed corpus
+2. medium batch
+3. broad corpus
+
+**At each stage verify:**
+- route totals
+- receipts
+- method
+- scorecard
+- route paint
+- comparative rank
+
+**Done means:**
+- full hydration is a controlled DS-015 rollout, not a blind batch job
+
+---
+
+## 5.5 End-of-hardening cleanup note
+
+Before the UX refactor begins, circle back on preview history persistence naming in
+[src/pages/Index.tsx](/Users/derekminner/lanterne/src/pages/Index.tsx) and any adjacent
+route-history save path that still stores preview outputs under generic `score` / `grade`
+fields. This is not canonical-truth debt, but it is naming-consistency debt and should be
+cleaned up before the UX surface refactor broadens the persistence footprint.
+
+---
+
+## 6. Suggested execution order
+
+Do the work in this exact order:
+
+1. canonical artifact/type rename
+2. canonical constant isolation
+3. traffic/facility/shoulder migration across canonical paths
+4. vocabulary cleanup
+5. crossing inclusion parity lock
+6. canonical 0–100 removal
+7. route paint contract split
+8. preview scorer quarantine
+9. pipeline scorer quarantine or migration
+10. analyze drawer convergence
+11. seed invariant suite
+12. legacy-contract test removal/rewrite
+13. cache eligibility/version gate
+14. staged hydration rollout
+
+---
+
+## 7. Practical bottom line
+
+This program is not complete when the scorer looks mostly correct.
+
+It is only complete when:
+
+- canonical types are clean
+- canonical math is isolated
+- route paint tells canonical truth
+- previews are visibly non-canonical
+- analyze surfaces project from one trace
+- tests enforce DS-015 behavior
+- hydration is gated by those tests
+
+That is the difference between “mostly hardened” and actually done.
+
+
+---
+
+## Source File: docs/04-execution/exec-020-receipts_redesign_math_and_provenance_spec.md
+
+# EXEC-020 — Receipts Redesign Math and Provenance Spec
+
+## 1. Why this exists
+
+The current analyze-drawer `Receipts` tab is canonical enough to avoid mixed-truth drift, but it does not yet behave like a real receipts surface.
+
+It currently blends:
+
+- partial arithmetic
+- generic explanation language
+- lossy grouping
+- incomplete provenance disclosure
+
+That leaves it weak against the actual DS-015 contract. If the product calls this surface `Receipts`, it should be the most math-forward, provenance-explicit screen in the analyze drawer.
+
+## 2. Objective
+
+Redesign the analyze-drawer `Receipts` tab so it is:
+
+- a pure projection of canonical DS-015 trace truth
+- math-first rather than narrative-first
+- provenance-complete for score-bearing inputs
+- explicit about observed vs inferred vs baseline inputs
+- readable enough for riders and rigorous enough for audit
+
+## 3. Current critique
+
+### 3.1 What is working
+
+- It is sourced from canonical trace, not legacy truth reconstruction.
+- It includes both road-slice and crossing-event receipts.
+- It preserves total route risk, route miles, and risk-per-mile at the route level.
+
+### 3.2 What is failing
+
+- Road receipts do not expose speed source, traffic source/AADT basis, facility basis, shoulder basis, or confidence caveats clearly enough.
+- The tab is too interpretive for something called `Receipts`.
+- Road groups are merged too aggressively and erase real causal boundaries.
+- The top formula block is generic model prose, not route math.
+- UI filtering hides zeros that matter for receipt-style arithmetic.
+- Provenance is implicit or flattened when it should be explicit and inspectable.
+
+## 4. Product role
+
+The analyze drawer should have a clear division of labor:
+
+- `Scorecard`: route summary and characterization
+- `Method`: how DS-015 works
+- `Receipts`: exact route math and score-bearing basis
+
+`Receipts` should not try to double as a scorecard or a prose explanation card.
+
+## 5. Target structure
+
+### 5.1 Totals
+
+Lead with a compact arithmetic block:
+
+- `Total road risk`
+- `Total crossing risk`
+- `Total route risk = road risk + crossing risk`
+- `Route miles`
+- `Risk per mile = total route risk / route miles`
+- `Rank`
+
+This should be literal arithmetic, not descriptive prose.
+
+### 5.2 Road receipts
+
+Each road receipt group should show:
+
+- road identity
+- start / end mile
+- distance
+- total road risk points
+- risk per mile
+- exact factor contributions:
+  - speed
+  - traffic
+  - facility
+  - shoulder
+  - curvature
+- score-bearing basis for each factor:
+  - resolved value
+  - source family / basis label
+  - approximation status where relevant
+- confidence caveat when inference or baseline logic materially affected the group
+
+### 5.3 Crossing receipts
+
+Each crossing receipt should show:
+
+- crossing identity
+- crossed road
+- local crossing risk
+- exact component contributions:
+  - crossed-road speed
+  - crossed-road traffic
+  - width
+  - control
+  - movement
+- basis labels for those components
+- disposition and inclusion reason
+
+### 5.4 Provenance summary
+
+Add a dedicated provenance summary block with route-level aggregation such as:
+
+- road miles by traffic source family
+- road miles by speed source family
+- road miles by facility source family
+- crossing evidence mix
+- inferred / baseline share
+
+### 5.5 Caveats
+
+Add a blunt caveat block showing:
+
+- percent of route miles using class or baseline traffic
+- percent of route miles using mapped-estimate speed
+- percent of route miles using inferred facility / shoulder truth
+- any route-level uncertainty flags worth surfacing
+
+## 6. Content model requirements
+
+The receipts view model should stop being mostly preformatted display strings and become a richer receipt contract.
+
+### 6.1 Road receipt fields
+
+Each road receipt group should carry explicit fields such as:
+
+- `speedValue`
+- `speedSourceLabel`
+- `speedConfidenceLabel`
+- `trafficValue`
+- `trafficSourceLabel`
+- `trafficApproximate`
+- `facilityValue`
+- `facilitySourceLabel`
+- `shoulderValue`
+- `shoulderSourceLabel`
+- raw numeric factor contributions
+- route-mile span
+- route focus coordinate
+
+### 6.2 Crossing receipt fields
+
+Each crossing receipt group should carry:
+
+- `crossedRoadSpeedSourceLabel`
+- `crossedRoadTrafficSourceLabel`
+- `widthSourceLabel`
+- `controlSourceLabel`
+- `movementSourceLabel`
+- raw numeric contribution fields
+- inclusion / exclusion disposition data
+
+### 6.3 Route summary fields
+
+The route-level receipt summary should carry:
+
+- `roadRiskTotal`
+- `crossingRiskTotal`
+- `totalRouteRisk`
+- `routeMiles`
+- `routeRiskPerMile`
+- evidence mix percentages or miles
+
+## 7. Grouping rules
+
+Current road receipt merging is too loose.
+
+Road slices should merge only when all materially score-bearing basis aligns:
+
+- same road identity / highway / domain
+- same speed source family
+- same traffic source family
+- same facility value and basis
+- same shoulder value and basis
+- no meaningful factor-contribution shift
+
+If those differ, split the receipt group. Receipts should preserve causal boundaries rather than smoothing them away.
+
+## 8. Presentation rules
+
+### 8.1 What to remove or demote
+
+Demote or remove these as primary receipt content:
+
+- generic `Formula` prose
+- `Factor contribution mix`
+- `Biggest push / reduction`
+- generic traffic/facility labels without basis
+- hidden zero rows when zero is mathematically relevant
+
+### 8.2 What to emphasize
+
+Each receipt row should read more like arithmetic plus basis:
+
+- `1st Street NE · 0.42 mi · 1.84 pts`
+- expanded:
+  - `Speed: 30 mph · OSM posted · +0.72`
+  - `Traffic: ~3 cars/min · class estimate · +0.61`
+  - `Bike facility: protected track · OSM mapped · -0.38`
+  - `Shoulder: none · OSM mapped · +0.00`
+  - `Curvature: low · +0.03`
+
+That is a receipt. The current mix-oriented phrasing is not.
+
+## 9. Acceptance standard
+
+The redesigned receipts tab should let a skeptical reviewer answer:
+
+- why is this route’s total risk what it is?
+- how much came from roads vs crossings?
+- which roads and crossings contributed most?
+- what exact factors drove those contributions?
+- what was observed vs inferred vs baseline?
+- where did uncertainty matter?
+
+without having to infer hidden arithmetic or reverse-engineer generic labels.
+
+## 10. Implementation focus
+
+Primary files:
+
+- [src/domain/analyze/receipts/buildReceiptsViewModel.ts](/Users/derekminner/lanterne/src/domain/analyze/receipts/buildReceiptsViewModel.ts)
+- [src/components/analyze/tabs/AnalyzeReceiptsTab.tsx](/Users/derekminner/lanterne/src/components/analyze/tabs/AnalyzeReceiptsTab.tsx)
+
+Secondary references:
+
+- [docs/02-architecture/design/ds-015-safety_scoring_model.md](/Users/derekminner/lanterne/docs/02-architecture/design/ds-015-safety_scoring_model.md)
+- [docs/04-execution/exec-019-ds015_full_hardening_and_hydration_gate.md](/Users/derekminner/lanterne/docs/04-execution/exec-019-ds015_full_hardening_and_hydration_gate.md)
+
+## 11. Bottom line
+
+The current tab is canonical, but not receipt-grade.
+
+The redesign should make it:
+
+- more literal
+- more numeric
+- less editorial
+- less lossy
+- more explicit about provenance
+
+If `Receipts` remains the product name, the surface should earn it.
+
+---
+
+## Appendix A — Phased implementation plan
+
+### Phase A — Replace the current contract
+
+#### Goal
+
+Turn receipts from a display-string summary into a real receipt data model.
+
+#### A1 — Expand the view-model contract
+
+Update [src/domain/analyze/receipts/buildReceiptsViewModel.ts](/Users/derekminner/lanterne/src/domain/analyze/receipts/buildReceiptsViewModel.ts) so road, crossing, and route-summary receipts carry explicit numeric and provenance fields instead of mostly preformatted labels.
+
+Required outcomes:
+
+- road receipts carry raw contribution values
+- road receipts carry speed / traffic / facility / shoulder basis labels
+- crossing receipts carry component basis labels
+- route summary carries distinct road-risk and crossing-risk totals
+
+#### A2 — Stop flattening traffic/facility/shoulder basis
+
+Keep the rider-facing display values, but also expose:
+
+- traffic source family
+- traffic approximation flag
+- traffic AADT basis
+- speed source label
+- facility source label
+- shoulder source label
+
+Required outcomes:
+
+- receipts can say not just `~3 cars/min`
+- but also whether that came from authoritative, inferred, local prior, or class proxy logic
+
+#### A3 — Preserve exact factor arithmetic
+
+Do not reduce factor arithmetic to generic “mix” phrases.
+
+Required outcomes:
+
+- speed contribution is shown explicitly
+- traffic contribution is shown explicitly
+- facility contribution is shown explicitly
+- shoulder contribution is shown explicitly
+- curvature contribution is shown explicitly
+
+### Phase B — Fix grouping and route math
+
+#### Goal
+
+Preserve causal boundaries and make totals visibly additive.
+
+#### B1 — Tighten road-slice merge rules
+
+Revise grouping so adjacent slices merge only when materially score-bearing basis aligns.
+
+At minimum, prevent merging across changes in:
+
+- speed source family
+- traffic source family
+- facility basis
+- shoulder basis
+- meaningful contribution shifts
+
+Required outcomes:
+
+- receipts stop hiding score-bearing transitions behind oversized road groups
+
+#### B2 — Promote route-level arithmetic
+
+At the route summary layer, explicitly show:
+
+- total road risk
+- total crossing risk
+- total route risk
+- route miles
+- route risk per mile
+
+Required outcomes:
+
+- the route header reads like arithmetic, not a slogan
+
+#### B3 — Stop hiding meaningful zeros
+
+Revisit [src/components/analyze/tabs/AnalyzeReceiptsTab.tsx](/Users/derekminner/lanterne/src/components/analyze/tabs/AnalyzeReceiptsTab.tsx) filtering logic so zeros that matter to the math can still appear.
+
+Required outcomes:
+
+- a factor contributing `0.00` can remain visible when it clarifies the arithmetic
+
+### Phase C — Redesign the tab UI
+
+#### Goal
+
+Make the tab feel like receipts, not a narrative card.
+
+#### C1 — Replace the generic formula block
+
+Remove the current generic formula prose as the leading artifact.
+
+Replace it with:
+
+- route-level arithmetic
+- provenance summary
+- caveat summary
+
+Required outcomes:
+
+- the first screen tells the user how risk was actually built for this route
+
+#### C2 — Redesign expandable receipt rows
+
+Each receipt row should show:
+
+- identity
+- distance or crossing identity
+- total points
+
+Expansion should show:
+
+- explicit contributions
+- basis labels
+- approximation / caveat flags
+
+Required outcomes:
+
+- a rider or analyst can open one row and immediately understand the math and basis
+
+#### C3 — Separate provenance from narrative
+
+Keep receipt rows math-first.
+
+Move higher-level prose interpretation out of the receipts rows themselves.
+
+Required outcomes:
+
+- the tab stops mixing method explanation into receipt content
+
+### Phase D — Validation and regression coverage
+
+#### Goal
+
+Keep the redesign canonical, math-complete, and auditable.
+
+#### D1 — Add projection tests
+
+Add or extend tests so receipts verify:
+
+- road-risk totals sum correctly
+- crossing-risk totals sum correctly
+- route totals reconcile with score rollup
+- provenance labels remain aligned with canonical basis
+- merging does not erase meaningful basis changes
+
+#### D2 — Add UX-level assertions where practical
+
+Cover at least:
+
+- inferred traffic still shows exact numeric traffic display plus basis label
+- crossing receipts show explicit component math
+- road receipts surface source and approximation state
+
+#### D3 — Audit against DS-015 contract
+
+Before closing, explicitly verify the final tab satisfies:
+
+- top road-slice contributors
+- top crossing contributors
+- traffic source and AADT basis
+- speed source
+- facility / shoulder basis
+- crossing width / control / movement basis
+- confidence caveats
+- benchmark-derived versus Lanterne-calibrated distinctions where applicable
+
+### Done means
+
+- receipts are still pure canonical projections
+- the tab is math-first rather than generic
+- provenance is explicit for score-bearing fields
+- route totals visibly reconcile
+- grouping no longer hides important basis changes
+- the surface earns the name `Receipts`
+
+
+---
+
+## Source File: docs/04-execution/exec-021-roadway_truth_platform_implementation_plan.md
+
+# EXEC-021 — Roadway Truth Platform Implementation Plan
+
+**Status:** Draft  
+**Owner:** Derek Minner  
+**Purpose:** Convert the roadway-truth architecture research into a repo-specific implementation program that replaces runtime DOT API enrichment with deterministic, versioned, internal truth releases  
+**Related:** [RES-007](/Users/derekminner/lanterne/docs/research/res-007-us_roadway_truth_architecture_design_memo.md), [dot-enrichment.ts](/Users/derekminner/lanterne/src/lib/dot-enrichment.ts), [docs/traffic-data-accounting.md](/Users/derekminner/lanterne/docs/traffic-data-accounting.md), [exec-003-current_focus.md](/Users/derekminner/lanterne/docs/04-execution/exec-003-current_focus.md)
+
+---
+
+## 1. Why this program exists
+
+The current route-analysis architecture still treats state and federal roadway truth as a live dependency.
+
+That creates three classes of product failure:
+
+- route load latency depends on third-party API responsiveness
+- route score stability depends on whether enrichment sources happen to be available that day
+- explainability suffers because the same route can resolve against different truth ladders across runs
+
+The NJ testing work made the problem obvious. The app historically used federal `geo.dot.gov` HPMS-hosted layers for NJ, not a true NJDOT-native speed API, and both the old and new endpoints were unhealthy during live testing. That is not just a reliability issue. It means route rank can move for operational reasons unrelated to the road itself.
+
+The permanent fix is to promote roadway truth into a first-class internal dataset with:
+
+- immutable source artifacts
+- deterministic normalization and conflict resolution
+- published truth releases
+- runtime reads against local released truth only
+
+This program exists to design and implement that migration in this repo.
+
+---
+
+## 2. Program objective
+
+Build a batch-first roadway-truth platform that:
+
+1. removes runtime dependence on live DOT APIs for canonical scoring
+2. gives every route analysis a pinned `truth_release_id`
+3. improves route-load speed by replacing live enrichment with local lookup
+4. supports richer state-native datasets than the current live API path
+5. preserves field-level provenance and conflict resolution
+6. allows HPMS to serve as a national minimum layer rather than the sole backbone
+
+The target state is:
+
+- source ingestion jobs populate internal truth build tables
+- truth builds publish immutable releases
+- route analysis reads only from release-scoped truth tables
+- any live external data becomes optional overlay behavior, not canonical score input
+
+---
+
+## 3. Definition of done
+
+This program is only complete when all of the following are true:
+
+- canonical route scoring no longer requires live `dot-enrichment.ts` runtime fetches
+- a route analysis persists the exact `truth_release_id` used
+- the runtime lookup path reads local truth rows by route segment / routing edge
+- at least one pilot state with rich batch data is fully ingested end to end
+- HPMS national ingestion exists as a federal fallback layer
+- field-level precedence rules exist for speed, AADT, lanes, shoulders, bike facility, and curvature
+- provenance for each resolved field is queryable after the fact
+- the app can diff truth releases and explain score changes between releases
+- the legacy live DOT path is either removed from canonical scoring or fenced behind a non-canonical debug/overlay mode
+
+---
+
+## 4. Delivery posture
+
+This should be delivered as a staged infrastructure program, not as one giant rewrite.
+
+The correct rollout pattern is:
+
+1. build the truth platform alongside existing runtime enrichment
+2. prove parity or better quality in one pilot state
+3. gate release publication and scoring reads behind explicit release IDs
+4. cut canonical scoring over to local truth
+5. keep live DOT fetches only for debugging, exploratory overlays, or emergency backfill
+
+That means the program should publish usable checkpoints:
+
+- schema + raw artifact registry
+- first ingestion pilot
+- first published truth release
+- runtime read-path migration
+- legacy DOT fetch retirement
+
+---
+
+## 5. Repo-specific target architecture
+
+The research memo’s architecture needs to be adapted to the current Lanterne codebase and product boundaries.
+
+### Current runtime path
+
+Today, route analysis does roughly this:
+
+- fetch route-adjacent OSM geometry
+- build matched roads and route truth
+- fetch HPMS and DOT enrichment on demand
+- resolve score inputs from a mixture of direct truth, propagated truth, and priors
+
+Relevant files:
+
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- [src/lib/hpms.ts](/Users/derekminner/lanterne/src/lib/hpms.ts)
+- [src/lib/dot-enrichment.ts](/Users/derekminner/lanterne/src/lib/dot-enrichment.ts)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+- [supabase/functions/dot-proxy/index.ts](/Users/derekminner/lanterne/supabase/functions/dot-proxy/index.ts)
+
+### Target path
+
+The target architecture for this repo should be:
+
+```text
+external roadway sources
+  -> raw source artifacts
+  -> normalized roadway events
+  -> canonical reference segments
+  -> field candidate resolution
+  -> published truth releases
+  -> runtime edge/segment lookup
+  -> canonical scoring
+```
+
+### Hard boundary changes
+
+The most important architectural boundary changes are:
+
+- `src/lib/dot-enrichment.ts` stops being canonical runtime truth input
+- `src/lib/hpms.ts` stops being canonical runtime truth input
+- runtime scoring consumes local released truth records instead
+- any external fetch remains ingestion-only or explicitly non-canonical
+
+### Proposed system layers
+
+1. **Raw acquisition layer**
+- fetches ZIP/GDB/SHP/CSV/PDF/HTML artifacts
+- stores immutable copies and metadata
+
+2. **Normalization layer**
+- converts source-shaped rows into normalized roadway events
+
+3. **Reference network layer**
+- stores canonical per-state roadway segments with route identity and geometry
+
+4. **Resolution layer**
+- applies field-specific precedence rules and writes release-bound resolved truth
+
+5. **Runtime serving layer**
+- projects released truth onto runtime routing edges or canonical matched road segments
+
+6. **Audit layer**
+- stores provenance, conflicts, review cases, and release diffs
+
+---
+
+## 6. Minimum viable phase 1
+
+This is the smallest meaningful implementation that fixes score stability without waiting for a full national platform.
+
+### Phase 1 objective
+
+Replace live runtime DOT truth for one pilot state with an internal truth release and prove the end-to-end pattern.
+
+### Recommended pilot state
+
+**Kentucky** should be the first pilot.
+
+Why:
+
+- rich, already available batch files under `/Users/derekminner/Documents/State Road Data`
+- split-domain datasets map cleanly into the proposed normalized event model
+- better proof of architecture than NJ, where legal speed information is authoritative but harder to operationalize
+
+### Phase 1 scope
+
+Build:
+
+- raw artifact registry
+- ingestion for the Kentucky batch ZIPs
+- normalized events for:
+  - speed limit
+  - AADT / traffic
+  - shoulders
+  - bike lanes / bike facility
+  - curves
+- a Kentucky reference network
+- a first release publication path
+- runtime lookup integration for Kentucky only
+
+### Phase 1 explicit non-goals
+
+Do not attempt in phase 1:
+
+- all 50 states
+- full municipal/local-road legal-order ingestion
+- perfect national conflation
+- retirement of every legacy enrichment path
+- universal backfill of all historic analyses
+
+### Phase 1 success criteria
+
+Phase 1 is successful when:
+
+- a Kentucky route can score entirely from local published truth
+- the analysis result records `truth_release_id`
+- re-running the same route against the same release is deterministic
+- route-load latency no longer includes external DOT fetch time for Kentucky
+- provenance for each resolved Kentucky field is inspectable
+
+---
+
+## 7. Initial schema proposal
+
+This section is the repo-specific first draft schema needed to begin implementation. It is intentionally narrower than the full research memo.
+
+### 7.1 Metadata and raw artifact tables
+
+Add new schemas:
+
+- `meta`
+- `raw`
+- `norm`
+- `ref`
+- `truth`
+- `pub`
+- `audit`
+
+Initial tables:
+
+#### `meta.source_registry`
+
+Purpose: one row per source feed or source pack
+
+Suggested columns:
+
+- `source_id uuid primary key`
+- `source_key text unique not null`
+- `state_code text null`
+- `source_name text not null`
+- `source_family text not null`
+- `authority_class text not null`
+- `format text not null`
+- `cadence text null`
+- `license text null`
+- `url text null`
+- `parser_key text not null`
+- `active boolean not null default true`
+- `created_at timestamptz not null default now()`
+
+#### `raw.source_artifact`
+
+Purpose: immutable record of downloaded source artifacts
+
+Suggested columns:
+
+- `artifact_id uuid primary key`
+- `source_id uuid not null references meta.source_registry(source_id)`
+- `artifact_name text not null`
+- `storage_path text not null`
+- `content_type text null`
+- `byte_size bigint not null`
+- `checksum_sha256 text not null`
+- `upstream_modified_at timestamptz null`
+- `retrieved_at timestamptz not null default now()`
+- `manifest_json jsonb not null default '{}'::jsonb`
+
+### 7.2 Normalized event tables
+
+#### `norm.linear_event`
+
+Purpose: normalized field-specific roadway observations over a route interval or geometry interval
+
+Suggested columns:
+
+- `event_id uuid primary key`
+- `artifact_id uuid not null references raw.source_artifact(artifact_id)`
+- `state_code text not null`
+- `field_name text not null`
+- `route_key_native text null`
+- `route_key_norm text null`
+- `begin_measure numeric null`
+- `end_measure numeric null`
+- `direction text null`
+- `side text null`
+- `geom geometry(MultiLineString, 4326) null`
+- `value_num numeric null`
+- `value_text text null`
+- `value_json jsonb not null default '{}'::jsonb`
+- `native_pk text null`
+- `native_attrs_json jsonb not null default '{}'::jsonb`
+- `effective_from date null`
+- `effective_to date null`
+- `created_at timestamptz not null default now()`
+
+Recommended indexes:
+
+- btree `(state_code, field_name)`
+- btree `(route_key_norm, begin_measure, end_measure)`
+- gist `(geom)`
+
+### 7.3 Reference network tables
+
+#### `ref.reference_segment`
+
+Purpose: canonical per-state roadway reference segment network
+
+Suggested columns:
+
+- `reference_segment_id uuid primary key`
+- `state_code text not null`
+- `reference_network_release_id uuid not null`
+- `route_key_norm text null`
+- `route_number text null`
+- `route_name text null`
+- `direction text null`
+- `begin_measure numeric null`
+- `end_measure numeric null`
+- `functional_class text null`
+- `ownership text null`
+- `geom geometry(MultiLineString, 4326) not null`
+- `length_m numeric not null`
+- `source_artifact_id uuid null references raw.source_artifact(artifact_id)`
+- `created_at timestamptz not null default now()`
+
+Recommended indexes:
+
+- btree `(reference_network_release_id, state_code)`
+- btree `(route_key_norm, begin_measure, end_measure)`
+- gist `(geom)`
+
+### 7.4 Matching tables
+
+#### `truth.event_segment_match`
+
+Purpose: bridge between normalized events and canonical reference segments
+
+Suggested columns:
+
+- `match_id uuid primary key`
+- `event_id uuid not null references norm.linear_event(event_id)`
+- `reference_segment_id uuid not null references ref.reference_segment(reference_segment_id)`
+- `match_method text not null`
+- `match_score numeric not null`
+- `overlap_fraction numeric null`
+- `begin_measure_ref numeric null`
+- `end_measure_ref numeric null`
+- `created_at timestamptz not null default now()`
+
+### 7.5 Candidate and resolution tables
+
+#### `truth.field_candidate`
+
+Purpose: candidate truth values during a truth build
+
+Suggested columns:
+
+- `candidate_id uuid primary key`
+- `truth_build_id uuid not null`
+- `reference_segment_id uuid not null references ref.reference_segment(reference_segment_id)`
+- `field_name text not null`
+- `candidate_value_num numeric null`
+- `candidate_value_text text null`
+- `candidate_value_json jsonb not null default '{}'::jsonb`
+- `authority_tier text not null`
+- `specificity_tier text not null`
+- `freshness_score numeric null`
+- `match_score numeric null`
+- `resolution_rank numeric null`
+- `candidate_status text not null default 'candidate'`
+
+#### `truth.field_resolution`
+
+Purpose: release-bound resolved field value per segment
+
+Suggested columns:
+
+- `resolution_id uuid primary key`
+- `truth_release_id uuid not null`
+- `reference_segment_id uuid not null references ref.reference_segment(reference_segment_id)`
+- `field_name text not null`
+- `resolved_value_num numeric null`
+- `resolved_value_text text null`
+- `resolved_value_json jsonb not null default '{}'::jsonb`
+- `winner_candidate_id uuid null references truth.field_candidate(candidate_id)`
+- `confidence numeric null`
+- `conflict_state text not null default 'resolved'`
+- `quality_mask jsonb not null default '{}'::jsonb`
+
+Unique constraint:
+
+- `(truth_release_id, reference_segment_id, field_name)`
+
+### 7.6 Runtime publication tables
+
+#### `pub.routing_edge_truth_release`
+
+Purpose: hot runtime table already projected onto Lanterne’s routing graph or canonical route-analysis edge IDs
+
+Suggested columns:
+
+- `truth_release_id uuid not null`
+- `routing_graph_release_id uuid not null`
+- `routing_edge_id text not null`
+- `state_code text not null`
+- `speed_limit_mph numeric null`
+- `aadt numeric null`
+- `through_lanes numeric null`
+- `shoulder_width_ft numeric null`
+- `shoulder_type text null`
+- `bike_facility_type text null`
+- `curve_class text null`
+- `curve_degree numeric null`
+- `provenance_group_id uuid null`
+- `quality_mask jsonb not null default '{}'::jsonb`
+- `primary key (truth_release_id, routing_graph_release_id, routing_edge_id)`
+
+Recommended indexes:
+
+- btree `(routing_graph_release_id, routing_edge_id)`
+- btree `(truth_release_id, state_code)`
+
+### 7.7 Audit tables
+
+#### `audit.field_provenance`
+
+Purpose: explain why a field resolved the way it did
+
+Suggested columns:
+
+- `provenance_id uuid primary key`
+- `provenance_group_id uuid not null`
+- `truth_release_id uuid not null`
+- `reference_segment_id uuid not null`
+- `field_name text not null`
+- `artifact_id uuid not null references raw.source_artifact(artifact_id)`
+- `role text not null`
+- `source_row_locator text null`
+- `why_code text not null`
+- `why_text text null`
+- `created_at timestamptz not null default now()`
+
+---
+
+## 8. Source strategy for this repo
+
+The memo’s “state-centered reference network with federal minimum coverage” is correct and should become the actual repo rule.
+
+### Rule
+
+Use:
+
+- best official state reference network when available
+- HPMS as a fallback and QA baseline
+- legal orders for legally governed fields like posted speed
+- internal releases as the only runtime score source
+
+### What HPMS should do here
+
+HPMS should be:
+
+- national minimum coverage
+- fallback for states not yet onboarded
+- normalization baseline
+- QA cross-check against richer state datasets
+
+HPMS should not be:
+
+- the sole national truth backbone for cycling-relevant detail
+- the only source of speed, shoulder, bike facility, or curvature truth
+
+### What state-native datasets should do here
+
+State-native batch datasets should override HPMS where they are:
+
+- more specific
+- more current
+- more authoritative for the field
+
+Kentucky is the first obvious implementation case.
+New Jersey likely becomes a later mixed-source state:
+
+- roadway network from NJDOT downloads
+- speed legal orders parsed from NJDOT traffic-order pages
+- HPMS only as fallback / QA
+
+---
+
+## 9. Ingestion pipeline for the current repo
+
+This repo currently has runtime-oriented road enrichment helpers, but not a dedicated roadway-truth ingestion system. The cleanest implementation path is to add a new ingestion surface rather than overloading route-analysis code.
+
+### Proposed code locations
+
+- `scripts/roadway_truth/`
+  - one-off and repeatable acquisition scripts
+- `pipeline/src/roadway-truth/`
+  - normalization, matching, and publication jobs
+- `src/lib/roadway-truth/`
+  - runtime lookup client and release metadata access
+- `supabase/migrations/`
+  - schema creation and indexes
+
+### Suggested job boundaries
+
+1. `acquire-source-artifacts`
+- download ZIP/GDB/SHP/PDF/HTML inputs
+- compute checksums
+- insert `raw.source_artifact`
+
+2. `normalize-state-source`
+- parse one source pack into `norm.linear_event`
+
+3. `build-reference-network`
+- create release-scoped canonical state reference segments
+
+4. `match-events-to-reference`
+- create `truth.event_segment_match`
+
+5. `build-truth-candidates`
+- create `truth.field_candidate`
+
+6. `resolve-truth-release`
+- create `truth.field_resolution`
+- create `audit.field_provenance`
+
+7. `publish-routing-edge-truth`
+- project segment truth onto runtime routing edges
+- populate `pub.routing_edge_truth_release`
+
+### Matching order
+
+Use strict preference order:
+
+1. direct LRS match
+2. route + milepost match
+3. route + geometry overlap match
+4. geometry-only fallback
+
+Anything below a confidence threshold should not silently publish for safety-critical fields.
+
+---
+
+## 10. Runtime integration plan
+
+The runtime migration should be additive first, then subtractive.
+
+### Step 1
+
+Add a release-aware lookup module:
+
+- `src/lib/roadway-truth/runtime.ts`
+
+Responsibilities:
+
+- resolve active `truth_release_id`
+- batch fetch released truth by routing edge IDs
+- return typed values for scoring and inspect surfaces
+
+### Step 2
+
+Thread `truth_release_id` through analysis result objects and persistence.
+
+Targets:
+
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- canonical analysis artifact types
+- any persisted route-analysis records
+
+### Step 3
+
+Replace canonical speed/AADT/lane/shoulder reads from live enrichment with released local truth reads.
+
+### Step 4
+
+Fence the legacy live enrichment path:
+
+- canonical scoring path cannot call live DOT enrichment
+- live enrichment may remain as debug/admin overlay only
+
+---
+
+## 11. Field precedence rules for initial implementation
+
+The first implementation should hard-code field-specific resolution rules rather than over-generalize too early.
+
+### Speed limit
+
+Initial precedence:
+
+1. legal order backed state-native speed data
+2. state-native operational speed GIS
+3. HPMS / federal speed field
+4. product priors / defaults
+
+### AADT
+
+Initial precedence:
+
+1. state-native traffic-count sections
+2. HPMS AADT
+3. local-area prior / derived estimate
+
+### Through lanes
+
+Initial precedence:
+
+1. state-native lane inventory
+2. HPMS through lanes
+3. geometry / OSM fallback only if necessary
+
+### Shoulder
+
+Initial precedence:
+
+1. state-native shoulder inventory
+2. HPMS shoulder if available and sufficiently trusted
+3. none / unknown
+
+### Bike facility
+
+Initial precedence:
+
+1. state-native bike/ped inventory
+2. local bikeway inventory if introduced later
+3. OSM-derived evidence as a separate non-authoritative or lower-tier source
+
+### Curvature
+
+Initial precedence:
+
+1. state-native curve inventory
+2. geometry-derived curvature metrics
+3. HPMS curve class if later ingested
+
+---
+
+## 12. Hard technical risks
+
+### 12.1 Reference network mismatch
+
+State datasets may not align cleanly with the current routing graph or matched-road model.
+
+Mitigation:
+
+- separate reference network from runtime routing graph
+- publish truth onto runtime edges only after offline conflation
+
+### 12.2 Over-generalizing HPMS
+
+HPMS is tempting as a universal answer, but it is not full-fidelity truth for all cycling-relevant fields.
+
+Mitigation:
+
+- treat HPMS as fallback and QA floor
+- make field-level precedence explicit
+
+### 12.3 Legal-order parsing complexity
+
+NJ-style speed orders are authoritative but not machine-ready.
+
+Mitigation:
+
+- do not make NJ the phase 1 implementation state
+- build parser tooling only after the release framework exists
+
+### 12.4 Score-regression confusion across releases
+
+A new truth release can legitimately change route scores.
+
+Mitigation:
+
+- persist `truth_release_id` on every analysis
+- build release-diff tooling
+- never re-score old results silently against a new release
+
+### 12.5 Scope explosion
+
+“All 50 states now” will stall the program.
+
+Mitigation:
+
+- pilot state first
+- one federal fallback ingestion
+- phased rollout by state packs
+
+---
+
+## 13. Phased implementation plan
+
+## Phase A — Foundation
+
+Goal: create the schemas, artifact registry, and basic build pipeline boundaries.
+
+Deliverables:
+
+- migrations for `meta`, `raw`, `norm`, `ref`, `truth`, `pub`, `audit`
+- source registry seed rows
+- raw artifact acquisition script
+- basic release metadata tables
+
+Done means:
+
+- the repo can store immutable roadway source artifacts and release metadata
+
+## Phase B — Kentucky pilot
+
+Goal: prove the architecture on a rich state-native batch source pack.
+
+Deliverables:
+
+- parsers for:
+  - `KY-SpeedLimits.zip`
+  - `KY-Traffic.zip`
+  - `KY-Shoulders.zip`
+  - `KY-BikeLanes.zip`
+  - `KY-Curves.zip`
+- Kentucky reference network build
+- event-to-segment matching
+- first Kentucky truth release
+
+Done means:
+
+- a Kentucky route can score deterministically from local truth only
+
+## Phase C — Runtime cutover
+
+Goal: switch canonical scoring from live DOT fetch to local truth releases for pilot state coverage.
+
+Deliverables:
+
+- runtime truth lookup module
+- analysis artifact release pinning
+- canonical scoring path reads from `pub.routing_edge_truth_release`
+- live DOT enrichment fenced off from canonical path
+
+Done means:
+
+- canonical Kentucky scoring no longer depends on DOT APIs
+
+## Phase D — National floor
+
+Goal: add HPMS national ingestion as fallback and federal QA layer.
+
+Deliverables:
+
+- HPMS acquisition and normalization pipeline
+- federal fallback precedence rules
+- mixed-state build support
+
+Done means:
+
+- uncovered states can still resolve against internal federal truth
+
+## Phase E — Hard states and richer authority
+
+Goal: onboard states that require legal-order parsing or mixed-source joins.
+
+Candidates:
+
+- New Jersey
+- other states with roadway network + legal regulation pages
+
+Deliverables:
+
+- legal-order parsers
+- route/milepost join logic
+- authority override workflow
+
+Done means:
+
+- a difficult state can publish a release without live APIs
+
+---
+
+## 14. Concrete next actions
+
+The most leverage comes from starting with infrastructure, not with another round of research.
+
+Recommended immediate sequence:
+
+1. create schema migrations for the new roadway-truth tables
+2. add source-registry seeds for Kentucky batch files and HPMS
+3. build Kentucky artifact acquisition + normalization scripts
+4. define the first `truth_release` metadata table and release manifest shape
+5. wire `truth_release_id` into route-analysis results
+
+---
+
+## 15. Final recommendation
+
+Use the RES-007 architecture as the target state, but execute it here as a staged infrastructure program.
+
+The correct repo-specific strategy is:
+
+- Kentucky first as pilot
+- HPMS second as national minimum
+- runtime local truth lookup third
+- NJ-style legal-order states after the platform exists
+
+That ordering gets the product the thing it most needs soonest:
+
+- **score stability**
+
+It also keeps the program technically honest:
+
+- we do not pretend HPMS is enough for everything
+- we do not block on the hardest legal-order states first
+- we do not keep canonical scoring hostage to live third-party APIs
+
+This program should now become an active execution thread after current DS-015 and route-loader hardening work is sufficiently stable to absorb a new infrastructure slice.
+
+---
+
+## Appendix A — Actionable Checklist
+
+This appendix is intentionally operational. It is the concrete punch list for turning the plan into implementation.
+
+### A.1 Program setup
+
+- [ ] Confirm this program is active and not deferred behind other infrastructure work
+- [ ] Decide whether Kentucky is officially the pilot state
+- [ ] Decide whether HPMS national ingestion starts in parallel with Kentucky or after Kentucky pilot release
+- [ ] Identify the initial owner for:
+  - schema and migrations
+  - source acquisition
+  - normalization parsers
+  - reference-network build
+  - runtime integration
+
+### A.2 Database foundation
+
+- [ ] Add migration creating schemas:
+  - `meta`
+  - `raw`
+  - `norm`
+  - `ref`
+  - `truth`
+  - `pub`
+  - `audit`
+- [ ] Add migration creating tables:
+  - `meta.source_registry`
+  - `raw.source_artifact`
+  - `norm.linear_event`
+  - `ref.reference_segment`
+  - `truth.event_segment_match`
+  - `truth.field_candidate`
+  - `truth.field_resolution`
+  - `pub.routing_edge_truth_release`
+  - `audit.field_provenance`
+- [ ] Add primary indexes described in this doc
+- [ ] Add release metadata tables if split out separately:
+  - `truth_release`
+  - `reference_network_release`
+  - `routing_graph_release`
+  - `truth_build`
+
+### A.3 Source registry and artifact handling
+
+- [ ] Seed `meta.source_registry` with Kentucky source packs:
+  - `ky_speed_limits`
+  - `ky_traffic`
+  - `ky_shoulders`
+  - `ky_bike_lanes`
+  - `ky_curves`
+- [ ] Seed `meta.source_registry` with HPMS source definitions
+- [ ] Add a script to register a local ZIP or remote artifact into `raw.source_artifact`
+- [ ] Store checksum, byte size, retrieval timestamp, and source metadata for each artifact
+- [ ] Decide storage location for immutable source artifacts
+
+### A.4 Kentucky pilot ingestion
+
+- [ ] Create parser for `KY-SpeedLimits.zip`
+- [ ] Create parser for `KY-Traffic.zip`
+- [ ] Create parser for `KY-Shoulders.zip`
+- [ ] Create parser for `KY-BikeLanes.zip`
+- [ ] Create parser for `KY-Curves.zip`
+- [ ] Normalize each parser output into `norm.linear_event`
+- [ ] Preserve native fields needed for provenance in `native_attrs_json`
+- [ ] Preserve route/LRS identifiers in normalized form
+
+### A.5 Reference network build
+
+- [ ] Identify the Kentucky reference network source
+- [ ] Build first `ref.reference_segment` release for Kentucky
+- [ ] Document route-key normalization rules for Kentucky
+- [ ] Document directionality rules for Kentucky
+- [ ] Add geometry and LRS sanity checks on the built reference network
+
+### A.6 Matching and conflation
+
+- [ ] Implement event-to-segment matching using:
+  - direct LRS match
+  - route + measure match
+  - route + geometry overlap fallback
+  - geometry-only last-resort fallback
+- [ ] Write match quality score per `truth.event_segment_match`
+- [ ] Add low-confidence thresholds that block automatic publication for safety-critical fields
+- [ ] Produce a match-audit report for the Kentucky pilot
+
+### A.7 Field candidate and resolution logic
+
+- [ ] Implement field-candidate generation for:
+  - `speed_limit`
+  - `aadt`
+  - `through_lanes`
+  - `shoulder`
+  - `bike_facility`
+  - `curvature`
+- [ ] Implement first-pass resolution rules for each field
+- [ ] Persist winning and losing candidates
+- [ ] Persist field-level provenance rows in `audit.field_provenance`
+- [ ] Add release-time conflict counts and unresolved conflict reporting
+
+### A.8 Truth release publication
+
+- [ ] Create release manifest format
+- [ ] Add `truth_release_id` generation and publication workflow
+- [ ] Publish resolved truth onto `pub.routing_edge_truth_release`
+- [ ] Define how routing edges are mapped from reference segments
+- [ ] Add “active truth release” pointer
+- [ ] Ensure releases are immutable after publication
+
+### A.9 Runtime integration
+
+- [ ] Add `src/lib/roadway-truth/runtime.ts` or equivalent lookup module
+- [ ] Add release-aware truth fetch by routing edge ID
+- [ ] Thread `truth_release_id` through route analysis result objects
+- [ ] Persist `truth_release_id` alongside analysis outputs
+- [ ] Replace canonical runtime DOT truth reads with local truth reads for pilot-state coverage
+- [ ] Fence `dot-enrichment.ts` and `hpms.ts` out of canonical scoring for pilot-state segments
+
+### A.10 QA and regression gates
+
+- [ ] Build a fixed benchmark route corpus for pilot-state regression
+- [ ] Add release-to-release diff report:
+  - changed segments
+  - changed fields
+  - changed route scores
+- [ ] Add coverage metrics for each field
+- [ ] Add provenance completeness checks
+- [ ] Add determinism test:
+  - same route
+  - same truth release
+  - same scoring output
+
+### A.11 HPMS national floor
+
+- [ ] Identify the exact national HPMS artifact(s) to ingest
+- [ ] Define HPMS normalization mapping into `norm.linear_event`
+- [ ] Explicitly list fields where HPMS is trusted vs fallback-only
+- [ ] Add HPMS as fallback in field precedence rules
+- [ ] Keep HPMS out of bike-facility primary resolution
+
+### A.12 NJ follow-up
+
+- [ ] Ingest NJ roadway network as reference-network candidate
+- [ ] Inventory NJ traffic-order speed pages by route family
+- [ ] Design parser for NJ speed-order legal zones
+- [ ] Prove route + milepost joins against NJ reference network
+- [ ] Decide whether NJ enters production only after legal-order parsing is stable
+
+### A.13 Legacy-runtime retirement
+
+- [ ] Decide whether live DOT fetch stays available in admin/debug mode
+- [ ] Remove canonical dependence on live DOT APIs once pilot-state cutover is validated
+- [ ] Add explicit guardrail preventing canonical scoring from silently falling back to live DOT fetch
+- [ ] Update docs to state that roadway truth is release-based, not runtime-fetched
+
+### A.14 Exit criteria for phase transitions
+
+- [ ] Do not start HPMS national cutover before Kentucky truth release is functioning end to end
+- [ ] Do not retire live DOT enrichment from canonical paths before runtime local truth is validated
+- [ ] Do not onboard NJ legal-order parsing until the release and provenance system is already working
+
+
+---
+
+## Source File: docs/04-execution/exec-022-road_focus_runtime_and_surface_routing_cutover.md
+
+# EXEC-022 — Road Focus Runtime and Surface Routing Cutover
+
+**Status:** Draft  
+**Owner:** Derek Minner  
+**Scope:** Replace `road click -> open Inspect` behavior with a centralized road-focus runtime that routes the click into whichever surface is currently active and capable of consuming it  
+**Related:** [EXEC-008 v2](./exec-008v2-experience_runtime_and_surface_architecture_program.md), [EXEC-016](./exec-016-analyze_drawer_architecture_spec.md), [DS-016](../02-architecture/design/ds-016-experience_policy_layer.md), [src/pages/Index.tsx](../../src/pages/Index.tsx), [src/lib/ux-interaction-policy.ts](../../src/lib/ux-interaction-policy.ts)
+
+---
+
+## 1. Purpose
+
+This document defines the cutover needed to stop treating a route-segment click as an Inspect command.
+
+Today, the click path is still effectively:
+
+- click route segment
+- set inspect state
+- open Inspect
+
+That is the wrong long-term contract.
+
+The correct contract is:
+
+- click route segment
+- emit a canonical road-focus intent
+- update shared focus state
+- let the active surface decide how to express that focus
+
+This is not yet the right time to do the full shell migration from right rail to bottom surface.
+
+This document exists to do the narrower but necessary first cut:
+
+1. centralize road-focus intent
+2. decouple map clicks from Inspect auto-open behavior
+3. make surfaces consumers of focus rather than owners of click policy
+4. create the seam that later allows the same focus event to render in a rail, bottom surface, review surface, or admin surface
+
+---
+
+## 2. Why this is a separate execution doc
+
+This work should not be folded into [EXEC-021](./exec-021-roadway_truth_platform_implementation_plan.md).
+
+`EXEC-021` is about roadway truth ingestion, release publication, and canonical runtime truth reads.
+This program is about UI/runtime interaction ownership.
+
+This work also should not be combined with a full shell relocation in one pass.
+
+The correct sequence is:
+
+1. build shared road-focus runtime
+2. cut route clicks over to that runtime
+3. let current surfaces consume focus through adapters
+4. only then move presentation between right rail, bottom surface, or future review shells
+
+That means this doc is `EXEC-022`, and a future follow-on doc can own the broader shell migration:
+
+- `EXEC-023` → unified foreground surface shell / right-rail-to-bottom migration
+
+---
+
+## 3. Current failure
+
+The current codebase already points toward centralized interaction policy, but the implementation is still too shell-bound.
+
+### 3.1 Current seam
+
+The immediate click path lives in:
+
+- [src/pages/Index.tsx](../../src/pages/Index.tsx)
+
+The relevant behavior today:
+
+- `handleSegmentInspect(...)` sets inspected segment state
+- then immediately checks `interactionPolicy.segmentInspect.openDrawer`
+- then closes other surfaces and opens the Inspect drawer
+
+This means the route click event is not neutral.
+It is already pre-decided as an Inspect action.
+
+### 3.2 Policy contract is too primitive
+
+The current policy layer lives in:
+
+- [src/lib/ux-interaction-policy.ts](../../src/lib/ux-interaction-policy.ts)
+
+It only knows:
+
+- `openDrawer`
+- `showRoadCard`
+
+That is enough to decide whether a click opens Inspect.
+It is not enough to support:
+
+- `Receipts` focus
+- `Cues` focus
+- admin-audit focus
+- latent focus with no shell change
+- future bottom-surface focus routing
+
+### 3.3 Surface state is still local and fragmented
+
+Today, foreground surface behavior is effectively derived from a collection of booleans and local shell state such as:
+
+- `activeDrawer === 'right'`
+- `inspectorDrawerOpen`
+- `devPanelOpen`
+- `sequencePanelOpen`
+- `candidatesDrawerOpen`
+- `rawRoadsDrawerOpen`
+- `fragmentsDrawerOpen`
+
+That is manageable for showing a shell.
+It is not a durable interaction-routing model.
+
+### 3.4 Product failure
+
+The rider experience problem is straightforward:
+
+- if the rider is looking at `Receipts`, route click should deepen that same surface
+- if the rider is looking at `Cues`, route click should jump to the relevant cue
+- if the rider is in admin audit, route click should deepen the audit target
+- route click should not force the app back into Inspect just because the click came from the map
+
+Right now the app still behaves as though the map owns the meaning of the click.
+
+It should not.
+
+---
+
+## 4. Executive decision
+
+Lanterne will treat route-segment clicks as **road-focus intents**, not as **Inspect-open commands**.
+
+From this point forward:
+
+1. the map may emit a road-focus request
+2. the runtime owns canonical focused-road state
+3. surfaces consume road focus through adapters
+4. shell expansion is a separate decision from focus acquisition
+
+This document explicitly supersedes the older interim policy language in [EXEC-008 v2](./exec-008v2-experience_runtime_and_surface_architecture_program.md) and related docs that described desktop segment click as “open inspect.”
+
+The replacement policy is:
+
+- route click always updates canonical road focus
+- the active surface is given first chance to consume that focus
+- no route click inherently implies opening Inspect
+
+---
+
+## 5. Target behavior
+
+### 5.1 Canonical behavior
+
+Replace:
+
+- `road click -> open Inspect`
+
+With:
+
+- `road click -> emit road focus intent`
+- `runtime -> update canonical road focus`
+- `surface routing -> dispatch focus to active compatible surface`
+- `surface adapter -> interpret the focus locally`
+
+### 5.2 Expected user-visible results
+
+If the user is in:
+
+- `Inspect`
+  - clicked road becomes the new focused inspected segment
+- `Receipts`
+  - clicked road jumps the receipts view to the relevant grouped section
+- `Cues`
+  - clicked road jumps to the nearest relevant cue entry
+- `Candidates` / `Raw` / `Fragments`
+  - clicked road re-targets that audit surface to the same local area
+- no focus-aware foreground surface
+  - the click updates latent road focus and map highlight only
+  - no panel is forced open
+
+### 5.3 Phase-1 rule
+
+Phase 1 should not try to make route click magically open the “best” panel.
+
+The rule is narrower:
+
+- **whatever panel is currently showing gets the focus if it can consume it**
+
+That avoids a new wave of arbitrary shell-opening heuristics.
+
+---
+
+## 6. Core architectural rule
+
+**Road focus is a shared runtime concept, not a drawer concern.**
+
+That means:
+
+- `RouteMap` emits focus intent
+- runtime owns focused-road state
+- surfaces subscribe to focus
+- surface adapters translate generic focus into local presentation behavior
+
+No panel should own the canonical meaning of a road click.
+
+---
+
+## 7. Runtime contract
+
+## 7.1 New canonical types
+
+Introduce a new runtime contract for road focus.
+
+Suggested types:
+
+### `RoadFocusTarget`
+
+Canonical focus payload.
+
+Suggested fields:
+
+- `segmentId?: string`
+- `roadId?: number | string`
+- `roadName?: string | null`
+- `startIdx?: number`
+- `endIdx?: number`
+- `lat?: number`
+- `lon?: number`
+- `clickContext?: ClickContext`
+- `source: 'map_segment_click' | 'receipt_click' | 'cue_click' | 'audit_click' | 'programmatic'`
+- `nonce: number`
+- `requestedAt: number`
+
+### `RoadFocusRequest`
+
+The runtime-facing event.
+
+Suggested fields:
+
+- `target: RoadFocusTarget`
+- `preferredSurface?: SurfaceId`
+- `allowSurfaceChange: boolean`
+- `reason?: string`
+
+### `RoadFocusResult`
+
+The routing outcome.
+
+Suggested fields:
+
+- `handled: boolean`
+- `handledBySurfaceId?: SurfaceId`
+- `surfaceChanged: boolean`
+- `latentOnly: boolean`
+
+## 7.2 Surface capability contract
+
+Each surface that wants to consume road focus should declare:
+
+- `surfaceId`
+- `canHandleRoadFocus(request, runtimeState): boolean`
+- `applyRoadFocus(request, runtimeState): void`
+- `priority`
+
+This must be adapter-owned, not buried in panel JSX.
+
+---
+
+## 8. Surface routing rules
+
+## 8.1 Foreground-first routing
+
+Road focus should route in this order:
+
+1. currently active foreground surface if it can handle focus
+2. currently visible secondary diagnostic surface if policy explicitly allows it
+3. otherwise latent-only focus
+
+Phase 1 should **not** auto-open Inspect as a fallback.
+
+## 8.2 No silent cross-surface interpretation
+
+Do not let unrelated surfaces guess road focus semantics from raw props.
+
+Examples:
+
+- `Receipts` should use a pure receipt-focus resolver
+- `Cues` should use a pure cue-focus resolver
+- admin audit surfaces should use local audit-target resolvers
+
+Each one may interpret the same canonical `RoadFocusTarget`, but the interpretation logic belongs in pure modules, not inline in components.
+
+## 8.3 Surface change policy
+
+In this cutover:
+
+- route click updates focus
+- route click does **not** automatically promote another surface to foreground
+
+Future policies may allow explicit cross-surface routing, but phase 1 should stay conservative.
+
+---
+
+## 9. Phase-1 surface mapping
+
+The first wave should support these surfaces:
+
+### 9.1 Inspect
+
+Resolution strategy:
+
+- primary: `segmentId`
+- fallback: nearest segment from click lat/lon
+
+Expected behavior:
+
+- refresh inspected segment content
+- preserve current Inspect shell state
+- do not reopen if currently closed
+
+### 9.2 Receipts
+
+Resolution strategy:
+
+- primary: segment overlap with grouped receipt section
+- fallback: nearest `focusLat` / `focusLon`
+
+Expected behavior:
+
+- scroll/open the relevant receipt group
+- update map cross-highlight if already supported
+
+### 9.3 Cues
+
+Resolution strategy:
+
+- primary: nearest cue by route index / associated segment
+- fallback: nearest cue by coordinate / route distance
+
+Expected behavior:
+
+- scroll the cue surface to the matching cue
+- preserve cue shell state
+
+### 9.4 Candidates / Raw / Fragments
+
+Resolution strategy:
+
+- primary: current click context and local route sample neighborhood
+- fallback: nearest route sample index
+
+Expected behavior:
+
+- retarget the audit panel to the clicked area
+- preserve whichever audit surface is active
+
+---
+
+## 10. Proposed file/module breakdown
+
+The exact file names can be adjusted, but the shape should look like this.
+
+## 10.1 Runtime layer
+
+- `src/lib/surface-focus/types.ts`
+- `src/lib/surface-focus/store.ts`
+- `src/lib/surface-focus/router.ts`
+- `src/hooks/useRoadFocusRuntime.ts`
+
+## 10.2 Resolver layer
+
+- `src/domain/inspect/focus/resolveInspectTarget.ts`
+- `src/domain/analyze/receipts/resolveReceiptFocus.ts`
+- `src/domain/cues/resolveCueFocus.ts`
+- `src/domain/admin-audit/resolveAuditFocus.ts`
+
+These should be pure and testable.
+
+## 10.3 Adapter layer
+
+- `src/adapters/surfaces/inspect-focus-adapter.ts`
+- `src/adapters/surfaces/receipts-focus-adapter.ts`
+- `src/adapters/surfaces/cues-focus-adapter.ts`
+- `src/adapters/surfaces/admin-audit-focus-adapter.ts`
+
+Adapters translate canonical focus into surface-local view state.
+They must not recompute interaction policy.
+
+---
+
+## 11. Staged implementation plan
+
+## Stage 1 — Define the road-focus runtime seam
+
+Goal:
+
+- create typed canonical focus state
+- create request/result contract
+- create routing entry point
+
+Deliverables:
+
+- focus types
+- focus store/runtime
+- routing function
+- no UI behavior change yet except internal wiring availability
+
+Hard rule:
+
+- do not start by rewriting every drawer boolean
+
+## Stage 2 — Convert route clicks to emit focus intent
+
+Goal:
+
+- stop letting `handleSegmentInspect(...)` directly decide shell behavior
+
+Primary files:
+
+- [src/pages/Index.tsx](../../src/pages/Index.tsx)
+- [src/components/RouteMap.tsx](../../src/components/RouteMap.tsx)
+
+Deliverables:
+
+- map click path emits `RoadFocusRequest`
+- current inspect payload is normalized into canonical focus target
+- runtime receives focus request
+
+Hard rule:
+
+- no direct `setInspectorDrawerOpen(true)` from the route click path
+
+## Stage 3 — Add adapter registration for focus-capable surfaces
+
+Goal:
+
+- make current surfaces consume canonical focus without owning click semantics
+
+First-wave adapters:
+
+- Inspect
+- Receipts
+- Cues
+- Candidates / Raw / Fragments
+
+Deliverables:
+
+- adapter registry or equivalent centralized registration
+- active-surface-first focus routing
+
+## Stage 4 — Wire latent focus and non-disruptive fallback
+
+Goal:
+
+- preserve clicked road context even when no foreground surface consumes it
+
+Deliverables:
+
+- canonical latent focus state
+- map highlight persistence
+- no forced shell expansion
+
+## Stage 5 — Add pure jump resolvers for Analyze and Cues
+
+Goal:
+
+- avoid per-component bespoke lookup behavior
+
+Deliverables:
+
+- receipt focus resolver
+- cue focus resolver
+- tests proving deterministic mapping from road focus to view target
+
+## Stage 6 — Delete legacy inspect-open assumptions
+
+Goal:
+
+- remove the old `segmentInspect.openDrawer` mental model
+
+Deliverables:
+
+- shrink or replace `ux-interaction-policy.ts`
+- remove local assumptions that road click equals Inspect open
+- update docs to reflect canonical road-focus policy
+
+---
+
+## 12. Acceptance criteria
+
+This cutover is complete when all of the following are true:
+
+1. clicking a route segment no longer forces the Inspect surface open
+2. if Inspect is active, route click refreshes Inspect to the clicked road
+3. if Receipts is active, route click jumps the receipts surface to the relevant section
+4. if Cues is active, route click jumps the cue surface to the relevant cue
+5. if Candidates, Raw, or Fragments is active, route click retargets that audit surface
+6. if no focus-aware surface is active, route click updates latent focus and map highlight only
+7. route-click behavior is decided in shared runtime/surface routing, not in drawer-local JSX
+8. the same canonical focus payload can later be rendered in a right rail or bottom surface without changing map click semantics
+
+---
+
+## 13. Non-goals
+
+This program does **not** include:
+
+- full right-rail to bottom-surface migration
+- unified shell visual redesign
+- truth/scoring changes
+- receipt grouping redesign
+- cue-sheet architecture rewrite beyond the minimal focus seam needed here
+- generalized focus runtime for POIs, stops, or hazards in phase 1
+
+Those may follow later, but they are not required to land this cutover correctly.
+
+---
+
+## 14. Risks
+
+### 14.1 Analyze and cue jumps are not yet first-class contracts
+
+`Inspect` already has a strong notion of selected segment.
+`Receipts` and `Cues` are weaker.
+
+That means this program must create pure jump resolvers instead of improvising inside component scroll logic.
+
+### 14.2 Surface state is still fragmented
+
+Current shell state is distributed across multiple booleans.
+
+That is acceptable for this cutover only if the new focus runtime remains the single place where routing decisions are made.
+
+### 14.3 Scope creep into shell migration
+
+The temptation will be to solve:
+
+- focus routing
+- rail unification
+- bottom-surface migration
+- shell registry
+
+all at once.
+
+That should be resisted.
+
+The correct move is:
+
+- centralize focus intent first
+- then move shells later
+
+---
+
+## 15. Follow-on work
+
+After this cutover lands, the next major step should be a broader shell program:
+
+- `EXEC-023` — foreground surface registry, shell-state unification, and right-rail/bottom-surface migration
+
+That later program should consume the focus runtime built here rather than reintroducing surface-owned click logic.
+
+---
+
+## 16. Summary
+
+The current issue is not just that Inspect opens too aggressively.
+
+The deeper problem is that map clicks still carry surface meaning.
+
+This cutover fixes that by establishing one rule:
+
+> a route click means “focus this road,” not “open Inspect.”
+
+That is the correct architectural seam for:
+
+- current right-rail behavior
+- future bottom-surface behavior
+- deeper cross-surface navigation
+- central app logic that is not buried inside presentation shells
+
+
+---
+
+## Source File: docs/04-execution/exec-023-foreground_surface_registry_and_shell_unification_program.md
+
+# EXEC-023 — Foreground Surface Registry and Shell Unification Program
+
+**Status:** Draft Outline  
+**Owner:** Derek Minner  
+**Scope:** Follow-on program after [EXEC-022](./exec-022-road_focus_runtime_and_surface_routing_cutover.md) to unify right-rail, bottom-surface, and future review-shell behavior behind one foreground-surface runtime  
+**Related:** [EXEC-008 v2](./exec-008v2-experience_runtime_and_surface_architecture_program.md), [EXEC-016](./exec-016-analyze_drawer_architecture_spec.md), [EXEC-022](./exec-022-road_focus_runtime_and_surface_routing_cutover.md), [DS-016](../02-architecture/design/ds-016-experience_policy_layer.md)
+
+---
+
+## 1. Purpose
+
+`EXEC-022` establishes the first necessary seam:
+
+- route click means `focus this road`
+- not `open Inspect`
+
+That fixes interaction ownership, but it does not yet solve the broader shell problem.
+
+Lanterne still has surface state spread across:
+
+- right-rail booleans
+- bottom-sheet booleans
+- top-drawer state
+- admin/debug special cases
+- surface-specific toggle handlers
+
+This document defines the next program:
+
+1. introduce one canonical foreground-surface registry
+2. replace scattered shell booleans with one shared surface-state model
+3. allow the same domain surface to render in different shells without changing app logic
+4. prepare the eventual migration of key right-drawer content into bottom or mixed shells
+
+---
+
+## 2. Why this follows EXEC-022
+
+This program should not land before `EXEC-022`.
+
+If shell unification happens before road-focus routing is centralized, the codebase will just move current local logic into a fancier shell abstraction.
+
+The correct order is:
+
+1. centralize click intent and focus routing
+2. then centralize shell state and presentation routing
+
+`EXEC-022` makes surfaces consumers of focus.
+`EXEC-023` makes shells consumers of surface state.
+
+That sequencing matters.
+
+---
+
+## 3. Problem statement
+
+Today, Lanterne has a shell architecture that is functionally useful but structurally fragmented.
+
+### 3.1 Current symptoms
+
+- the same conceptual surface can only live in one shell path at a time
+- opening/closing logic is distributed through `Index.tsx`
+- right-side tools are modeled as toggles, not as canonical surfaces
+- surface promotion, dismissal, and coexistence rules are not centrally expressed
+- mobile and desktop differ through conditionals instead of one foreground-surface model with different shell adapters
+
+### 3.2 Structural issue
+
+The current app still treats shell choice as part of feature logic.
+
+It should instead treat:
+
+- domain state
+- focus state
+- foreground surface selection
+- shell adapter selection
+
+as separate layers.
+
+---
+
+## 4. Executive decision
+
+Lanterne will move toward:
+
+- one canonical **foreground surface registry**
+- one canonical **surface-state runtime**
+- device-aware **shell adapters**
+- surfaces that render from shared runtime state rather than owning local shell truth
+
+In plain English:
+
+- the runtime decides what the active surface is
+- adapters decide how that surface appears on desktop vs mobile
+- feature code stops deciding whether it belongs in a right drawer or bottom sheet
+
+---
+
+## 5. Scope
+
+This program is about shell unification.
+
+It includes:
+
+- foreground surface registry
+- surface-state model
+- shell adapter model
+- right-rail / bottom-surface coexistence rules
+- staged migration of major surfaces onto the shared system
+
+It does **not** include:
+
+- route-truth or scoring changes
+- road-focus routing itself
+- redesigning every surface’s content model
+- final visual polish of every shell
+
+---
+
+## 6. Canonical concepts
+
+## 6.1 Surface
+
+A **surface** is a domain-level interaction target such as:
+
+- `analyze`
+- `inspect`
+- `cues`
+- `stops_layers`
+- `dev`
+- `candidates`
+- `raw_roads`
+- `fragments`
+- future `review`
+- future `push_guidance`
+
+A surface is not a drawer.
+
+## 6.2 Shell
+
+A **shell** is the presentation container used to host a surface, for example:
+
+- right rail
+- bottom sheet
+- top sheet
+- docked review pane
+
+A shell is not a domain.
+
+## 6.3 Foreground surface
+
+The **foreground surface** is the primary currently active deep-dive surface.
+
+At most one foreground surface should own primary attention at a time.
+
+Secondary surfaces may exist for diagnostics or persistent controls, but they must not invent their own interaction rules outside the registry.
+
+## 6.4 Surface state
+
+Surface state should be modeled independently from shell kind.
+
+Suggested canonical states:
+
+- `hidden`
+- `peek`
+- `compact`
+- `medium`
+- `full`
+- `pinned`
+
+---
+
+## 7. Target architecture
+
+The target model should look like this:
+
+```text
+domain state
+  -> focus/runtime state
+  -> foreground surface selection
+  -> shell adapter selection
+  -> rendered shell
+```
+
+The key separation is:
+
+- domains own truth
+- runtime owns active surface
+- shell adapters own layout and docking
+
+Not:
+
+- surface component owns truth + state + shell + motion + routing
+
+---
+
+## 8. Core design rules
+
+1. one domain surface may render in multiple shell families over time
+2. no feature module may assume “I live in the right drawer”
+3. shell choice is adapter policy, not feature truth
+4. mobile and desktop should diverge through shell adapters, not duplicated feature logic
+5. the app should have one primary foreground-surface decision at a time
+6. shell motion, dismissal, and exclusivity should be centrally expressed
+
+---
+
+## 9. Proposed registry model
+
+Introduce a typed surface registry.
+
+Suggested concepts:
+
+### `SurfaceId`
+
+Canonical ids such as:
+
+- `analyze`
+- `inspect`
+- `cues`
+- `stops_layers`
+- `dev`
+- `candidates`
+- `raw_roads`
+- `fragments`
+- `review`
+- `push_guidance`
+
+### `SurfaceDefinition`
+
+Suggested fields:
+
+- `id`
+- `label`
+- `domain`
+- `defaultShellByPlatform`
+- `supportsRoadFocus`
+- `supportsDeepLink`
+- `allowsPinned`
+- `priority`
+- `visibilityPolicy`
+
+### `ForegroundSurfaceState`
+
+Suggested fields:
+
+- `surfaceId | null`
+- `state`
+- `shellKind`
+- `lastFocusedAt`
+- `payload`
+
+---
+
+## 10. Proposed file/module breakdown
+
+## 10.1 Runtime
+
+- `src/lib/surface-runtime/types.ts`
+- `src/lib/surface-runtime/registry.ts`
+- `src/lib/surface-runtime/store.ts`
+- `src/lib/surface-runtime/router.ts`
+- `src/lib/surface-runtime/policy.ts`
+
+## 10.2 Adapters
+
+- `src/adapters/surfaces/right-rail-adapter.ts`
+- `src/adapters/surfaces/bottom-sheet-adapter.ts`
+- `src/adapters/surfaces/top-sheet-adapter.ts`
+- future `review-pane-adapter.ts`
+
+## 10.3 Hooks
+
+- `src/hooks/useSurfaceRuntime.ts`
+
+## 10.4 Migration seam
+
+- `src/pages/Index.tsx` becomes a host/composer rather than the shell policy brain
+
+---
+
+## 11. Migration tracks
+
+## Track A — Registry and runtime skeleton
+
+Build:
+
+- `SurfaceId`
+- registry
+- foreground-surface store
+- shell-kind selection
+
+Do not migrate all surfaces yet.
+
+## Track B — Wrap current shells with adapters
+
+Preserve current UI while moving logic behind:
+
+- right-rail adapter
+- bottom-sheet adapter
+
+This should be compatibility-first, not a redesign pass.
+
+## Track C — Migrate first-wave surfaces
+
+First-wave targets:
+
+- `analyze`
+- `inspect`
+- `cues`
+- `stops_layers`
+
+Reason:
+
+- they are core rider-facing surfaces
+- they already feel like parts of one family
+
+## Track D — Migrate admin/debug surfaces
+
+Second-wave targets:
+
+- `dev`
+- `candidates`
+- `raw_roads`
+- `fragments`
+
+These should enter the same runtime, but may retain some special visibility policy.
+
+## Track E — Introduce mixed-shell support
+
+After registry migration is stable:
+
+- allow some surfaces to render in different shell kinds by platform or mode
+- test selective bottom migration without changing domain logic
+
+---
+
+## 12. Recommended rollout order
+
+1. land `EXEC-022`
+2. introduce registry/runtime with no user-visible redesign
+3. move `analyze`, `inspect`, and `cues` onto the runtime
+4. stabilize shell adapters
+5. then experiment with moving selected surfaces from right rail to bottom
+
+This keeps behavior changes separate from shell relocation changes.
+
+---
+
+## 13. Acceptance criteria
+
+This program is successful when:
+
+1. foreground surface selection is represented in one canonical runtime
+2. shell kind is adapter-selected, not feature-owned
+3. `Index.tsx` no longer owns the main surface toggle logic as a pile of booleans
+4. `analyze`, `inspect`, and `cues` can be reasoned about as surfaces, not drawers
+5. the app can move a surface between right rail and bottom shell without rewriting its domain logic
+6. admin/debug surfaces can participate in the same runtime without forking shell behavior
+
+---
+
+## 14. Risks
+
+### 14.1 Over-abstracting too early
+
+The registry should be real and typed, but it should not attempt to predict every future surface behavior on day one.
+
+### 14.2 Mixing shell migration with content redesign
+
+If this program also tries to redesign Analyze, Inspect, and Cues content models, scope will blow up.
+
+### 14.3 Recreating local state under a new name
+
+If the result is just:
+
+- old booleans
+- wrapped by one runtime object
+
+then the program has failed.
+
+The real goal is to move decision-making out of local surface handlers.
+
+---
+
+## 15. Immediate next docs follow-up
+
+After this outline is accepted, the next refinement pass should add:
+
+- concrete `SurfaceId` inventory
+- current-to-target mapping table for each existing surface
+- shell exclusivity rules
+- migration checklist by file
+
+That refinement can happen once `EXEC-022` begins implementation and the exact road-focus runtime shape is known.
+
+---
+
+## 16. Summary
+
+`EXEC-022` fixes what a route click means.
+
+`EXEC-023` fixes where an active surface lives.
+
+That separation is intentional.
+
+The app should first learn:
+
+- clicks mean focus
+
+Then it should learn:
+
+- surfaces are domain concepts
+- shells are presentation adapters
+
+That is the right order for centralizing app logic without burying it in presentation surfaces again.
 
 
 ---
@@ -16809,7 +20521,7 @@ Wire a lightweight async AADT enrichment into the ad-hoc road inspect path — c
 
 
 
- \- docs/02-architecture/design/ds-015-safety_scoring_model_v4.md
+ \- docs/02-architecture/design/ds-015-safety_scoring_model.md
 
  \- docs/03-adrs/adr-043-confidence_and_provenance_model.md
 
@@ -19321,6 +23033,771 @@ It does **not** yet mean:
 - or that the visible orange speed band should itself have been red
 
 That distinction must remain explicit in the UI and future decision-summary wording.
+
+
+---
+
+## Source File: docs/assessments/ass-015-systems_hardening_architecture_assessment_2026_04_24.md
+
+# ASS-015 — Systems Hardening Architecture Assessment
+
+**Date:** 2026-04-24  
+**Status:** Working assessment  
+**Scope:** Beta-to-production hardening for RWGPS / RUSA corpus ingestion, seed-route scoring correctness, safety-score finalization, route-analysis backfill, and cache-first route loading.
+
+## 1. Executive Summary
+
+Lanterne is moving from a beta route-analysis tool into a route intelligence system with a large route corpus.
+
+The documentation points to a coherent target architecture:
+
+- preserve source data first
+- normalize route geometry through a single ingestion contract
+- resolve geometry to canonical route identity
+- preserve source provenance separately
+- compute stable route intelligence once
+- emit traceable canonical scoring artifacts
+- persist versioned route summaries
+- rank routes through explicitly versioned comparative snapshots
+- serve route loads cache-first with route core separated from context and diagnostics
+
+The current implementation is moving in that direction, but still carries beta-era split ownership in several places:
+
+- route cache is still mostly one route-result blob instead of layered route-core / context / diagnostics payloads
+- runtime analysis, persisted summaries, route paint, admin calibration, and explanation surfaces are not fully governed by one artifact contract
+- comparative scoring has real snapshot persistence, but runtime still includes a static seed-corpus fallback
+- route-paint and viewport-overlay paint have different performance contracts, but this distinction is not yet named clearly enough everywhere
+- tests already show version-discipline drift around cache compatibility and scoring precision
+
+The practical conclusion:
+
+> Do not run the full 4,000-route cache/backfill as a final production artifact until seed correctness, scorer versioning, cache gates, and route-paint semantics are locked.
+
+The system should first use the seed corpus as a correctness harness, then scale in controlled batches.
+
+## 2. Current Strengths
+
+### 2.1 Documentation direction is mostly right
+
+The docs consistently separate:
+
+- canonical route identity
+- source provenance
+- stable route analysis
+- contextual ride-time analysis
+- presentation
+- comparative interpretation
+
+This is the correct foundation for an extensible architecture.
+
+### 2.2 RWGPS archival model is strong
+
+The route annotation archive contract correctly says:
+
+> Preserve everything first. Project second. Simplify only at the consumption layer.
+
+The current RWGPS ingest path preserves raw JSON, normalized source mirror data, relational route points, cues, controls, POIs, and route aggregates.
+
+This is the right architecture for corpus-scale ingestion because it avoids losing source fields before the product knows their future value.
+
+### 2.3 Canonical scoring artifacts now exist
+
+The V5/V7 direction is visible in code:
+
+- score-bearing trace slices
+- crossing-event trace rows
+- route-level evidence summaries
+- score rollup
+- comparative interpretation metadata
+
+This gives the system a credible path away from one-off score explanations and toward traceable route intelligence.
+
+### 2.4 Corpus hydration and comparative snapshots have real scaffolding
+
+The admin corpus runner and comparative snapshot builder already support the right high-level flow:
+
+1. run canonical route analysis
+2. persist route-level analysis summaries
+3. rank hydrated routes inside cohorts
+4. write comparative snapshot rows
+
+That is the right launch architecture for V7-style relative safety grades.
+
+## 3. Main Architecture Risks
+
+### 3.1 Full-corpus backfill before seed correctness would bake bugs into cache
+
+The user is now ingesting a large corpus with rich RWGPS data. That creates leverage, but it also increases the cost of a wrong scoring or cache contract.
+
+If seed-route bugs remain, a full backfill can produce thousands of rows that look current but encode incorrect:
+
+- safe-path handling
+- crossing counts
+- AADT / traffic truth
+- route risk per mile
+- comparative ranks
+- cache compatibility metadata
+
+The correct order is:
+
+1. seed correctness
+2. scorer freeze
+3. cache/version gates
+4. staged corpus backfill
+
+Not the reverse.
+
+### 3.2 Cache is still too blunt
+
+The current cache gate is based on route hash and `CURRENT_DATA_VERSION`, with additional artifact/model compatibility checks.
+
+That is not enough long-term.
+
+A production cache should distinguish:
+
+- route identity / geometry version
+- canonical model version
+- artifact version
+- analysis family
+- mode profile
+- route-core payload
+- route-context payload
+- diagnostics payload
+- source snapshot versions
+- match quality
+- partial/degraded status
+
+Without that, stale or incomplete artifacts can be reused too easily.
+
+### 3.3 Route paint and viewport overlays need explicit contracts
+
+A previous draft assessment called route paint "split-brained" because route-risk paint and speed/proxy overlay paint use different paths.
+
+That needs a sharper distinction.
+
+The user's performance constraint is valid:
+
+- computing full risk for every visible road when the heatmap is toggled on is prohibitive
+- viewport overlays need to stay budgeted, progressive, and cheap
+- full route risk belongs to selected/analyzed routes, not every visible road
+
+The correct architectural distinction is:
+
+- **route risk paint**: canonical, analyzed-route, score-bearing truth
+- **road-stress / road-environment overlay**: fast viewport proxy, budgeted and progressively hydrated
+
+This clarification has been appended to DS-018.
+
+### 3.4 Comparative layer must stop relying on static seed fallback for real corpus outputs
+
+The V7 docs are clear:
+
+- rank and grade are relative
+- relative outputs require a named reference corpus
+- corpus version, model version, and grade mapping version must be known
+
+The static seed corpus is useful for benchmarking and calibration, but production route interpretation should come from stored comparative snapshots once the target corpus is hydrated.
+
+### 3.5 Tests already show version drift
+
+Focused test run:
+
+```text
+npm test -- route-cache v5-compat safety-scoring
+```
+
+Result:
+
+- `src/lib/__tests__/route-cache.test.ts` failed because the test expected an older accepted artifact shape/version
+- `src/lib/safety-scoring.test.ts` failed on a rounding precision assertion around route RPM
+
+The first failure is an actual version-discipline smell. The second is likely test tolerance / rounding drift, but it still matters because score artifacts and summaries must be deterministic.
+
+## 4. Clarified Paint Architecture
+
+The heatmap / overlay architecture should use two intentionally different contracts.
+
+### 4.1 Analyzed route paint
+
+Analyzed route paint should read canonical score-bearing truth.
+
+It can communicate risk because analysis has:
+
+- route direction
+- route continuity
+- matched road identity
+- selected route geometry
+- crossing events
+- chosen speed / traffic / infrastructure inputs
+- confidence and provenance
+- route-level rollup
+
+### 4.2 Viewport road overlay
+
+Viewport road overlays should not compute canonical route risk for every visible road.
+
+They answer:
+
+> What kind of road environment is visible in this area?
+
+They may use:
+
+- speed class
+- traffic availability
+- bike facility class
+- road class
+- cheap road-stress heuristics
+- precomputed tile values when available
+
+They should stay:
+
+- viewport-first
+- budgeted
+- progressively hydrated
+- mobile-safe
+- cancellable
+
+### 4.3 Rule
+
+The product should not call a viewport proxy a canonical risk heatmap unless the result is backed by canonical score-bearing artifacts.
+
+## 5. Recommended 10-Step Course Of Action
+
+1. Freeze the active scoring/version contract before more corpus-scale runs. Confirm the current `scoreModelVersion`, `artifactVersion`, crossing inclusion rules, crossing cap/no-cap behavior, safe-path domain handling, and V7 relative-output semantics.
+
+2. Add a corpus ingestion readiness gate. A route should not enter analysis unless it has canonical route identity, route points, usable geometry, source archive, relational projection, and source provenance.
+
+3. Define a seed validation set of 25-50 routes. It should include trails, arterials, trunk roads, urban grids, long rural routes, heavy crossings, controls, loops, reverse routes, bridge/rail hazards, and RWGPS annotation-heavy examples.
+
+4. Run seed hydration with cache bypass. Use `skipCache: true` for correctness validation so old route-cache blobs cannot hide current scorer or ingestion bugs.
+
+5. Fix seed-route bugs at the canonical artifact boundary. Scorecard, method, receipts, admin audit, route paint, and cache should consume `canonicalAnalysis`, not independently reinterpret route truth.
+
+6. Formalize route paint into two named layers. Route risk paint is canonical analyzed-route truth. Viewport overlays are budgeted road-stress / road-environment proxies unless backed by precomputed score-bearing artifacts.
+
+7. Harden cache versioning and payload shape. Cache rows should carry route identity, route hash, score model version, artifact version, analysis family, mode profile, source snapshot versions, match quality, partial/degraded flags, and payload layer.
+
+8. Split route-load cache into route core, context, and diagnostics. First review should depend only on route core; nearby/edit context should hydrate after first usable route review; diagnostics should remain opt-in.
+
+9. Promote corpus hydration from admin convenience to resumable batch infrastructure. It needs idempotency, failure classes, retry policy, batch controls, current-run promotion rules, and clear rerun/stale behavior.
+
+10. Scale backfill only after seed validation passes. Run batches at 50, 250, 1,000, then the full corpus. Build comparative snapshots only after current canonical route summaries are trustworthy.
+
+## 6. Definition Of Done For This Hardening Phase
+
+This phase is healthy when:
+
+- seed routes have believable score traces, scorecards, method text, receipts, and map paint
+- cache compatibility tests pass and reject stale model/artifact combinations
+- route analysis summaries are versioned and rerunnable
+- viewport overlays stay responsive without pretending to be canonical route risk
+- full-corpus hydration is resumable and inspectable
+- comparative snapshots rank only current, compatible route summaries
+- route loads prefer cache-first route core and do not block on diagnostics
+
+## 7. Immediate Recommendation
+
+Do not treat the 4,000-route run as a final cache-warming pass yet.
+
+Use the first corpus batches as a validation harness:
+
+- prove seed correctness
+- fix version drift
+- lock cache gates
+- then hydrate at scale
+
+That sequence protects Lanterne from turning beta-era semantics into durable production artifacts.
+
+
+---
+
+## Source File: docs/assessments/ass-016-ds015_spec_to_code_trace_audit_2026_04_25.md
+
+# ASS-016 - DS-015 Spec-To-Code Trace Audit
+
+**Date:** 2026-04-25  
+**Status:** Initial hardening assessment  
+**Scope:** Canonical DS-015 safety scoring contract versus live scorer, route analysis artifact, analyze drawer scorecard/method/receipts, route paint, viewport overlay, truth/provenance plumbing, and corpus/pipeline scoring paths.  
+**Non-scope:** Code changes. This assessment identifies divergence and bug areas only.
+
+## 1. Executive Summary
+
+The current system is not architecturally lost. It has the right major scaffolding:
+
+- `Risk = Likelihood x Severity` is present in the main browser segment scorer.
+- `Total Risk = road risk + crossing risk` is present in the main browser route scorer.
+- path-domain continuous road risk is zeroed in the main browser route scorer.
+- `scoreTrace`, receipts, confidence summaries, and comparative interpretation already exist.
+- viewport hydration is correctly treated as a budgeted, progressive overlay problem rather than a full route-risk scoring problem for every visible road.
+
+The gap is that the system is not yet governed by one canonical DS-015 contract. It still carries V3/V5/V7 mixed semantics across constants, artifact schema, route paint, tests, pipeline, corpus hydration, and drawer surfaces.
+
+The highest-risk problems before the 4,000-route cache run are:
+
+- traffic factors are materially underweighted versus DS-015, especially above 18k AADT per lane.
+- facility and shoulder factors still use older constants.
+- excluded left-turn and controlled-crossing events can still enter route score math.
+- canonical artifacts still expose a 0-100 score and `grade` as if they are score truth.
+- route paint can fall back to speed-band presentation even when cached route risk is present.
+- the offline/pipeline scorer is not DS-015-compatible and should not produce canonical cache artifacts until migrated or quarantined.
+
+The correct hardening order is: freeze the canonical score contract in types and constants, fix event eligibility and score-bearing trace parity, then backfill the seed corpus and only then scale to the 4,000-route corpus.
+
+## 2. Carry-Forward Guardrails From 5.4 Feedback
+
+The 5.4 feedback should be retained as hard rules in the implementation plan:
+
+- **Named paint contracts:** use the exact terms `Route Risk Paint` for analyzed routes and `Road-Stress Overlay` for off-route viewport roads.
+- **Projection boundary:** projections may not compute alternate score truth. Rank, grade, shell views, benchmark displays, and admin experiments must consume `routeRiskPerMile` and trace outputs, not invent parallel route totals.
+- **Provenance families:** preserve a compact family vocabulary in the canonical contract: `observed`, `official_imported`, `geometry_derived`, `relationship_inferred`, `predicted`, `baseline`, `unknown`.
+- **Calibration matrix discipline:** every policy/calibration table should carry at least `Item`, `Role`, `Status`, and `Why`; `Basis` is useful but the `Why` column is the practical drift guardrail.
+
+DS-015 already has most of this in substance. The main gap is that the code still uses finer implementation labels like `authoritative_posted`, `osm_posted`, and `observation_inferred` without a canonical family rollup that includes `relationship_inferred`.
+
+## 3. Major Divergences
+
+### 3.1 Main browser scorer is V5-shaped, not DS-015-shaped
+
+The live browser scorer identifies itself as V5 (`CANONICAL_SCORE_MODEL_VERSION = 'v5-launch-alpha'`) and imports the legacy 0-100 score shell from shared constants in `src/lib/safety-scoring.ts:9-23`.
+
+It has a good conceptual core:
+
+- segment road risk is likelihood times speed severity in `src/lib/safety-scoring.ts:422-470`.
+- crossing risk is event likelihood times speed severity in `src/lib/safety-scoring.ts:389-417`.
+- route risk adds continuous and crossing risk with no post-rollup crossing clamp in `src/lib/safety-scoring.ts:596-608`.
+
+But it diverges from DS-015 in constants and vocabulary:
+
+- traffic table caps at 18,000 AADT per lane and `3.00`, not the DS-015 150,000+ tail to `12.50` in `src/lib/safety-scoring.ts:45-52`.
+- buffered facility is `0.68` and painted is `0.82`, not `0.75` and `0.80`, in `src/lib/safety-scoring.ts:61-69`.
+- usable shoulder is `0.90` and wide shoulder is `0.85`, not `0.85` and `0.80`, in `src/lib/safety-scoring.ts:75-80`.
+- the artifact vocabulary still uses `localHarm` throughout types and outputs in `src/lib/safety-scoring.ts:161-185` and `src/lib/safety-scoring.ts:405-466`.
+- route output still returns `safetyScore`, `grade`, `finalSafetyScore`, `effectiveCrossingRPM`, and `criticalStretchSuggestedCap` as first-class fields in `src/lib/safety-scoring.ts:195-215` and `src/lib/safety-scoring.ts:628-648`.
+
+Assessment: the main scorer is the right place to harden first, but it must be renamed/versioned and have its constants brought to DS-015 before corpus caching.
+
+### 3.2 Shared constants are older than the main browser scorer
+
+`src/shared/scoring/safety-constants.ts` is explicitly V3.1 and still documents the route-level crossing cap and V3 traffic table in `src/shared/scoring/safety-constants.ts:1-23`.
+
+Specific divergences:
+
+- `SCORE_MODEL_VERSION = 'v3.1-launch'` in `src/shared/scoring/safety-constants.ts:27-28`.
+- shared facility factors are `0.68 / 0.82` for buffered/painted in `src/shared/scoring/safety-constants.ts:50-58`.
+- shared shoulder factors are `0.78 / 0.88`, which do not match either DS-015 or the browser scorer, in `src/shared/scoring/safety-constants.ts:76-81`.
+- shared traffic table caps at 16,000 AADT per lane and `3.00` in `src/shared/scoring/safety-constants.ts:288-319`.
+- unknown traffic returns `1.10`, while DS-015 says bounded neutral fallback plus confidence loss, in `src/shared/scoring/safety-constants.ts:410-415`.
+- shared crossing constants use V3 values and a route-level cap concept in `src/shared/scoring/safety-constants.ts:194-226`.
+- shared crossing risk uses `sqrt(speedF * trafficF)` inside likelihood, then caps the whole event before a separate severity structure exists in `src/shared/scoring/safety-constants.ts:522-550`.
+- shared `safetyScoreFromRPM` still creates the legacy 0-100 shell in `src/shared/scoring/safety-constants.ts:591-597`.
+
+Assessment: any code that imports shared constants is suspect for DS-015 canonical use until this file is split or upgraded.
+
+### 3.3 Crossing eligibility trace can disagree with score math
+
+This is the most concrete scoring bug found.
+
+`crossingDispositionReason` computes included/excluded status in `src/lib/route-analysis.ts:639-660`. For path-road transition events, route analysis only pushes the event into `crossingConflicts` when the disposition is included in `src/lib/route-analysis.ts:8637-8660`.
+
+Left-turn and controlled crossings do not follow that rule:
+
+- left-turn disposition is computed in `src/lib/route-analysis.ts:8349-8355`, but the event is pushed into `crossingConflicts` unconditionally in `src/lib/route-analysis.ts:8365-8382`.
+- controlled-crossing disposition is computed in `src/lib/route-analysis.ts:8511-8516`, but the event is pushed into `crossingConflicts` unconditionally in `src/lib/route-analysis.ts:8519-8536`.
+- `computeCrossingRisk` has no eligibility gate of its own in `src/lib/safety-scoring.ts:389-417`.
+
+Net effect: a crossing event can be marked `excluded` in `scoreTrace.crossingEvents` while still contributing risk through `crossingConflicts`.
+
+Assessment: fix this before trusting crossing totals, seed-route safety scores, or crossing-share diagnostics.
+
+### 3.4 Score trace exists, but the schema is not canonical DS-015 yet
+
+The artifact type is still named V5 and contains legacy score fields:
+
+- artifact version is `v5-alpha-2` in `src/lib/v5-analysis-artifact.ts:1-5`.
+- provenance labels are implementation-level, not canonical family-level, in `src/lib/v5-analysis-artifact.ts:13-40`.
+- continuous and crossing traces expose `localHarm`, not `roadRisk` / `crossingRisk`, in `src/lib/v5-analysis-artifact.ts:126-167`.
+- route summary exposes `effectiveCrossingRPM` in `src/lib/v5-analysis-artifact.ts:169-177`.
+- score rollup includes `score` and `grade` in `src/lib/v5-analysis-artifact.ts:185-193`.
+
+Route analysis populates the same legacy fields:
+
+- score trace route summary includes `effectiveCrossingRPM` in `src/lib/route-analysis.ts:9471-9482`.
+- score rollup stores `score: routeScore.finalSafetyScore` and `grade: routeScore.grade` in `src/lib/route-analysis.ts:9485-9493`.
+
+Assessment: keep backward-compatible aliases if needed, but the canonical artifact should expose DS-015 names first: `totalRouteRisk`, `routeRiskPerMile`, `roadRiskTotal`, `crossingRiskTotal`, `roadRisk`, `crossingRisk`, `likelihood`, `severity`.
+
+### 3.5 Route paint and viewport overlay are conceptually split, but route paint can still become speed paint
+
+The viewport overlay architecture is mostly aligned with DS-018:
+
+- `useViewportRoadHydration` uses progressive chunks and priority bands in `src/hooks/useViewportRoadHydration.ts:471-511`.
+- it enforces retention and budget trimming in `src/hooks/useViewportRoadHydration.ts:485-508` and `src/hooks/useViewportRoadHydration.ts:533-557`.
+
+The route paint bug is subtler:
+
+- `segmentToRisk` correctly prefers cached normalized risk in `src/lib/heatmap/gradient-renderer.ts:90-105`.
+- `buildGradientColors` does not use it for color assignment; it resolves speed presentation and maps speed band to risk in `src/lib/heatmap/gradient-renderer.ts:179-205`.
+
+Assessment: after DS-015, route paint should color from canonical route risk-bearing trace or cached normalized risk. Speed-band display can remain a separate mode, but it must not be the default route-risk paint after canonical analysis exists.
+
+### 3.6 Analyze drawer is close in receipts, mixed in scorecard/method
+
+Receipts are the closest surface to DS-015:
+
+- formula text already says `Total Risk = Σ road risk points` and `Risk / Mile = Total Risk ÷ Route Miles` in `src/domain/analyze/receipts/buildReceiptsViewModel.ts:327-342`.
+- receipts group road risk from trace/run overlap and preserve route rank metadata.
+
+Scorecard and method still carry old language or projections:
+
+- scorecard derives high-stress sections from `slice.localHarm` in `src/domain/analyze/scorecard/buildScorecardViewModel.ts:376-388`.
+- method sorts "harmful" slices and uses `localHarm` throughout in `src/domain/analyze/method/buildMethodViewModel.ts:397-432`.
+- method displays `Final composite score` from rollup score in `src/domain/analyze/method/buildMethodViewModel.ts:471-475`.
+- method displays `Crossing risk per mile` from `effectiveCrossingRPM` in `src/domain/analyze/method/buildMethodViewModel.ts:481-485`.
+
+Assessment: receipts should become the model for the rest of the drawer. Scorecard should lead with rank, curved grade, risk per mile, total risk, and confidence. Method should explain the DS-015 equation and provenance, not the 0-100 shell.
+
+### 3.7 Pipeline/offline scorer is not canonical
+
+The pipeline scorer says it maintains exact V3.1 parity and writes a 0-100 `safety_score` in `pipeline/src/slice-scorer.ts:1-21`.
+
+Material divergence:
+
+- safe paths receive non-zero `SAFE_PATH_BASELINE_RPM` in `pipeline/src/slice-scorer.ts:251-262`.
+- slice safety uses weighted `W_SPEED + W_TRAFFIC`, not likelihood times severity, in `pipeline/src/slice-scorer.ts:285-288`.
+- route rollup maps aggregate RPM to a 0-100 logistic score in `pipeline/src/route-rollup.ts:220-244`.
+- route summary persists `safety_score` as the primary score in `pipeline/src/route-rollup.ts:254-305`.
+
+Assessment: pipeline output must be considered non-canonical for DS-015. Either migrate it or explicitly block it from writing route-analysis cache rows that claim DS-015 compatibility.
+
+### 3.8 Corpus hydration still persists legacy score alongside canonical risk
+
+Corpus hydration stores `safety_score: result.score` while also storing total risk and risk per mile in `src/domain/canonicalCorpusHydration.ts:760-783`.
+
+Assessment: keeping a legacy display score in storage may be acceptable temporarily, but it must be renamed or flagged as non-canonical. The canonical cache identity should be model version + artifact version + evidence snapshot + geometry hash, with `routeRiskPerMile` as the ranking basis.
+
+### 3.9 Detour and optimizer paths still use 0-100 score truth
+
+Routing and optimizer code still compare and explain routes through `safetyScore`:
+
+- `scoreOsrmPath` computes `safetyScoreFromRiskPerMile` and `gradeFromScore` in `src/lib/routing.ts:318-340`.
+- `RouteOptimizer` computes `scoreDiff = result.safetyScore - baseScore` and explains improvements from that delta in `src/components/RouteOptimizer.tsx:250-268`.
+
+Assessment: these can stay as non-canonical previews only if clearly labeled. They should not be allowed to populate DS-015 canonical artifacts or comparative ranks.
+
+## 4. Provenance And Propagation Assessment
+
+The truth resolver is ahead of the scoring artifact in several ways:
+
+- evidence precedence is explicit in `src/lib/evidence/types.ts:22-60`.
+- propagation relabeling exists in `src/lib/evidence/types.ts:62-69`.
+- propagation carries values and relabels direct sources to inferred sources in `src/lib/evidence/propagation.ts:1-19`.
+- traffic truth is numeric-first via `ResolvedTrafficTruth` in `src/lib/evidence/types.ts:133-162`.
+
+Gaps:
+
+- DS-015 canonical family vocabulary is not implemented as a stable family rollup. Current types expose detailed labels like `authoritative_posted`, `osm_posted`, `observation_inferred`, and `highway_baseline`; DS-015 wants rider/audit families like `official_imported`, `relationship_inferred`, and `baseline`.
+- `relationship_inferred` should be introduced as a canonical family because sidepath inference, same-road carry, lane defaults, and facility/shoulder relationship inference are not all the same as generic `inferred`.
+- confidence is not folded into risk, which is correct, but the confidence rollup still keys off `localHarm` naming in `src/lib/confidence-model.ts:61-69`.
+- lane-count and width evidence is often labeled `observation_inferred` when it may actually be OSM-derived or highway-default inferred, for example `src/lib/route-analysis.ts:8322-8328` and `src/lib/route-analysis.ts:8494-8499`.
+
+Assessment: do not simplify away the implementation labels, but add a canonical `provenanceFamily` layer and report both family and specific source in scoreTrace.
+
+## 5. Sustained Exposure And Critical Stretch Assessment
+
+Sustained exposure is present and additive in the browser scorer. Long road slices accumulate risk through miles times likelihood times severity in `src/lib/safety-scoring.ts:431-446`.
+
+Critical stretch is report-only in practice but still named like an old score cap:
+
+- `criticalStretchBandLabel` emits labels like `report: cap 59` in `src/lib/safety-scoring.ts:523-529`.
+- `criticalStretchCap` is imported and returned as `criticalStretchSuggestedCap` in `src/lib/safety-scoring.ts:9-16` and `src/lib/safety-scoring.ts:601-637`.
+
+Assessment: the behavior is mostly acceptable if it is never applied to route risk, but the naming should be changed to `criticalStretchReport` / `criticalStretchLabel` / `criticalStretchDiagnostic`. Avoid any `cap` wording in canonical outputs.
+
+## 6. Tests Reveal Conflicting Contracts
+
+Current tests already encode both old and new crossing assumptions:
+
+- `src/lib/safety-scoring.test.ts` expects no route-level crossing cap and V5 model version.
+- `src/lib/__tests__/crossing-browser-integration.test.ts` explicitly expects crossing RPM can exceed continuous RPM.
+- `src/lib/__tests__/crossing-breakdown-counts.test.ts` still expects `effectiveCrossingRPM <= continuousRPM * 0.6667`.
+
+Assessment: tests should be rewritten around DS-015 invariants, not patched piecemeal. The test suite should fail if a route-level crossing clamp returns.
+
+## 7. Hardening Plan - First 10 Steps
+
+1. **Create a DS-015 canonical scoring types module.** Define `CanonicalRouteRiskArtifact`, `ScoreTraceRoadSlice`, `ScoreTraceCrossingEvent`, provenance family, model version, evidence snapshot, and projection metadata. Keep legacy aliases outside the canonical type.
+2. **Replace traffic constants everywhere that can touch canonical scoring.** Use the DS-015 500 to 150,000+ AADT-per-lane table, exact numeric interpolation, and a neutral unknown fallback with confidence loss.
+3. **Replace facility and shoulder constants.** Use protected `0.50`, buffered `0.75`, painted `0.80`, none `1.00`, usable shoulder `0.85`, wide shoulder `0.80`.
+4. **Fix crossing eligibility parity.** Only score events whose trace disposition is `included`; add a scorer-side guard so trace and math cannot diverge again.
+5. **Rename risk vocabulary.** Migrate `localHarm` to `localRisk`, `roadRisk`, or `crossingRisk`; keep compatibility aliases only where needed.
+6. **Remove 0-100 score from canonical artifacts.** Keep rank and curved grade as projections with network metadata. Any shell score must be explicitly non-canonical.
+7. **Hard-separate paint contracts.** Route Risk Paint must read canonical score-bearing route trace or cached normalized route risk. Road-Stress Overlay remains budgeted, progressive, and proxy-labeled.
+8. **Quarantine pipeline and preview scorers.** Either migrate pipeline/routing/detour paths to DS-015 or mark them `non_canonical_preview` and block their outputs from canonical cache/rank writes.
+9. **Create seed corpus invariant tests.** Include high-AADT roads, path/MUP with road crossings, left-turn exclusions, controlled-crossing exclusions, sustained high-risk stretches, and confidence/provenance relabeling.
+10. **Run staged corpus hydration only after seed invariants pass.** Hydrate a small seed, verify route totals/paint/receipts/rank, then batch the 4,000 routes with model/evidence/cache version gates.
+
+## 8. Launch Blockers Before Full 4,000-Route Cache
+
+- DS-015 traffic table and factor constants are not implemented in all canonical paths.
+- Excluded crossing events can still be scored.
+- Canonical artifact schema still carries 0-100 score truth.
+- Route Risk Paint is not guaranteed to use risk-bearing trace when available.
+- Pipeline/offline scoring is non-canonical.
+- Tests contain mutually incompatible crossing clamp expectations.
+
+## 9. Bottom Line
+
+The system should not be rewritten from scratch. The right move is to make DS-015 executable:
+
+1. one canonical risk artifact,
+2. one score-bearing math path,
+3. one provenance family contract,
+4. one route paint contract,
+5. one cache eligibility gate.
+
+After that, the 4,000-route corpus becomes leverage instead of liability.
+
+
+---
+
+## Source File: docs/assessments/ass-017-receipts_feature_spec_divergence_audit_2026_04_25.md
+
+# ASS-017 - Receipts Feature Spec Divergence Audit
+
+**Date:** 2026-04-25  
+**Status:** Audit only  
+**Scope:** Receipts feature versus provenance / receipts / analyze drawer architecture spec.  
+**Non-scope:** Code changes.
+
+## Executive Summary
+
+The live receipts feature is better than the spec on usability, navigation, and runtime safety. It is worse than the spec on audit integrity, provenance visibility, and fidelity to canonical math.
+
+The biggest issue is simple:
+
+- the tab reads like a proof surface
+- but under the hood it is still a hybrid summary layer rather than a strict DS-015 receipt projection
+
+## Major Divergences
+
+### 1. Group totals and route total are on different semantic bases
+
+The tab shows only road-group receipts, while the footer shows total route risk including crossings.
+
+- groups are built from `analysis.truthRuns` in `src/domain/analyze/receipts/buildReceiptsViewModel.ts`
+- the footer uses `canonical.scoreRollup.totalRouteRisk`
+- the footnote only counts crossing events instead of rendering them as receipts
+
+Net effect:
+
+- visible groups do not necessarily add up to visible total risk
+- crossing risk is materially present in the route total but mostly absent from the proof surface
+
+This is the largest erosion of the receipts contract.
+
+### 2. The builder is not a pure projection of canonical receipt math
+
+The spec wanted receipts to be a projection of canonical trace.
+
+The live builder starts from:
+
+- `analysis.truthRuns`
+- estimated run mileage from index span
+- merged adjacent runs by road name / highway type
+
+It only later overlays canonical slice contributions by overlap.
+
+That means the feature is currently a hybrid of:
+
+- canonical score trace
+- pre-canonical route presentation runs
+- UI grouping heuristics
+
+This is useful, but it is not the architecture the receipts spec called for.
+
+### 3. Provenance and confidence are underexposed in the tab
+
+Receipts should be one of the strongest provenance and trust surfaces.
+
+Instead, the tab mostly shows:
+
+- road name
+- points
+- distance
+- worst speed / traffic / infra / shoulder
+- speed source mix
+
+What it does not show clearly at the tab level:
+
+- field-level provenance classes for chosen speed / traffic / facility / shoulder
+- per-group confidence framing
+- crossing-event provenance
+- route-level provenance mix in receipt context
+
+The inspector section receipt already does this better than the receipts tab, which means the product has the value but not in the intended place.
+
+### 4. Receipts is narrating derived causal stories
+
+The tab computes and displays:
+
+- `Factor contribution mix`
+- `Biggest push / reduction`
+
+Those are helpful, but they are not strict canonical receipt projection.
+
+They are derived narratives produced from overlap-weighted contributions and local ranking logic.
+
+That improves readability, but it diverges from the spec rule that Receipts may:
+
+- group
+- sort
+- label
+- collapse
+
+while avoiding recomputation or invented driver hierarchy.
+
+### 5. Comparative verdict framing leaks into Receipts
+
+The receipts tab currently includes:
+
+- large grade display
+- rank footer
+- formula text mentioning rank
+
+The receipts architecture spec said Receipts should own:
+
+- formula header
+- grouped section receipts
+- contribution tables
+- route total rollup
+
+It explicitly should not own rider-summary or comparative verdict framing.
+
+### 6. Architecture primitives were not realized
+
+The implementation does use a pure builder and lazy hydration, which is good.
+
+But it did not follow the intended primitive / module architecture:
+
+- no `groupReceiptSections(...)`
+- no `ReceiptGroup`
+- no `ReceiptRow`
+- no `ReceiptTotalFooter`
+- no shared `AnalyzeDisclosureTable`
+
+This is not the biggest rider-facing issue today, but it does reduce extensibility and makes future convergence harder.
+
+### 7. Grouping fidelity is lower than the spec implied
+
+Adjacent truth runs are merged by:
+
+- title
+- highway type
+
+That is clean for riders, but it can flatten distinct canonical slices into one road story.
+
+So the live surface gained readability at the cost of audit sharpness.
+
+## Where The Real Feature Improved User Value
+
+### 1. Lazy hydration is correct and valuable
+
+Receipts builds on first tab open rather than on hot-path route handoff.
+
+That is fully in the spirit of the drawer architecture spec and protects responsiveness.
+
+### 2. Sorting is genuinely useful
+
+The ability to sort by:
+
+- start
+- distance
+- risk per mile
+
+is a meaningful improvement over the spec’s more static notion of grouped receipts.
+
+### 3. Map focus on receipt open is strong product value
+
+Opening a receipt group can focus the map.
+
+That creates a practical rider loop:
+
+- inspect section in drawer
+- jump to location on map
+- confirm visually
+
+The spec hinted at deeper receipt-to-map links later; this already delivers real value.
+
+### 4. The inspector’s section receipt is stronger than the tab in some ways
+
+The inspector section receipt includes:
+
+- localized risk points
+- risk per mile
+- confidence band
+- top drivers
+- provenance labels for chosen inputs
+
+That is closer to the spirit of a real proof surface than the tab-level receipts list.
+
+This is a product improvement, even though it also exposes a split between inspector value and receipts-tab value.
+
+## Where User Value Was Eroded
+
+### 1. The tab feels more rigorous than it actually is
+
+Because it presents formula + grouped receipts + totals, riders may reasonably assume:
+
+- the listed groups fully explain the total
+
+That is not true today once crossing risk enters the route.
+
+### 2. Crossing risk is too invisible
+
+Crossings are one of the most important DS-015 distinctions.
+
+Yet the receipts tab mostly reduces them to:
+
+- a count in the footnote
+
+instead of rendering them as explicit contributors.
+
+### 3. Provenance lives in the wrong surface
+
+The system’s best provenance detail is localized in the inspector, not the receipts tab.
+
+That weakens the receipts tab as the intended “show your work” destination.
+
+### 4. The feature is readable but less auditable
+
+Road-level grouping, merged runs, and derived summaries are easier to scan.
+
+But they also make the feature less suitable as a canonical audit artifact.
+
+## Bottom Line
+
+The live receipts implementation is good product work, but it is not yet a clean DS-015 receipts surface.
+
+It improved:
+
+- runtime safety
+- navigation
+- readability
+- map-linked inspection
+
+It eroded:
+
+- canonical trace fidelity
+- provenance visibility
+- crossing accounting
+- strict audit integrity
+
+The core correction is straightforward in principle:
+
+- make Receipts a direct grouped projection of canonical `scoreTrace`
+- render crossing contributors explicitly
+- keep rider-friendly grouping and sorting
+- move provenance / confidence visibility from hidden inspector-only value into the receipts tab itself
 
 
 ---
