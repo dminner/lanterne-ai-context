@@ -12975,7 +12975,7 @@ Initial precedence:
 
 1. state-native traffic-count sections
 2. HPMS AADT
-3. local-area prior / derived estimate
+3. local-area predicted / derived estimate
 
 ### Through lanes
 

@@ -3423,6 +3423,8 @@ Safety Score must remain:
 | DS-026 | Keyboard Shortcuts and Map Input | ADR-027, ADR-029, ADR-030 | Draft |
 | DS-027 | POI Ingestion, Selection, and Cluster Interaction | ADR-017, ADR-019, ADR-027, DS-008, DS-018 | Draft |
 | DS-028 | Hazard Ingestion, Normalization, and Presentation | ADR-017, ADR-019, ADR-020, ADR-027, DS-008 | Draft |
+| DS-029 | Provenance, Precedence, Confidence, and Traceability | ADR-042, ADR-043, DS-015, DS-017, DS-022 | Draft |
+| DS-030 | Route Analysis Contract | DS-017, DS-024, DS-025, DS-028, DS-029 | Draft |
 
 ---
 
@@ -7291,7 +7293,7 @@ Rules:
 
 - Unknown control uses the arithmetic mean of known control factors.
 - Unknown movement uses the arithmetic mean of known movement factors.
-- Unknown traffic uses the best available baseline or local prior and lowers confidence.
+- Unknown traffic uses the best available local prediction or baseline and lowers confidence.
 - Unknown shoulder receives no mitigation credit and lowers confidence.
 - Unknown facility receives no mitigation credit unless absence is known to be unreliable in that data context; in that case, retain `unknown` provenance and lower confidence.
 - Unknown speed must resolve through a road-class / regional baseline rather than becoming zero or disappearing.
@@ -7397,7 +7399,7 @@ Traffic fallback ladder:
 2. official total AADT plus known lane count
 3. official total AADT plus relationship-inferred lane count
 4. relationship-inferred total AADT from nearby official values and corridor context
-5. local-area / road-class traffic prior
+5. `local_area_predicted` traffic
 6. generic highway-type baseline
 7. unknown
 
@@ -7405,10 +7407,13 @@ Each fallback step lowers confidence.
 
 Step 5 launch policy:
 
-- Local-area prior requires at least 2 nearby readings of the same broad highway class within the local search radius.
-- A single nearby reading must not promote to score-bearing local-area prior truth; it falls through to the generic highway-type baseline.
-- 2 readings may produce a low-confidence local-area prior.
-- 3+ readings with low spread may produce a medium-confidence local-area prior.
+- Local-area predicted traffic requires at least 2 nearby direct numeric traffic readings of the same broad highway class within the local search radius.
+- Eligible contributors must be stronger direct truth only: observed/admin-approved traffic, state DOT traffic, HPMS traffic, or equivalent authoritative imported numeric AADT.
+- `relationship_inferred`, `local_area_predicted`, `class_proxy`, baseline, and unknown traffic values must not be contributors.
+- A single nearby reading must not promote to score-bearing local-area predicted truth; it falls through to the generic highway-type baseline.
+- 2 readings may produce low-confidence `local_area_predicted` traffic.
+- 3+ readings with low spread may produce medium-confidence `local_area_predicted` traffic.
+- The trace must retain contributor roads, source AADT values, radius, lane-count basis, averaging math, and fallback reasons.
 
 #### Launch TrafficFactor Table
 
@@ -12845,16 +12850,17 @@ GraphHopper is the preferred future direction, but this spec is written so the p
 
 **Status:** Draft for review  
 **Date:** 2026-04-19  
-**Related:** [ADR-042](../../../docs/03-adrs/adr-042-evidence_resolution_and_truth_propagation_model.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-020](./ds-020-confidence_model_and_tracing.md), [ASS-011](../../assessments/ass-011-speed_truth_feed_audit_2026_04_19.md)
+**Related:** [ADR-042](../../../docs/03-adrs/adr-042-evidence_resolution_and_truth_propagation_model.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-020](./ds-020-confidence_model_and_tracing.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [ASS-011](../../assessments/ass-011-speed_truth_feed_audit_2026_04_19.md)
 
 ---
 
 ## 1. Purpose
 
-This spec defines the policy contract for the two lowest non-generic speed evidence layers:
+This spec defines the policy contract for predicted and baseline speed evidence layers below direct/corridor truth:
 
-1. `regional_prior`
-2. `highway_area_baseline`
+1. `local_area_predicted`
+2. `regional_prior`
+3. `highway_area_baseline`
 
 It exists to prevent the speed system from collapsing into blunt class defaults such as:
 
@@ -12870,7 +12876,7 @@ This document is intentionally prescriptive. It is meant to reduce implementatio
 
 ## 2. Core rule
 
-`regional_prior` and `highway_area_baseline` are **guarded fallback layers**, not truth shortcuts.
+`local_area_predicted`, `regional_prior`, and `highway_area_baseline` are **guarded fallback layers**, not truth shortcuts.
 
 They may influence speed only when all stronger sources are absent:
 
@@ -12910,7 +12916,30 @@ This spec does not:
 
 ## 4. Definitions
 
-### 4.1 `regional_prior`
+### 4.1 `local_area_predicted`
+
+A local prediction derived from nearby direct posted or authoritative speed contributors in the route/corridor search space.
+
+It is stronger than `regional_prior` and baseline layers because it uses real nearby speeds, but weaker than direct posted speed and same-corridor propagation because it is not the speed for this exact segment.
+
+Rules:
+
+- It may run only when no direct or corridor-inferred speed won.
+- Contributors must be direct `observed`, `authoritative_posted`, or `osm_posted` speeds.
+- Inferred, predicted, regional-prior, and baseline contributors are not eligible.
+- Contributors must be within `5 mi` of the target in the local route/corridor search space.
+- At least 2 eligible contributors are required.
+- The target may use equal-or-lower through-road classes: trunk may use trunk/primary/secondary/tertiary; primary may use primary/secondary/tertiary; secondary may use secondary/tertiary; tertiary may use tertiary only.
+- Service, residential, unclassified, path, cycleway, footway, private, and safe-path segments are not eligible targets or contributors.
+- The exact average must be retained in trace.
+- The displayed/resolved mph must round to the nearest 5 mph.
+- Trace must retain contributor road names, route refs, source speeds, source types, class relation, distance/radius, aggregation math, rounding, and fallback reasons.
+
+Rider-facing label:
+
+- `Local Speed Prediction · Predicted`
+
+### 4.2 `regional_prior`
 
 A state- and context-sensitive prior derived from official/default rules or validated regional datasets.
 
@@ -12920,7 +12949,7 @@ Example:
 
 - “New Jersey suburban business/residence district local street defaults are typically around 25–35 mph”
 
-### 4.2 `highway_area_baseline`
+### 4.3 `highway_area_baseline`
 
 A structured but more generic fallback derived from:
 
@@ -12934,7 +12963,7 @@ Example:
 
 - “rural divided non-interstate arterial roads are generally faster than urban undivided arterials”
 
-### 4.3 `highway_baseline`
+### 4.4 `highway_baseline`
 
 The last-resort generic class fallback.
 
@@ -13207,9 +13236,10 @@ Even when a `trunk` prior exists, rider-facing `~speed` should still prefer:
 1. propagated same-road truth
 2. nearby same-corridor truth
 3. authoritative segment speed
-4. `regional_prior`
-5. `highway_area_baseline`
-6. class baseline last
+4. `local_area_predicted`
+5. `regional_prior`
+6. `highway_area_baseline`
+7. class baseline last
 
 ## 7.2 `primary` and `secondary`
 
@@ -13242,9 +13272,10 @@ When stronger speed evidence is absent, prior resolution must follow this order:
 
 1. determine whether same-road or same-corridor propagated truth exists
 2. determine whether authoritative segment-level inferred/posting exists
-3. if state and constrained context are known, evaluate `regional_prior`
-4. if `regional_prior` is absent or blocked, evaluate `highway_area_baseline`
-5. if both fail, fall through to `highway_baseline`
+3. if at least 2 eligible direct nearby contributors exist within 5 mi, evaluate `local_area_predicted`
+4. if state and constrained context are known, evaluate `regional_prior`
+5. if `regional_prior` is absent or blocked, evaluate `highway_area_baseline`
+6. if all fail, fall through to `highway_baseline`
 
 ### 8.1 `regional_prior` admission checks
 
@@ -13443,6 +13474,15 @@ Expected tooltip shape:
 - label: `OSM inferred`
 - descriptor: `Derived from matched OSM road attributes`
 - caveat: `Estimated from road tags because no posted speed was available.`
+
+#### `local_area_predicted`
+
+Expected tooltip shape:
+
+- label: `Local Speed Prediction`
+- descriptor: `Predicted from nearby posted speeds`
+- explanation: `Used because no posted or corridor-propagated speed was available for this segment.`
+- caveat: contributor math, for example `FM 726 = 50 mph; CR 12 = 55 mph; target = Avg(50, 55) = 52.5 mph; displayed as 55 mph`
 
 #### `regional_prior`
 
@@ -15631,6 +15671,1410 @@ The hazard subsystem is considered healthy when:
 - controlled crossings, railroad crossings, and bridge hazards all survive corridor ingestion
 - map and overlay surfaces agree on labels and marker meaning
 - hazard regressions are diagnosable at the canonical object layer, not by chasing duplicated UI logic
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md
+
+# DS-029 - Provenance, Precedence, Confidence, and Traceability Specification
+
+**Status:** Draft for implementation  
+**Date:** 2026-04-26  
+**Filename:** `ds-029-provenance_precedence_confidence_and_traceability_spec.md`  
+**Related:** [DS-015](./ds-015-safety_scoring_model.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-020](./ds-020-confidence_model_and_tracing.md), [DS-022](./ds-022-speed_prior_and_area_baseline_policy_spec.md)
+
+## 1. Purpose
+
+This document is the single archival reference for how Lanterne must handle:
+
+- provenance families
+- concrete source types
+- precedence
+- field-level confidence anchors
+- confidence traceability
+- traceability requirements
+- fallback math for predicted and baseline values
+
+It exists because the current system is split across several partially overlapping documents:
+
+- `DS-015` defines the canonical provenance families.
+- `DS-020` defines launch confidence behavior, but does so partly at the source-type layer.
+- `DS-022` defines speed prior policy, but not the full cross-field provenance contract.
+
+This document resolves that ambiguity by defining one hierarchy:
+
+```text
+DS-015 provenance family
+  -> concrete source type
+    -> source-specific math / eligibility
+      -> required trace payload
+        -> rider-facing explanation
+```
+
+It also defines the symmetry rule that older documents and implementations have
+blurred:
+
+```text
+every score-driving truth input must have a matching confidence treatment
+every provenance rule must apply symmetrically to traffic and speed unless this spec explicitly says otherwise
+every inspectable explanation must exist at route, road, and input levels
+```
+
+## 2. Architectural Decision
+
+Lanterne must use one canonical provenance architecture for both traffic and speed.
+
+Traffic and speed may differ in:
+
+- direct source availability
+- field-specific math
+- fallback datasets
+
+They may not differ in:
+
+- provenance family semantics
+- precedence semantics
+- confidence downgrade logic
+- confidence traceability expectations
+- traceability expectations
+- parity between analysis-time truth and inspect-time truth
+
+Risk and confidence are peer systems.
+
+This means:
+
+- anything that materially affects canonical risk must materially affect canonical confidence
+- confidence must be computed from the same chosen inputs, provenance, and fallback structure as risk
+- no field may have a richer provenance model for risk than it has for confidence
+- no surface may explain risk in more detail than it can explain the confidence implications of the same chosen inputs
+
+The canonical ordering is:
+
+1. family
+2. concrete source type
+3. derivation and trace payload
+4. presentation text
+
+No presentation surface may invent provenance semantics independently.
+
+## 2.1 Symmetry invariant
+
+The following symmetry invariant is mandatory:
+
+```text
+if traffic and speed both participate in risk,
+then traffic and speed must both participate in:
+  provenance
+  precedence
+  confidence
+  receipts
+  inspectability
+  score trace export
+```
+
+No implementation may justify asymmetry merely because one field historically
+had richer treatment than the other.
+
+## 3. Canonical Provenance Families
+
+These are the only canonical DS-015 provenance families for score-bearing truth:
+
+| Family | Meaning |
+| --- | --- |
+| `observed` | Direct field measurement or validated first-hand evidence |
+| `official_imported` | Authoritative agency source such as DOT, HPMS, or equivalent |
+| `geometry_derived` | Deterministic derivation from route or road geometry / OSM explicit tag truth |
+| `relationship_inferred` | Inferred from stronger nearby or related evidence through continuity or other documented relationship |
+| `predicted` | Model output from local or contextual evidence |
+| `baseline` | Generic fallback prior used because stronger evidence is absent |
+| `unknown` | No reliable source or derivation available |
+
+## 4. Canonical Source-Type Table
+
+The following table is authoritative for source-type semantics, precedence, confidence anchors, and trace requirements.
+
+### 4.1 Score-bearing source types
+
+| Precedence | Source type | Family | Launch source-confidence anchor | Canonical confidence band | Trace requirements |
+| ---: | --- | --- | ---: | --- | --- |
+| 1 | `observed` | `observed` | 100 | `very_high` | observation id, observer class, timestamp or audit ref, anchor segment, source links when available |
+| 2 | `admin_approved` | `observed` | 100 | `very_high` | admin identity, timestamp, approval ref, supporting verification links; for speed, include the Street View link used to verify the sign |
+| 3 | `authoritative_posted` | `official_imported` | 100 | `very_high` | agency, feed id, record id or statute ref, public source URL when available |
+| 4 | `osm_posted` | `geometry_derived` | 95 | `very_high` | OSM way id, tag key/value, matched road identity, OSM or lat/lon link |
+| 5 | `observation_inferred` | `relationship_inferred` | 90 | `high` | anchor source identity, propagation path, continuity reason, decay / distance context, source links when available |
+| 6 | `authoritative_inferred` | `relationship_inferred` | 90 | `high` | agency/feed id, propagation path, continuity reason, decay / distance context, source links when available |
+| 7 | `osm_inferred` | `relationship_inferred` | 85 | `high` | matched road identity or anchor source identity, propagation / derivation path, continuity or inference reason, decay / distance context, OSM or lat/lon link |
+| 8 | `local_area_predicted` | `predicted` | 80 | `high` | source trace, contributors, aggregation math, rejection reasons, fallback reasons, source links for contributors when available |
+| 9 | `regional_prior` | `baseline` | 65 | `medium` | agency, dataset row id or lookup key, jurisdiction, context selectors, default value, source document link |
+| 10 | `highway_area_baseline` | `baseline` | 55 | `low_medium` | agency or governing table identity, lookup dimensions, table/version key, exact row or generic context rule, source document link |
+| 11 | `highway_baseline` | `baseline` | 40 | `low` | agency or governing table identity, highway class lookup key, table/version key, source document link |
+| 12 | `unknown` | `unknown` | 20 | `low` | explicit missingness reason where possible |
+
+### 4.2 Non-score-bearing or reserved source types
+
+These may exist operationally, but they are not currently canonical score-bearing truth:
+
+| Source type | Status | Notes |
+| --- | --- | --- |
+| `measured` | reserved | May later promote above `observed`, but is not yet canonical truth |
+| `community_reported` | reserved / pending policy | If later promoted, it must receive its own family mapping, precedence, confidence anchor, and trace requirements rather than being folded into `geometry_derived` |
+| `user_observation` | presentation-only / session-only | Must not silently enter canonical score truth without a future DS/ADR change |
+
+### 4.2.1 `admin_approved` scope
+
+`admin_approved` is a canonical observed-family source type, but it is not a
+free-form escape hatch.
+
+It must represent one of these audited cases:
+
+1. manual validation of a directly observed real-world condition
+2. manual confirmation of a clearly visible mapped or source-backed condition
+3. explicit admin override of the chosen value where other sources are judged
+   wrong or stale
+
+Trace requirements must distinguish:
+
+- internal admin identifier
+- public display label if shown in rider-facing surfaces
+- approval timestamp
+- supporting verification artifact
+- whether the admin action confirmed an existing source or replaced it
+
+`admin_approved` may override value, provenance, and confidence treatment, but
+the overridden source should remain visible in audit trace when available.
+
+### 4.3 Score-driving field matrix
+
+This matrix defines which score-driving fields must participate in the full
+provenance, precedence, confidence, and traceability contract.
+
+| Field | Route-level trace | Road-level trace | Input-level trace | Predicted allowed? | Baseline allowed? | Precision retention requirement |
+| --- | --- | --- | --- | --- | --- | --- |
+| Speed | yes | yes | yes | yes | yes | preserve exact mph when known |
+| Traffic | yes | yes | yes | yes | yes | preserve exact AADT total, AADT/lane, lane count, factor inputs when known |
+| Bike lane / facility | yes | yes | yes | no | no | preserve exact facility class and side context when known |
+| Shoulder | yes | yes | yes | no | no | preserve exact width basis, side, and bucket thresholds when known |
+| Crossing control | yes | yes | yes | no | no | preserve exact control type, not just generic risk label |
+| Crossing width | yes | yes | yes | no | no | preserve exact lane count / width basis when known |
+| Crossing movement | yes | yes | yes | no | no | preserve exact movement classification when known |
+
+Rule of thumb:
+
+- if we know the number, show the number in trace and receipts
+- if we know the selector, keep the selector
+- summaries may compress presentation, but canonical trace may not throw out precision
+
+## 5. Confidence Model Rules
+
+### 5.1 Field-level confidence anchors
+
+This spec distinguishes:
+
+- provenance family
+- source-confidence anchor
+- route-level confidence rollup
+
+The table in Section 4 defines the field-level source-confidence anchors. Those anchors are the canonical starting points for `DS-020` style confidence math.
+
+### 5.1.1 Confidence is a first-class canonical output
+
+Confidence is not a presentation afterthought and not a rider-facing caveat
+layer bolted on after risk.
+
+Confidence must be modeled with the same seriousness as risk:
+
+- route-level confidence is canonical
+- road-level confidence is canonical
+- input-level confidence is canonical
+
+The confidence graph must consume the same:
+
+- chosen inputs
+- source types
+- provenance families
+- fallback steps
+- propagation outcomes
+- missingness states
+
+used by risk.
+
+At route and road levels, confidence must be weighted by actual score
+participation rather than flat source averaging.
+
+Conceptually:
+
+```text
+confidence burden of an input
+= source uncertainty * risk contribution of that input
+```
+
+This preserves the original DS-020 intuition that rough approximations on
+higher-severity, higher-risk roads should hurt confidence more, without
+distorting provenance semantics.
+
+### 5.1.2 Canonical confidence bands
+
+Unless a future DS explicitly revises them, canonical confidence bands are:
+
+| Confidence anchor / rollup | Canonical band |
+| ---: | --- |
+| 90-100 | `very_high` |
+| 75-89 | `high` |
+| 60-74 | `medium` |
+| 40-59 | `low_medium` |
+| 0-39 | `low` |
+
+Bands are presentation projections of numeric confidence. They do not alter
+precedence and do not replace exact numeric confidence in trace.
+
+### 5.1.3 Route and road confidence rollup
+
+The canonical route/road confidence model must be executable, not merely
+conceptual.
+
+Definitions:
+
+```text
+sourceUncertainty = 1 - (sourceConfidenceAnchor / 100)
+normalizedRiskShare_i = riskContribution_i / totalRelevantRisk
+uncertaintyBurden_i = sourceUncertainty_i * normalizedRiskShare_i
+confidencePenalty = sum(uncertaintyBurden_i)
+confidenceScore = 100 * (1 - confidencePenalty)
+```
+
+Rules:
+
+- `riskContribution_i` is the canonical local score contribution of the chosen
+  input, slice, or crossing input under the same score graph used by risk
+- `totalRelevantRisk` is the sum of the relevant road and crossing
+  contributions in the scope being scored
+- if `totalRelevantRisk <= 0`, confidence falls back to the chosen-value mix
+  summary rather than dividing by zero
+- zero-risk or non-operative inputs contribute zero confidence burden
+- route confidence includes both road and crossing domains
+- road-domain confidence may be computed separately from route confidence for
+  audit and UX needs
+- unknown or missing score-driving inputs contribute using their `unknown`
+  anchor and the same risk-weighting rule
+
+This formula is canonical for phase 1 unless superseded by a future DS revision.
+
+### 5.2 Confidence downgrade rule
+
+Confidence must step down monotonically as provenance weakens:
+
+```text
+observed / official_imported > geometry_derived > relationship_inferred > predicted > baseline > unknown
+```
+
+Within a family, more specific or less lossy sources must score higher than more generic ones.
+
+### 5.3 Confidence is not precedence
+
+Precedence decides which value wins.
+
+Confidence explains how trustworthy the winning value is.
+
+No implementation may use confidence alone to overrule the precedence ladder.
+
+### 5.4 Confidence symmetry rule
+
+Every source-type row in Section 4 carries both:
+
+- a risk-facing provenance meaning
+- a confidence-facing trust anchor
+
+No source type is complete unless both are specified.
+
+This is especially important for:
+
+- `local_area_predicted`
+- `regional_prior`
+- `highway_area_baseline`
+- `highway_baseline`
+
+because these are exactly the sources most likely to accumulate asymmetry
+between risk treatment and confidence treatment.
+
+## 6. Field-Specific Precedence Ladders
+
+This section is organized by DS-015 family first and concrete source type
+second. If a field has no rung in a family, the ladder proceeds to the next
+family rather than inventing symmetry where none exists.
+
+### 6.1 Speed
+
+- `observed`
+  - `observed`
+  - `admin_approved`
+- `official_imported`
+  - `authoritative_posted`
+- `geometry_derived`
+  - `osm_posted`
+- `relationship_inferred`
+  - `observation_inferred`
+  - `authoritative_inferred`
+  - `osm_inferred`
+- `predicted`
+  - `local_area_predicted`
+- `baseline`
+  - `regional_prior`
+  - `highway_area_baseline`
+  - `highway_baseline`
+- `unknown`
+
+### 6.2 Traffic
+
+- `observed`
+  - `observed`
+  - `admin_approved`
+- `official_imported`
+  - direct official AADT per lane
+  - official total AADT plus known lane count
+- `relationship_inferred`
+  - official total AADT plus relationship-inferred lane count
+  - relationship-inferred total AADT from nearby stronger truth through corridor continuity
+- `predicted`
+  - `local_area_predicted`
+- `baseline`
+  - `highway_area_baseline` via class proxy / generic class traffic fallback
+- `unknown`
+
+Implementation note:
+
+- the traffic truth object may still carry internal confidence labels such as `official_per_lane` or `class_proxy`
+- those are not rider-facing semantic families
+- they must map through this spec before presentation, receipts, or score trace export
+- `regional_prior` and `highway_baseline` are not active traffic ladder rungs
+  in the current canonical model even though they remain global source types in
+  the master source table
+
+### 6.3 Bike Lane / Facility
+
+- `observed`
+  - `observed`
+  - `admin_approved`
+- `official_imported`
+  - authoritative imported facility truth when such a feed exists
+- `geometry_derived`
+  - explicit mapped facility truth from OSM or equivalent geometry-linked tags
+- `relationship_inferred`
+  - continuity-based carried facility truth where allowed by DS-017
+- `unknown`
+
+No `predicted` or `baseline` ladder exists for bike facility at this time.
+
+### 6.4 Shoulder
+
+- `observed`
+  - `observed`
+  - `admin_approved`
+- `official_imported`
+  - authoritative imported shoulder truth when such a feed exists
+- `geometry_derived`
+  - explicit mapped shoulder width / presence truth from OSM or geometry-linked tags
+- `relationship_inferred`
+  - continuity-based carried shoulder truth where allowed by DS-017
+- `unknown`
+
+No `predicted` or `baseline` ladder exists for shoulder at this time.
+
+### 6.5 Crossing Control
+
+- `observed`
+  - `observed`
+  - `admin_approved`
+- `official_imported`
+  - authoritative imported control truth
+- `geometry_derived`
+  - explicit mapped control truth from OSM or geometry-linked network tags
+- `unknown`
+
+### 6.6 Crossing Width
+
+- `observed`
+  - `observed`
+  - `admin_approved`
+- `official_imported`
+  - authoritative imported lane / width truth
+- `geometry_derived`
+  - lane count, crossed width, or width proxy derived from mapped geometry
+- `unknown`
+
+### 6.7 Crossing Movement
+
+- `geometry_derived`
+  - route geometry / topology movement classification
+- `unknown`
+
+Crossing movement is included for parity, but it is currently geometry-derived
+only.
+
+### 6.8 Master field/source matrix
+
+This table is the compact execution reference for score-driving fields. It is
+redundant with the ladders above on purpose. The ladders explain the model. This
+table makes implementation and audit faster.
+
+| Field | Family rung | Concrete source types / truth forms | Predicted allowed? | Baseline allowed? | Resolved options / classification | Precision and trace expectations |
+| --- | --- | --- | --- | --- | --- | --- |
+| Speed | `observed` | `observed`, `admin_approved` | yes | yes | exact posted or observed mph | retain exact mph; trace source link; for admin-approved speed, retain Street View verification link |
+| Speed | `official_imported` | `authoritative_posted` | yes | yes | exact posted mph | retain exact mph plus agency/feed/statute link |
+| Speed | `geometry_derived` | `osm_posted` | yes | yes | exact mapped maxspeed mph | retain exact mph plus OSM way/tag and OSM or lat/lon link |
+| Speed | `relationship_inferred` | `observation_inferred`, `authoritative_inferred`, `osm_inferred` | yes | yes | exact carried or inferred mph | retain exact mph plus propagation/derivation path, continuity reason, decay/distance context |
+| Speed | `predicted` | `local_area_predicted` | yes | yes | exact predicted mph, rounded to nearest 5 only where the method requires it | retain exact mph, contributors, radius, aggregation math, rounding, fallback reasons |
+| Speed | `baseline` | `regional_prior`, `highway_area_baseline`, `highway_baseline` | yes | yes | exact default mph from the selected row/table | retain exact lookup key, table/version, default mph, source document link, concrete lookup path |
+| Traffic | `observed` | `observed`, `admin_approved` | yes | yes | exact AADT total and AADT/lane when known | retain exact AADT, lane basis, factor math, and verification/source links |
+| Traffic | `official_imported` | direct official AADT/lane; official total AADT + known lane count | yes | yes | exact AADT/lane or exact AADT total + lane count | retain exact AADT total, AADT/lane, lane count, factor math, agency/feed link |
+| Traffic | `relationship_inferred` | official total AADT + relationship-inferred lane count; corridor-carried AADT | yes | yes | exact carried AADT total and derived AADT/lane | retain exact AADT inputs, lane inference basis, propagation path, factor math |
+| Traffic | `predicted` | `local_area_predicted` | yes | yes | exact predicted AADT total and derived AADT/lane | retain exact predicted AADT total, derived AADT/lane, contributor set, radius, aggregation math |
+| Traffic | `baseline` | class proxy via `highway_area_baseline` | yes | yes | exact class-proxy AADT/lane and resulting factor | retain class-proxy AADT/lane, factor math, governing table/document link |
+| Bike lane / facility | `observed` | `observed`, `admin_approved` | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain exact facility class, side context if relevant, source or Street View verification link |
+| Bike lane / facility | `official_imported` | authoritative imported facility truth | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain exact facility class and source link |
+| Bike lane / facility | `geometry_derived` | explicit mapped OSM / geometry-linked facility truth | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain exact facility class, tag basis, OSM or lat/lon link |
+| Bike lane / facility | `relationship_inferred` | continuity-carried facility truth | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain facility class plus propagation path and continuity reason |
+| Shoulder | `observed` | `observed`, `admin_approved` | no | no | `none`, `narrow`, `regular`, `wide` | retain exact width basis, side, threshold bucket, source or Street View verification link |
+| Shoulder | `official_imported` | authoritative imported shoulder truth | no | no | `none`, `narrow`, `regular`, `wide` | retain exact width / shoulder truth and source link |
+| Shoulder | `geometry_derived` | explicit mapped width/presence truth | no | no | `none`, `narrow`, `regular`, `wide` | retain exact width basis or mapped bucket plus OSM/lat-lon link |
+| Shoulder | `relationship_inferred` | continuity-carried shoulder truth | no | no | `none`, `narrow`, `regular`, `wide` | retain width/bucket plus propagation path and continuity reason |
+| Crossing control | `observed` | `observed`, `admin_approved` | no | no | `none`, `signed`, `signaled` | retain exact control type and visual/source verification link |
+| Crossing control | `official_imported` | authoritative imported control truth | no | no | `none`, `signed`, `signaled` | retain exact control type and source link |
+| Crossing control | `geometry_derived` | explicit mapped control truth | no | no | `none`, `signed`, `signaled` | retain exact control type, tag basis, OSM/lat-lon link |
+| Crossing width | `observed` | `observed`, `admin_approved` | no | no | exact crossed lane count and exact width basis when known | retain exact lane count / width and visual/source verification link |
+| Crossing width | `official_imported` | authoritative imported lane/width truth | no | no | exact crossed lane count and exact width basis when known | retain exact lane count / width and source link |
+| Crossing width | `geometry_derived` | mapped lane count / width proxy / crossed width derivation | no | no | exact crossed lane count and exact width basis when known | retain exact lane count, width proxy, and derivation math |
+| Crossing movement | `geometry_derived` | route geometry / topology movement classification | no | no | `straight`, `left_across`, `right_merge`, `join`, `exit`, `path_crossing`, `unknown` | retain exact movement classification and derivation basis |
+
+## 7. Explicit Math Contracts
+
+This section is intentionally prescriptive. It exists to replace ambiguous prose with explicit calculation contracts.
+
+### 7.1 `local_area_predicted` speed
+
+Eligibility:
+
+- no stronger speed source won
+- target is a motor-road through class: `trunk`, `primary`, `secondary`, or `tertiary`
+- eligible contributors are equal-or-lower through-road classes:
+  - trunk target may use trunk, primary, secondary, tertiary
+  - primary target may use primary, secondary, tertiary
+  - secondary target may use secondary, tertiary
+  - tertiary target may use tertiary only
+- same urbanicity when available and urban/rural context must not cross-match
+- within local search radius and within corridor-bounded search space
+- minimum 2 eligible contributors
+- contributors must be direct stronger truth only:
+  - `observed`
+  - `admin_approved`
+  - `authoritative_posted`
+  - `osm_posted`
+
+Search radius:
+
+- `5 mi` for all urbanicity bands
+
+The route-analysis implementation only has a route/corridor-local contributor
+pool today, but the explicit cap remains `5 mi` so predicted speed does not
+become a broad regional prior in disguise.
+
+Computation:
+
+```text
+broadClass = highwayType with `_link` stripped
+contributors = eligible nearby speed readings within radius
+rawMean = average(contributor speeds)
+valueFinal = round(rawMean to nearest 5 mph)
+```
+
+Confidence anchor:
+
+- `80`
+
+Required stored trace:
+
+- radius used
+- class context
+- area / urbanicity context
+- contributor count
+- capped contributor identities and values
+- aggregation method
+- raw result
+- rounding rule
+- reasons stronger sources did not win
+- source links for each contributor when available
+- source document / Street View links when applicable
+
+### 7.2 `local_area_predicted` traffic
+
+Eligibility:
+
+- no stronger traffic source won
+- same broad highway class
+- same urbanicity when available and urban/rural context must not cross-match
+- within local search radius and within corridor-bounded search space
+- minimum 2 eligible contributors
+- contributors must be direct stronger truth only:
+  - `observed`
+  - `admin_approved`
+  - authoritative imported numeric traffic truth
+
+Concrete contributor rule:
+
+- eligible traffic contributors are direct numeric traffic truths whose resolved
+  family/source maps to `observed`, `admin_approved`, or `official_imported`
+- `relationship_inferred`, `local_area_predicted`, and `baseline` traffic
+  truths are not eligible contributors
+
+Search radius:
+
+- `5 mi`
+
+Computation:
+
+```text
+broadClass = highwayType with `_link` stripped
+contributors = eligible nearby total AADT readings within radius
+expectedAADTTotal = round(average(contributor AADT totals))
+lanes = known lane count if available, else inferred lane count
+aadtPerLane = expectedAADTTotal / lanes
+trafficFactor = ds015TrafficFactorFromAADTPerLane(aadtPerLane)
+```
+
+Confidence anchor:
+
+- `80`
+
+Required trace:
+
+- same as speed, plus the lane-count basis used to convert total AADT into per-lane truth
+
+### 7.3 `regional_prior`
+
+This is a dataset or jurisdiction-backed contextual default, not a local estimate.
+
+Speed math:
+
+```text
+lookupKey = (state, urbanicity, highwayType)
+valueFinal = dataset defaultMph for best matching row
+```
+
+Traffic math:
+
+`regional_prior` is not currently a separate canonical traffic fallback in the active DS-015 ladder. If later introduced for traffic, it must be specified here first and may not appear ad hoc in code.
+
+Required trace:
+
+- source document link when one exists
+- dataset name/version
+- agency
+- row id or effective lookup key
+- jurisdiction
+- dimensions matched
+- default value
+
+### 7.4 `highway_area_baseline`
+
+This is a structured generic fallback driven by road form and surrounding area context. It is weaker than `regional_prior` because it is less jurisdiction-specific and weaker than `local_area_predicted` because it is not built from nearby empirical contributors.
+
+Speed math:
+
+```text
+if state-specific area-baseline row exists for (state, urbanicity, highwayType):
+  valueFinal = row.defaultMph
+else:
+  valueFinal = generic area-context table(highwayType, urbanicity, metricRegion)
+```
+
+Traffic math:
+
+```text
+classProxyAadtPerLane = DS015 highway-type proxy table(highwayType)
+trafficFactor = ds015TrafficFactorFromAADTPerLane(classProxyAadtPerLane)
+```
+
+Required trace:
+
+- source document link
+- agency or governing table identity
+- lookup dimensions
+- table/version key
+- whether the result came from a state-specific row or generic context row
+- exact baseline value used
+- what concrete lookup produced the chosen value
+
+### 7.5 `highway_baseline`
+
+This is the final non-null generic fallback.
+
+Speed math:
+
+```text
+valueFinal = generic highway-class baseline(highwayType)
+```
+
+Traffic math:
+
+`highway_baseline` does not currently have a distinct active traffic ladder step. Traffic falls from class proxy to `unknown` under the present DS-015 contract. If a separate highway-baseline traffic layer is introduced later, it must be specified here first.
+
+Required trace:
+
+- source document link
+- agency or governing table identity
+- highway class
+- table/version key
+- baseline value
+- what concrete lookup produced the chosen value
+
+## 8. Canonical Traceability Contract
+
+Every score-bearing chosen value must be inspectable. The system must be able to answer:
+
+1. what value won
+2. what source type won
+3. what provenance family it belongs to
+4. what stronger sources were absent or ineligible
+5. what concrete math or lookup produced the chosen value
+6. what exact inputs contributed if the value was derived
+
+Traceability is required at three levels, not one.
+
+### 8.0 Traceability levels
+
+| Level | Canonical question | Required surfaces |
+| --- | --- | --- |
+| Route trace | Why did this route score and land in this confidence band the way it did overall? | scorecard, route summary, route receipt, admin audit |
+| Road trace | Why did this stretch get this road risk, local confidence, and displayed receipt math? | inspect panel, segment receipt, road card expansion |
+| Input trace | Why did this field resolve to this chosen value and confidence anchor? | confidence dropdowns, audit panels, expanded receipts |
+
+These levels must link to each other:
+
+- route trace must summarize road traces
+- road trace must summarize input traces
+- input trace must explain the exact source or derivation
+
+### 8.1 Required trace depth by source type
+
+| Source type | Minimum stored trace |
+| --- | --- |
+| `observed` | conditions, anchor observation ref, who/what observed it, where it applies, source links when available |
+| `admin_approved` | conditions, admin identity, timestamp, approval ref, supporting verification links; for speed, include the Street View verification link |
+| `authoritative_posted` | conditions, agency/feed/statute ref, matched segment or record id, source URL if public |
+| `osm_posted` | conditions, OSM way id plus tag key/value, OSM or lat/lon link |
+| `observation_inferred` | conditions, anchor source identity, propagation path, continuity reason, decay / distance context |
+| `authoritative_inferred` | conditions, agency/feed id, propagation path, continuity reason, decay / distance context, source links when available |
+| `osm_inferred` | conditions, matched road or anchor source identity, propagation / derivation path, continuity or inference reason, decay / distance context, OSM or lat/lon link |
+| `local_area_predicted` | conditions, contributor list, radius, aggregation, rounding, rejection reasons, fallback reasons, source links for contributors |
+| `regional_prior` | conditions, dataset row / lookup key, agency, matched context, default value, source document link |
+| `highway_area_baseline` | conditions, governing table / context row, matched dimensions, exact lookup used, source document link |
+| `highway_baseline` | conditions, highway-class baseline key, exact lookup used, source document link |
+| `unknown` | explicit missingness reason when available |
+
+### 8.1.1 Route-level trace contract
+
+The route-level trace must be able to explain:
+
+- total route risk
+- route risk per mile
+- route confidence
+- road-domain confidence
+- provenance-family miles by contribution
+- provenance-family risk contribution
+- provenance-family confidence burden
+- fallback burden summaries for speed, traffic, facility, and shoulder
+- top contributing road and crossing records
+- what concrete math or lookup produced the chosen value for the route-level top contributors
+- exact resolved values when known rather than collapsed labels
+
+Route-level trace must preserve precision. Examples:
+
+- show exact AADT or AADT-per-lane when known, not only `Moderate`
+- show lane counts when known
+- show exact movement and width descriptors such as `Left turn across 6 lanes`
+- show exact control types such as `Traffic light`
+
+### 8.1.2 Road-level trace contract
+
+The road-level trace must be able to explain:
+
+- chosen speed, traffic, facility, shoulder, and curvature
+- chosen provenance family and source type for each field
+- factor math
+- local likelihood
+- local severity
+- local risk
+- local confidence contribution
+- direct links or embedded summaries of the underlying input traces
+- what concrete math or lookup produced the chosen value for each chosen input
+
+Road-level trace must also preserve precision. Examples:
+
+- `25,829 AADT total, 7 lanes, 3,690 AADT/lane`
+- `55 mph`
+- `Traffic light`
+- `Left turn across 6 lanes`
+- `Straight across 4 lanes`
+
+Road-level trace is the canonical basis for inspector math and receipts. Those
+two surfaces may differ in layout, but they may not differ in truth.
+
+### 8.1.3 Input-level trace contract
+
+The input-level trace must be able to explain:
+
+- conditions that made the source eligible
+- what concrete math or lookup produced the chosen value
+- exact resolved values and selectors
+- source links
+- visual verification links when the field is visually inspectable
+
+### 8.2 Source trace schema
+
+`SourceTrace` is the common structured trace payload family for score-bearing
+chosen inputs.
+
+- `DerivationTrace` is the `SourceTrace` subtype for modeled or computed values
+  such as `local_area_predicted`
+- lookup-backed baseline sources may use a narrower lookup-style `SourceTrace`
+  without pretending to be contributor-derived predictions
+
+For `local_area_predicted`, the system must store a compact machine-readable
+`DerivationTrace` payload rather than only prose.
+
+Recommended canonical shape:
+
+```text
+SourceTrace {
+  version
+  field
+  family
+  sourceType
+  method
+  valueRaw
+  valueFinal
+  units
+  radiusMi
+  classContext
+  areaContext
+  candidateCount
+  contributors[]
+  aggregation
+  rejectedStrongerEvidence[]
+  fallbackReason[]
+}
+```
+
+Contributor payload:
+
+```text
+Contributor {
+  roadId
+  roadName
+  value
+  units
+  distanceMi
+  sourceType
+  family
+  highwayType
+}
+```
+
+Aggregation payload:
+
+```text
+Aggregation {
+  op
+  inputCount
+  rawResult
+  rounding { mode, increment, result }
+}
+```
+
+### 8.3 Storage rules
+
+Store:
+
+- compact machine fields
+- capped contributors
+- symbolic rejection and fallback reasons
+- route-level provenance and confidence rollups
+- road-level chosen-input and local-confidence summaries
+
+Do not store:
+
+- full candidate geometry
+- unbounded rejected candidate lists
+- repeated giant prose strings
+
+Generate prose at presentation time.
+
+## 9. Presentation Contract
+
+Rider-facing surfaces must not improvise provenance semantics.
+
+All of the following must render from the same canonical truth and trace payload:
+
+- inspector confidence tab
+- field dropdowns
+- road cards
+- overlays
+- receipts
+- scorecard
+- admin audit views
+
+### 9.1 Summary vs expanded trace
+
+Compact surfaces may show:
+
+- value
+- source label
+- family label
+- confidence band
+
+Expanded surfaces must be able to show:
+
+- why this source won
+- what it was derived from
+- what math was applied
+- why stronger sources did not apply
+- how the chosen input affected both risk and confidence
+
+Visible inspectable fields that benefit from visual verification should expose a
+Google Street View link with the proper bearing where feasible. This applies in
+particular to:
+
+- bike lane / facility
+- shoulder
+- crossing width
+- crossing control
+- admin-approved speed verification
+
+Source-backed fields should also expose the underlying source link in the field
+confidence dropdown itself when one exists, including OSM-backed fields.
+
+### 9.2 Risk-confidence explanation parity
+
+If a surface explains:
+
+- why a road is risky
+
+it must also be able to explain:
+
+- why the system is confident or not confident in that risk explanation
+
+This applies at:
+
+- route level
+- road level
+- input level
+
+## 10. Performance and Payload Guardrails
+
+Full inspectability is required. Full artifact bloat is not.
+
+Required guardrails:
+
+- compute local-area predictions once per analysis-time pass, not per UI consumer
+- cap stored contributors to 3-5
+- store candidate counts separately from displayed contributor list
+- store ids and values, not geometry
+- dedupe identical trace payloads route-wide if repeated often
+- render human-readable prose lazily from stored machine trace
+- do not create separate risk-only and confidence-only trace universes
+
+Phase-1 rule:
+
+- `local_area_predicted` must be fully inspectable
+- all other source types must at least meet the minimum trace depth in Section 8.1
+- route-, road-, and input-level confidence traces must remain aligned to the
+  same chosen truths used by risk
+
+## 11. Reconciliation Rules for DS-015, DS-020, and DS-022
+
+### 11.1 `DS-015`
+
+`DS-015` remains the canonical family hierarchy.
+
+### 11.2 `DS-020`
+
+`DS-020` must be treated as a confidence projection of `DS-015`, not as an independent semantic truth model.
+
+That means:
+
+- `DS-020` should not define provenance meaning directly at the concrete source-type layer without first mapping through `DS-015`
+- `highway_area_baseline` and `regional_prior` are concrete source types, not semantic families
+- `local_area_predicted` must live in `predicted`, not baseline
+- any earlier highway-confidence intuition about rough approximations hurting more on dangerous roads should be preserved through risk-weighted confidence burden, not through ad hoc provenance distortion
+
+### 11.3 `DS-022`
+
+`DS-022` governs speed-specific prior policy, but it must defer to this document for:
+
+- family assignment
+- precedence semantics
+- confidence anchors
+- traceability requirements
+
+## 12. Implementation Scope
+
+This section defines the intended execution scope for the next implementation pass.
+
+### 12.1 Canonical truth and mapping layer
+
+- [src/lib/evidence/types.ts](/Users/derekminner/lanterne/src/lib/evidence/types.ts)
+- [src/lib/evidence/resolver.ts](/Users/derekminner/lanterne/src/lib/evidence/resolver.ts)
+- [src/lib/evidence/local-area-predicted.ts](/Users/derekminner/lanterne/src/lib/evidence/local-area-predicted.ts)
+- [src/shared/scoring/ds015-contract.ts](/Users/derekminner/lanterne/src/shared/scoring/ds015-contract.ts)
+
+Required outcomes:
+
+- traffic and speed align to the same family/source model
+- local-area traffic maps to `local_area_predicted`
+- speed gains the same local-area predicted layer
+- precedence and confidence stay monotonic
+- traffic and speed remain symmetrical in both risk and confidence treatment
+
+### 12.2 Route-analysis and artifact layer
+
+- [src/lib/route-analysis.ts](/Users/derekminner/lanterne/src/lib/route-analysis.ts)
+- [src/lib/canonical-analysis-artifact.ts](/Users/derekminner/lanterne/src/lib/canonical-analysis-artifact.ts)
+- `heatmap` and route-cache types that serialize chosen truth
+
+Required outcomes:
+
+- exported truth and inspector truth agree
+- chosen input provenance and trace payload survive serialization
+- receipts can render from stored truth rather than re-inventing derivations
+- scorecard, road receipt, and confidence surfaces consume the same trace stack
+
+### 12.3 Presentation layer
+
+- [src/lib/presentation/provenance-labels.ts](/Users/derekminner/lanterne/src/lib/presentation/provenance-labels.ts)
+- `semantic-tokens`, inspectable field presentation, speed presentation controller
+- inspector, road card, overlay, receipt, and admin audit consumers
+
+Required outcomes:
+
+- predicted does not disappear into baseline wording
+- compact surfaces stay compact
+- expanded surfaces become auditable
+- any risk explanation can be paired with its corresponding confidence explanation
+
+### 12.4 Tests
+
+Required test families:
+
+- resolver precedence
+- traffic reclassification
+- speed local-area predicted ordering
+- route-analysis vs inspector parity
+- receipt / inspector / road-card label parity
+- artifact serialization
+
+## Appendix A. Field vocabularies
+
+This appendix lists the canonical resolved option sets for the score-driving
+fields. Thresholds, tag mappings, and derivation rules belong in Appendix C and
+the field-specific DS references.
+
+### A.1 Bike lane / facility
+
+- `path / MUP`
+- `protected`
+- `buffered`
+- `painted`
+- `shared`
+- `none`
+
+`path / MUP` belongs to the facility truth vocabulary but still triggers the
+separate path-domain scoring rule under `DS-015`.
+
+### A.2 Shoulder
+
+- `none`
+- `narrow`
+- `regular`
+- `wide`
+
+### A.3 Crossing control
+
+- `none`
+- `signed`
+- `signaled`
+
+### A.4 Crossing width
+
+- exact crossed lane count when known
+- exact crossed width basis when known
+- width proxy only when direct width is unavailable
+
+### A.5 Crossing movement
+
+- `straight`
+- `left_across`
+- `right_merge`
+- `join`
+- `exit`
+- `path_crossing`
+- `unknown`
+
+## Appendix B. Source-link and Street View policy
+
+### B.1 Source links
+
+Whenever a stable source URL or document link exists, the field-confidence
+dropdown should expose it directly.
+
+This includes:
+
+- authoritative feeds and statutes
+- regional-prior dataset or policy rows
+- baseline source documents
+- OSM-backed source types through an OSM object or lat/lon link
+
+### B.2 Street View links
+
+Where a field is visually verifiable from roadway imagery, the field-confidence
+dropdown should expose a Street View link with the best available bearing.
+
+This especially applies to:
+
+- admin-approved speed verification
+- bike lane / facility
+- shoulder
+- crossing control
+- crossing width
+
+## Appendix C. Classification and predicate mapping
+
+This appendix is the bridge from archival policy to code predicates. The first
+pass is intentionally limited to the highest-ambiguity categories.
+
+### C.1 Path / MUP
+
+Canonical intent:
+
+- classify as `path / MUP` when the resolved facility is a separated riding
+  space rather than an ordinary on-road lane treatment
+
+Implementation mapping:
+
+- explicit safe-path or MUP classification from the existing path-domain logic
+- explicit mapped path/cycleway truth from OSM or equivalent source
+- where geometry rules are used, preserve the exact predicate or distance test
+  in code comments and trace payloads
+
+### C.2 Bike lane / facility classes
+
+Canonical intent:
+
+- `protected`, `buffered`, `painted`, `shared`, `none`
+
+Implementation mapping:
+
+- preserve the exact OSM tags, side-specific tags, and continuity predicates
+  used to reach the resolved class
+- if multiple tags collapse into the same rider-facing class, keep the exact
+  tags in input trace
+
+### C.3 Shoulder classes
+
+Canonical intent:
+
+- `none`, `narrow`, `regular`, `wide`
+
+Implementation mapping:
+
+- preserve the exact width basis and threshold rule used to assign the bucket
+- if width was mapped rather than measured, keep the exact tags or geometry
+  basis in input trace
+
+### C.4 Crossing control
+
+Canonical intent:
+
+- `none`, `signed`, `signaled`
+
+Implementation mapping:
+
+- derive from observed truth, authoritative truth, or mapped control geometry
+- do not use a `relationship_inferred` rung for crossing control
+- preserve the exact tags or control predicates used in trace
+
+### C.5 Crossing width
+
+Canonical intent:
+
+- exact crossed lane count when known
+- exact width basis when known
+- width proxy only when direct width is unavailable
+
+Implementation mapping:
+
+- derive from observed truth, authoritative truth, or crossed-road geometry
+- do not use a `relationship_inferred` rung for crossing width
+- preserve the exact lane tags, width proxy rule, and concrete derivation math
+  in trace
+
+## Appendix D. Canonical source-type matrix by field
+
+This appendix records whether a source type is active, inactive, or not allowed
+for a given field in the current model.
+
+| Field | Source type / truth form | Status | Notes |
+| --- | --- | --- | --- |
+| Speed | `observed`, `admin_approved`, `authoritative_posted`, `osm_posted`, `observation_inferred`, `authoritative_inferred`, `osm_inferred`, `local_area_predicted`, `regional_prior`, `highway_area_baseline`, `highway_baseline`, `unknown` | active | full ladder |
+| Traffic | `observed`, `admin_approved`, official AADT variants, corridor-carried AADT, `local_area_predicted`, `highway_area_baseline`, `unknown` | active | canonical traffic ladder |
+| Traffic | `regional_prior`, `highway_baseline` | inactive | retained globally but not active traffic rungs |
+| Bike lane / facility | `observed`, `admin_approved`, authoritative imported facility, geometry-derived mapped facility, continuity-carried facility, `unknown` | active | no predicted/baseline |
+| Shoulder | `observed`, `admin_approved`, authoritative imported shoulder, geometry-derived shoulder, continuity-carried shoulder, `unknown` | active | no predicted/baseline |
+| Crossing control | `observed`, `admin_approved`, authoritative imported control, geometry-derived control, `unknown` | active | no relationship_inferred |
+| Crossing width | `observed`, `admin_approved`, authoritative imported width, geometry-derived width, `unknown` | active | no relationship_inferred |
+| Crossing movement | geometry-derived movement, `unknown` | active | geometry/topology derived only |
+
+## Appendix E. Derivation trace schema and enums
+
+### E.1 Canonical `DerivationTrace` enums
+
+Allowed values in phase 1:
+
+- `field`: `speed_mph`, `aadt_total`, `aadt_per_lane`, `traffic_factor`
+- `method`: `local_area_predicted`, `regional_prior_lookup`, `highway_area_baseline_lookup`, `highway_baseline_lookup`
+- `units`: `mph`, `vehicles_per_day`, `vehicles_per_day_per_lane`, `factor`
+- `aggregation.op`: `mean`
+- `rejectedStrongerEvidence.reason`: `missing`, `ineligible`, `too_far`, `class_mismatch`, `urbanicity_mismatch`, `outside_corridor`, `not_direct_truth`
+- `fallbackReason`: `no_direct_truth`, `no_relationship_truth`, `no_local_candidates`, `fell_to_baseline`
+
+### E.2 Required fields by source type
+
+| Source type | Required derivation fields |
+| --- | --- |
+| `local_area_predicted` | full `DerivationTrace`, contributors, aggregation, radius, classContext, areaContext |
+| `regional_prior` | method, lookup key, jurisdiction, valueFinal, source document link |
+| `highway_area_baseline` | method, lookup key, table/version, valueFinal, source document link |
+| `highway_baseline` | method, lookup key, table/version, valueFinal, source document link |
+
+## Appendix F. Confidence rollup notes
+
+The confidence rollup formula in Section 5.1.3 is canonical, but implementations
+should also follow these notes:
+
+- cap confidence score to `[0, 100]`
+- preserve exact numeric confidence in trace and artifact
+- bands are derived after numeric confidence is computed
+- route summaries may highlight only top contributors by confidence burden
+- the same materiality threshold used for risk trace surfacing may also cap
+  route-level confidence detail surfaces
+
+## Appendix G. Local-area lookup policy
+
+### G.1 Broad road class
+
+For phase 1, `BroadRoadClass` is defined as:
+
+- strip `_link` suffix when present
+- treat the remaining highway type as the broad class key
+- exclude rail, path, sidewalk, crossing-connector-only, and safe-path-only
+  objects from local-area speed and traffic contributors unless a future DS
+  explicitly promotes them
+
+This intentionally avoids broader class-family grouping in phase 1.
+
+### G.2 Corridor-bounded search
+
+For phase 1, corridor-bounded search means:
+
+- candidate contributors must already belong to the fetched route corridor
+  evidence universe
+- candidate distance is then evaluated from the target segment within that
+  corridor-bounded universe
+
+This is narrower than an unconstrained radial search and broader than strict
+same-road continuity.
+
+### G.3 Urbanicity context
+
+For phase 1:
+
+- use per-segment urbanicity
+- allowed values are `urban`, `suburban`, `rural`
+- if urbanicity is unknown on the target segment, do not promote to a broader
+  cross-context match
+- urban/rural mismatches are not eligible contributors
+
+## Appendix H. Baseline lookup policy
+
+### H.1 State-specific vs generic area baseline order
+
+For `highway_area_baseline` speed:
+
+1. if state, urbanicity, and highway type are known and a state-specific row
+   exists, use that row
+2. otherwise use the generic area-context table keyed by highway type and
+   urbanicity
+3. if no area-context value exists, fall to `highway_baseline`
+
+### H.2 Traffic class proxy order
+
+For traffic baseline:
+
+1. use the DS-015 highway-type class proxy AADT/lane table
+2. derive factor from canonical DS-015 traffic-factor math
+3. if no class proxy exists, fall to `unknown`
+
+All baseline lookups must carry table identity, version, and source document
+link.
+
+## Appendix I. Source-link policy
+
+| Source type | Link policy |
+| --- | --- |
+| `observed` | optional when a stable external reference exists |
+| `admin_approved` | required supporting verification link when one exists; audit-only refs may remain internal |
+| `authoritative_posted` / `authoritative_inferred` | required when a stable public or internal authoritative link exists |
+| `osm_posted` / `osm_inferred` | generated OSM object link or lat/lon link |
+| `local_area_predicted` | contributor links when available |
+| `regional_prior` / `highway_area_baseline` / `highway_baseline` | source document or governing table link required |
+
+## Appendix J. Street View policy
+
+| Field | Street View policy | Notes |
+| --- | --- | --- |
+| admin-approved speed | required when sign-visible verification exists | preserve verification bearing where feasible |
+| bike lane / facility | optional but preferred | degrade gracefully if no pano exists |
+| shoulder | optional but preferred | degrade gracefully if not visible |
+| crossing control | optional but preferred | bearing should face the relevant approach |
+| crossing width | optional but preferred | bearing should face the crossing approach |
+
+Street View is an audit/verification capability. Exact UI placement may vary by
+surface.
+
+## Appendix K. Artifact serialization and rollout phases
+
+### K.1 Phase table
+
+| Item | Phase 1 | Phase 2+ |
+| --- | --- | --- |
+| `local_area_predicted` trace | fully required | remains required |
+| other source-type minimum trace identity | required | remains required |
+| full route/road/input trace architecture | required schema | remains required |
+| full derivation trace for non-predicted sources | schema reserved | complete as source-specific phases land |
+| broad audit UX parity across all surfaces | partial rollout acceptable | required completion path |
+
+Phase 1 is sequencing, not permission to leave the rest asymmetrical.
+
+### K.2 Serialization shape
+
+Canonical artifacts should support either:
+
+- inline per-field trace payloads, or
+- route-level trace table plus per-field `traceId` references
+
+Required properties:
+
+- trace payload versioning
+- compatibility with legacy artifacts that lack full trace
+- capped contributor storage
+- no full geometry duplication inside trace payloads
+
+## 13. Canonical Rule of Interpretation
+
+If any older doc, implementation comment, or UI string conflicts with this document on provenance family, precedence, confidence anchor, or traceability requirement:
+
+1. this document governs
+2. `DS-015` governs family semantics where this document references it
+3. implementation must be updated to match before adding new exceptions
+
+This document is intended to eliminate half-measures in provenance handling. Any future source type or fallback layer must be added here first, with:
+
+- family assignment
+- precedence
+- confidence anchor
+- explicit math
+- traceability requirements
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-030-route_analysis_contract.md
+
+# DS-030 - Route Analysis Contract
+
+**Status:** Draft for implementation  
+**Date:** 2026-04-27  
+**Filename:** `ds-030-route_analysis_contract.md`  
+**Related:** [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-024](./ds-024-parallel_bike_facility_capture_and_corridor_ownership_spec.md), [DS-025](./ds-025-transition_candidate_claim_and_projection_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md)
+
+
+
+## 0. Governing Principle
+
+Lanterne must prefer “unknown” over “incorrectly certain.” No pipeline stage may invent score-bearing identity or downgrade evidence to produce a complete-looking result. “Invent” means assigning identity, speed, traffic, or confidence without the minimum candidate, geometry, topology, or provenance support required by the invariant that owns that field.
+
+## 1. Purpose
+
+This document defines the canonical route analysis invariants discovered across
+the DC, TX-LA, Cape May, and T&H diagnostic audits.
+
+It is a contract for route-analysis correctness. It does not introduce product
+design, fallback heuristics, or implementation patches.
+
+The contract separates ownership across these branches:
+
+- Ghost truth cleanup
+- Evidence propagation
+- DS-029 provenance
+- Presentation parity
+- Hazard
+
+## 2. Invariants
+
+| Invariant | Owning pipeline stage | Branch bucket |
+| --- | --- | --- |
+| Detached path/cycleway identity must remain path identity unless adjacent motor-road inheritance is locally proven by close, parallel geometry across multiple samples. Parent-road inheritance requires:<br/>\- bounded offset distance using an explicit, tested threshold<br/>\- bounded angular difference using an explicit, tested threshold<br/>\- consecutive sample support, never a single-sample claim<br/>\- topology-valid adjacency, never crossing, underpass, or grade-separated proximity<br/>The threshold values may live in implementation config, but they must be named, testable, and traceable in diagnostics. | Matcher / parallel cycleway reclassification | Ghost truth cleanup |
+| Passing under, crossing, diverging by angle, or separating beyond threshold must break parent-road inheritance at the first unsupported sample or the first projected boundary generated from that unsupported sample. | Matcher / boundary refinement | Ghost truth cleanup |
+| Traffic signals, stop nodes, crossings, and other control nodes may affect hazard/crossing evidence only; they must never become `roadName`, `highwayType`, speed source, traffic source, or clickable segment identity. | Candidate classification / truth materialization | Ghost truth cleanup |
+| Broad nearby-road retrieval must not override local path/cycleway candidates. “Local” means the candidate set inside the primary matcher radius before fallback expansion. Long-distance fallback identity requires explicit local geometry support: bounded distance, bounded angular agreement, and consecutive sample support at the chosen identity. | Nearby candidate retrieval / matcher | Ghost truth cleanup |
+| Truth boundaries must land at the physical transition. Boundary placement precedence is: route departure point when the route leaves one geometry for another; otherwise intersection apex when a true intersection exists; otherwise closest approach when the transition is supported by sampled route geometry. Boundaries must not lag through a turn or fire early before the rider leaves the current road. | Boundary refinement / transition projection | Ghost truth cleanup |
+| Same-path -> road -> same-path crossings are invalid unless the route geometry is aligned to the motor road and motor-road candidates dominate path candidates for consecutive samples between two distinct path segments. A single crossing, underpass, bridge, or nearest-road sample does not prove that the rider rode the motor road. | Truth materialization | Ghost truth cleanup |
+| Named road continuity must survive short OSM way splits unless there is positive evidence of a real identity change. “Short” must be defined by an explicit distance or sample-count threshold. Positive evidence requires more than a way ID change: it requires supported name/ref/highway change, route-geometry alignment, or topology evidence. Matcher owns identity assignment. Materializer may collapse runs but must not modify or replace identity fields (roadId, roadName, highwayType, scoreDomainType). | Matcher / truth materialization | Ghost truth cleanup |
+| Named -> unnamed -> same named road requires proof of a true unnamed segment; otherwise preserve continuity or mark uncertain, not low-confidence named truth. Proof requires stable unnamed way identity, consecutive sample support, absence of a stronger same-name continuation candidate, and no topology evidence that the unnamed run is only a connector or artifact. If named continuity is supported, preserve named continuity; if unnamed truth is supported, keep unnamed truth; if neither is supported, mark unresolved. | Truth materialization / sanitizer | Ghost truth cleanup |
+| Unresolved/off-network GPX mileage must remain unknown or uncertain. Unresolved means no score-bearing road identity, no baseline speed, no baseline traffic, and exclusion from matched-mile totals. It must not become unnamed 15mph/25mph area-estimate road truth. | Matcher null-fill / truth materialization | Ghost truth cleanup |
+| Match quality must measure pre-fill candidate support, not post-fill availability of any road-like assignment. The measured state is the matcher candidate/support state before null-fill, sanitizer, materializer collapse, or evidence fallback. | Matcher diagnostics / route quality rollup | Ghost truth cleanup |
+| Official speed or traffic evidence must not be lost merely because a truth segment boundary or OSM way split occurs. | Evidence resolution / propagation | Evidence propagation branch |
+| Relationship-inferred official evidence outranks baseline fallback when geometry/name continuity is intact. Evidence resolution must consider both local truth-run evidence and adjacent corridor evidence. “Continuity” must be represented by explicit distance, sample-count, name/ref, and geometry-alignment criteria. Short gaps in local evidence must not trigger fallback while those criteria remain satisfied. Baseline is eligible only after relationship continuity fails or stronger propagated evidence is explicitly rejected. | Evidence resolver | Evidence propagation branch |
+| Speed and traffic must use symmetric DS-029 provenance, precedence, confidence, receipts, and inspect traces. | Evidence resolver / confidence graph | DS-029 provenance branch |
+| Resolver recomputation per truth segment is allowed only if it preserves upstream evidence lineage or records a specific rejection reason. Minimum lineage is: source type, selected value, source identifier when available, segment span, propagation reason when accepted, and rejection reason when rejected. | Evidence resolver | DS-029 provenance branch |
+| Baseline, regional prior, and local-area estimates may fill only after stronger official/posted/OSM/relationship evidence has been rejected with traceable cause. Rejection causes must be explicit categories such as missing field, spatial mismatch, identity mismatch, stale/conflicting source, failed continuity, or below-threshold support. | Evidence resolver | DS-029 provenance branch |
+| Provenance resets at segment boundaries are invalid; the trace must show whether evidence was direct, propagated, rejected, or unavailable. | Provenance trace export | DS-029 provenance branch |
+| Risk scoring must not use provenance/confidence as a risk multiplier. Provenance affects confidence and explanation, not hazard/risk magnitude. The dependency is one-way: chosen score-driving inputs feed confidence burden; confidence and provenance do not feed risk magnitude. | Safety scoring | DS-029 provenance branch |
+| Confidence must be computed from the same chosen score-driving inputs as risk. No surface may explain risk with richer source detail than confidence can trace. | Confidence graph / artifact export | DS-029 provenance branch |
+| Route-level truth, inspect truth, receipts, clickable segments, and debug panels must agree on chosen speed, traffic, source type, confidence, and rejection path after accounting for aggregation or summarization. They may differ in display text, but not in canonical chosen inputs or provenance lineage. | Export / inspect surfaces | DS-029 provenance branch |
+| Paint colors must project canonical truth; paint modes must not create, merge, or reinterpret truth identity. Debug modes may display non-canonical intermediate states only when the state is labeled as non-canonical and cannot be mistaken for canonical paint or truth. | Paint projection | Presentation parity branch |
+| Traffic badge severity and total paint severity must be explicitly distinguishable when traffic is low but total risk is medium/high due to speed, shoulder, or infrastructure. The inspect payload must separately represent per-factor traffic severity and total-risk severity. | Presentation / semantic tokens | Presentation parity branch |
+| Risk bucket thresholds must be consistent between truth export, route paint, inspect panels, and receipts. Debug-only alternate thresholds are allowed only when labeled non-canonical and not used for rider-facing or score-bearing truth. | Presentation / scoring export | Presentation parity branch |
+| Hazard detection must be independent of road-name truth success when raw corridor geometry/tag evidence exists. Detection may not require a successful `roadName`, but attachment still requires route-geometry proximity, intersection, or span support. | Hazard detection / attachment | Hazard branch |
+| Metal grate bridges must fire when corridor data contains bridge plus grate/grid/metal surface tags and that qualifying evidence intersects or spans the route geometry. | Hazard detection | Hazard branch |
+| Railroad hazards must fire when corridor data contains explicit crossing nodes or rail-road geometric intersections and that qualifying evidence intersects the route geometry. | Hazard detection | Hazard branch |
+| Left-turn debug must be derived from route movement geometry at transitions, not from final road-name materialization alone. Turn classification must use an explicit, tested bearing-delta threshold owned by transition debug config. | Transition debug / hazard-debug presentation | Hazard branch |
+| Debug/inspect surfaces must distinguish real truth bugs from projection artifacts: geometry truth, source truth, confidence trace, canonical paint, and labeled non-canonical debug states are separate layers. | Debug tooling / admin surfaces | Presentation parity branch |
+
+## 4. Must Nots
+
+The system must not:
+\- assign road identity to control nodes (traffic_signal, stop_sign, etc.)
+\- treat crossings as adjacency
+\- convert unresolved segments into baseline roads
+\- drop authoritative evidence due to segment boundaries or OSM way splits
+\- recompute evidence per segment without lineage
+\- use provenance/confidence to alter risk magnitude
+
+## 5. Implementation Order
+
+1. Ghost truth cleanup should go first. It owns the substrate invariants: path collapse, boundary lag, unnamed/off-network truth, candidate overreach, and false road continuity.
+2. Evidence propagation and DS-029 should follow once truth identity is stable. Otherwise official speed/traffic propagation will continue to be debugged against moving or false truth segments.
+3. Presentation parity and hazard work should stay separate. They expose real problems, but they should not be used to compensate for matcher/materializer drift.
 
 
 ---
