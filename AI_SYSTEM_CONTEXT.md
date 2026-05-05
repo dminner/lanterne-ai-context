@@ -15765,10 +15765,10 @@ The hazard subsystem is considered healthy when:
 
 # DS-029 - Provenance, Precedence, Confidence, and Traceability Specification
 
-**Status:** Draft for implementation  
-**Date:** 2026-04-26  
+**Status:** Draft, partially implemented  
+**Date:** 2026-05-05  
 **Filename:** `ds-029-provenance_precedence_confidence_and_traceability_spec.md`  
-**Related:** [DS-015](./ds-015-safety_scoring_model.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-020](./ds-020-confidence_model_and_tracing.md), [DS-022](./ds-022-speed_prior_and_area_baseline_policy_spec.md)
+**Related:** [DS-015](./ds-015-safety_scoring_model.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-020](./ds-020-confidence_model_and_tracing.md), [DS-022](./ds-022-speed_prior_and_area_baseline_policy_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-030](./ds-030-route_analysis_contract.md)
 
 ## 1. Purpose
 
@@ -15930,6 +15930,65 @@ Trace requirements must distinguish:
 `admin_approved` may override value, provenance, and confidence treatment, but
 the overridden source should remain visible in audit trace when available.
 
+### 4.2.2 Operational source lineage vs DS-015 source type
+
+This spec now distinguishes two different things that earlier drafts blurred:
+
+1. DS-015 provenance family / concrete source type
+2. operational source lineage
+
+The first is canonical for score-bearing truth. The second is canonical for
+transport, freshness, and hazard/object traceability.
+
+Examples:
+
+- `authoritative_posted`
+- `osm_posted`
+- `local_area_predicted`
+- `highway_area_baseline`
+
+are concrete source types.
+
+By contrast:
+
+- `self_hosted_roads`
+- `raw_overpass`
+- `merged`
+
+are operational lineage values. They answer:
+
+- where the object or hazard record came from
+- whether it came from the owned normalized roads service, a raw OSM object
+  supplement, or both
+
+They do **not** replace DS-015 provenance families for score-bearing truth.
+
+Current rule:
+
+- score-bearing traffic, speed, facility, shoulder, and crossing truth must
+  still resolve through the DS-015 family/source-type architecture
+- object-level hazard and debug/God Filter records must preserve operational
+  lineage in addition to any provenance-facing semantics they carry
+
+### 4.2.3 Current live operational lineage values
+
+The live system currently uses these operational lineage values where object- or
+hazard-level source routing matters:
+
+| Lineage | Meaning |
+| --- | --- |
+| `self_hosted_roads` | came from the owned normalized roads/corridor service first |
+| `raw_overpass` | came from raw OSM object semantics via raw Overpass-compatible query path |
+| `merged` | same logical object/hazard was observed from both owned normalized and raw object sources |
+
+These lineage values are currently most important for:
+
+- raw hazard supplements such as `barrier=cattle_grid` and `ford=*`
+- God Filter object inspection
+- rider-facing hazard parity debugging
+
+They are traceability fields, not score precedence rungs.
+
 ### 4.3 Score-driving field matrix
 
 This matrix defines which score-driving fields must participate in the full
@@ -15950,6 +16009,36 @@ Rule of thumb:
 - if we know the number, show the number in trace and receipts
 - if we know the selector, keep the selector
 - summaries may compress presentation, but canonical trace may not throw out precision
+
+### 4.4 Non-score-bearing hazard and object traceability
+
+Not every route artifact participates in DS-015 scoring, but non-score-bearing
+objects still require canonical traceability.
+
+Current live examples include:
+
+- bridge surface hazards
+- cattle guards
+- low-water crossings / fords
+- God Filter object inspection results
+
+For these non-score-bearing objects, the canonical trace contract is:
+
+| Field | Requirement |
+| --- | --- |
+| hazard/object kind | must be explicit and stable |
+| location | must preserve canonical coordinate |
+| `osmNodeId` / `osmWayId` | preserve when known |
+| raw tags | preserve when useful for audit/debug |
+| source lineage | preserve `self_hosted_roads`, `raw_overpass`, or `merged` |
+| route association outcome | preserve whether the object merely exists or was accepted as route-affecting |
+
+Important distinction:
+
+- God Filter answers: "does the raw object exist in source?"
+- rider-facing hazard rendering answers: "does the object affect this route?"
+
+Those are not the same question, even when they share the same raw source.
 
 ## 5. Confidence Model Rules
 
@@ -16196,6 +16285,33 @@ No `predicted` or `baseline` ladder exists for shoulder at this time.
 
 Crossing movement is included for parity, but it is currently geometry-derived
 only.
+
+### 6.9 Current live source-routing policy
+
+The current live implementation uses a split source-routing model:
+
+1. self-hosted normalized roads data is primary for road-shaped truth
+2. raw Overpass-compatible object fetch is supplement/fallback for raw object
+   semantics and freshness
+
+This applies today as follows:
+
+| Domain | Primary | Supplement / fallback | Notes |
+| --- | --- | --- | --- |
+| speed / traffic / facility / shoulder / route matching | `self_hosted_roads` | none by default | canonical road-shaped truth |
+| rider-facing cattle grids | `self_hosted_roads` | `raw_overpass` | same raw semantics as God Filter, then route-gated |
+| rider-facing fords | `self_hosted_roads` | `raw_overpass` | same raw semantics as God Filter, then route-gated |
+| God Filter road-shaped queries | `self_hosted_roads` first when plausible | `raw_overpass` fallback when needed | object inspection path, not score truth |
+| God Filter raw object queries | query-classified; may go raw first or fall back raw | `raw_overpass` | uses owned proxy entrypoint, not browser-direct public Overpass |
+
+Additional live rule:
+
+- operational source routing should prefer the owned/self-hosted roads service
+  first where the owned normalized payload can answer the question
+- raw object fetch should be used where object-level semantics or edit freshness
+  are required
+- direct browser dependency on public Overpass is non-canonical; raw fetches
+  should go through an owned proxy entrypoint
 
 ### 6.8 Master field/source matrix
 
@@ -16457,6 +16573,24 @@ These levels must link to each other:
 | `highway_baseline` | conditions, highway-class baseline key, exact lookup used, source document link |
 | `unknown` | explicit missingness reason when available |
 
+### 8.1.4 Non-score-bearing hazard trace contract
+
+For rider-facing but non-score-bearing hazards, expanded trace must still be
+able to answer:
+
+1. what hazard kind this is
+2. where it is on the route
+3. what route mile it occurs near
+4. whether it came from `self_hosted_roads`, `raw_overpass`, or `merged`
+5. which OSM object it came from when known
+6. whether it merely exists in source or passed rider-facing route association
+
+Current rider-facing popup contract is consistent with this:
+
+- concise rider popup body
+- route mile shown where available
+- richer admin/debug detail may remain available separately
+
 ### 8.1.1 Route-level trace contract
 
 The route-level trace must be able to explain:
@@ -16635,6 +16769,15 @@ particular to:
 - crossing width
 - crossing control
 - admin-approved speed verification
+
+Rider-facing non-score hazards should also expose concise route-local context
+without forcing admin/debug detail into the default popup. Current live
+expectation:
+
+- hazard type
+- route mile
+- object/road name where available
+- Street View / OSM inspect affordances where supported
 
 Source-backed fields should also expose the underlying source link in the field
 confidence dropdown itself when one exists, including OSM-backed fields.
