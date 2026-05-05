@@ -15537,6 +15537,65 @@ Current supported families:
 
 Future hazard families may include rider reports, agency feeds, and surface incidents, but they must normalize into the same canonical contract.
 
+### 2.1 Clear Taxonomy
+
+For implementation and debugging purposes, hazards should be understood in four groups:
+
+1. traffic hazards
+2. structural hazards
+3. weather / water hazards
+4. surface hazards
+
+The important distinction is:
+
+- God Filter answers whether a raw OSM object exists
+- rider-facing hazards answer whether that object affects the route
+
+The same raw source may feed both, but rider-facing hazards still pass route-association and presentation policy.
+
+### 2.2 Current Implemented Hazard Tags
+
+The table below reflects the current code, not a wish list.
+
+| Family | Hazard | Current coded tags / rules | Current source path |
+|------|-------|-----------------------------|---------------------|
+| Traffic | Railroad crossing | `railway=level_crossing` or `railway=crossing` explicit node; geometric fallback from `railway=rail` intersecting a `highway=*` road | self-hosted roads corridor payload |
+| Traffic | Signal crossing | `highway=traffic_signals`, excluding pedestrian-only / crosswalk-signal patterns such as `crossing=traffic_signals`, `crossing:signals=yes`, `traffic_signals:sound=yes`, `button_operated=yes`, `highway=crossing`, `crossing:island=yes`, `foot=designated`, `bicycle=dismount` | self-hosted roads corridor payload |
+| Traffic | Stop-controlled crossing | `highway=stop` | self-hosted roads corridor payload |
+| Structural | Cattle guard | `barrier=cattle_grid` | self-hosted roads first, supplemented by raw Overpass-compatible source for freshness |
+| Structural | Metal grate bridge | `bridge=yes|movable` plus `surface` in `{grate, grid, metal_grid, steel_grid, grating, steel_grate, metal_grating, steel_grating, open_grid, metal_grid_deck}` | self-hosted roads corridor payload |
+| Structural | Metal plate bridge | `bridge=yes|movable` plus `surface` in `{metal, steel, metal_plate, steel_plate}` | self-hosted roads corridor payload |
+| Structural | Dismount bridge | `bridge=yes|movable` plus `bicycle=dismount` | self-hosted roads corridor payload |
+| Structural | Covered bridge | `bridge=yes|movable` plus `bridge:structure=covered` | self-hosted roads corridor payload |
+| Structural | No-shoulder bridge | `bridge=yes|movable` plus explicit `shoulder=no|none` and explicit narrowness evidence: bidirectional `lanes=1`, or `width<6`, or `maxwidth<3` | self-hosted roads corridor payload |
+| Structural | Narrow underpass | `tunnel=yes` plus explicit narrowness evidence: bidirectional `lanes=1`, or `width<3`, or `maxwidth<3`; excluded on `highway` in `{service, parking_aisle, driveway, alley}` | self-hosted roads corridor payload |
+
+### 2.3 Candidate Hazard Tags Not Yet Canonical
+
+These are plausible next additions, but they are not yet part of the canonical rider-facing hazard contract unless implemented and tested.
+
+| Family | Candidate | Likely tags / source hints | Notes |
+|------|-----------|----------------------------|-------|
+| Weather / water | Ford / stream crossing | `ford=yes`, `highway=ford`, possibly `ford=*` on nodes or ways | Particularly relevant in places like Maui; should likely be weather-conditional rather than always severe |
+| Surface | Pothole / pavement distress | no stable universal OSM tag today; possible rider reports or agency feeds | Better handled as reports/feed-backed hazards than assumed from generic OSM tags |
+| Surface | Cracked / failed pavement | agency pavement feeds, rider reports, or future normalized surface distress feed | Not currently canonical from OSM corridor fetch |
+| Structural / control | Gate / bollard | `barrier=gate`, `barrier=bollard` | Likely useful for debug and raw inspection first; rider-facing policy should be narrow |
+
+### 2.4 What “Exact Tag” Means Here
+
+When this spec says “exact tag,” it means:
+
+- the OSM key/value or explicit rule that currently triggers normalization
+- not a fuzzy UI label
+- not a broad nearby-object heuristic
+
+Examples:
+
+- `barrier=cattle_grid` is a canonical cattle-guard trigger
+- `bridge:structure=covered` is a canonical covered-bridge trigger
+- `highway=traffic_signals` is only canonical after pedestrian-signal exclusions are applied
+- `railway=rail` alone is not a rider-facing hazard; it only participates in railroad-crossing geometric fallback
+
 ---
 
 ## 3. Canonical Layers
@@ -15558,6 +15617,12 @@ All live fetch paths must request the same minimum hazard-supporting elements:
 - `railway=rail`
 - `man_made=bridge`
 - road ways carrying hazard-relevant bridge/tunnel/surface tags
+
+For clarity:
+
+- road-shaped hazard context should come from the owned/self-hosted roads server first
+- raw object hazards may be supplemented by a raw Overpass-compatible source where freshness matters
+- rider-facing hazard parity requires both sources to normalize into one canonical hazard object model
 
 Any parser that omits one of these is non-canonical.
 
@@ -15626,6 +15691,7 @@ Prototype-shaped failures already observed:
 - parser drift between corridor and legacy overpass code
 - duplicate label dictionaries inside map rendering
 - hazard disappearance caused by ingestion mismatch rather than detector logic
+- debug/user divergence where God Filter can see a raw object but rider-facing hazards cannot, because they are not using the same raw object semantics before route gating
 
 These failures are architectural, not just bug-level.
 
@@ -15650,6 +15716,26 @@ The next implementation pass must:
 3. centralize rider-facing label/icon decisions in a hazard presentation helper
 4. remove duplicated hazard label dictionaries from subscriber surfaces
 5. preserve provenance about explicit-node vs geometry-fallback detection
+6. preserve source lineage on hazard objects:
+   - `self_hosted_roads`
+   - `raw_overpass`
+   - `merged`
+7. keep route association separate from source existence:
+   - source answers “does the object exist?”
+   - route policy answers “does it affect this route?”
+
+### 6.1 Current Source Policy
+
+Current intended source routing:
+
+- self-hosted roads server is primary for road-shaped hazards and road-context tags
+- raw Overpass-compatible fetch is supplement/fallback for raw object hazards and fresh edits
+- cattle grids are the first narrow hazard family using this split explicitly
+
+This means:
+
+- God Filter may surface raw objects without rider gating
+- rider-facing hazard layers may only surface those objects after route association and hazard-family policy
 
 ---
 
