@@ -2764,7 +2764,7 @@ The following are **explicitly excluded** from the canonical score:
 |--------|-------------|
 | Critical stretch / hotspot penalties | Report-only — shown for awareness, not score math |
 | Time-of-day traffic | Contextual only — shown in cue sheet and explainers |
-| Rail crossings, cattle guards, grates | Hazard overlay only |
+| Rail crossings, cattle grids, grates | Hazard overlay only |
 | Weather / lighting | Separate intelligence layer |
 | Signalized/stop crossing *counts* alone | Only scored when eligibility criteria are met |
 
@@ -3607,7 +3607,7 @@ Examples:
 - no-shoulder bridges
 - pinch points
 - covered bridge cautions
-- future narrow underpasses / cattle guards / similar
+- future narrow underpasses / cattle grids / similar
 
 ### 4.2 POI
 Discrete services, resources, and destinations.

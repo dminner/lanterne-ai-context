@@ -805,7 +805,7 @@ Before matching begins, two preparatory scans run:
 | Railroad crossing | 2–3 | `railway=level_crossing` |
 | Metal grate bridge | 3 | `bridge ∈ {yes, movable} + surface=grate/grid/metal_grid` |
 | Metal plate bridge | 2 | `bridge ∈ {yes, movable} + surface=metal/steel` |
-| Cattle guard | 2 | `barrier=cattle_grid` |
+| Cattle grid | 2 | `barrier=cattle_grid` |
 | Single-lane underpass | 2 | `tunnel=yes + lanes=1 or maxwidth<4` |
 | Covered bridge | 1 | `bridge ∈ {yes, movable} + (covered=yes or bridge:structure=covered)` |
 | No-shoulder bridge | 2 | `bridge ∈ {yes, movable} + no cycling infra + narrow` |
@@ -919,7 +919,7 @@ Throughout the pipeline, `IoMetrics` (in `route-analysis.ts`) tracks: corridor t
 | **Safety Scoring** | 0–100 score with A+–F grade. V3.1 model: speed(60%)/traffic(40%) core weights × multiplicative bike infra × shoulder factor + bounded crossing risk contribution. Rail, critical stretch, time-of-day traffic are report-only, NOT in headline score. | `safety-scoring.ts`, `safety-constants.ts` |
 | **Heatmap** | Speed-colored road overlays with zoom-banded truth-to-display rendering | `heatmap/builder.ts`, `RouteMap.tsx` |
 | **Corridor Analysis** | Fetches and indexes the broader road network; builds CorridorGraph for local pathfinding | `corridor.ts`, `corridor-graph.ts` |
-| **Micro-Hazard Detection** | 7 hazard types from OSM tags (railroad crossings, metal grate bridges, cattle guards, covered bridges, etc.) | `hazards.ts` |
+| **Micro-Hazard Detection** | 7 hazard types from OSM tags (railroad crossings, metal grate bridges, cattle grids, covered bridges, etc.) | `hazards.ts` |
 | **Forensic Matching** | Dense sub-sampling re-analysis of suspicious zones | `forensic-matcher.ts` |
 
 ### Route Interaction
@@ -2700,7 +2700,7 @@ Micro-hazards add penalties to segment risk.
 
 **Examples:**
 - Bridges
-- Cattle guards
+- Cattle grids
 - Railroad crossings
 - Underpasses
 
@@ -3039,7 +3039,7 @@ Each score includes confidence based on data coverage:
 
 ## 12. Hazard Layer (separate from Safety Score)
 
-Rail crossings, bridge hazards, cattle guards, and other micro-hazards are detected and displayed but do NOT affect the headline Safety Score.
+Rail crossings, bridge hazards, cattle grids, and other micro-hazards are detected and displayed but do NOT affect the headline Safety Score.
 
 ---
 
@@ -15533,7 +15533,7 @@ Current supported families:
   - no-shoulder bridge
   - narrow underpass
 - node hazards
-  - cattle guard
+  - cattle grid
 
 Future hazard families may include rider reports, agency feeds, and surface incidents, but they must normalize into the same canonical contract.
 
@@ -15562,7 +15562,7 @@ The table below reflects the current code, not a wish list.
 | Traffic | Railroad crossing | `railway=level_crossing` or `railway=crossing` explicit node; geometric fallback from `railway=rail` intersecting a `highway=*` road | self-hosted roads corridor payload |
 | Traffic | Signal crossing | `highway=traffic_signals`, excluding pedestrian-only / crosswalk-signal patterns such as `crossing=traffic_signals`, `crossing:signals=yes`, `traffic_signals:sound=yes`, `button_operated=yes`, `highway=crossing`, `crossing:island=yes`, `foot=designated`, `bicycle=dismount` | self-hosted roads corridor payload |
 | Traffic | Stop-controlled crossing | `highway=stop` | self-hosted roads corridor payload |
-| Structural | Cattle guard | `barrier=cattle_grid` | self-hosted roads first, supplemented by raw Overpass-compatible source for freshness |
+| Structural | Cattle grid | `barrier=cattle_grid` | self-hosted roads first, supplemented by raw Overpass-compatible source for freshness |
 | Structural | Metal grate bridge | `bridge=yes|movable` plus `surface` in `{grate, grid, metal_grid, steel_grid, grating, steel_grate, metal_grating, steel_grating, open_grid, metal_grid_deck}` | self-hosted roads corridor payload |
 | Structural | Metal plate bridge | `bridge=yes|movable` plus `surface` in `{metal, steel, metal_plate, steel_plate}` | self-hosted roads corridor payload |
 | Structural | Dismount bridge | `bridge=yes|movable` plus `bicycle=dismount` | self-hosted roads corridor payload |
@@ -16018,7 +16018,7 @@ objects still require canonical traceability.
 Current live examples include:
 
 - bridge surface hazards
-- cattle guards
+- cattle grids
 - low-water crossings / fords
 - God Filter object inspection results
 
@@ -17677,7 +17677,7 @@ Lanterne must define safety narrowly and defend that definition as the product e
 - Wind, temperature, precipitation
 - Light state, UV
 - Surface quality
-- Rail crossings, cattle guards, metal grates (hazard overlay only)
+- Rail crossings, cattle grids, metal grates (hazard overlay only)
 - Time-of-day traffic adjustments (contextual layer only)
 - Critical stretch / hotspot penalties (report-only)
 - Fatigue, navigation difficulty

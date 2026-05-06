@@ -5617,7 +5617,7 @@ Still required outside canonical score:
 - no fake perfect score if crossings remain
 
 ### Hazard boundary tests
-- rail / grates / cattle guards / bridges do not change canonical Safety Score
+- rail / grates / cattle grids / bridges do not change canonical Safety Score
 - street parking hazard object does not change canonical Safety Score
 - hazard summaries still populate correctly
 
