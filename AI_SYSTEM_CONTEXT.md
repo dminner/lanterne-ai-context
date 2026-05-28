@@ -3391,6 +3391,7 @@ Safety Score must remain:
 | ADR-032 | Comparative Traffic Context and Segment Cohorts | Accepted | DS-013 |
 | ADR-033 | Canonical Segment Identity and Route-to-Canonical Mapping | Accepted | DS-013 |
 | ADR-034 | Master Route Expeditions and Windowed Long-Route Analysis | Draft | DS-014 |
+| ADR-045 | Route-Indexed Evidence Platform | Accepted | DS-031 |
 
 ---
 
@@ -3425,6 +3426,9 @@ Safety Score must remain:
 | DS-028 | Hazard Ingestion, Normalization, and Presentation | ADR-017, ADR-019, ADR-020, ADR-027, DS-008 | Draft |
 | DS-029 | Provenance, Precedence, Confidence, and Traceability | ADR-042, ADR-043, DS-015, DS-017, DS-022 | Draft |
 | DS-030 | Route Analysis Contract | DS-017, DS-024, DS-025, DS-028, DS-029 | Draft |
+| DS-031 | Route-Indexed Evidence Layer Spec | ADR-045, DS-029, DS-030 | Draft |
+| DS-032 | Worker-Streamed Route Construction and Presentation | ADR-045, DS-031, DS-030 | Draft |
+| DS-033 | Route-Line V2 OSM Domain Policy | ADR-045, DS-031, DS-032 | Draft |
 
 ---
 
@@ -17308,6 +17312,5401 @@ The system must not:
 
 ---
 
+## Source File: docs/02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md
+
+# DS-031 - Route-Indexed Evidence Layer Spec
+
+**Status:** Draft for implementation  
+**Date:** 2026-05-10  
+**Filename:** `ds-031-route_indexed_evidence_layer_spec.md`  
+**ADR Parent:** [ADR-045](../../03-adrs/adr-045-route_indexed_evidence_platform.md)  
+**Related:** [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-025](./ds-025-transition_candidate_claim_and_projection_spec.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md)
+
+---
+
+## 1. Purpose
+
+This specification defines how Lanterne attaches evidence to a route.
+
+The route polyline is the canonical measurement axis. Evidence layers attach to that axis by distance, not by sampled matcher index, OSM way id, raw GPX point index, or presentation segment.
+
+This spec is intentionally broader than road ownership. Road ownership is the first V2 layer, but the same pattern must support:
+
+- speed
+- traffic
+- shoulder
+- bike infrastructure
+- hazards
+- surface quality
+- grade and elevation
+- weather
+- wind
+- sunlight
+- effort metrics such as calories and watts
+
+---
+
+## 2. Core Model
+
+### 2.1 Route measure
+
+```ts
+type RouteMeasure = number; // meters from route start
+```
+
+Route measure is the canonical key for route evidence.
+
+### 2.2 Route point event
+
+Use point events for evidence that occurs at one route location.
+
+Examples:
+
+- traffic signal
+- stop sign
+- railroad crossing
+- cattle grid
+- low-water crossing node
+- cue point
+- sharp turn apex
+
+```ts
+interface RouteIndexedPointEvent<TValue = unknown> {
+  id: string;
+  layerId: RouteIndexedLayerId;
+  distM: number;
+  lat: number;
+  lon: number;
+  value: TValue;
+  source: RouteEvidenceSourceLineage;
+  provenance: RouteEvidenceProvenance;
+  confidence: RouteEvidenceConfidence;
+  diagnostics?: RouteEvidenceDiagnostics;
+}
+```
+
+### 2.3 Route span
+
+Use spans for evidence that applies over a route interval.
+
+Examples:
+
+- road identity
+- speed limit
+- AADT / traffic
+- shoulder presence
+- bike lane
+- surface type
+- grade band
+- wind exposure band
+- forecast weather band
+
+```ts
+interface RouteIndexedSpan<TValue = unknown> {
+  id: string;
+  layerId: RouteIndexedLayerId;
+  startDistM: number;
+  endDistM: number;
+  value: TValue;
+  source: RouteEvidenceSourceLineage;
+  provenance: RouteEvidenceProvenance;
+  confidence: RouteEvidenceConfidence;
+  diagnostics?: RouteEvidenceDiagnostics;
+}
+```
+
+Spans are half-open:
+
+```text
+[startDistM, endDistM)
+```
+
+### 2.4 Route sampled series
+
+Use sampled series for values naturally produced at repeated points.
+
+Examples:
+
+- elevation samples
+- grade samples
+- wind samples
+- temperature samples
+- modeled watts
+
+```ts
+interface RouteIndexedSample<TValue = unknown> {
+  distM: number;
+  value: TValue;
+  source: RouteEvidenceSourceLineage;
+  provenance: RouteEvidenceProvenance;
+  confidence: RouteEvidenceConfidence;
+}
+
+interface RouteIndexedSampleSeries<TValue = unknown> {
+  id: string;
+  layerId: RouteIndexedLayerId;
+  nativeResolutionM?: number;
+  samples: RouteIndexedSample<TValue>[];
+  diagnostics?: RouteEvidenceDiagnostics;
+}
+```
+
+---
+
+## 3. Layer Registry
+
+Every route-indexed layer must be registered.
+
+```ts
+interface RouteIndexedLayerDefinition {
+  layerId: RouteIndexedLayerId;
+  title: string;
+  geometryType: 'point' | 'span' | 'series';
+  valueKind: 'identity' | 'numeric' | 'categorical' | 'boolean' | 'object';
+  units?: string;
+  sourcePriority: RouteEvidenceSourceKind[];
+  conflictPolicy: RouteLayerConflictPolicy;
+  displayEligibility: 'rider' | 'admin' | 'debug' | 'hidden';
+  scoreEligibility: 'score_driving' | 'confidence_only' | 'display_only' | 'diagnostic_only';
+  requiresRouteTime?: boolean;
+  workerRequired: boolean;
+}
+```
+
+Initial layer ids:
+
+| Layer | Geometry | Score eligibility | Notes |
+| --- | --- | --- | --- |
+| `road_ownership` | span | confidence_only / substrate | Canonical V2 road/path identity |
+| `speed_limit` | span | score_driving | Posted/official/derived by DS-029 rules |
+| `traffic_aadt` | span | score_driving | Official or inferred traffic context |
+| `shoulder` | span | score_driving | Shoulder width/presence/quality |
+| `bike_infra` | span | score_driving | Bike lanes, cycletracks, paths |
+| `surface` | span | score_driving or display | Surface quality and type |
+| `hazard` | point/span | score policy TBD | Presentation and optional score impact by hazard spec |
+| `elevation` | series | derived input | Base layer for grade |
+| `grade` | span/series | score_driving or effort | Derived from elevation |
+| `wind` | span/series | effort/display | Requires route time |
+| `precipitation` | span/series | display / risk TBD | Requires route time |
+| `temperature` | span/series | display / effort TBD | Requires route time |
+| `sunlight` | span/series | display / risk TBD | Requires route time and heading |
+| `effort_watts` | series | derived display | Derived from speed/grade/wind/rider model |
+| `calories` | series/span | derived display | Derived from effort model |
+
+---
+
+## 4. Source Lineage
+
+Source lineage records operational origin.
+
+```ts
+type RouteEvidenceSourceKind =
+  | 'self_hosted_roads'
+  | 'raw_overpass'
+  | 'government_feed'
+  | 'weather_forecast'
+  | 'elevation_model'
+  | 'sensor'
+  | 'user_observation'
+  | 'cache'
+  | 'fixture'
+  | 'derived_model'
+  | 'merged';
+
+interface RouteEvidenceSourceLineage {
+  kind: RouteEvidenceSourceKind;
+  id?: string;
+  fetchedAt?: string;
+  sourceUpdatedAt?: string;
+  freshness?: 'fresh' | 'cached' | 'stale' | 'unknown';
+  windowId?: string;
+  upstreamIds?: string[];
+  warnings?: string[];
+}
+```
+
+Source lineage does not decide score precedence by itself.
+
+---
+
+## 5. Provenance
+
+Provenance records why evidence is allowed to drive score, confidence, or explanation.
+
+This must remain compatible with DS-029.
+
+```ts
+type RouteEvidenceProvenanceKind =
+  | 'official_imported'
+  | 'posted'
+  | 'osm_derived'
+  | 'relationship_inferred'
+  | 'geometry_derived'
+  | 'model_derived'
+  | 'user_observed'
+  | 'baseline_fallback'
+  | 'unknown';
+
+interface RouteEvidenceProvenance {
+  kind: RouteEvidenceProvenanceKind;
+  reason: string;
+  selected?: boolean;
+  rejectedReasons?: string[];
+}
+```
+
+Example:
+
+- `source.kind = raw_overpass`
+- `provenance.kind = osm_derived`
+
+These two fields answer different questions and must not be collapsed.
+
+---
+
+## 6. Confidence
+
+```ts
+type RouteEvidenceConfidenceLevel = 'high' | 'medium' | 'low' | 'unresolved';
+
+interface RouteEvidenceConfidence {
+  level: RouteEvidenceConfidenceLevel;
+  reason: string;
+  factors?: Record<string, number | string | boolean>;
+}
+```
+
+`unresolved` is a valid output.
+
+The system must prefer unresolved over incorrectly certain.
+
+---
+
+## 7. Temporal Binding
+
+Some layers require estimated route time as well as distance.
+
+Examples:
+
+- wind
+- precipitation
+- temperature
+- sunlight
+- calories
+- watts
+
+Temporal layers must bind to:
+
+```ts
+interface RouteTimeBinding {
+  distM: number;
+  elapsedSec: number;
+  estimatedClockTime?: string;
+  speedAssumption?: string;
+}
+```
+
+V2 route ownership must not require temporal data. Temporal data attaches after the route axis exists.
+
+---
+
+## 8. Execution Contract
+
+Route-indexed evidence projection is worker-first.
+
+Worker-owned phases:
+
+- route axis construction for route-scale work
+- anchor detection
+- evidence window planning
+- source fetch orchestration where practical
+- raw response parsing
+- projection to route
+- layer conflict resolution
+- diagnostics/report construction
+- future ownership resolution
+- future adapter generation
+
+Main-thread code may:
+
+- start work
+- cancel work
+- render progress
+- render completed layers
+- display diagnostics
+
+Main-thread code must not synchronously build route-scale evidence reports.
+
+---
+
+## 9. Budgets
+
+Every route-indexed layer must define budgets before runtime integration:
+
+- max windows
+- max bbox area
+- max raw fetches
+- max source timeout
+- max candidates per window
+- max serialized payload size
+- max worker message frequency
+- cancellation behavior
+
+Debug/admin mode may widen budgets, but may not remove them.
+
+---
+
+## 10. Adapter Boundary
+
+Route-indexed evidence layers feed downstream systems through adapters.
+
+Adapters may produce:
+
+- legacy truth-run compatibility output
+- route paint display segments
+- heatmap segments
+- scoring inputs
+- hazard markers
+- inspection receipts
+- admin diagnostics
+
+Adapters must not mutate canonical layer evidence.
+
+Downstream consumers must not reach into V2 internals to compensate for missing adapter fields.
+
+---
+
+## 11. Required Diagnostics
+
+Every layer should be able to answer:
+
+- where does this evidence apply?
+- what source produced it?
+- what provenance allowed or rejected it?
+- what confidence was assigned?
+- what competing evidence existed?
+- what was unresolved and why?
+- what fetch/window/cache produced it?
+- what budget limited it, if any?
+
+For road evidence specifically, diagnostics must answer:
+
+- is a given OSM way id present?
+- is a given road name present?
+- which source provided it?
+- was it absent because the source failed, returned zero, was not queried, or was filtered?
+
+---
+
+## 12. Initial Implementation Guidance
+
+The first implementation sequence should be:
+
+1. V2 route axis and contracts.
+2. V2 road evidence sources.
+3. V2 worker-first evidence planner.
+4. V2 road ownership resolver.
+5. V2 diagnostic overlays.
+6. V2 adapter to legacy truth-run shape.
+7. V2 route paint adapter.
+8. V2 scoring/heatmap/hazard adapters.
+9. Production route-by-route migration behind explicit acceptance gates.
+
+Do not move to scoring or presentation migration until road ownership spans are stable and auditable.
+
+---
+
+## 13. Must Nots
+
+The system must not:
+
+- use legacy truth runs as V2 evidence
+- use OSM way id as the canonical route join key
+- use raw GPX point index as the canonical route join key
+- silently convert unresolved spans into score-bearing truth
+- collapse source lineage into DS-029 provenance
+- perform route-scale evidence projection on the main thread
+- let debug/admin mode remove all fetch and payload budgets
+- make derived metrics such as watts or calories mutate base evidence layers
+
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-032-worker_streamed_route_construction_and_presentation_spec.md
+
+# DS-032 - Worker-Streamed Route Construction and Presentation Spec
+
+**Status:** Draft for implementation  
+**Date:** 2026-05-12  
+**Filename:** `ds-032-worker_streamed_route_construction_and_presentation_spec.md`  
+**ADR Parent:** [ADR-045](../../03-adrs/adr-045-route_indexed_evidence_platform.md)  
+**Related:** [DS-031](./ds-031-route_indexed_evidence_layer_spec.md), [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-024](./ds-024-parallel_bike_facility_capture_and_corridor_ownership_spec.md)
+
+---
+
+## 1. Purpose
+
+This specification defines the V2 route construction pipeline and its streamed presentation contract.
+
+The route identity layer must be built from an ordered OSM graph path, not from "best nearby road per span" ownership. Presentation may run in parallel with identity, enrichment, and scoring, but it is a subscriber to streamed facts and progress events. Presentation must never become a source of route truth.
+
+The goals are:
+
+- make route identity deterministic and topology-first
+- keep initial route construction minimal and fast enough to run in a Worker
+- reject cross-streets unless the route actually traverses their OSM edges
+- expose meaningful progressive loading instead of a fake percent bar
+- allow enrichment and scoring to lazy-load after identity is stable
+
+---
+
+## 2. Architectural Rule
+
+Route analysis V2 is staged:
+
+```text
+route axis -> minimal topology graph -> ordered route path -> identity spans
+  -> enrichment spans -> scoring spans -> final presentation
+```
+
+Presentation is allowed to stream in parallel:
+
+```text
+identity worker   -> presentation stream
+enrichment worker -> presentation stream
+scoring worker    -> presentation stream
+```
+
+But presentation remains read-only:
+
+```text
+facts drive presentation
+presentation does not drive facts
+```
+
+---
+
+## 3. Minimal Route Construction Graph
+
+The first route-construction pass must hydrate only the fields needed to build an ordered path:
+
+```ts
+interface RouteLineV2TopologyWay {
+  osmWayId: number;
+  nodeIds: number[];
+  coords: Array<[number, number]>;
+  name?: string;
+  ref?: string;
+  familyKey: string;
+  displayLabel: string;
+  highway?: string;
+  domain: 'motor_road' | 'safe_path';
+  oneway?: 'yes' | '-1' | 'no' | 'unknown';
+  source: 'self_hosted_roads';
+}
+```
+
+Excluded from this pass:
+
+- hazards
+- POIs
+- stops
+- HPMS
+- traffic
+- speed limits
+- shoulder attributes
+- bike-lane attributes beyond path/domain classification
+- scoring fields
+- full debug alternatives
+- non-route viewport context
+
+Those layers attach later by route distance under DS-031.
+
+---
+
+## 4. Topology Edge Model
+
+Each OSM way segment becomes one or two directed edges.
+
+```ts
+interface RouteLineV2TopologyEdge {
+  edgeId: string;
+  osmWayId: number;
+  fromNodeId: number;
+  toNodeId: number;
+  a: [number, number];
+  b: [number, number];
+  familyKey: string;
+  displayLabel: string;
+  highway?: string;
+  domain: 'motor_road' | 'safe_path';
+  lengthM: number;
+  headingDeg: number;
+  oneWayLegal: boolean;
+  routeProjection: {
+    midpointDistM: number;
+    midpointOffsetM: number;
+    headingDeltaDeg: number;
+  };
+}
+```
+
+One-way handling is required. A wrong-way ramp may exist near the route, but it must not be accepted as the traversed path unless the route geometry and legal direction support it.
+
+---
+
+## 5. Ordered Path Construction
+
+The path builder must solve for a connected sequence of topology edges.
+
+It must not emit cue-looking output unless continuity is satisfied.
+
+Required algorithm shape:
+
+1. Sample the GPX route at fixed spacing.
+2. Build plausible edge candidates per sample using distance, heading, domain, and one-way legality.
+3. Run constrained dynamic path construction over the sample sequence.
+4. Penalize discontinuity, backtracking, wrong-way travel, cross-streets, and large route offsets.
+5. Prefer continuity over local nearest-road wins.
+6. Keep short connectors only when they connect the chosen path sequence.
+7. Emit blockers when continuity cannot be proven.
+
+The builder must not search the whole road graph. Candidate generation is route-windowed and spatial-indexed.
+
+---
+
+## 6. Cue Sheet Contract
+
+Cue output is derived from the ordered path, not independently from nearby nodes.
+
+```ts
+interface RouteLineV2CueHandoff {
+  distM: number;
+  lat: number;
+  lon: number;
+  osmNodeId: number;
+  fromFamilyKey: string;
+  toFamilyKey: string;
+  fromLabel: string;
+  toLabel: string;
+  fromWayIds: number[];
+  toWayIds: number[];
+  confidence: 'high' | 'medium' | 'low';
+  osmLink: string;
+  warnings: string[];
+}
+```
+
+Acceptance rules:
+
+- Every accepted handoff must be `shared_osm_node`.
+- `previous.toFamilyKey === next.fromFamilyKey` is enforced by construction.
+- Same-family changes are not emitted.
+- Same-ref/name variants may merge by explicit identity policy.
+- Directional prefixes, such as East/West Piney Hollow, remain distinct unless a future DS explicitly says otherwise.
+- Short link/connector families may be absorbed only inside the ordered path.
+- Cross-streets are rejected unless the ordered path traverses their edges.
+- Any remaining discontinuity is a blocker, not guessed output.
+
+---
+
+## 7. Blocker Contract
+
+Blockers are first-class outputs.
+
+```ts
+interface RouteLineV2PathBlocker {
+  startDistM: number;
+  endDistM: number;
+  lat: number;
+  lon: number;
+  reason:
+    | 'no_candidate_edges'
+    | 'path_discontinuity'
+    | 'missing_shared_osm_node'
+    | 'oneway_conflict'
+    | 'ambiguous_parallel_edges'
+    | 'domain_conflict';
+  fromLabel?: string;
+  toLabel?: string;
+  candidateWayIds: number[];
+  diagnostics: string[];
+}
+```
+
+Blockers are not failures of the UI. They are the correct result when topology cannot be proven.
+
+---
+
+## 8. Streamed Worker Events
+
+Workers emit compact events. React state must not receive full road arrays or full graph objects.
+
+```ts
+type RouteLineV2WorkerPhase =
+  | 'route_axis'
+  | 'topology_fetch'
+  | 'topology_graph'
+  | 'path_solve'
+  | 'identity_spans'
+  | 'enrichment'
+  | 'scoring'
+  | 'complete'
+  | 'failed'
+  | 'cancelled';
+```
+
+Core event types:
+
+```ts
+type RouteLineV2StreamEvent =
+  | { type: 'phase'; phase: RouteLineV2WorkerPhase; elapsedMs: number }
+  | { type: 'route_draw'; startDistM: number; endDistM: number }
+  | { type: 'candidate_node'; distM: number; lat: number; lon: number; status: 'candidate' | 'accepted' | 'rejected' }
+  | { type: 'road_label'; startDistM: number; endDistM: number; label: string; status: 'candidate' | 'accepted' }
+  | { type: 'cue_handoff'; handoff: RouteLineV2CueHandoff }
+  | { type: 'blocker'; blocker: RouteLineV2PathBlocker }
+  | { type: 'enrichment_span'; layerId: string; startDistM: number; endDistM: number; compactValue: unknown }
+  | { type: 'score_span'; startDistM: number; endDistM: number; riskBucket: string; confidence: string }
+  | { type: 'summary'; summary: RouteLineV2BuildSummary };
+```
+
+---
+
+## 9. Progressive Presentation
+
+The presentation controller subscribes to streamed events and renders transient construction overlays.
+
+Desired sequence:
+
+1. Draw the GPX route line immediately with a pencil/stroke animation.
+2. As topology nodes resolve, place small dots at candidate and accepted nodes.
+3. As identity spans lock, show temporary name plates on the route.
+4. As bike/path/shoulder enrichment resolves, draw temporary facility marks.
+5. As speed/traffic/HPMS resolves, show transient speed badges and traffic indicators.
+6. As scoring completes, fade transient construction marks into final route risk paint.
+7. Leave unresolved areas gray or hatched with blocker markers.
+
+Presentation requirements:
+
+- animations must be cancellable
+- route state must survive animation interruption
+- animation progress is not analysis progress
+- stale worker events must be ignored by request id
+- reduced-motion users get static staged updates
+
+---
+
+## 10. Performance Budget
+
+Cold Cape May-scale target after optimization:
+
+```text
+10-20s route identity cold
+3-8s route identity warm
+```
+
+Prototype tolerance:
+
+```text
+10-30s for correctness validation
+```
+
+Rejected:
+
+```text
+unbounded whole-route graph search
+multi-minute normal route identity builds
+large graph objects in React state
+presentation blocking worker progress
+```
+
+The route builder may be more expensive than V1 only if it provides streamed progress and deterministic correctness. Performance must be measured as:
+
+- fetch time
+- graph construction time
+- candidate generation time
+- path solve time
+- cue extraction time
+- enrichment time
+- scoring time
+- presentation event count
+
+---
+
+## 11. Regression Bar
+
+The Cape May reviewed nodes remain hard fixtures for route identity.
+
+The path builder must prove:
+
+- known-to-known handoffs are shared-node handoffs
+- cue sheet continuity holds
+- cross-streets such as Juliustown and Sooy do not own route spans unless traversed
+- short connectors do not appear as rider-facing road names when they only bridge to a named road
+- NJ/CR 50 to Main Street uses the one-way-safe connector path
+- missed route-changing nodes become tests, not review notes
+
+No scoring, HPMS, heatmap, hazard, save/history, or production V1 migration work should depend on V2 identity until this regression bar is met.
+
+---
+
+## 12. Non-Goals
+
+This spec does not:
+
+- replace V1 production route paint
+- migrate scoring to V2
+- define DS-029 provenance details for every enrichment source
+- define hazard scoring policy
+- require route saving or Supabase writes
+- require deployment
+
+It defines the route identity substrate and how the app presents streamed construction progress while workers build facts.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-033-route_line_v2_osm_domain_policy.md
+
+# DS-033: Route-Line V2 OSM Domain Policy
+
+Date: 2026-05-14
+Status: Draft
+
+## Scope
+
+Route-Line V2 identity must classify route participation by rider-relevant domain before scoring or enrichment consumes the result. This document records the current policy for distinguishing motor-road riding from bike-appropriate safe paths and from non-bike-friendly footway/sidewalk artifacts.
+
+This is limited to `/v2-review` route identity. It does not migrate scoring, HPMS, shoulder data, hazards, heatmap, save/history, or production V1 behavior.
+
+## Rules
+
+- `cycleway` and explicit bicycle-designated path/trail evidence can be treated as `safe_path`.
+- `path` can be treated as `safe_path` only when tags support bicycle use, such as `bicycle=yes`, `bicycle=designated`, `bicycle=permissive`, or an existing proven V1 safe-path classification.
+- `footway`, `sidewalk`, and concrete pedestrian links are not automatically bike-friendly. `surface=concrete` is not sufficient evidence.
+- `bicycle=no`, `access=no`, and private/no-access tags reject a path as a route candidate unless later policy explicitly models legal exceptions.
+- Separated cycleways and bicycle-supported paths are treated as bidirectional unless `oneway:bicycle`, `bicycle:oneway`, or equivalent bicycle-specific one-way evidence says otherwise.
+- Motor-road and safe-path domains must not merge by name/ref alone. A transition between them needs accepted topology-path evidence.
+
+## Rationale
+
+Domain classification is not cosmetic. A path/trail segment should not carry continuous traffic exposure, while a motor road does. Conversely, accidentally treating a pedestrian sidewalk as a safe path would understate rider risk and create false confidence.
+
+The V2 topology path solver should therefore reuse proven V1 bike/path interpretation through a narrow V2 policy interface, but it must not import old point-first matcher ownership assumptions as route truth.
+
+## Review Expectations
+
+- Safe-path display should use the V1 pathway blue visual language.
+- Road/path signs should describe the accepted topology path, not nearby OSM context.
+- Path-vs-road mistakes are golden-harness failures when they affect visible route identity or future scoring semantics.
+- Blockers are preferable to inventing a confident path or road identity when OSM topology cannot prove the route.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-035-profile_aware_hydration_cache_and_cyclist_mobility_substrate_runtime_spec.md
+
+# DS-035 - Profile-Aware Hydration Cache and Cyclist Mobility Substrate Runtime Spec
+
+**Status:** Draft for implementation
+**Date:** 2026-05-20
+**Related:** ADR-047, ADR-046, DS-034, DS-031, DS-032, EXEC-029, EXEC-028
+
+---
+
+# 1. Purpose
+
+This design specification defines the finalized three-cache plus substrate runtime architecture after the substrate and viewport-runtime work.
+
+The spec covers:
+
+- cache system boundaries
+- three levels of road intelligence
+- hot path and cold path responsibilities
+- presentation continuity and canonical continuity
+- profile-aware exact hydration
+- substrate runtime role
+- priority-drip hydration
+- zoom hysteresis
+- server-authorized writes
+- current source/test snapshots
+- migration from legacy broad cache
+- road descriptor field governance based on the read-only field/source audit
+
+The descriptor guidance is based on `.tmp/road-descriptor-audit/` and current code. It does not invent unsupported fields.
+
+## Design Decision
+
+Base substrate remains structural and compact. Viewport overlays are profile-hydrated and configurable. Speed is nationally prehydrated as the compact `viewport_speed_v1` common profile, not baked into base substrate. Route scoring uses route evidence profile hydration over owned canonical source evidence. HPMS/DOT/AADT are owned-source hydration in production, not normal external hydration. External calls are fallback/import paths. Traffic is a first-class common overlay candidate.
+
+---
+
+# 2. System Model
+
+```text
+route request / viewport request
+        |
+        +--> route cache
+        |       route-specific completed analysis
+        |       canonical route-result reuse
+        |
+        +--> profile-aware exact hydration cache
+        |       profile_key + stage_key + schema_version + source_version
+        |       exact-ish road/evidence hydration for runtime overlays
+        |
+        +--> cyclist mobility substrate cache
+                precomputed regional cyclist structure
+                non-canonical presentation/planning/acceleration layer
+```
+
+Runtime layering:
+
+```text
+low zoom  -> substrate first
+mid zoom  -> progressive exact hydration enrichment
+high zoom -> full traversable local detail
+```
+
+The runtime is allowed to be fast because it is not required to carry every source field in the hot path. It remains correct because the cold path can still hydrate exact source evidence.
+
+The Cyclist Mobility Substrate has two related but different runtime use cases:
+
+1. quick-load national/full-map heatmapping and exploration without a route loaded
+2. quick-load route identity, route evidence attachment, and future V2S+S scoring
+
+These use cases share source refs and substrate acceleration, but they do not share truth ownership. Full-map overlays use viewport profiles. V2S+S route scoring uses route evidence profiles after RouteLine identity produces accepted ownership spans and source-way contributions.
+
+---
+
+# 3. Three Levels of Road Intelligence
+
+The road model has three levels. They are related, but they are not interchangeable.
+
+## 3.1 Raw Source Evidence
+
+Raw source evidence is the source-of-record layer.
+
+It includes:
+
+- full OSM/source tags
+- authoritative source fields
+- owned HPMS/DOT/AADT source fields
+- owned spatial source fields
+- exact source geometry
+- OSM/source way ids
+- member ids where available
+- provenance-bearing source metadata
+
+It is retained on the spatial/owned-road side.
+
+It must be hydratable on demand by:
+
+- way id
+- tile
+- corridor member
+- route window
+
+It is required for:
+
+- scoring
+- provenance
+- exact legality
+- RouteLine truth
+- detailed inspection
+- conflict resolution
+- source-of-record hydration
+
+## 3.2 Exact Hydration Descriptor
+
+The exact hydration descriptor is the normalized hot-path runtime layer.
+
+It contains normalized fields used by:
+
+- viewport overlays
+- profile hydration
+- progressive rendering
+- low-latency mobile interaction
+
+It is optimized for:
+
+- speed
+- payload size
+- stable rendering
+- predictable mobile/runtime behavior
+
+It is versioned by:
+
+- `schema_version`
+- `source_version`
+
+It is not a replacement for raw source evidence.
+
+## 3.3 Substrate Descriptor
+
+The substrate descriptor is the cyclist mobility structure layer.
+
+It contains:
+
+- cyclist corridor identity
+- salience
+- continuity
+- zoom eligibility
+- planning metadata
+- presentation metadata
+- cache metadata
+
+It is explicitly non-canonical.
+
+It exists to make low-zoom and planning surfaces meaningful before exact local detail is loaded.
+
+## 3.4 Principle
+
+```text
+Fast normalized fields are indexes and summaries, not replacements for source evidence.
+```
+
+Normalized descriptors are lossy by design. Scoring, provenance, RouteLine truth, detailed inspection, and conflict resolution must be able to hydrate exact source evidence later.
+
+---
+
+# 4. Hot Path and Cold Path
+
+## 4.1 Hot Path
+
+The hot path is optimized for interaction latency.
+
+Hot path systems include:
+
+- viewport hydration
+- rendering
+- overlays
+- progressive interaction
+- profile-aware cache payloads
+- low-latency mobile/runtime behavior
+
+The hot path can use normalized descriptors when the descriptor has explicit source, consumer, exactness, payload cost, and risk classification.
+
+## 4.2 Cold Path
+
+The cold path preserves source authority.
+
+Cold path systems include:
+
+- full OSM/source tags
+- exact provenance
+- detailed inspection
+- scoring
+- RouteLine truth
+- conflict resolution
+- source-of-record hydration
+
+The cold path must remain able to hydrate precise source evidence. A hot descriptor can say enough to render or prioritize; it cannot be the only evidence available for proving route truth.
+
+Production source posture:
+
+- `owned_canonical_source_hydration` is the normal source-of-record path for OSM, HPMS, DOT, and AADT data owned on the Nuremberg server.
+- `owned_viewport_profile_hydration` is the normal path for viewport profile payloads.
+- `owned_route_evidence_profile_hydration` is the normal path for V2S+S route evidence bundles.
+- `external_fallback_only` means external APIs are fallback/bootstrap/import paths when owned source is missing, stale, unavailable, or not yet imported.
+
+---
+
+# 5. Presentation Continuity and Canonical Continuity
+
+Presentation continuity and canonical continuity are separate concepts.
+
+## 5.1 Presentation Continuity
+
+Presentation continuity groups multiple OSM/source ways into one logical cyclist corridor.
+
+It is used for:
+
+- substrate
+- cache grouping
+- rendering
+- interaction
+- prioritization
+- planning
+
+It supports Mullica/Fleming-style corridor identity.
+
+It must preserve:
+
+- real member geometries
+- source way ids
+- member-level inspection
+- source evidence hydration paths
+
+Presentation continuity may say:
+
+> these source ways read as one cyclist corridor
+
+## 5.2 Canonical Continuity
+
+Canonical continuity is owned by:
+
+- RouteLine
+- topology
+- provenance
+- scoring
+- route truth
+
+Canonical continuity determines what a route actually traversed.
+
+Canonical continuity must still prove:
+
+> the route actually traverses these exact members
+
+It does not inherit substrate corridor grouping as fact.
+
+This separation preserves the core boundary:
+
+```text
+regional presentation confidence != route truth confidence
+```
+
+---
+
+# 6. Cache Contracts
+
+## 6.1 Route Cache
+
+Contract:
+
+- route-specific
+- completed analysis cache
+- canonical route-result cache
+- exact truth result reuse
+
+Current payload:
+
+- route hash
+- data version
+- canonical-compatible safety result
+- route-indexed evidence outputs
+- route scoring outputs
+- hit/access metadata
+
+Explicit non-goals:
+
+- not raw road geometry
+- not substrate
+- not viewport hydration
+- not a low-zoom presentation cache
+
+## 6.2 Profile-Aware Exact Hydration Cache
+
+Contract:
+
+- tile/profile/stage keyed
+- exact-ish road/evidence hydration
+- profile-specific payloads
+- runtime overlay support
+- excludes junk upstream
+- server-authorized writes
+- schema/source versioned rollback
+
+Current database key:
+
+```text
+(tile_key, profile_key, stage_key, schema_version, source_version)
+```
+
+Current cache row metadata:
+
+- `roads_json`
+- `fetched_at`
+- `road_count`
+- `payload_bytes`
+- `class_counts`
+
+Current and intended profile taxonomy:
+
+Viewport profiles:
+
+- `viewport_speed_v1`
+- `viewport_traffic_v1`
+- `viewport_bike_infra_v1`
+- `viewport_shoulder_v1`
+- `viewport_surface_v1`
+- `viewport_hazard_control_v1`
+
+Route evidence profiles:
+
+- `route_evidence_core_v1`
+- `route_evidence_scoring_v1`
+- `route_traffic_v1`
+- `route_hazard_events_v1`
+
+Admin/debug profiles:
+
+- `admin_broad_debug_v1`
+
+Historical/reserved concept:
+
+- `route_truth_v1`
+
+`route_truth_v1` is a reserved concept only. Route evidence profiles are not route truth. Route truth remains owned by DS-032 RouteLine identity and route-distance evidence attachment. Route evidence profiles hydrate accepted route evidence after identity; they do not decide what the route traversed.
+
+## 6.3 Cyclist Mobility Substrate Cache
+
+Contract:
+
+- precomputed regional cyclist structure
+- continuity-aware
+- salience-scored
+- multi-zoom simplified
+- non-canonical
+- presentation/cache/planning only
+
+Current substrate record families:
+
+- candidate ways
+- corridors
+- scored corridors
+- simplified zoom-band corridors
+- cache candidate preview records
+- logical corridors and member geometries
+
+Explicit boundary:
+
+```text
+SUBSTRATE IS NOT ROUTE TRUTH
+```
+
+Substrate can:
+
+- prioritize
+- suggest
+- accelerate
+- render
+- group for presentation
+
+Substrate cannot:
+
+- score
+- assign route ownership
+- replace DS-029 provenance
+- erase exact source evidence
+- replace RouteLine/topology proof
+
+---
+
+# 7. Profile Cache Key Semantics
+
+## 7.1 `profile_key`
+
+The profile describes the consumer-specific payload.
+
+Examples:
+
+- `viewport_speed_v1`: staged road/speed hydration for viewport overlays
+- `viewport_traffic_v1`: staged owned traffic/AADT hydration for viewport overlays
+- `viewport_bike_infra_v1`: bike-infrastructure overlay payload
+- `viewport_shoulder_v1`: shoulder overlay payload
+- `viewport_surface_v1`: surface overlay payload
+- `viewport_hazard_control_v1`: hazard/control overlay payload
+- `route_evidence_core_v1`: route/span/source-way keyed core source evidence for V2S+S
+- `route_evidence_scoring_v1`: route/span/source-way keyed score-driving evidence for V2S+S
+- `route_traffic_v1`: route/span/source-way keyed traffic/AADT evidence when split profile freshness or payload warrants it
+- `route_hazard_events_v1`: route-indexed hazard/crossing/bridge/event evidence
+- `admin_broad_debug_v1`: broad inspection and migration payload
+
+Profiles must not silently share payload shapes.
+
+Viewport profiles support full-map exploration and display/planning overlays. Route evidence profiles support V2S+S enrichment after identity. Neither profile family is RouteLine truth.
+
+## 7.2 `stage_key`
+
+The stage describes when a profile payload should be loaded/rendered.
+
+Stage names and ordering are implementation details. Current values are documented in the source/test snapshot section.
+
+## 7.3 `schema_version`
+
+The schema version describes payload shape.
+
+Bump it when:
+
+- a hot descriptor field is added/removed/renamed
+- a field changes type
+- derived field semantics change in a way that affects consumers
+
+## 7.4 `source_version`
+
+The source version describes upstream source semantics.
+
+Bump it when:
+
+- owned-road source changes materially
+- profile filters change materially
+- source authority changes
+- a backfill should not reuse old rows
+
+Current `viewport_speed_v1` source version:
+
+```text
+owned_roads_v1
+```
+
+---
+
+# 8. Road Descriptor Field Governance
+
+Do not invent cached fields because they sound useful.
+
+Every cached or normalized field must have:
+
+- source
+- consumer
+- exactness classification
+- payload cost
+- risk if wrong
+- hot/cold placement decision
+
+The read-only audit recommends a minimal hot descriptor for `viewport_speed_v1`.
+
+Required hot fields:
+
+- OSM way id
+- geometry
+- highway
+- name
+- ref
+- speed mph
+- speed source
+- speed class
+- safe-path flag
+- score domain type
+- stage key
+- priority group
+- start zoom
+- min-visible zoom
+- selected OSM tags for admission, display, and trace
+
+Selected hot tags:
+
+- `highway`
+- `maxspeed`
+- `name`
+- `ref`
+- `access`
+- `vehicle`
+- `motor_vehicle`
+- `motorcar`
+- `bicycle`
+- `foot`
+- `surface`
+- `tracktype`
+- `cycleway`
+- `cycleway:left`
+- `cycleway:right`
+- `cycleway:both`
+- `cycleway:buffer`
+- `cycleway:left:buffer`
+- `cycleway:right:buffer`
+- `cycleway:both:buffer`
+
+Keep these out of the hot speed payload for now:
+
+- full raw OSM tags
+- official traffic/AADT fields
+- official lane truth
+- relation membership ids
+- route ownership spans
+- route-indexed truth runs
+- route scoring fields
+- substrate corridor ids
+- substrate salience tiers
+- grade/curvature without an owned source contract
+
+Fields requiring source pipeline changes:
+
+- relation membership ids
+- `nodeIds` on `SpeedRoad` or an equivalent viewport descriptor
+- official traffic/lane/shoulder fields in generic viewport hydration
+- server-side profile cache write authority
+
+Governance rule:
+
+- hot descriptors may summarize
+- raw OSM/source evidence remains hydratable
+- scoring/provenance can always hydrate exact source tags later
+
+## 8.1 Cache/Profile Responsibility
+
+Base cyclist substrate:
+
+- structural cyclist mobility layer
+- corridor identity
+- salience
+- continuity
+- zoom eligibility
+- constituent refs
+- source/version metadata
+- maybe highway/domain where already core
+- not route truth
+- not score truth
+- not a giant all-fields road table
+
+Viewport profile hydration:
+
+- profile-specific map exploration overlays
+- tile/viewport/zoom keyed
+- user/default selectable
+- display/planning payloads
+- not RouteLine truth
+
+Route evidence profile hydration:
+
+- route/span/source-way keyed evidence payloads for V2S+S
+- accepted ownership spans and source-way contributions are the input
+- emits route-indexed evidence layers for scoring/inspection
+- should batch multiple fields where possible
+- not route cache
+- not route truth
+
+Raw owned source evidence:
+
+- source of record
+- full OSM/source tags
+- owned HPMS/DOT/AADT
+- exact geometry
+- provenance
+- conflict resolution
+- legality/exact inspection
+- scoring authority when descriptor confidence is insufficient
+
+## 8.2 Field Ownership Matrix
+
+| Field | base_substrate_descriptor | viewport_profile_hydration | route_evidence_profile_hydration | owned_canonical_source_hydration | model_inference_policy | derived_scoring_output | external_fallback_only | default map overlay eligible | route scoring eligible | nationally prehydrated | lazy hydrated | freshness sensitivity | payload risk |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `highway` / `road_class` | yes | yes | yes | yes | no | no | no | yes | yes | yes | yes | low | low |
+| `maxspeed` / `speed_limit` | no | yes | yes | yes | yes | no | yes | yes | yes | yes - nationally as compact `viewport_speed_v1`, not base substrate | yes | medium | low/medium |
+| `speed_class` / inferred speed environment | no | yes | yes | no | yes | no | no | yes | yes | regionally | yes | low | low |
+| `traffic_aadt` | no | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | medium/high | medium |
+| `shoulder` | no | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | medium | medium |
+| `bike_infra` / `cycleway` / `bicycle` | yes | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | medium | medium |
+| `lane_count` / `lanes` | no | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | medium | medium |
+| `surface` | no | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | low | low/medium |
+| hazard flags | no | yes | yes | yes | yes | yes | yes | yes | yes | no | yes | high | medium/high |
+| `time_of_day_traffic_multiplier` | no | no | yes | no | yes | yes | no | no | yes | no | yes | high | low |
+| heatmap risk fields | no | no | no | no | no | yes | no | yes | no | no | yes | depends on inputs | medium |
+
+Notes:
+
+- Speed is nationally prehydrated as `viewport_speed_v1` because it is the best single-field approximation of road risk and its compact payload is small. It is not baked into base substrate.
+- Traffic/AADT is a common overlay candidate because owned HPMS/DOT/AADT source control makes it viable.
+- Heatmap risk fields are derived scoring/display output, not source evidence, not RouteLine truth, and not base substrate.
+- Hazard flags can come from source facts or detected route-indexed events; lineage must distinguish those cases.
+
+## 8.3 Default Overlay Selection
+
+Speed may be the initial default viewport overlay. The architecture must allow traffic, bike infrastructure, shoulder, surface, or another profile to become the default later.
+
+The default overlay is a product/user setting, not a substrate schema assumption. The base substrate should not become speed-shaped.
+
+Recommended compact `viewport_speed_v1` payload:
+
+- `substrateSpanId` or source way ref
+- `speedMph` or `speedKph` when known
+- `speedBucket` / `speedClass`
+- `speedSource`: `posted`, `official_imported`, `osm_tag`, `inferred`, or `unknown`
+- `confidence`
+- `sourceVersion`
+- `schemaVersion`
+
+Do not store full raw source tags in `viewport_speed_v1`. Exact raw/owned source evidence remains required for scoring provenance, legal/source inspection, conflict resolution, and high-confidence scoring.
+
+## 8.4 Batching And Round Trips
+
+Separate logical profiles do not require one network round trip per field.
+
+The runtime should support batched profile hydration requests:
+
+- for viewport exploration, batch requested profiles by tile/viewport/zoom
+- for V2S+S route scoring, batch requested evidence by accepted ownership spans, source-way ids, source refs, and route windows
+
+The evidence worker should stream layer readiness:
+
+- `speed_layer_ready`
+- `traffic_layer_ready`
+- `shoulder_layer_missing`
+- `bike_infra_layer_ready`
+- `surface_layer_ready`
+- equivalent layer-specific blocked/missing statuses
+
+## 8.5 V2S+S Route Scoring Boundary
+
+V2S+S identity produces ownership spans and source-way contributions. The evidence worker requests route evidence profiles for those accepted spans/source ways. Evidence attaches by route distance.
+
+OSM/source way ids remain metadata and hydration references. They are not the primary route join key. The route-distance evidence bundle is the scoring worker input.
+
+The scoring worker consumes the route-indexed evidence bundle and emits score spans, route rollups, heatmap input spans, traces, and missing-field diagnostics. Missing fields remain explicit. No score-driving field may be fabricated silently.
+
+## 8.6 Owned-Source Production Posture
+
+In production, OSM plus HPMS/DOT/AADT are expected to be owned on the Nuremberg server.
+
+Owned source hydration is the normal path. External APIs are fallback/bootstrap/import paths, not the expected per-route scoring path.
+
+This should improve route scoring and hydration latency versus V1's public Overpass / edge-proxy / corridor-fetch posture. It does not mean zero-ms fetch nationally; provider/profile reads still have read, decode, query, and cache-miss costs.
+
+## 8.7 Spec Ownership Cross-References
+
+- DS-032 owns the staged route pipeline: identity -> enrichment -> scoring -> presentation.
+- DS-031 owns route-distance evidence attachment.
+- DS-036 owns durable route relation and progressive route enrichment boundaries.
+- DS-035 owns cache/profile/substrate runtime boundaries.
+
+Preserved boundaries:
+
+- substrate is not route truth
+- viewport profiles are not RouteLine truth
+- heatmap/display payloads do not feed topology truth
+- raw owned source evidence remains authority for scoring, provenance, and conflict resolution
+- route cache stores completed route analysis, not raw road geometry
+- route evidence profiles are not route cache
+- normalized descriptors are indexes/summaries, not replacements for source evidence
+
+---
+
+# 9. Current Source/Test Snapshot
+
+This section records current implementation details for reader orientation.
+
+It is not timeless architecture doctrine.
+
+Source and tests remain authoritative when stage names, priority groups, z-band membership, track placement, or category examples change.
+
+## 9.1 Exact Hydration: `viewport_speed_v1`
+
+Current `viewport_speed_v1` stage order:
+
+1. `z10_substrate_references`
+2. `z11_secondary`
+3. `z12_tertiary_residential`
+4. `z13_local_detail`
+5. `exact_fallback` only when priority-drip hydration returns no roads
+
+Current priority order:
+
+1. `z10_trunks`
+2. `z10_primaries`
+3. `z10_paths_cycleways`
+4. `z10_tracks`
+5. `z11_secondaries`
+6. `z11_tertiaries`
+7. `z12_named_local_ge_0_5mi`
+8. `z12_named_local_0_25_0_5mi`
+9. `z12_unnamed_long_continuity`
+10. `z12_short_named_residential_fragments`
+11. `z13_remaining_local_detail`
+12. `exact_fallback`
+
+Finalized cache split policy, expressed with current source-test group names:
+
+Central/warm cache:
+
+- `z10_trunks`
+- `z10_primaries`
+- `z10_paths_cycleways`
+- `z10_tracks`
+- `z11_secondaries`
+- `z11_tertiaries`
+- `z12_named_local_ge_0_5mi`
+- `z12_named_local_0_25_0_5mi`
+- `z12_unnamed_long_continuity`
+
+Viewport/on-demand hydration:
+
+- `z12_short_named_residential_fragments`
+- `z13_remaining_local_detail`
+- broad residential/unclassified local fabric
+
+The system centrally caches regional structure and connective tissue. Neighborhood-scale local detail hydrates progressively and on demand.
+
+Current stage details:
+
+- z10 exact hydration includes trunk/primary references, protected/separated cycle semantics, safe paths, cycleways, and tracks as the first speed-profile bands.
+- z11 exact hydration includes secondaries and tertiaries.
+- z12 exact hydration includes named/ref or continuous residential, unclassified, and living-street detail.
+- z13 exact hydration includes remaining local residential/unclassified/living-street detail plus eligible track/path/footway/pedestrian/bridleway detail.
+
+The z10 source query currently has conservative clauses for some bike-legal path/footway/pedestrian/track fetches, while the runtime classifier and tests still define `z10_tracks` and `z10_paths_cycleways` as first-priority groups for already-loaded/admitted roads.
+
+## 9.2 Zoom Philosophy and Hysteresis
+
+Zoom level controls:
+
+- density
+- visual familiarity
+- how much local fabric is loaded and shown
+
+Cyclist salience controls:
+
+- styling
+- loading order
+- prioritization
+- substrate importance
+
+Zoom should not be treated as a pure cyclist priority ranking.
+
+Current hysteresis rule:
+
+```text
+eligible at start zoom
+visible one zoom level below start zoom
+not visible two zoom levels below start zoom
+```
+
+Current metadata:
+
+- z10 groups: `startZoom=10`, `minVisibleZoom=9`
+- z11 groups: `startZoom=11`, `minVisibleZoom=10`
+- z12 groups: `startZoom=12`, `minVisibleZoom=11`
+- z13 and `exact_fallback`: `startZoom=13`, `minVisibleZoom=12`
+
+Examples:
+
+- z10 band appears at z10 and remains visible at z9.
+- z11 band appears at z11 and remains visible at z10.
+- z12 band appears at z12 and remains visible at z11.
+- z13 band appears at z13 and remains visible at z12.
+
+Non-examples:
+
+- z11 does not show at z9.
+- z12 does not show at z10.
+- z13 does not show at z11.
+
+Runtime purpose:
+
+- prevent flicker/blanking
+- preserve visual continuity during adjacent zoom transitions
+- avoid full layer clears
+- allow progressive replacement by newly eligible bands
+
+Implementation behavior:
+
+- previous paint can be retained during adjacent zoom transitions
+- retained roads are filtered by `isViewportSpeedRoadVisibleAtZoom(..., 'hysteresis')`
+- newly arrived roads merge over retained eligible roads
+
+Post-proof note:
+
+- A regression showed old V1 admission logic could still veto retained V2 profile roads.
+- The final runtime treats V2 hysteresis eligibility as authoritative for retained V2 profile paint.
+
+## 9.3 Priority-Drip Hydration
+
+The runtime should use priority-drip hydration:
+
+- visible-first fetch
+- priority group ordering
+- microbatch streaming
+- stages are not rendered as giant blobs
+- no giant payload flashes
+- no final full-blob flash
+- no blanking between stages
+- no full clears during adjacent zoom transitions
+- lower-priority roads never block higher-priority visible roads
+- retained lower-band paint until replacement arrives
+
+Current microbatch behavior:
+
+- fresh roads are grouped by `ViewportSpeedPriorityGroup`
+- groups are emitted in priority order
+- default microbatch size is 10 in the current viewport context path
+- high-priority diagnostics treat z10 and z11 groups as high priority
+
+The intended user-visible behavior is progressive enrichment:
+
+```text
+substrate skeleton -> exact high-value roads -> exact connective roads -> local detail
+```
+
+## 9.4 Substrate Z-Band Snapshot
+
+Substrate z-bands are separate from exact hydration stages.
+
+Current cache-preview and simplification behavior:
+
+### z10
+
+Low-zoom cyclist anchors and references:
+
+- safe paths
+- protected cycle corridors
+- gravel tracks
+- primary connectors
+
+### z11
+
+z10 structure plus:
+
+- secondary roads
+- exceptional/named high-salience tracks
+- top safe/protected corridors in simplified output
+
+### z12
+
+Broader connective network:
+
+- tertiary roads
+- long residential continuity
+- selected or critical primary connectors
+- useful gravel tracks
+- bike anchors
+
+### z13
+
+Higher-density cyclist-relevant fabric:
+
+- accepted local residential detail
+- unclassified detail in cache preview
+- scored z13 corridors in simplified output
+
+### z14
+
+Preview and sizing layer:
+
+- broad traversable cyclist-relevant street universe
+- excludes service, driveway, parking aisle, sidewalk-only footway, private/no-access, and construction/proposed junk
+- not currently the central simplified substrate serving contract
+
+Current policy:
+
+- z-level controls density and visual familiarity
+- cyclist salience controls styling, loading order, and prioritization
+
+---
+
+# 10. Server-Authorized Write Model
+
+Profile cache writes must be authorized by a server/spatial cache service.
+
+Browser anonymous writes are not acceptable because:
+
+- shared cache rows are shared infrastructure
+- payload validation must be central
+- profile filtering must be consistent
+- `schema_version` and `source_version` must be trusted
+- bad rows can degrade all users
+
+Current RLS posture:
+
+- public read policy on `osm_road_profile_tile_cache`
+- anon/authenticated have `SELECT`
+- service role has full access
+- browser profile-cache write path logs and refuses writes unless a server write authority is configured
+
+Finalized runtime outcome:
+
+- browser no longer directly mutates profile cache rows
+- browser requests hydration
+- same-origin/server authority validates and persists cache rows
+- RLS remains enforced against direct anon writes
+- preferred future owner is the spatial/cache service, not browser runtime
+
+Future write owner responsibilities:
+
+- validate descriptor schema
+- apply profile filters
+- enforce payload size limits
+- stamp schema/source versions
+- record payload metrics
+- support backfill
+- support rollback
+- own object/CDN publication if introduced
+
+---
+
+# 11. Legacy Broad Cache Migration
+
+Current legacy cache:
+
+- `osm_road_tile_cache`
+- broad `SpeedRoad[]` payload
+- browser write path still exists
+- read path remains usable for rollback
+
+Migration path:
+
+1. Default V2 speed hydration to profile cache.
+2. Keep explicit rollback to legacy broad cache.
+3. Refresh stage misses/stale/invalid rows from owned source.
+4. Write profile rows only through server authority.
+5. Keep broad debug/admin profile for comparisons.
+6. Monitor hit rate, payload bytes, invalid rows, stale rows, and rejected records.
+7. Disable browser broad writes after server profile writes and backfill are stable.
+
+Rollback:
+
+- switch speed adapter to legacy
+- bump profile `schema_version`
+- bump profile `source_version`
+- fall back to `exact_fallback` if staged rows are empty
+
+---
+
+# 12. Substrate Evolution Requirements
+
+The substrate generator must continue to support:
+
+- graph filtering
+- corridor continuity
+- salience scoring
+- multi-zoom simplification
+- cache candidate preview
+- golden corridors
+- Wharton golden territory
+- Mullica/Fleming continuity lessons
+- named track continuity
+- path/track bridge rules
+- corridor identity vs member geometry preservation
+
+Specific continuity rules:
+
+- preserve source-way member geometry for inspection
+- aggregate logical corridor identity across source ways
+- allow named path/track bridges where source evidence supports it
+- preserve variant names and refs for audit
+- promote long-corridor junction connectors when they materially connect accepted corridors
+- keep rejected reasons and suppression reasons visible for diagnostics
+
+---
+
+# 13. Cache Sizing Policy
+
+Current findings:
+
+- z10-z12 central cache is viable.
+- curated z13 central cache is viable.
+- all-z14 residential/local fabric is not ideal centrally.
+- z14 local fabric should hydrate on demand.
+- central substrate cache and viewport-on-demand exact hydration should remain separate.
+
+The substrate cache should optimize for:
+
+- regional continuity
+- high-value cyclist salience
+- low payload density
+- stable first paint
+
+Exact hydration should optimize for:
+
+- viewport specificity
+- profile specificity
+- exact-ish evidence
+- high-zoom local completeness
+
+Rationale for not centrally caching all z14 local fabric:
+
+- payload explosion
+- residential cul-de-sac tax
+- z14 broad residential payload dominates cache size
+- cyclist travel speed allows on-demand local hydration
+- ride-mode hydration can progressively fill local detail later
+
+The central/warm cache should carry regional structure and connective tissue. Broad neighborhood-scale local fabric should remain viewport/on-demand hydration.
+
+---
+
+# 14. Runtime Proof Findings
+
+The post-commit runtime proof demonstrated:
+
+- no Page Unresponsive behavior
+- no giant blanking
+- no full-blob flash
+- no hazard/control/service/driveway/sidewalk pollution
+- staged/profile-keyed cache reads and writes
+- successful rollback path
+- Mullica/Fleming continuity preserved
+- Church Rd global merge regression fixed
+
+These findings confirm the runtime architecture. Remaining telemetry refinements do not indicate instability in the cache split, priority-drip hydration, or substrate/profile/route separation.
+
+---
+
+# 15. Telemetry Follow-Up
+
+Remaining observability work:
+
+- `firstHighPriorityPaintMs` semantics
+- cap-complete vs all-visible-complete
+- retained/capped-state distinctions
+- continuously retained views
+
+This is telemetry semantics work, not runtime architecture instability.
+
+---
+
+# 16. Future Roadmap
+
+Future directions:
+
+- substrate-assisted route loading
+- candidate narrowing for RouteLine V2
+- hydration query planning
+- detour/reroute acceleration
+- relation-aware continuity
+- gravel/adventure intelligence
+- global cyclist mobility substrate
+- object/CDN tile serving
+- profile-aware overlay ecosystem
+- server-owned spatial cache service
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-037-route_relation_progressive_enrichment_spec.md
+
+# DS-037 - Route Relation Progressive Enrichment Spec
+
+**Status:** Draft for Phase 6 implementation planning
+**Date:** 2026-05-20
+**Related:** ADR-048, DS-036, DS-029, DS-031, DS-035, EXEC-030
+
+---
+
+# 1. Purpose
+
+This specification defines the progressive enrichment contract for Lanterne Route Relations.
+
+Progressive enrichment improves an initial or diagnostic route relation over time. It may replace coordinate or unresolved structure with better source-backed structure, refine anchors, resolve blockers, and improve confidence. It must not silently change analyzed truth.
+
+The current implementation has a diagnostic `LanterneRouteRelationV1Candidate` with:
+
+- route spine geometry and geometry hash
+- ordered RouteLine V2 topology members
+- matched spans
+- transitions/handoffs
+- blockers
+- quality summaries
+- explicit runtime/cache/scoring exclusions
+- a placeholder `enrichmentRevision` at revision `0`
+
+This document defines the future enrichment contract. It does not implement the worker, persistence, reload lookup, source snapshot gate, invalidation system, route cache writes, scoring refresh, or UI behavior.
+
+---
+
+# 2. Non-Goals
+
+Progressive enrichment is not:
+
+- final route scoring truth
+- DS-029 provenance replacement
+- RouteLine validation replacement
+- route cache storage
+- substrate corridor truth
+- a production reload path by itself
+- a browser runtime mutation path
+- a way to erase unresolved gaps without evidence
+- a way to mutate previous analyzed revisions in place
+
+Route relation enrichment may improve route structure. It may not bypass RouteLine, scoring, provenance, or source evidence.
+
+---
+
+# 3. System Boundaries
+
+## 3.1 Route Relation
+
+The route relation stores durable computed route structure:
+
+- route spine
+- ordered mixed-member chain
+- way spans
+- coordinate spans
+- unmatched spans
+- inferred spans
+- node anchors
+- coordinate anchors
+- transitions/handoffs
+- blockers/gaps
+- confidence and quality metadata
+- relation revision metadata
+
+The route relation is not a completed analysis result.
+
+## 3.2 Route Cache
+
+The route cache stores completed analysis/scoring reuse. It does not own route structure and should not be written by enrichment.
+
+Completed analysis results must remain pinned to the relation revision they used unless scoring refreshes.
+
+## 3.3 RouteLine
+
+RouteLine remains authoritative for route structure validation.
+
+Any accepted enriched revision must pass:
+
+- relation parser/validator
+- relation-derived RouteLine ownership validation
+- handoff/ownership consistency checks
+- coverage honesty checks
+
+Enrichment may propose structure. RouteLine validation decides whether that structure is acceptable.
+
+## 3.4 DS-029 Provenance and Scoring
+
+DS-029 remains authoritative for provenance and scoring evidence traceability.
+
+Enrichment may change route structure in a way that requires scoring refresh. It must flag those changes; it must not directly update scoring truth.
+
+## 3.5 Substrate
+
+Substrate may provide candidate hints, corridor continuity hints, salience hints, or query planning acceleration.
+
+Substrate is not route truth. Substrate hints may be attached only as non-canonical candidate metadata and must never replace source refs, RouteLine validation, or DS-029 provenance.
+
+---
+
+# 4. Enrichment Job Model
+
+Progressive enrichment should run as a worker-owned job. The job accepts a relation candidate or accepted relation revision and returns either a new proposed revision or a structured failure.
+
+Recommended future shape:
+
+```ts
+interface RouteRelationEnrichmentJobV1 {
+  jobId: string;
+  relationId?: string;
+  parentRevisionId: string;
+  inputRelation: LanterneRouteRelationV1Candidate | LanterneRouteRelationRevisionV1;
+  routeSpine: {
+    geometryHash: string;
+    totalDistM: number;
+    segments: Array<{
+      startDistM: number;
+      endDistM: number;
+      start: { lat: number; lon: number };
+      end: { lat: number; lon: number };
+    }>;
+  };
+  sourceArtifact: {
+    id?: string;
+    sourceType?: string;
+    fileName?: string;
+    externalSourceId?: string;
+    routeGeometryHash: string;
+  };
+  sourceSnapshot: {
+    sourceVersion?: string;
+    sourceSnapshotVersion?: string;
+    routeLineAlgorithmVersion: string;
+  };
+  enrichmentPolicyVersion: string;
+  requestedModes: RouteRelationEnrichmentMode[];
+  budgets: RouteRelationEnrichmentBudgets;
+  cancellation: {
+    signal?: AbortSignal;
+    deadlineMs?: number;
+  };
+}
+```
+
+Recommended modes:
+
+```ts
+type RouteRelationEnrichmentMode =
+  | 'source_way_span_match'
+  | 'node_anchor_hydration'
+  | 'transition_refinement'
+  | 'blocker_resolution'
+  | 'confidence_refinement'
+  | 'substrate_hint_attachment';
+```
+
+Recommended budgets:
+
+```ts
+interface RouteRelationEnrichmentBudgets {
+  maxElapsedMs?: number;
+  maxSourceHydrationRequests?: number;
+  maxCandidateWaysPerSpan?: number;
+  maxSpanSplits?: number;
+  maxChangedIntervals?: number;
+}
+```
+
+Recommended output:
+
+```ts
+type RouteRelationEnrichmentJobResultV1 =
+  | {
+      ok: true;
+      parentRevisionId: string;
+      proposedRevision: LanterneRouteRelationRevisionV1;
+      validation: RouteRelationEnrichmentValidationSummary;
+      diagnostics: RouteRelationEnrichmentDiagnostics;
+    }
+  | {
+      ok: false;
+      parentRevisionId: string;
+      failureCode: string;
+      diagnostics: RouteRelationEnrichmentDiagnostics;
+    };
+```
+
+The job may be cancelled. Cancellation should produce no accepted revision. The parent revision remains usable.
+
+---
+
+# 5. Relation Revision Model
+
+The current diagnostic candidate only has:
+
+```ts
+enrichmentRevision: {
+  revision: 0;
+  status: 'not_enriched';
+  scoreBearingChangeCount: 0;
+  previousRevisionId?: string;
+}
+```
+
+Phase 6B should add a pure TypeScript revision builder before any worker or persistence implementation. The future revision model should distinguish the initial relation from enriched revisions.
+
+Recommended future shape:
+
+```ts
+interface LanterneRouteRelationRevisionV1 {
+  relationId?: string;
+  revisionId: string;
+  parentRevisionId?: string;
+  revisionNumber: number;
+  createdAt: string;
+  revisionReason: RouteRelationRevisionReason;
+  enrichmentPolicyVersion: string;
+  sourceSnapshotVersion?: string;
+  routeLineAlgorithmVersion: string;
+  routeGeometryHash: string;
+  changedMemberIds: string[];
+  changedSpanIds: string[];
+  changedTransitionIds: string[];
+  changedBlockerIds: string[];
+  scoreBearingChangeFlags: RouteRelationScoreBearingChangeFlag[];
+  relation: LanterneRouteRelationV1Candidate;
+  validation: RouteRelationEnrichmentValidationSummary;
+  quality: RouteRelationEnrichmentQualitySummary;
+}
+```
+
+Recommended reasons:
+
+```ts
+type RouteRelationRevisionReason =
+  | 'initial_candidate'
+  | 'source_way_span_enrichment'
+  | 'node_anchor_enrichment'
+  | 'transition_refinement'
+  | 'blocker_resolution'
+  | 'confidence_refinement'
+  | 'metadata_hint_attachment'
+  | 'manual_rebuild'
+  | 'algorithm_rebuild';
+```
+
+Revision rules:
+
+- Revisions are append-only.
+- Previous revisions must not be mutated.
+- A completed analysis result must record the relation revision it used.
+- If enrichment creates score-bearing changes, completed analysis reuse must miss or trigger scoring refresh.
+- A failed enrichment creates no accepted child revision.
+- The raw route artifact and full reconstruction path remain available.
+
+---
+
+# 6. Allowed Enrichment Operations
+
+Allowed operations are structural improvements with validation and revision metadata.
+
+Allowed:
+
+- replace a `coordinate_span` with a `way_span` when source evidence supports it
+- replace an `unmatched_span` with an `inferred_span` or source-backed `way_span`
+- add OSM/source node anchors to an existing source-backed span
+- refine coordinate anchors without changing route geometry
+- refine a transition/handoff distance when source/node evidence supports it
+- resolve a blocker into explicit owned route structure
+- split a span into smaller validated intervals
+- merge compatible adjacent spans when family key, display identity, domain, and source evidence support it
+- add source refs to spans that were previously coordinate-only, unmatched, or inferred
+- improve confidence when evidence supports it
+- attach substrate/corridor hints as non-canonical candidate metadata only
+
+Allowed enrichment must preserve the route spine. The route geometry is the spine; source members annotate the spine.
+
+---
+
+# 7. Forbidden Enrichment Operations
+
+Forbidden:
+
+- silently changing completed scoring truth
+- writing route cache rows
+- making substrate corridor grouping canonical
+- replacing DS-029 provenance
+- bypassing RouteLine validation
+- removing unresolved gaps without source or coordinate evidence
+- rewriting route geometry as part of enrichment
+- using speed, traffic, AADT, HPMS, heatmap, or scoring evidence as road identity authority
+- mutating a previous revision in place
+- creating a reloadable production relation without version gates and invalidation state
+- hiding failed enrichment by returning an apparently successful revision
+- copying full raw OSM/source blobs into every relation revision
+
+Full source tags and geometry remain cold-path hydratable by source refs.
+
+---
+
+# 8. Change Classification
+
+Every accepted revision should classify each change.
+
+Recommended classes:
+
+```ts
+type RouteRelationChangeClass =
+  | 'non_score_bearing_structure_change'
+  | 'score_bearing_ownership_change'
+  | 'confidence_only_change'
+  | 'metadata_only_change'
+  | 'blocker_resolution'
+  | 'blocker_introduction'
+  | 'source_refinement'
+  | 'invalidating_change';
+```
+
+Examples:
+
+| Change | Class |
+| --- | --- |
+| Add coordinate anchor precision without source identity change | `non_score_bearing_structure_change` |
+| Add node ids to an already source-owned span with same way ids and boundaries | `source_refinement` |
+| Increase span confidence without changing ownership | `confidence_only_change` |
+| Attach substrate corridor hint | `metadata_only_change` |
+| Convert unresolved blocker interval to owned source spans | `blocker_resolution` and likely `score_bearing_ownership_change` |
+| Change motor road span to safe path span | `score_bearing_ownership_change` |
+| Introduce a new unresolved blocker | `blocker_introduction` and likely `invalidating_change` |
+| Change route geometry hash | `invalidating_change` |
+
+---
+
+# 9. Score-Bearing Change Policy
+
+Enrichment must flag scoring refresh when a change can alter downstream score, provenance, or evidence selection.
+
+Required score-bearing flags:
+
+- source-owned span changes road/path identity
+- source way ids change in a way that may alter evidence
+- span domain changes between `motor_road`, `safe_path`, `other`, or `unresolved`
+- ownership interval boundary changes beyond the configured tolerance
+- unresolved, coordinate, or unmatched span becomes a score-bearing source span
+- blocker resolves into owned route structure
+- new blocker is introduced
+- transition/handoff change alters adjacent ownership families
+- source refs change in a way that may affect speed, traffic, shoulder, bike infrastructure, hazard, or access evidence
+- source snapshot or RouteLine algorithm version changes under an existing analyzed result
+
+Recommended flag shape:
+
+```ts
+interface RouteRelationScoreBearingChangeFlag {
+  flagId: string;
+  class: 'score_bearing_ownership_change' | 'blocker_resolution' | 'blocker_introduction' | 'invalidating_change';
+  reason: string;
+  affectedSpanIds: string[];
+  affectedMemberIds: string[];
+  affectedTransitionIds: string[];
+  affectedBlockerIds: string[];
+  startDistM?: number;
+  endDistM?: number;
+  requiresScoringRefresh: true;
+}
+```
+
+Completed analysis results must remain pinned to the relation revision they used unless scoring refreshes against the new revision.
+
+---
+
+# 10. Validation Requirements
+
+An enriched revision is accepted only if all required validation passes.
+
+Required validation:
+
+- parse/validate the relation object shape
+- validate monotonic route spine segments
+- validate route-distance bounds for spans, transitions, and blockers
+- validate source refs for source-owned spans
+- validate coordinate/unmatched/inferred spans as first-class members
+- validate explicit unresolved gaps
+- reject hidden gaps
+- reject forbidden score/speed/traffic/heatmap/cache/viewport/substrate runtime payload fields
+- project relation to RouteLine validation DTO
+- run ownership coverage checks
+- run handoff/ownership consistency checks
+- compare parent and child revisions to classify changes
+- verify previous revision was not mutated
+- verify all score-bearing changes are flagged
+- verify substrate hints remain non-canonical metadata
+
+Validation output should be structured:
+
+```ts
+interface RouteRelationEnrichmentValidationSummary {
+  valid: boolean;
+  errorCount: number;
+  errorCodes: string[];
+  errors: Array<{
+    code: string;
+    path: string;
+    message: string;
+  }>;
+  routeLineValidation: {
+    ownershipCoverageDiagnostics: string[];
+    rejectedHandoffDiagnostics: unknown[];
+  };
+  scoreBearingChangeFlagCount: number;
+  hiddenMutationDetected: boolean;
+}
+```
+
+---
+
+# 11. Quality Metrics
+
+Each relation revision should expose route-structure quality metrics. These are not final route score metrics.
+
+Required metrics:
+
+- percent distance matched to source ways
+- percent distance represented by coordinate spans
+- percent distance represented by unmatched spans
+- percent distance represented by inferred spans
+- unresolved distance
+- blocker count by reason
+- transition confidence distribution
+- member/span confidence distribution
+- changed member count
+- changed span count
+- changed transition count
+- changed blocker count
+- score-bearing change flag count
+- enrichment revision count
+
+Recommended shape:
+
+```ts
+interface RouteRelationEnrichmentQualitySummary {
+  routeLengthM: number;
+  matchedDistancePct: number;
+  coordinateDistancePct: number;
+  unmatchedDistancePct: number;
+  inferredDistancePct: number;
+  unresolvedDistanceM: number;
+  blockerCountByReason: Record<string, number>;
+  transitionConfidence: Record<string, number>;
+  memberConfidence: Record<string, number>;
+  changedMemberCount: number;
+  changedSpanCount: number;
+  changedTransitionCount: number;
+  changedBlockerCount: number;
+  scoreBearingChangeFlagCount: number;
+  enrichmentRevisionCount: number;
+}
+```
+
+---
+
+# 12. Rollback and Failure Behavior
+
+Failure rules:
+
+- failed enrichment creates no new accepted revision
+- parent relation remains usable
+- diagnostics explain the failure
+- cancellation creates no accepted revision
+- full reconstruction fallback remains available
+- completed scoring remains pinned to the previous relation revision
+- route cache is not written
+- source evidence can still be hydrated from the cold path
+
+If enrichment partially succeeds but validation fails, the proposed revision remains diagnostic output only. It must not become the accepted relation revision.
+
+---
+
+# 13. Phase 6B Test Plan
+
+Phase 6B should implement a minimal pure TypeScript revision builder/test harness. It should not implement a worker, persistence, reload lookup, route cache integration, scoring refresh, UI, or substrate runtime behavior.
+
+Required tests:
+
+- coordinate span to source way span revision
+- unmatched span to source-backed or inferred span revision
+- blocker resolved revision
+- blocker introduced revision
+- added node anchor revision
+- refined transition handoff revision
+- confidence-only revision
+- metadata-only substrate hint revision remains non-canonical
+- score-bearing ownership change is flagged
+- unflagged score-bearing ownership change is rejected
+- previous revision remains unchanged
+- failed enrichment leaves parent usable
+- validation rejects hidden unresolved gap
+- validation rejects source-owned span without source refs
+- validation rejects forbidden runtime/cache/scoring fields
+- completed analysis pinning model records parent revision and requires refresh on score-bearing child revision
+
+Suggested first test slice:
+
+1. Build parent diagnostic candidate with one `coordinate_span`.
+2. Produce child revision replacing that span with a source-backed `way_span`.
+3. Record `parentRevisionId`, `revisionId`, changed span id, and score-bearing flag.
+4. Validate child relation with parser and RouteLine projection.
+5. Assert parent object is unchanged.
+
+---
+
+# 14. Current Type Gaps To Address Later
+
+Current diagnostic types intentionally do not yet include production enrichment fields.
+
+Future implementation gaps:
+
+- no stable `relationId`
+- no stable `revisionId`
+- no `parentRevisionId` requirement
+- no revision creation timestamp
+- no enrichment policy version
+- no source snapshot version requirement
+- no changed member/span/transition/blocker id arrays
+- no structured score-bearing change flag array
+- no accepted revision status
+- no invalidation state
+- no storage or persistence shape
+- no completed analysis pinning contract in code
+- no worker job/result type
+
+Phase 6A does not fill these gaps in source code. It defines them for Phase 6B and later implementation.
+
+---
+
+# 15. Implementation Sequence Recommendation
+
+Recommended sequence:
+
+1. Phase 6B: add pure TypeScript revision builder and validator tests.
+2. Phase 6C: add diagnostic enrichment artifacts only, still no persistence or reload.
+3. Phase 6D: add medium no-network relation fixture for broader revision equivalence.
+4. Phase 7: design persistence schema and revision storage.
+5. Phase 8: design reload lookup with schema/source/algorithm/geometry/invalidation gates.
+6. Later: worker scheduling, source hydration budgets, and route cache/scoring pinning integration.
+
+The next implementation slice should be deliberately small:
+
+```text
+parent diagnostic candidate -> pure enrichment revision builder -> child diagnostic revision -> validation and change classification tests
+```
+
+That slice should not write databases, route cache, scoring, heatmap, viewport, substrate, UI, or route save/history state.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-038-route_relation_enrichment_worker_contract_spec.md
+
+# DS-038 - Route Relation Enrichment Worker Contract Spec
+
+**Status:** Draft for Phase 6F implementation planning
+**Date:** 2026-05-21
+**Related:** ADR-048, DS-037, DS-036, DS-031, DS-029, EXEC-030
+
+---
+
+# 1. Purpose
+
+This specification defines the future worker-owned contract for progressive enrichment of Lanterne Route Relations.
+
+The worker contract exists to orchestrate the pure enrichment revision builder introduced in Phase 6B and hardened in Phase 6C. It defines how a caller will submit a parent diagnostic relation, requested enrichment modes, deterministic revision metadata, budgets, cancellation state, source snapshot metadata, and proposed operations or operation-planning inputs. It also defines how the worker will return accepted or rejected revision results with validation summaries, diagnostics, budget usage, timing, and source freshness metadata.
+
+This is a contract/specification only. It does not implement an enrichment worker.
+
+The contract goals are:
+
+- make enrichment cancellable,
+- make enrichment budgeted,
+- make enrichment inspectable,
+- isolate failure from parent relation state,
+- keep source and version gates explicit,
+- keep score-bearing ownership changes explicit,
+- prepare for a fake in-memory worker test harness in Phase 6F.
+
+---
+
+# 2. Non-Goals
+
+Phase 6E does not define or implement:
+
+- production worker runtime code,
+- persistence,
+- Supabase writes,
+- route relation lookup,
+- production reload,
+- route cache writes,
+- scoring refresh,
+- heatmap behavior,
+- viewport behavior,
+- substrate runtime behavior,
+- UI behavior,
+- route save/history behavior,
+- source hydration implementation,
+- invalidation implementation,
+- telemetry implementation,
+- completed-analysis pinning implementation.
+
+The worker contract must not turn a route relation into final scoring truth. A route relation remains durable computed route structure. Route cache remains completed analysis reuse. RouteLine remains authoritative for route structure validation. DS-029 remains authoritative for scoring evidence/provenance. Full reconstruction remains the fallback.
+
+---
+
+# 3. System Boundary
+
+```text
+caller
+  |
+  v
+route relation enrichment worker contract
+  |
+  +--> validate parent relation
+  +--> plan operations or accept proposed operations
+  +--> optional future source hydration placeholder
+  +--> pure enrichment revision builder
+  +--> relation parser validation
+  +--> relation-derived RouteLine validation
+  |
+  v
+accepted/rejected worker result envelope
+```
+
+The worker may orchestrate enrichment. It may not mutate relations directly. The pure enrichment revision builder remains the only operation applier.
+
+The worker may use substrate or corridor hints only as non-canonical hints. Substrate is not route truth. Substrate output cannot become route ownership without future explicit source evidence and RouteLine validation.
+
+---
+
+# 4. Worker Job Envelope
+
+The future worker job should be a structured, serializable envelope.
+
+Recommended shape:
+
+```ts
+interface RouteRelationEnrichmentWorkerJobV1 {
+  requestId: string;
+  jobId: string;
+  createdAt: string;
+
+  parent: {
+    relationId?: string;
+    parentRevisionId?: string;
+    parentRevisionNumber?: number;
+    parentRelationCandidate?: LanterneRouteRelationV1Candidate;
+    parentRelationRevision?: LanterneRouteRelationRevisionV1;
+  };
+
+  routeSpine: {
+    geometryHash: string;
+    totalDistM: number;
+    pointCount: number;
+    segmentCount: number;
+  };
+
+  sourceArtifact: {
+    id?: string;
+    sourceType?: string;
+    fileName?: string;
+    externalSourceId?: string;
+    routeGeometryHash?: string;
+  };
+
+  sourceSnapshot: {
+    sourceVersion?: string;
+    sourceSnapshotVersion?: string;
+    routeLineAlgorithmVersion: string;
+  };
+
+  revision: {
+    revisionId?: string;
+    parentRevisionId?: string;
+    revisionNumber?: number;
+    createdAt?: string;
+    enrichmentPolicyVersion: string;
+    revisionReason: string;
+  };
+
+  requestedModes: RouteRelationEnrichmentMode[];
+
+  operationInput:
+    | {
+        kind: 'explicit_operations';
+        operations: LanterneRouteRelationV1EnrichmentOperation[];
+      }
+    | {
+        kind: 'planner_input';
+        plannerInput: RouteRelationEnrichmentPlannerInputV1;
+      };
+
+  budgets: RouteRelationEnrichmentBudgetsV1;
+  cancellation: RouteRelationEnrichmentCancellationV1;
+  debug: RouteRelationEnrichmentDebugOptionsV1;
+}
+```
+
+Allowed modes:
+
+```ts
+type RouteRelationEnrichmentMode =
+  | 'source_way_span_match'
+  | 'source_refinement'
+  | 'node_anchor_hydration'
+  | 'transition_refinement'
+  | 'blocker_resolution'
+  | 'confidence_refinement'
+  | 'metadata_hint_attachment';
+```
+
+Rules:
+
+- `requestId` identifies the caller-visible request.
+- `jobId` identifies a single worker job attempt.
+- Callers must ignore stale `requestId` or `jobId` results.
+- A job should include either a parent candidate or a future parent revision, not both.
+- The worker must validate the parent before planning or applying operations.
+- Revision metadata should be deterministic for tests and caller-supplied where possible.
+
+---
+
+# 5. Operation Planning Boundary
+
+The worker may eventually build proposed operations. The worker must not directly edit route relation objects.
+
+Allowed future planning inputs:
+
+```ts
+interface RouteRelationEnrichmentPlannerInputV1 {
+  targetSpanIds?: string[];
+  targetBlockerIds?: string[];
+  targetTransitionIds?: string[];
+  candidateSourceRefs?: Array<{
+    targetSpanId?: string;
+    targetBlockerId?: string;
+    source: 'osm' | 'owned_spatial' | 'diagnostic';
+    sourceWayIds: number[];
+    sourceNodeIds?: number[];
+    confidence: 'high' | 'medium' | 'low';
+  }>;
+  nonCanonicalHints?: Array<{
+    hintId: string;
+    hintType: string;
+    source: 'substrate' | 'corridor' | 'manual' | 'diagnostic';
+    payload: Record<string, unknown>;
+  }>;
+}
+```
+
+Rules:
+
+- The pure builder remains the operation applier.
+- Operation planning must preserve coordinate, unmatched, and inferred spans as first-class relation members.
+- Missing source evidence cannot silently create source-owned truth.
+- A substrate/corridor hint may become only non-canonical metadata unless a future explicit evidence path promotes it through source refs and RouteLine validation.
+- Planning failures return rejected worker results, not partial accepted revisions.
+
+---
+
+# 6. Worker Result Envelope
+
+The worker result should be a compact, structured envelope.
+
+```ts
+type RouteRelationEnrichmentWorkerStatus =
+  | 'accepted_revision'
+  | 'rejected_revision'
+  | 'cancelled'
+  | 'budget_exceeded'
+  | 'validation_failed'
+  | 'source_unavailable'
+  | 'failed';
+
+interface RouteRelationEnrichmentWorkerResultV1 {
+  requestId: string;
+  jobId: string;
+  status: RouteRelationEnrichmentWorkerStatus;
+
+  parent: {
+    relationId?: string;
+    parentRevisionId?: string;
+    parentRevisionNumber?: number;
+    parentUsableAfterFailure: boolean;
+  };
+
+  acceptedChild?: {
+    relationId?: string;
+    revisionId: string;
+    revisionNumber: number;
+    relation: LanterneRouteRelationV1Candidate;
+  };
+
+  rejectedChild?: {
+    diagnosticOnly: true;
+    relation?: LanterneRouteRelationV1Candidate;
+  };
+
+  validation?: RouteRelationEnrichmentValidationSummary;
+  changeClassifications: RouteRelationChangeClassification[];
+  scoreBearingChangeFlags: RouteRelationScoreBearingChangeFlag[];
+
+  changedIds: {
+    memberIds: string[];
+    spanIds: string[];
+    transitionIds: string[];
+    blockerIds: string[];
+  };
+
+  diagnostics: RouteRelationEnrichmentDiagnostic[];
+  budgetUsage: RouteRelationEnrichmentBudgetUsageV1;
+  timing: RouteRelationEnrichmentTimingV1;
+  sourceFreshness: RouteRelationSourceFreshnessSummaryV1;
+  warnings: string[];
+}
+```
+
+Rules:
+
+- `acceptedChild` appears only with `accepted_revision`.
+- Cancelled, failed, budget-exceeded, and validation-failed jobs produce no accepted child.
+- A rejected child may be included only as diagnostic output.
+- Result envelopes must not include raw source blobs, route cache payloads, scoring payloads, heatmap payloads, viewport payloads, or full runtime graphs.
+
+---
+
+# 7. Worker Phases
+
+The worker phase model should be explicit and observable.
+
+```ts
+type RouteRelationEnrichmentWorkerPhase =
+  | 'receive_job'
+  | 'validate_parent_relation'
+  | 'plan_enrichment'
+  | 'optional_source_hydration_placeholder'
+  | 'build_operations'
+  | 'apply_revision_builder'
+  | 'validate_child_relation'
+  | 'route_line_validation_projection'
+  | 'classify_changes'
+  | 'emit_result'
+  | 'cancelled'
+  | 'failed';
+```
+
+Required phase behavior:
+
+- `receive_job`: check request/job identity and basic envelope shape.
+- `validate_parent_relation`: run the existing relation parser/validator.
+- `plan_enrichment`: create operation proposals or validate explicit operations.
+- `optional_source_hydration_placeholder`: reserve future source lookup without implementing it in Phase 6E.
+- `build_operations`: produce pure-builder operations.
+- `apply_revision_builder`: call the pure builder and do not mutate the parent.
+- `validate_child_relation`: inspect builder validation output.
+- `route_line_validation_projection`: preserve RouteLine validation as authoritative.
+- `classify_changes`: surface builder classifications and score-bearing flags.
+- `emit_result`: emit the compact result envelope.
+- `cancelled`: produce no accepted child.
+- `failed`: produce no accepted child and preserve parent usability.
+
+---
+
+# 8. Cancellation Behavior
+
+Cancellation may happen:
+
+- before planning,
+- during operation planning,
+- during the future source hydration placeholder,
+- before revision application,
+- after revision builder failure but before result emission,
+- before completion events are emitted.
+
+Rules:
+
+- Cancelled jobs produce no accepted child revision.
+- Parent relation remains usable.
+- Diagnostics must include the cancellation phase.
+- Budget usage and timing should be included when known.
+- Callers must ignore stale `requestId` or `jobId` results.
+- Cancellation must not write persistence, route cache, scoring, heatmap, viewport, substrate, UI, or route save/history state.
+
+Recommended cancellation shape:
+
+```ts
+interface RouteRelationEnrichmentCancellationV1 {
+  cancelled?: boolean;
+  reason?: string;
+  deadlineMs?: number;
+  staleRequestPolicy: 'ignore_stale_result';
+}
+```
+
+---
+
+# 9. Budget Behavior
+
+Budgets prevent a worker job from turning enrichment into an unbounded route reconstruction pass.
+
+Recommended shape:
+
+```ts
+interface RouteRelationEnrichmentBudgetsV1 {
+  maxOperations: number;
+  maxChangedSpans: number;
+  maxChangedMembers: number;
+  maxChangedTransitions: number;
+  maxChangedBlockers: number;
+  maxSourceWindows: number;
+  maxRawFetches: number;
+  maxElapsedMs: number;
+  maxSerializedPayloadBytes: number;
+  maxDiagnosticsBytes: number;
+  maxWorkerMessages: number;
+  maxValidationErrorsReturned: number;
+}
+
+interface RouteRelationEnrichmentBudgetUsageV1 {
+  operationCount: number;
+  changedSpanCount: number;
+  changedMemberCount: number;
+  changedTransitionCount: number;
+  changedBlockerCount: number;
+  sourceWindowCount: number;
+  rawFetchCount: number;
+  elapsedMs: number;
+  serializedPayloadBytes: number;
+  diagnosticsBytes: number;
+  workerMessageCount: number;
+  validationErrorsReturned: number;
+  exceeded: Array<keyof RouteRelationEnrichmentBudgetsV1>;
+}
+```
+
+Budget failure behavior:
+
+- Budget-exceeded jobs produce no accepted child unless a future reviewed policy explicitly allows partial acceptance.
+- Parent relation remains usable.
+- Diagnostics must identify the exceeded budget.
+- The result status should be `budget_exceeded`.
+- Completed analysis remains pinned to the previous relation revision.
+
+---
+
+# 10. Source Hydration Placeholder
+
+Phase 6E only specifies the shape for future source hydration. It does not implement source hydration.
+
+Future source summary:
+
+```ts
+interface RouteRelationSourceFreshnessSummaryV1 {
+  sourceRefsRequested: number;
+  sourceRefsHydrated: number;
+  sourceRefsMissing: number;
+  sourceSnapshotVersion?: string;
+  sourceFreshness:
+    | 'not_requested'
+    | 'current'
+    | 'partial'
+    | 'missing'
+    | 'stale'
+    | 'unknown';
+  sourceWarnings: string[];
+}
+```
+
+Rules:
+
+- Missing source evidence cannot silently create source-owned truth.
+- Source hydration failure may produce `source_unavailable`, `rejected_revision`, or a no-change result.
+- Source hydration failure must leave the parent usable.
+- Full reconstruction remains fallback.
+- Raw OSM/source blobs should not be copied into relation revision payloads; source refs should remain cold-path hydratable.
+
+---
+
+# 11. Validation Requirements
+
+The worker must run validation before accepting any child revision.
+
+Required validation:
+
+- parent relation parser validation,
+- parent diagnostic/durability boundary validation,
+- child relation parser validation,
+- relation-derived RouteLine validation projection,
+- ownership coverage validation,
+- handoff/ownership consistency validation,
+- hidden gap validation,
+- source-owned span ref validation,
+- blocker bounds validation,
+- forbidden field contamination validation,
+- score-bearing flag validation,
+- non-canonical hint validation,
+- parent immutability check.
+
+The worker should rely on the pure builder for operation application and child validation, then wrap the result in worker-level status, budget, timing, and source freshness metadata.
+
+Rejected revisions must not be persisted and must not become reload inputs.
+
+---
+
+# 12. Failure Isolation
+
+Failure isolation is a core contract requirement.
+
+Rules:
+
+- A failed job creates no accepted child revision.
+- Parent relation remains usable.
+- Diagnostics explain the failure.
+- Completed scoring remains pinned to the previous relation revision.
+- No route cache mutation occurs.
+- No persistence write occurs.
+- No route save/history write occurs.
+- Full reconstruction remains fallback.
+
+Failure statuses:
+
+- `rejected_revision`: operation or child validation failed.
+- `validation_failed`: parent validation or required child validation failed.
+- `cancelled`: cancellation was observed.
+- `budget_exceeded`: budget was exceeded.
+- `source_unavailable`: required future source evidence was not available.
+- `failed`: unexpected worker failure.
+
+---
+
+# 13. Event and Progress Contract
+
+Future worker events should be compact and keyed by `requestId` and `jobId`.
+
+```ts
+type RouteRelationEnrichmentWorkerEventV1 =
+  | { type: 'phase'; requestId: string; jobId: string; phase: RouteRelationEnrichmentWorkerPhase; elapsedMs: number }
+  | { type: 'budget_update'; requestId: string; jobId: string; usage: Partial<RouteRelationEnrichmentBudgetUsageV1> }
+  | { type: 'diagnostic'; requestId: string; jobId: string; diagnostic: RouteRelationEnrichmentDiagnostic }
+  | { type: 'operation_planned'; requestId: string; jobId: string; operationType: string; targetId?: string }
+  | { type: 'operation_rejected'; requestId: string; jobId: string; operationType: string; reason: string }
+  | { type: 'validation_summary'; requestId: string; jobId: string; valid: boolean; errorCount: number; errorCodes: string[] }
+  | { type: 'revision_summary'; requestId: string; jobId: string; changedIds: RouteRelationChangedIds; scoreBearingFlagCount: number }
+  | { type: 'cancelled'; requestId: string; jobId: string; phase: RouteRelationEnrichmentWorkerPhase; reason?: string }
+  | { type: 'failed'; requestId: string; jobId: string; phase: RouteRelationEnrichmentWorkerPhase; errorCode: string }
+  | { type: 'complete'; requestId: string; jobId: string; status: RouteRelationEnrichmentWorkerStatus };
+```
+
+Rules:
+
+- Events must be compact.
+- Events must not include full raw graph arrays.
+- Events must not include raw source blobs.
+- Events must not include route cache, scoring, heatmap, viewport, substrate runtime, or UI payloads.
+- Callers must ignore stale `requestId` or `jobId` events.
+- Large diagnostics should be summarized and capped by budget.
+
+---
+
+# 14. Metrics and Telemetry Shape
+
+Phase 6E does not implement telemetry. The future worker should expose metric fields that can be logged by a caller.
+
+Recommended fields:
+
+```ts
+interface RouteRelationEnrichmentTelemetryV1 {
+  enrichmentWorkerTimeMs: number;
+  enrichmentOperationCount: number;
+  acceptedRevisionCount: number;
+  rejectedRevisionCount: number;
+  validationFailureCount: number;
+  budgetExceededCount: number;
+  cancellationCount: number;
+  scoreBearingFlagCount: number;
+  changedSpanCount: number;
+  changedMemberCount: number;
+  changedTransitionCount: number;
+  changedBlockerCount: number;
+  blockerResolutionCount: number;
+  sourceUnavailableCount: number;
+  parentUsableAfterFailure: boolean;
+}
+```
+
+These metrics are enrichment orchestration metrics. They are not route score metrics.
+
+---
+
+# 15. Completed Analysis Pinning Boundary
+
+The worker contract must preserve the future completed-analysis pinning rule:
+
+- An analysis result is pinned to the relation revision it used.
+- A score-bearing enriched child revision must not silently update that completed analysis result.
+- If scoring refresh is needed, the refresh is a separate system action.
+- Route cache remains completed analysis reuse, not route structure storage.
+
+Phase 6E does not implement completed-analysis pinning. It only requires the worker result to surface score-bearing flags and parent/child revision references so a future pinning layer can make correct reuse decisions.
+
+---
+
+# 16. Phase 6F Recommendation
+
+The next slice should be **Phase 6F: fake in-memory worker test harness**.
+
+Phase 6F should:
+
+- define TypeScript job/result/event types in `src/lib/route-relations`,
+- accept a worker job envelope,
+- validate the parent relation,
+- call the existing pure enrichment revision builder,
+- emit compact fake events,
+- simulate cancellation,
+- simulate budget exceeded results,
+- return accepted or rejected result envelopes,
+- keep parent relations usable after failure,
+- avoid source hydration implementation,
+- avoid persistence,
+- avoid reload lookup,
+- avoid route cache writes,
+- avoid scoring refresh,
+- avoid heatmap, viewport, substrate, UI, and route save/history behavior.
+
+Do not implement a production worker yet. The first implementation should be a deterministic in-memory harness used by tests.
+
+---
+
+# 17. Boundary Statement
+
+At the end of Phase 6E:
+
+- No production reload exists.
+- No persistence exists.
+- No Supabase writes exist.
+- No enrichment worker exists.
+- No relation lookup exists.
+- No source hydration exists.
+- No route cache integration exists.
+- No scoring or heatmap integration exists.
+- No viewport or substrate runtime behavior exists.
+- No UI behavior exists.
+- No route save/history behavior exists.
+- No completed-analysis pinning implementation exists.
+- No telemetry implementation exists.
+
+Route relations remain diagnostic/pure module artifacts plus design specs. Full reconstruction remains fallback.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-039-route_relation_persistence_spec.md
+
+# DS-039 - Route Relation Persistence Spec
+
+**Status:** Draft for Phase 7 persistence planning
+**Date:** 2026-05-21
+**Related:** ADR-048, DS-036, DS-037, DS-038, DS-029, DS-031, EXEC-030
+
+---
+
+# 1. Purpose
+
+This specification defines the persistence boundary for durable Lanterne Route Relations.
+
+A persisted route relation stores computed route structure:
+
+- the route geometry identity,
+- an ordered mixed-member chain,
+- source-backed way spans,
+- coordinate, unmatched, and inferred spans,
+- node and coordinate anchors,
+- blockers/gaps,
+- transitions/handoffs,
+- validation metadata,
+- quality metrics,
+- revision metadata,
+- version gates required for safe reuse.
+
+Persistence exists so future route loads can avoid reconstructing route ownership from scratch when all required gates match. It does not make a route relation scoring truth, route cache truth, or RouteLine truth.
+
+---
+
+# 2. Non-Goals
+
+Route relation persistence is not:
+
+- final scoring truth,
+- DS-029 provenance replacement,
+- RouteLine validation replacement,
+- route cache storage,
+- raw route artifact storage,
+- substrate corridor identity,
+- source hydration implementation,
+- relation lookup implementation,
+- reload implementation,
+- invalidation implementation,
+- Supabase implementation,
+- SQL or migration design,
+- UI or route history behavior,
+- Strava-style ridden heatmap,
+- route recommendation layer,
+- proof that a route is good, safe, recommended, or curated.
+
+Persisting a route relation records a validated computed route structure. It does not complete analysis, score the route, hydrate volatile evidence, or bypass full reconstruction fallback.
+
+---
+
+# 3. System Boundary
+
+```text
+raw route artifact
+  |
+  v
+RouteLine V2 construction and validation
+  |
+  v
+validated route relation candidate/revision
+  |
+  v
+route relation persistence boundary
+```
+
+The persistence boundary accepts only validated route relation artifacts. It stores enough structure and version metadata to decide whether future reuse is possible.
+
+It must not write `route_cache`. It must not persist completed analysis output as route relation structure. It must not copy full raw OSM/source blobs into every route relation payload.
+
+---
+
+# 4. Storage Object Shape
+
+The persisted route relation object should be structured and versioned. This section defines conceptual fields only; it is not a SQL schema.
+
+Recommended top-level shape:
+
+```ts
+interface PersistedLanterneRouteRelationV1 {
+  relationId: string;
+  relationSchemaVersion: string;
+  relationKind: 'lanterne_route_relation';
+
+  routeGeometryHash: string;
+  routeDistanceM: number;
+
+  sourceArtifactRef: {
+    sourceArtifactId?: string;
+    sourceType: 'gpx' | 'fit' | 'tcx' | 'rwgps' | 'manual' | 'free_draw' | 'unknown';
+    externalSourceId?: string;
+    artifactHash?: string;
+  };
+  sourceArtifactVersion: string;
+  sourceSnapshotVersion: string;
+  routeLineAlgorithmVersion: string;
+  enrichmentPolicyVersion: string;
+
+  currentRevisionId: string;
+  invalidationState: RouteRelationInvalidationStateV1;
+
+  quality: RouteRelationPersistenceQualitySummaryV1;
+  relationPayloadRef?: {
+    storageKind: 'inline_json' | 'object_ref';
+    objectKey?: string;
+    payloadHash?: string;
+    payloadBytes?: number;
+  };
+  relationPayload?: LanterneRouteRelationPayloadV1;
+
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+The first persistence implementation may use an object-style payload, such as JSONB or an object reference, if validation and size controls are explicit. It should not use CSV strings or untyped blobs for ordered members, spans, blockers, or transitions.
+
+## 4.1 Quality Metrics
+
+Persisted metadata should include route-structure quality metrics, not final route score metrics:
+
+```ts
+interface RouteRelationPersistenceQualitySummaryV1 {
+  routeDistanceM: number;
+  matchedDistancePct: number;
+  coordinateDistancePct: number;
+  unmatchedDistancePct: number;
+  inferredDistancePct: number;
+  unresolvedDistanceM: number;
+  blockerCount: number;
+  blockerCountByReason: Record<string, number>;
+  transitionConfidence: Record<string, number>;
+  memberConfidence: Record<string, number>;
+  revisionCount: number;
+  scoreBearingChangeFlagCount: number;
+}
+```
+
+Quality metrics are diagnostic and operational. They are not cyclist safety scores, route scores, or cache-hit correctness proofs.
+
+---
+
+# 5. Relation Payload Shape
+
+The persisted relation payload should preserve the diagnostic route relation model as durable computed structure:
+
+- route spine summary,
+- ordered members,
+- source way spans,
+- source node anchors when available,
+- coordinate spans,
+- unmatched spans,
+- inferred spans,
+- blockers/gaps,
+- transitions/handoffs,
+- confidence metadata,
+- explicit exclusions,
+- non-canonical hints,
+- validation summary,
+- revision metadata.
+
+The route geometry remains the spine. Source ways and nodes annotate spans of that spine. Coordinate, unmatched, and inferred spans are valid persisted structure when exact source ownership is unavailable, unnecessary, or intentionally deferred.
+
+The payload must keep unresolved gaps explicit. Persistence must reject artifacts that hide route gaps by omitting coverage.
+
+---
+
+# 6. Revision Model
+
+Route relation persistence should be append-only by revision. Previous accepted revisions must not be mutated in place.
+
+Recommended revision shape:
+
+```ts
+interface PersistedLanterneRouteRelationRevisionV1 {
+  relationId: string;
+  revisionId: string;
+  parentRevisionId?: string;
+  revisionNumber: number;
+  revisionReason:
+    | 'initial_candidate'
+    | 'source_way_span_enrichment'
+    | 'source_refinement'
+    | 'node_anchor_enrichment'
+    | 'transition_refinement'
+    | 'blocker_resolution'
+    | 'confidence_refinement'
+    | 'metadata_hint_attachment'
+    | 'manual_rebuild'
+    | 'algorithm_rebuild';
+
+  relationSchemaVersion: string;
+  routeGeometryHash: string;
+  sourceArtifactVersion: string;
+  sourceSnapshotVersion: string;
+  routeLineAlgorithmVersion: string;
+  enrichmentPolicyVersion: string;
+
+  changedMemberIds: string[];
+  changedSpanIds: string[];
+  changedTransitionIds: string[];
+  changedBlockerIds: string[];
+  scoreBearingChangeFlags: RouteRelationScoreBearingChangeFlagV1[];
+
+  validation: RouteRelationPersistenceValidationSummaryV1;
+  quality: RouteRelationPersistenceQualitySummaryV1;
+  payloadRef?: {
+    storageKind: 'inline_json' | 'object_ref';
+    objectKey?: string;
+    payloadHash?: string;
+    payloadBytes?: number;
+  };
+
+  createdAt: string;
+}
+```
+
+Revision rules:
+
+- Revision numbers increase monotonically within a relation.
+- `parentRevisionId` must be present for enriched revisions.
+- The current revision pointer changes only after validation and write acceptance.
+- Score-bearing changes do not silently upgrade completed analysis results.
+- Completed analysis results must remain pinned to the relation revision they used unless scoring refreshes.
+
+---
+
+# 7. Version Gates
+
+Persistence must record enough gates for future reload lookup to be conservative.
+
+Required gates:
+
+- `relationSchemaVersion`
+- `relationKind`
+- `routeGeometryHash`
+- `sourceArtifactRef`
+- `sourceArtifactVersion`
+- `sourceSnapshotVersion`
+- `routeLineAlgorithmVersion`
+- `enrichmentPolicyVersion`
+- `invalidationState`
+
+Future reload may accelerate route construction only when the required gates match. A relation hit must still leave source evidence hydratable, unresolved gaps explicit, and RouteLine validation available. Persistence must not imply that reload can bypass RouteLine, DS-029 provenance, scoring refresh, or source freshness checks.
+
+---
+
+# 8. Invalidation State
+
+Persistence should make invalidation inspectable rather than implicit.
+
+Recommended shape:
+
+```ts
+interface RouteRelationInvalidationStateV1 {
+  state: 'valid' | 'stale' | 'invalid' | 'rebuild_required' | 'unknown';
+  reasons: RouteRelationInvalidationReasonV1[];
+  checkedAt?: string;
+  invalidatedAt?: string;
+}
+
+type RouteRelationInvalidationReasonV1 =
+  | 'route_geometry_changed'
+  | 'source_artifact_changed'
+  | 'source_artifact_version_changed'
+  | 'source_snapshot_changed'
+  | 'source_member_missing'
+  | 'source_geometry_changed'
+  | 'source_way_id_disappeared'
+  | 'source_node_sequence_changed'
+  | 'access_or_bicycle_legality_changed'
+  | 'route_line_algorithm_changed'
+  | 'relation_schema_changed'
+  | 'enrichment_policy_changed'
+  | 'validation_failed'
+  | 'manual_invalidation';
+```
+
+Invalid or stale relations should miss reload or fall back to full reconstruction. A partial diagnostic relation can remain inspectable, but it must not be treated as an accepted reload source.
+
+---
+
+# 9. Validation Before Write
+
+Only validated relation artifacts may persist as accepted revisions.
+
+Required validation before write:
+
+- parser/validator passes,
+- route spine is present and monotonic,
+- route coverage is represented,
+- unresolved gaps are explicit,
+- blockers are within route bounds,
+- source-owned spans include source refs,
+- coordinate, unmatched, and inferred spans remain first-class,
+- forbidden score/speed/traffic/heatmap/cache/viewport/substrate-runtime fields are absent,
+- relation-derived RouteLine validation projection passes where applicable,
+- ownership coverage validation passes where applicable,
+- handoff/ownership consistency validation passes where applicable,
+- score-bearing ownership changes are flagged,
+- non-canonical hints remain metadata only,
+- previous revision is not mutated.
+
+Recommended validation summary:
+
+```ts
+interface RouteRelationPersistenceValidationSummaryV1 {
+  valid: boolean;
+  errorCount: number;
+  errorCodes: string[];
+  warningCount: number;
+  warningCodes: string[];
+  routeCoverageRepresented: boolean;
+  unresolvedGapsExplicit: boolean;
+  routeLineValidationApplied: boolean;
+  forbiddenFieldContaminationFound: boolean;
+  scoreBearingChangeFlagCount: number;
+}
+```
+
+Failed validation means no accepted persistence write. Diagnostic output may be retained outside the accepted relation path only if it is clearly marked rejected/diagnostic and cannot become a reload input.
+
+---
+
+# 10. Raw Source Hydration Boundary
+
+Persisted route relations should store source references, not full raw source blobs.
+
+Allowed in relation payload:
+
+- source system identifiers,
+- source way ids,
+- source node ids when needed,
+- source member intervals,
+- coordinate anchors,
+- source snapshot/version metadata,
+- compact source confidence metadata.
+
+Not allowed as routine payload:
+
+- full raw OSM tag blobs for every way,
+- full source geometry blobs for every member when source refs can hydrate them,
+- traffic/speed/HPMS payloads,
+- scoring evidence payloads,
+- route cache payloads,
+- substrate runtime graph payloads.
+
+Exact source evidence must remain cold-path hydratable by source refs. If future reload cannot hydrate required source evidence, it should miss, return partial diagnostics, or fall back to full reconstruction. Missing source evidence must not silently create source-owned truth.
+
+---
+
+# 11. Route Cache Separation
+
+Route relation persistence and route cache are separate systems.
+
+Route relation persistence stores:
+
+- route structure,
+- ordered members,
+- spans,
+- blockers,
+- transitions,
+- confidence,
+- version gates,
+- revision metadata.
+
+Route cache stores:
+
+- completed analysis reuse,
+- scoring output,
+- derived route result payloads,
+- cache metadata for exact completed result reuse.
+
+Rules:
+
+- Route relation persistence must not write `route_cache`.
+- `route_cache` must not become route relation storage.
+- A route relation revision may be referenced by a future completed analysis result, but completed analysis remains separately pinned to the revision it used.
+- If an enriched relation revision has score-bearing changes, route cache reuse must miss or require scoring refresh.
+
+---
+
+# 12. Route Relation Member Index and Way Participation
+
+The relation payload remains the complete durable route structure. A separate queryable member index may be derived from accepted relation revisions so Lanterne can answer questions such as:
+
+- which Lanterne Route Relations include this OSM way,
+- how many accepted current relation revisions include this way,
+- how often a way appears in created, analyzed, saved, selected, or curated route structures,
+- whether privacy-safe created-route or planned-route heatmaps can be computed separately from ridden heatmaps.
+
+The member index is a query/index surface. It is not route truth. The accepted relation revision payload remains authoritative over the index, and rebuilding index rows from accepted revisions must always be possible.
+
+Index rows should be derived from source-backed way, node, and member spans in accepted revisions. Coordinate, unmatched, and inferred spans may be indexed for route coverage accounting, but they do not contribute to OSM way participation counts. Source-way spans may contribute to way participation counts. Source-node anchors may contribute to node participation counts.
+
+## 12.1 Conceptual Member Index Shape
+
+This is a conceptual model only, not a SQL schema:
+
+```ts
+interface RouteRelationMemberIndexRowV1 {
+  relationId: string;
+  revisionId: string;
+  memberSpanId: string;
+  memberKind: 'source_way' | 'source_node' | 'coordinate' | 'unmatched' | 'inferred';
+
+  osmWayId?: number;
+  osmNodeId?: number;
+  sourceKind: 'osm' | 'owned_spatial' | 'coordinate' | 'diagnostic' | 'unknown';
+  sourceMemberId?: string;
+
+  familyKey?: string;
+  displayLabel?: string;
+  domain?: string;
+  startDistM: number;
+  endDistM: number;
+  spanDistanceM: number;
+  confidence: string;
+
+  accessScope: 'global_public' | 'user_private' | 'aggregate_only';
+  sourceSnapshotVersion: string;
+  routeGeometryHash: string;
+  relationSchemaVersion: string;
+  routeLineAlgorithmVersion: string;
+  isCurrentRevision: boolean;
+}
+```
+
+Rules:
+
+- `source_way` rows contribute to OSM way participation counts.
+- `source_node` rows may contribute to node participation counts.
+- `coordinate`, `unmatched`, and `inferred` rows may support relation coverage diagnostics, but they do not imply way participation.
+- `isCurrentRevision` must be maintained or derivable so stale revision rows do not inflate current-revision counts.
+- Index rows should carry enough version metadata to be rebuilt, audited, and excluded when relation gates change.
+
+## 12.2 Way Participation Aggregate
+
+A derived aggregate or view may summarize member index rows by OSM way:
+
+```ts
+interface RouteRelationWayParticipationAggregateV1 {
+  osmWayId: number;
+  relationCount: number;
+  uniqueRouteGeometryCount: number;
+  publicRelationCount: number;
+  privateAggregateRelationCount: number;
+  savedRouteCount: number;
+  analyzedRouteCount: number;
+  curatedRouteCount: number;
+  selectedDetourCount: number;
+  rejectedDetourCount: number;
+  totalRelationDistanceM: number;
+  confidenceDistribution: Record<string, number>;
+  sourceDistribution: Record<string, number>;
+  lastSeenAt: string;
+  privacyThresholdMet: boolean;
+}
+```
+
+This aggregate can support a Lanterne created-route or planned-route heatmap. It is not a ridden heatmap unless future ride telemetry is explicitly added. It is not a safety endorsement, route recommendation, or proof that a route is good, safe, or curated.
+
+## 12.3 Privacy and Access-Scope Rules
+
+Way participation must respect relation access scope:
+
+- `global_public` relations may contribute to public counts.
+- `user_private` relations may contribute only to owner-visible stats unless aggregation consent and privacy thresholds allow aggregate contribution.
+- Contribution consent may allow private uploads to contribute to aggregate counts after privacy filtering.
+- No single-user or private route should be revealable from way participation.
+- Exact private route geometry must not leak through way-level counts.
+- `accessScope` must participate in every aggregation policy.
+
+Loaded, analyzed, or saved does not mean public. Aggregation policy must distinguish private optimization from shareable contribution.
+
+## 12.4 Relationship To ADR-031 Cohorts
+
+Way participation is a many-to-many analytical context layer, similar to segment cohort membership. It must not alter canonical segment facts. It must not rescale Safety Score. Popularity, created-route frequency, planned-route demand, or curated-route participation belongs in explanation and analytics surfaces, not the core safety score.
+
+## 12.5 Relationship To Route Cache And Scoring
+
+Way participation does not write `route_cache`. It does not complete analysis. It does not decide speed, traffic, provenance, or scoring.
+
+Route relation source refs are route-structure lineage metadata. They are not DS-029 scoring provenance. Scoring and provenance must hydrate and validate exact evidence through their own authoritative paths.
+
+## 12.6 Rebuild And Failure Behavior
+
+The member index can be rebuilt from accepted current relation revisions. A failed index update does not invalidate the relation payload. Stale index rows must not become reload truth. Index rows should be versioned or tied to `revisionId` and `isCurrentRevision` so stale revisions can be excluded.
+
+If the index and payload disagree, the accepted relation revision payload wins. The index should be repaired or rebuilt, not used to rewrite relation truth.
+
+---
+
+# 13. Privacy and Sharing
+
+Route relations can be global/shareable or user-specific/private depending on source artifact and route visibility.
+
+## 13.1 Shareable Relation Candidates
+
+Shared/global relation candidates may be appropriate when:
+
+- the route geometry is public or derived from a public route,
+- source artifacts are public/shareable,
+- source refs are public road/source identifiers,
+- no private user metadata is embedded in the payload,
+- storage policy explicitly allows shared reuse.
+
+Global candidates should still be version gated and validation gated. Shared does not mean canonical scoring truth.
+
+## 13.2 Private Relation Records
+
+Private/user-specific relation records are required when:
+
+- the input route artifact is private,
+- the route geometry is private,
+- the artifact came from a user's private upload or manual/free-draw session,
+- access policy does not allow global reuse,
+- user-specific metadata is needed to interpret the relation.
+
+Private records must not leak raw route geometry, source artifact identifiers, or relation payloads across users.
+
+## 13.3 Write Authority
+
+Future persistence should prefer service-owned or controlled-write paths.
+
+Recommended direction:
+
+- client/browser may request relation persistence,
+- service validates relation artifact and write policy,
+- service writes accepted relation and revision records,
+- direct anonymous writes are rejected,
+- RLS or equivalent access policy enforces private/global boundaries if database storage is used.
+
+This mirrors the route relation boundary: validation and write authority live outside ad hoc browser mutation.
+
+---
+
+# 14. Persistence Trigger Policy
+
+Route relations may be created often, but persisted selectively.
+
+## 14.1 Candidate Creation Versus Persistence
+
+Every completed RouteLine V2 analysis may produce an in-memory route relation candidate. Candidate creation does not imply persistence.
+
+Persistence requires all of the following:
+
+- candidate validation,
+- write policy acceptance,
+- consent and access-scope decision,
+- version gates,
+- duplicate/thumbprint check,
+- source artifact policy compatibility,
+- privacy policy compatibility.
+
+If any required trigger gate is absent, the candidate remains diagnostic/in-memory and full reconstruction remains fallback.
+
+## 14.2 Open-Source Route Behavior
+
+For Open, GPX, RWGPS, Vault, and History sources:
+
+- Public RWGPS routes, public curated routes, and Vault routes may create global/shareable relation candidates when validated, policy-allowed, and no compatible relation exists.
+- Private RWGPS routes must persist only as `user_private` unless an explicit sharing policy permits broader use.
+- GPX uploads default to `user_private` persistence when optimization consent allows persistence for user benefit.
+- GPX uploads may become global/shareable only with explicit contribution consent and after stripping user metadata.
+- Anonymous uploads should not create server-persisted relations unless a later consent/account flow permits it.
+
+Loaded, analyzed, imported, or opened does not mean public.
+
+## 14.3 Create, Generate, And Edit Behavior
+
+For Draw, Route To, and Detours:
+
+- Do not persist route relations for previews, drafts, drag experiments, or generated candidates.
+- Persist only after explicit save, finalize, apply, or equivalent user action.
+- Detours create a relation candidate only when applied/saved as a route version or accepted route derivative.
+- Rejected detours may contribute only to future aggregate analytics if policy allows, and must not become durable reload structure.
+
+Draft route exploration should remain cheap and disposable.
+
+## 14.4 Duplicate And Thumbprint Behavior
+
+Before writing, the service should look up a future relation geometry fingerprint/thumbprint plus the required source/version gates.
+
+Rules:
+
+- If a compatible relation already exists, do not duplicate the persisted relation.
+- Record usage/reference only when allowed by access policy.
+- Do not blindly reuse `route_cache.route_hash` as the relation geometry hash.
+- Route relation geometry hash needs its own future fingerprint policy.
+- Duplicate detection must include source/version gates, not geometry alone.
+
+The relation geometry fingerprint identifies durable route structure candidates. `route_cache` hashes identify completed analysis reuse and are not relation identity.
+
+## 14.5 Consent Model
+
+Persistence should distinguish two consent levels:
+
+- `optimization_consent`: permits private relation persistence for user benefit.
+- `contribution_consent`: permits shareable/global relation candidate creation where source and geometry policy allow.
+
+Analyzed does not mean public. Saved does not mean contributed. Optimization consent does not imply contribution consent.
+
+## 14.6 Quality And Access Gates
+
+Accepted persistence requires validation. Global/shareable persistence should require stricter quality and access policy than `user_private` persistence.
+
+Partial relations with explicit blockers may be valid persisted structures, especially for private optimization and diagnostics. Global reuse may require quality thresholds such as minimum matched distance, maximum unresolved distance, acceptable blocker classes, public/shareable source artifacts, and stable source/version gates.
+
+Persisted relation quality metrics are operational route-structure metrics. They are not route recommendations, cyclist safety scores, or safety endorsements.
+
+## 14.7 Explicit Non-Endorsement
+
+A persisted relation means the route structure was computed and validated under recorded gates. It does not mean the route is safe, good, recommended, popular, official, curated, or appropriate for a specific rider.
+
+## 14.8 Route Cache Separation
+
+This trigger policy must not write `route_cache`. Completed analysis reuse remains separate. Persisting a relation does not imply scoring, completed analysis reuse, reload, or route recommendation.
+
+---
+
+# 15. Failure and Rollback
+
+Failure behavior must preserve route analysis correctness.
+
+Rules:
+
+- Failed writes do not affect route analysis.
+- Invalid artifacts do not persist as accepted revisions.
+- Parent revision remains usable if enrichment write fails.
+- Current revision pointer changes only after successful accepted write.
+- Full reconstruction remains fallback.
+- Rejected/diagnostic artifacts must not become reload inputs.
+- Completed analysis remains pinned to the revision it used.
+
+Rollback should be pointer-based when possible: keep prior accepted revisions immutable and move `currentRevisionId` only after validation and write success. If a new revision is later invalidated, callers can continue to use the previous accepted revision when gates permit, or fall back to full reconstruction.
+
+---
+
+# 16. Future Lookup and Reload Boundary
+
+This spec does not implement lookup or reload, but persistence must prepare for conservative lookup.
+
+Future reload candidate lookup should require:
+
+- route geometry hash match,
+- relation schema version match,
+- source artifact/version match,
+- source snapshot/version match,
+- RouteLine algorithm version match,
+- enrichment policy/version compatibility,
+- invalidation state is acceptable,
+- required source evidence remains hydratable.
+
+Even on a relation hit:
+
+- unresolved gaps remain explicit,
+- RouteLine validation remains available,
+- scoring/provenance are not bypassed,
+- volatile evidence may refresh,
+- completed analysis reuse remains a separate route cache decision.
+
+If any required gate fails, reload should miss, partially diagnose, or fall back to full reconstruction.
+
+---
+
+# 17. Phase 7B Recommendation
+
+Phase 7B should produce storage schema and migration design only, not implementation.
+
+Recommended Phase 7B scope:
+
+- define candidate table/object boundaries,
+- define relation/revision separation,
+- define indexes and lookup keys conceptually,
+- define idempotency constraints,
+- define payload size limits,
+- define privacy/RLS direction,
+- define service-write boundary,
+- define validation-before-write gate,
+- define migration rollout and rollback plan.
+
+Do not implement writes in Phase 7B. Do not add route cache integration, reload lookup, Supabase client code, UI, or route save/history behavior. If existing migration conventions are ready after Phase 7B design review, a later phase may produce an idempotent SQL plan.
+
+---
+
+# 18. Boundary Statement
+
+After this spec:
+
+- no persistence implementation exists,
+- no Supabase code exists,
+- no SQL or migration exists,
+- no route relation write path exists,
+- no reload path exists,
+- no route cache integration exists,
+- no UI behavior exists.
+
+Lanterne Route Relations remain diagnostic/pure-module artifacts plus design specifications until later reviewed implementation phases.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-040-route_relation_reload_and_reuse_spec.md
+
+# DS-040 - Route Relation Reload and Reuse Spec
+
+**Status:** Draft for EXEC-030 Phase 8A reload design
+**Date:** 2026-05-21
+**Related:** ADR-048, ADR-045, DS-031, DS-036, DS-037, DS-038, DS-039, EXEC-030
+
+---
+
+# 1. Purpose
+
+This specification defines the future reload/reuse contract for durable Lanterne Route Relations.
+
+A route relation reload hit may accelerate route construction by reusing a previously validated route structure:
+
+- ordered mixed-member chain,
+- source-backed way spans,
+- coordinate, unmatched, and inferred spans,
+- transitions/handoffs,
+- blockers/gaps,
+- route-distance intervals,
+- validation and quality metadata,
+- version gates.
+
+The purpose is to avoid reconstructing route ownership from scratch when all required gates match and the relation still validates. Route relation reuse is structure reuse only. It does not make the relation scoring truth, DS-029 provenance truth, `route_cache` truth, source evidence truth, or final route analysis truth.
+
+RouteLine remains the validation authority. Full reconstruction remains fallback.
+
+---
+
+# 2. Non-Goals
+
+This spec does not implement:
+
+- reload,
+- relation lookup,
+- persistence writes,
+- Supabase or SQL execution,
+- `route_cache` reads or writes,
+- scoring refresh,
+- source hydration,
+- UI behavior,
+- route save/history behavior,
+- production V1 behavior.
+
+It also does not finalize:
+
+- route geometry fingerprint policy,
+- rotational loop identity policy,
+- source snapshot/version semantics,
+- completed-analysis pinning storage,
+- telemetry implementation,
+- route family schema.
+
+---
+
+# 3. Reload Decision Pipeline
+
+Future route relation reuse should follow a conservative decision pipeline:
+
+1. Receive route load request.
+2. Compute or receive route geometry fingerprint.
+3. Identify source artifact metadata.
+4. Build the candidate relation lookup key.
+5. Look up matching relation headers and current revisions.
+6. Evaluate version and access gates.
+7. Evaluate relation status and invalidation state.
+8. Hydrate or verify required source evidence.
+9. Parse persisted relation payload.
+10. Validate relation payload.
+11. Project relation into RouteLine validation DTOs.
+12. Run RouteLine validation gates.
+13. Accept relation reuse or reject and fall back.
+14. If accepted, produce a route construction seed and diagnostic reuse result.
+15. If rejected, run full reconstruction.
+
+Every accept path must be inspectable. Every reject path must include the gate or validation reason that forced fallback.
+
+---
+
+# 4. Lookup Key Contract
+
+Relation lookup is a gate proposal, not an acceptance decision.
+
+Lookup inputs should include:
+
+- `accessScope`,
+- `routeGeometryHash` or future route geometry fingerprint,
+- `sourceArtifactRef`,
+- `sourceArtifactVersion`,
+- `sourceSnapshotVersion`,
+- `relationSchemaVersion`,
+- `routeLineAlgorithmVersion`,
+- `enrichmentPolicyVersion`,
+- `invalidationState`,
+- direction and loop identity placeholders where applicable.
+
+The lookup key must be conservative enough to avoid reusing route structure across incompatible route geometry, source, schema, algorithm, or access contexts.
+
+Rules:
+
+- `route_cache.route_hash` must not be blindly reused as route relation geometry identity.
+- Route relation geometry identity needs its own reviewed fingerprint policy.
+- Loop routes need future rotational identity policy.
+- Start point and direction are route-use properties for loops, not necessarily root loop identity.
+- Forward and reverse routes may eventually share a route family or root geometry identity, but directional relation reuse remains separate until a canonical bidirectional policy exists.
+- Duplicate lookup matches are ambiguous unless one result is clearly current, valid, access-eligible, and version-compatible.
+
+---
+
+# 5. Required Gates
+
+All gates must pass before relation reuse is accepted.
+
+## 5.1 Relation Header Gates
+
+- `relationKind` must be `lanterne_route_relation` or reviewed compatible successor.
+- `relationSchemaVersion` must match the parser/reuse contract.
+- `routeGeometryHash` or future fingerprint must match the loaded route under the reviewed fingerprint algorithm.
+- `accessScope` and visibility must allow the requesting actor to read/reuse the relation.
+- `sourceArtifactVersion` must match the source artifact contract for this route load.
+- `sourceSnapshotVersion` must match the source evidence snapshot required for safe ownership reuse.
+- `routeLineAlgorithmVersion` must match the RouteLine validation/reuse contract.
+- `enrichmentPolicyVersion` must match or be explicitly compatible.
+- `invalidationState` must be `valid`.
+- `relationStatus` must permit reload.
+- `currentRevisionId` must be present.
+
+## 5.2 Revision Gates
+
+- Current revision must exist.
+- Current revision must belong to the same relation.
+- Current revision must have `revisionStatus = accepted`.
+- Current revision must have `reloadEligible = true`.
+- Current revision must not be diagnostic or rejected.
+- Current revision validation summary must be valid.
+- Current revision payload hash must match the persisted payload.
+- Current revision payload bytes must be within reviewed limits.
+- Score-bearing change flags must be visible to completed-analysis pinning and scoring-refresh policy.
+
+## 5.3 Privacy And Consent Gates
+
+- `user_private` relation reuse is owner-scoped unless a future authorization policy allows otherwise.
+- `global_public` relation reuse can be shared when source, schema, and validation gates pass.
+- Organization and group scopes remain future-compatible and must not be collapsed into public/private.
+- `diagnostic_only` relations cannot be reload input.
+- Aggregate privacy thresholds do not authorize private payload reuse.
+- Loaded or analyzed does not mean public.
+
+---
+
+# 6. Source Hydration Boundary
+
+Persisted route relations store source references and route-distance structure. They must not copy full raw OSM/source blobs into every relation payload.
+
+Reload must hydrate or verify required source evidence when reuse depends on source-owned spans. Required evidence may include:
+
+- OSM/source way ids,
+- node ids where needed for handoffs,
+- source member geometry or version metadata,
+- access/private/bicycle legality fields,
+- source snapshot metadata,
+- cold raw source tags for exact inspection or legality.
+
+Rules:
+
+- Missing required source evidence causes reject/fallback unless the affected route interval is explicitly represented as coordinate, unmatched, inferred, or blocker coverage.
+- Source hydration failure must not create source-owned truth.
+- A relation payload can preserve coordinate/unmatched/inferred coverage without exact source ownership.
+- Raw source evidence remains hydratable from the cold source path.
+- Volatile evidence such as speed, traffic, HPMS, shoulder, bike infrastructure, hazards, and scoring evidence is not restored by relation reload unless refreshed by proper route-indexed evidence layers.
+- DS-029 provenance remains the authority for evidence/scoring eligibility.
+
+---
+
+# 7. Relation Validation Before Reuse
+
+A persisted relation payload must be parsed and validated before reuse.
+
+Required validation:
+
+- relation object kind and schema version,
+- route spine geometry presence,
+- route spine monotonicity,
+- route distance bounds,
+- ordered member shape,
+- matched span bounds,
+- explicit unresolved gaps,
+- blockers/gaps bounds,
+- transition/handoff fields,
+- source refs for source-owned spans,
+- coordinate/unmatched/inferred spans accepted as first-class structure,
+- forbidden field contamination,
+- non-canonical hints remain metadata,
+- current revision accepted/reload-eligible state,
+- payload hash and payload size checks.
+
+Validation failure rejects reuse and triggers full reconstruction.
+
+---
+
+# 8. RouteLine Validation Projection
+
+Relation reuse cannot bypass RouteLine validation.
+
+The relation payload should be projected into small RouteLine validation DTOs:
+
+- ownership spans,
+- handoffs/transitions,
+- blockers/gaps,
+- unresolved intervals,
+- route coverage summary,
+- confidence and source-ref summaries.
+
+RouteLine validation must confirm:
+
+- ownership span coverage is coherent,
+- handoffs are consistent with ownership spans,
+- blockers and unresolved intervals remain explicit,
+- source-owned spans have source refs,
+- coordinate/unmatched/inferred spans do not become source-owned truth,
+- relation-derived structure remains route-distance-first,
+- relation hints or substrate/corridor metadata remain non-canonical.
+
+If the relation-derived projection mismatches RouteLine expectations, reload must reject and fall back to full reconstruction. Diagnostics should record the failed projection path, expected value, actual value, and fallback reason where possible.
+
+---
+
+# 9. Reload Result Shape
+
+Future reload evaluation should return a compact result envelope.
+
+Recommended status values:
+
+- `relation_reuse_accepted`,
+- `relation_reuse_rejected`,
+- `relation_lookup_miss`,
+- `version_gate_failed`,
+- `source_hydration_failed`,
+- `validation_failed`,
+- `fallback_reconstruction_required`.
+
+Recommended fields:
+
+```ts
+interface RouteRelationReloadReuseResultV1 {
+  status:
+    | 'relation_reuse_accepted'
+    | 'relation_reuse_rejected'
+    | 'relation_lookup_miss'
+    | 'version_gate_failed'
+    | 'source_hydration_failed'
+    | 'validation_failed'
+    | 'fallback_reconstruction_required';
+
+  relationId?: string;
+  revisionId?: string;
+
+  gateSummary: RouteRelationReloadGateSummaryV1;
+  validationSummary: RouteRelationReloadValidationSummaryV1;
+  hydratedSourceSummary: RouteRelationReloadSourceSummaryV1;
+
+  staleReasons: string[];
+  invalidReasons: string[];
+  fallbackReason?: string;
+  diagnostics: RouteRelationReloadDiagnosticV1[];
+
+  timing?: {
+    lookupMs?: number;
+    gateEvaluationMs?: number;
+    sourceHydrationMs?: number;
+    validationMs?: number;
+    estimatedConstructionTimeSavedMs?: number;
+  };
+}
+```
+
+The result envelope must remain diagnostic and compact. It must not include full raw source blobs, route cache payloads, scoring output, heatmap payloads, full substrate graphs, or UI presentation objects.
+
+---
+
+# 10. Completed Analysis Pinning
+
+Completed analysis results must remain pinned to the relation revision they used.
+
+Rules:
+
+- Relation reuse may accelerate route structure only.
+- Relation reuse does not silently upgrade completed analysis.
+- If a newer relation revision has score-bearing change flags, scoring refresh is required before completed analysis can move to that revision.
+- If completed analysis was generated from revision `A`, it remains associated with revision `A` unless scoring refresh explicitly produces a new completed result.
+- Enrichment revisions are structure revisions, not scoring output.
+
+This keeps route relation reuse separate from final score/cache reuse.
+
+---
+
+# 11. Route Cache Boundary
+
+`route_cache` and route relations are separate systems.
+
+Route relations store route structure:
+
+- route spine,
+- source/member spans,
+- coordinate/unmatched/inferred spans,
+- blockers/gaps,
+- transitions,
+- version gates,
+- validation metadata.
+
+`route_cache` stores completed analysis reuse:
+
+- completed scoring/analysis output,
+- route evidence results as defined by the route cache contract,
+- cache invalidation separate from relation structure gates.
+
+Rules:
+
+- Phase 8 does not read or write `route_cache`.
+- A relation hit is not a route cache hit.
+- A route cache hit is not a relation hit.
+- Future integration must keep separate telemetry, invalidation, version gates, and pinning.
+- `route_cache` must not become durable route structure storage.
+
+---
+
+# 12. Fallback Behavior
+
+Full reconstruction is required for:
+
+- relation lookup miss,
+- duplicate or ambiguous lookup result,
+- access or consent failure,
+- relation schema/version gate failure,
+- relation kind mismatch,
+- route geometry fingerprint mismatch,
+- source artifact/version mismatch,
+- source snapshot/version mismatch,
+- RouteLine algorithm version mismatch,
+- enrichment policy version mismatch,
+- invalidation state `stale`, `invalid`, `rebuild_required`, or `unknown` unless future policy explicitly allows partial diagnostics,
+- missing or unsafe `currentRevisionId`,
+- rejected, diagnostic, non-reload-eligible, or validation-invalid current revision,
+- payload hash mismatch,
+- payload size violation,
+- payload parse failure,
+- relation validation failure,
+- source hydration failure,
+- RouteLine validation projection failure,
+- privacy threshold or visibility failure.
+
+Fallback must not mutate existing relation state. It should preserve the user experience by running normal construction and returning diagnostics that explain why reuse was not allowed.
+
+---
+
+# 13. Telemetry Shape
+
+Future telemetry should distinguish lookup, gate evaluation, validation, hydration, and fallback.
+
+Recommended fields:
+
+- `relationLookupAttempted`,
+- `relationLookupStatus`,
+- `relationLookupMs`,
+- `relationReuseAcceptedCount`,
+- `relationReuseRejectedCount`,
+- `relationLookupMissCount`,
+- `versionGateFailureReason`,
+- `sourceHydrationFailureCount`,
+- `relationValidationFailureCount`,
+- `routeLineValidationFailureCount`,
+- `fallbackReconstructionCount`,
+- `estimatedConstructionTimeSavedMs`,
+- `relationRevisionUsed`,
+- `completedAnalysisPinnedRevision`,
+- `scoreBearingChangeFlagCount`.
+
+Telemetry semantics must not imply that relation reuse is route truth, score truth, safety endorsement, or route recommendation.
+
+---
+
+# 14. Privacy And Access Behavior
+
+Reload must enforce access scope before payload reuse.
+
+Rules:
+
+- `user_private` relation reuse is limited to the owner or future authorized private scope.
+- `global_public` relation reuse is allowed across users only when all gates pass.
+- `org_private`, `group_private`, and aggregate-only scopes remain future-compatible.
+- `diagnostic_only` relations cannot be reload input.
+- Public way participation aggregates cannot reveal private route geometry.
+- Access to aggregate counts does not authorize access to private relation payloads.
+- Route visibility and aggregate contribution remain separate permissions.
+- Start/home obfuscation policy remains separate but relevant to future geometry fingerprint and sharing policy.
+
+---
+
+# 15. Strategic Guardrails
+
+Phase 8 reload design must preserve the Phase 7B.1 strategic guardrails:
+
+- route relation is not route family,
+- no route-family implementation is introduced,
+- no single-parent route hierarchy assumption is introduced,
+- loop identity remains unresolved and future-compatible,
+- no social/feed implementation is introduced,
+- no temporal overlay implementation is introduced,
+- no recommendation implementation is introduced,
+- route demand does not mutate Safety Score,
+- behavior signals do not collapse into one popularity count,
+- unresolved/rejected observations do not become accepted route truth,
+- bad-but-necessary connectors remain explanation/intelligence context, not Safety Score mutation,
+- substrate remains non-canonical candidate reduction and hint metadata,
+- RouteLine remains the route-structure validator.
+
+---
+
+# 16. Phase 8B Recommendation
+
+Proceed next with **EXEC-030 Phase 8B: pure relation reload gate evaluator/test harness**.
+
+Phase 8B should be:
+
+- pure TypeScript,
+- test-only,
+- no Supabase,
+- no runtime reload,
+- no `route_cache`,
+- no scoring,
+- no heatmap,
+- no UI,
+- no production V1 behavior.
+
+Expected Phase 8B harness:
+
+- accepts mock route load request metadata,
+- accepts mock persisted relation headers/revisions/payloads,
+- evaluates lookup and version gates,
+- validates current revision safety,
+- validates payload parse/hash/size placeholders,
+- models source hydration success/failure as input,
+- projects relation payload into RouteLine validation DTOs where available,
+- returns accepted/rejected gate result,
+- covers every gate failure reason listed in this spec,
+- confirms fallback remains the default on any uncertainty.
+
+Phase 8B should not implement relation lookup, reload, persistence, source hydration, scoring refresh, or route cache integration.
+
+---
+
+# 17. Boundary Statement
+
+At the end of Phase 8A:
+
+- no production persistence exists,
+- no reload exists,
+- no relation lookup exists,
+- no SQL has been executed,
+- no Supabase code exists for Route Relation reload,
+- no `route_cache` coupling exists,
+- no scoring behavior changes,
+- no heatmap behavior changes,
+- no UI behavior changes,
+- no viewport/substrate runtime behavior changes,
+- no route save/history behavior changes,
+- full reconstruction remains fallback.
+
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-041-route_relation_invalidation_and_versioning_spec.md
+
+# DS-041 - Route Relation Invalidation and Versioning Spec
+
+**Status:** Draft for EXEC-030 Phase 9A invalidation/versioning design
+**Date:** 2026-05-21
+**Related:** DS-039, DS-040, EXEC-030 Phase 7, EXEC-030 Phase 8, EXEC-030 Phase 7B.1
+
+---
+
+# 1. Purpose
+
+This specification defines invalidation and versioning policy for persisted Lanterne Route Relations.
+
+The purpose is to decide when a persisted relation or revision is safe for future reuse and when it must be treated as stale, invalid, rebuild-required, diagnostic-only, or unknown. The policy must make invalidation inspectable and deterministic so reload cannot accidentally trust stale source, algorithm, schema, geometry, access, or privacy assumptions.
+
+Route Relation invalidation protects:
+
+- route structure reuse,
+- relation lookup,
+- relation-derived RouteLine validation,
+- source hydration requirements,
+- completed-analysis pinning,
+- member index rebuilds,
+- aggregate rebuilds,
+- full reconstruction fallback.
+
+Full reconstruction remains fallback whenever invalidation state is not safe for reuse.
+
+---
+
+# 2. Non-Goals
+
+This spec does not implement:
+
+- invalidation evaluation,
+- relation lookup,
+- reload,
+- persistence writes,
+- SQL migration changes,
+- Supabase client or service code,
+- `route_cache` integration,
+- scoring changes,
+- heatmap changes,
+- viewport/substrate runtime changes,
+- UI behavior,
+- route save/history behavior,
+- source hydration,
+- production V1 behavior.
+
+It also does not finalize:
+
+- route geometry fingerprint algorithm,
+- rotational loop identity,
+- forward/reverse reuse policy,
+- source snapshot semantics,
+- RLS/service-write implementation,
+- telemetry implementation.
+
+---
+
+# 3. Version Dimensions
+
+Route Relation versioning must keep separate dimensions separate. These dimensions should not collapse into one generic `data_version`.
+
+Required dimensions:
+
+- `relationSchemaVersion`: version of the persisted relation payload and parser contract.
+- `relationKind`: semantic object kind, currently `lanterne_route_relation`.
+- `routeGeometryFingerprint` / `routeGeometryHash`: identity of the loaded route spine under a reviewed fingerprint policy.
+- `routeGeometryFingerprintAlgorithm`: algorithm used to compute the geometry fingerprint.
+- `sourceArtifactVersion`: version of the user/source route artifact.
+- `sourceSnapshotVersion`: version of the source evidence universe used for source-owned spans.
+- `routeLineAlgorithmVersion`: RouteLine construction/ownership algorithm version.
+- `enrichmentPolicyVersion`: progressive enrichment operation/classification policy version.
+- `invalidationPolicyVersion`: policy version used to evaluate invalidation state and reason severity.
+- `memberIndexVersion`: version of derived member index row policy.
+- `aggregatePolicyVersion`: version of privacy-filtered aggregate/way participation policy.
+- `routeLineValidationPolicyVersion`: version of relation-derived RouteLine validation requirements.
+
+They remain separate because they answer different safety questions:
+
+- Schema version answers whether the payload can be parsed.
+- Geometry fingerprint version answers whether this relation describes the same route spine.
+- Source artifact/version answers whether the loaded route artifact is the same source route input.
+- Source snapshot answers whether source-owned way/node refs still mean the same thing.
+- RouteLine algorithm version answers whether ownership construction/validation semantics changed.
+- Enrichment policy version answers whether revision changes and score-bearing flags were classified under compatible rules.
+- Invalidation policy version answers whether stale/invalid/rebuild decisions were made under current safety rules.
+- Member index and aggregate policy versions answer whether derived query surfaces need rebuild, not whether the relation payload is route truth.
+- RouteLine validation policy version answers whether relation-derived validation checks are still current.
+
+One generic version would hide which gate failed and make fallback, rebuild, or diagnostic actions less inspectable.
+
+---
+
+# 4. Invalidation State Model
+
+Persisted relation headers should expose an invalidation state. Revisions may also carry validation and reload eligibility fields that participate in the same decision.
+
+Recommended states:
+
+```ts
+type RouteRelationInvalidationStateV1 =
+  | 'valid'
+  | 'stale'
+  | 'invalid'
+  | 'rebuild_required'
+  | 'diagnostic_only'
+  | 'unknown';
+```
+
+## 4.1 `valid`
+
+Meaning:
+
+- Required version gates are compatible.
+- Required source snapshot and source evidence gates are compatible.
+- Current revision is accepted, reload eligible, and validation-valid.
+- No reload-blocking invalidation reason is present.
+
+Effects:
+
+- Reload may proceed to lookup, source hydration, parser validation, RouteLine projection validation, and final gate evaluation.
+- Lookup may expose candidates according to access/privacy policy.
+- Diagnostics may display normal relation state.
+- Member index rows may be used as query/index surfaces if their versions match.
+- Aggregate rows may be used as analytics surfaces if their versions and privacy thresholds match.
+- Full reconstruction remains fallback if later reload gates fail.
+
+## 4.2 `stale`
+
+Meaning:
+
+- Relation may describe useful old structure, but one or more gates are out of date.
+- Examples include source snapshot drift, policy version drift, or old member index policy.
+
+Effects:
+
+- Production reload should be blocked unless a future explicit diagnostic reuse policy allows limited inspection.
+- Lookup may hide the candidate or return it as rejected diagnostic context.
+- Diagnostics may display stale reasons.
+- Member index and aggregate use depends on reason severity.
+- Full reconstruction is required for route construction.
+
+## 4.3 `invalid`
+
+Meaning:
+
+- Relation/revision is known unsafe for reuse.
+- Examples include route geometry mismatch, payload hash mismatch, hidden gap, forbidden contamination, current revision invalidity, or missing required source-owned evidence.
+
+Effects:
+
+- Reload is blocked.
+- Lookup must not return it as a reload candidate.
+- Diagnostics may display invalid reasons.
+- Member index rows tied to invalid current revision must not be query truth.
+- Aggregate rows derived from invalid structure should be removed or rebuilt according to aggregate policy.
+- Full reconstruction is required.
+
+## 4.4 `rebuild_required`
+
+Meaning:
+
+- Relation may have been valid under old conditions, but the correct action is to rebuild relation structure.
+- Examples include RouteLine algorithm changes, relation schema changes, route geometry fingerprint algorithm changes, source member disappearance, or source geometry changes.
+
+Effects:
+
+- Reload is blocked.
+- Lookup may return only diagnostic context.
+- Member index and aggregate rows should be treated as stale until rebuilt from a new accepted revision.
+- Full reconstruction is required.
+
+## 4.5 `diagnostic_only`
+
+Meaning:
+
+- Artifact is retained for inspection or testing only.
+- It is not reload input and not accepted route truth.
+
+Effects:
+
+- Reload is always blocked.
+- Lookup must not expose it as a reload candidate.
+- Diagnostic visibility may be restricted.
+- Member index and aggregate updates must not treat it as accepted truth.
+- Full reconstruction remains fallback.
+
+## 4.6 `unknown`
+
+Meaning:
+
+- Invalidation state was not evaluated, was evaluated under an unknown policy, or cannot be trusted.
+
+Effects:
+
+- Production reload should fall back.
+- Debug/test harnesses may inspect unknown state only when explicitly allowed.
+- Member index and aggregate use should be conservative.
+- Full reconstruction remains fallback.
+
+---
+
+# 5. Invalidation Reasons
+
+Invalidation reports should use stable reason codes. Reason codes may be expanded, but the initial families should include the following.
+
+## 5.1 Route Geometry
+
+- `route_geometry_changed`
+- `route_geometry_fingerprint_algorithm_changed`
+- `loop_identity_policy_changed`
+- `direction_policy_changed`
+- `start_offset_policy_changed`
+
+## 5.2 Source
+
+- `source_artifact_changed`
+- `source_artifact_version_changed`
+- `source_snapshot_changed`
+- `source_member_missing`
+- `source_geometry_changed`
+- `source_way_id_disappeared`
+- `source_node_sequence_changed`
+- `source_access_or_bicycle_legality_changed`
+- `source_domain_changed`
+- `source_name_or_ref_identity_changed`
+
+## 5.3 Algorithm And Policy
+
+- `route_line_algorithm_changed`
+- `relation_schema_changed`
+- `enrichment_policy_changed`
+- `invalidation_policy_changed`
+- `route_line_validation_policy_changed`
+- `member_index_policy_changed`
+- `aggregate_policy_changed`
+
+## 5.4 Revision And Validation
+
+- `current_revision_missing`
+- `current_revision_not_accepted`
+- `current_revision_reload_ineligible`
+- `current_revision_validation_failed`
+- `relation_payload_hash_mismatch`
+- `relation_payload_size_limit_exceeded`
+- `hidden_gap_detected`
+- `forbidden_field_contamination_detected`
+
+## 5.5 Access And Privacy
+
+- `access_scope_changed`
+- `owner_scope_changed`
+- `privacy_consent_changed`
+- `visibility_policy_changed`
+
+## 5.6 Manual And Admin
+
+- `manual_invalidation`
+- `admin_invalidation`
+- `diagnostic_only_artifact`
+- `superseded_by_rebuild`
+
+---
+
+# 6. Invalidation Severity
+
+Each reason should have a severity. Severity determines the safe action.
+
+Recommended severities:
+
+```ts
+type RouteRelationInvalidationSeverityV1 =
+  | 'reload_blocking'
+  | 'reuse_warning'
+  | 'diagnostic_only'
+  | 'aggregate_rebuild_only'
+  | 'member_index_rebuild_only';
+```
+
+## 6.1 `reload_blocking`
+
+Prevents relation reuse and triggers full reconstruction for route construction.
+
+Examples:
+
+- route geometry changed,
+- route geometry fingerprint algorithm changed,
+- source snapshot changed for source-owned spans,
+- source member missing,
+- RouteLine algorithm changed,
+- relation schema changed,
+- current revision missing/not accepted/reload ineligible/validation failed,
+- payload hash mismatch,
+- hidden gap detected,
+- forbidden field contamination detected,
+- privacy/access gates fail.
+
+## 6.2 `reuse_warning`
+
+Does not by itself block diagnostic display, but should be visible to users/admins and may block production reload unless explicitly allowed by future policy.
+
+Examples:
+
+- source name/ref identity changed without source-owned geometry change,
+- enrichment policy changed with no score-bearing ownership changes,
+- unknown low-risk metadata drift.
+
+## 6.3 `diagnostic_only`
+
+Marks artifacts retained for inspection but forbidden as reload input.
+
+Examples:
+
+- rejected relation candidate,
+- diagnostic-only artifact,
+- superseded failed enrichment candidate.
+
+## 6.4 `aggregate_rebuild_only`
+
+Requires aggregate rebuild but does not invalidate accepted relation payload.
+
+Examples:
+
+- aggregate policy changed,
+- private aggregate threshold changed,
+- aggregate version drift.
+
+## 6.5 `member_index_rebuild_only`
+
+Requires member index rebuild but does not invalidate accepted relation payload.
+
+Examples:
+
+- member index policy changed,
+- member index version drift,
+- current index rows missing or stale while accepted revision payload remains valid.
+
+---
+
+# 7. Reload Eligibility Policy
+
+A relation revision is reload eligible only if all of the following are true:
+
+- relation invalidation state is `valid`,
+- current revision exists,
+- current revision status is `accepted`,
+- current revision `reloadEligible` is true,
+- current revision validation summary is valid,
+- relation kind is reload-compatible,
+- relation schema version matches the parser/reuse contract,
+- route geometry fingerprint/hash and fingerprint algorithm match,
+- source artifact/version gates match,
+- source snapshot/version gates match,
+- RouteLine algorithm version matches,
+- enrichment policy version is compatible,
+- routeLine validation policy is compatible,
+- source hydration requirements can be satisfied for source-owned spans,
+- no `reload_blocking` invalidation reason exists,
+- access/privacy gates pass.
+
+Rules:
+
+- `stale` usually blocks production reload unless a future policy explicitly allows diagnostic-only reuse.
+- `diagnostic_only` never reloads.
+- `invalid` never reloads.
+- `rebuild_required` never reloads.
+- `unknown` should fall back unless explicitly allowed in debug/test mode.
+- Reload acceptance still requires parser validation and relation-derived RouteLine validation.
+- Reload is structure reuse, not final scoring truth.
+
+---
+
+# 8. Member Index Invalidation
+
+Member index rows are derived/rebuildable query surfaces. They are not route truth.
+
+Rules:
+
+- Member index rows derive from accepted current revision payloads.
+- Stale member index rows must not become reload truth.
+- Accepted relation payload remains authoritative over member index rows.
+- Index rows should tie to:
+  - `relationId`,
+  - `revisionId`,
+  - `isCurrentRevision`,
+  - `relationSchemaVersion`,
+  - `routeLineAlgorithmVersion`,
+  - `sourceSnapshotVersion`,
+  - member index policy/version.
+- `member_index_rebuild_only` should trigger member index rebuild, not necessarily relation rebuild.
+- Failed member index rebuild should not mutate accepted relation payload.
+- Rebuild from accepted revisions must remain possible.
+
+Source-backed behavior:
+
+- `source_way` rows contribute to OSM way participation.
+- `source_node` rows may contribute to node participation.
+- `coordinate`, `unmatched`, and `inferred` rows may represent coverage but do not contribute to OSM way counts.
+
+---
+
+# 9. Aggregate Invalidation
+
+Way participation aggregates are privacy-filtered analytics. They are not route truth and not Safety Score truth.
+
+Rules:
+
+- Aggregate invalidation does not invalidate accepted relation payload by itself.
+- Aggregate policy/version changes require aggregate rebuild.
+- Private aggregate threshold changes require aggregate rebuild.
+- Aggregate rows must remain tied to aggregate policy/version and privacy threshold state.
+- Aggregate rows are never reload truth.
+- Route demand aggregate invalidation does not touch Safety Score.
+- Failed aggregate rebuild should not mutate accepted relation payload.
+- Rebuild from accepted member index rows and accepted current revisions must remain possible.
+
+Aggregate rebuild should be triggered by:
+
+- `aggregate_policy_changed`,
+- aggregate version drift,
+- privacy threshold policy changes,
+- access/contribution policy changes that affect aggregate eligibility,
+- accepted current revision changes that affect source way participation.
+
+---
+
+# 10. Source Snapshot Policy
+
+Source snapshot versioning describes the source evidence universe used by source-owned spans.
+
+Conceptual source snapshot inputs may include:
+
+- OSM/self-hosted roads extract id,
+- source database version,
+- RWGPS route version,
+- GPX artifact hash,
+- manual/free-draw revision,
+- future substrate hint version as diagnostic/hint metadata only.
+
+Rules:
+
+- Source-owned spans require source refs and matching source snapshot policy.
+- Source-owned way/node refs must remain hydratable or verified.
+- Coordinate, unmatched, and inferred spans may remain valid without source-owned refs.
+- Source hydration failure blocks source-owned reuse.
+- Source hydration failure must not invent source-owned truth.
+- Future substrate hint version may explain candidate selection, but substrate remains non-canonical hint metadata and not relation truth.
+- Volatile evidence such as speed, traffic, HPMS, shoulder, bike infrastructure, hazards, and scoring evidence is not restored by relation reload unless refreshed through proper route-indexed evidence layers.
+
+---
+
+# 11. Route Geometry Fingerprint Policy Placeholder
+
+Production reload is blocked until a reviewed route geometry fingerprint policy exists.
+
+The future policy must address:
+
+- why `route_cache.route_hash` is not route relation geometry identity,
+- direction,
+- reverse routes,
+- loops,
+- rotational loop identity,
+- start offset,
+- coordinate precision,
+- simplification and densification,
+- distance tolerance,
+- elevation inclusion or exclusion,
+- source artifact variation,
+- route edits,
+- geometry fingerprint algorithm version.
+
+Until this policy is finalized:
+
+- lookup should treat `routeGeometryHash` as provisional,
+- production reload should remain blocked,
+- mock harnesses may use deterministic hashes only to test decision mechanics,
+- full reconstruction remains fallback.
+
+---
+
+# 12. Forward, Reverse, And Loop Policy
+
+Forward and reverse relations may eventually share a route family or root route identity, but directional relation reuse remains separate unless a future policy explicitly allows otherwise.
+
+Rules:
+
+- Forward relation and reverse relation may have different handoffs.
+- One-way legality and traversal direction can differ.
+- Scoring/evidence projection can differ by direction.
+- Loops should eventually use rotationally invariant root identity.
+- Uploaded file start point should not be assumed to define canonical loop identity.
+- Start point belongs to route use, activity, or request metadata unless the final fingerprint policy says otherwise.
+- Current implementation must not assume fixed start point identity is final.
+- Reverse-direction reuse remains rejected or diagnostic-only until a reviewed bidirectional/canonical policy exists.
+
+---
+
+# 13. Completed-Analysis Pinning
+
+Completed analyses remain pinned to the relation revision used.
+
+Rules:
+
+- Invalidating a relation revision does not silently mutate completed analysis.
+- A newly accepted relation revision does not silently upgrade completed analysis.
+- Score-bearing revision changes require scoring refresh.
+- Reload acceleration is structure reuse, not completed analysis reuse.
+- `route_cache` remains a separate completed-analysis reuse system.
+- A route relation hit is not a `route_cache` hit.
+- A `route_cache` hit is not a route relation hit.
+
+---
+
+# 14. Invalidation Inspection And Reporting
+
+Future invalidation evaluation should produce a compact report.
+
+Recommended shape:
+
+```ts
+interface RouteRelationInvalidationReportV1 {
+  relationId: string;
+  revisionId?: string;
+  evaluatedAt: string;
+  invalidationPolicyVersion: string;
+  state:
+    | 'valid'
+    | 'stale'
+    | 'invalid'
+    | 'rebuild_required'
+    | 'diagnostic_only'
+    | 'unknown';
+  reasons: Array<{
+    code: string;
+    severity:
+      | 'reload_blocking'
+      | 'reuse_warning'
+      | 'diagnostic_only'
+      | 'aggregate_rebuild_only'
+      | 'member_index_rebuild_only';
+    path: string;
+    message: string;
+  }>;
+  gateFailures: string[];
+  sourceSnapshotSummary: {
+    expected?: string;
+    actual?: string;
+    missingSourceRefs?: string[];
+    changedSourceRefs?: string[];
+  };
+  geometryFingerprintSummary: {
+    expected?: string;
+    actual?: string;
+    algorithm?: string;
+    algorithmChanged?: boolean;
+  };
+  recommendedAction:
+    | 'allow_reload'
+    | 'fallback_reconstruction'
+    | 'rebuild_relation'
+    | 'rebuild_member_index'
+    | 'rebuild_aggregates'
+    | 'diagnostic_only';
+  diagnostics: Array<{
+    code: string;
+    path: string;
+    message: string;
+    severity: 'info' | 'warning' | 'error';
+  }>;
+}
+```
+
+The report should be deterministic for identical inputs and policy versions.
+
+---
+
+# 15. Telemetry Fields
+
+Future telemetry should be compact and should not include full relation payloads, route geometry arrays, raw source blobs, scoring payloads, heatmap payloads, `route_cache` payloads, Supabase payloads, or UI state.
+
+Recommended fields:
+
+- `invalidationCheckAttempted`
+- `invalidationCheckStatus`
+- `invalidationReasonCodes`
+- `invalidationSeverityCounts`
+- `relationInvalidatedCount`
+- `relationStaleCount`
+- `relationRebuildRequiredCount`
+- `memberIndexRebuildNeededCount`
+- `aggregateRebuildNeededCount`
+- `reloadBlockedByInvalidationCount`
+- `fallbackReconstructionFromInvalidationCount`
+
+---
+
+# 16. Strategic Guardrails
+
+The Phase 7B.1 strategic guardrails remain binding:
+
+- Route relation is not route family.
+- No route family implementation is introduced by invalidation policy.
+- No social/feed implementation is introduced.
+- No temporal overlay implementation is introduced.
+- No recommendation implementation is introduced.
+- Route demand does not mutate Safety Score.
+- Unresolved or rejected observations do not become accepted route truth.
+- Bad-but-necessary connector remains explanation/intelligence, not safety mutation.
+- `diagnostic_only` relations cannot be reload input.
+- `route_cache` is not structure truth.
+- Full reconstruction remains fallback.
+
+---
+
+# 17. Phase 9B Recommendation
+
+Proceed next with **EXEC-030 Phase 9B: pure invalidation policy evaluator/test harness**.
+
+Expected Phase 9B scope:
+
+- pure TypeScript,
+- no Supabase,
+- no SQL execution,
+- no runtime reload,
+- no real relation lookup,
+- no persistence writes,
+- no `route_cache`,
+- no scoring,
+- no heatmap,
+- no UI,
+- evaluates mock relation/revision/source/version inputs,
+- returns invalidation state, reasons, severities, recommended action, and compact diagnostics,
+- tests all invalidation reason families.
+
+Phase 9B should prove deterministic policy mechanics before any production invalidation, lookup, or reload implementation.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-042-route_relation_geometry_fingerprint_policy_spec.md
+
+# DS-042 - Route Relation Geometry Fingerprint Policy Spec
+
+**Status:** Draft for EXEC-030 Phase 10A geometry fingerprint policy design
+**Date:** 2026-05-21
+**Related:** DS-039, DS-040, DS-041, EXEC-030 Phase 7, EXEC-030 Phase 8, EXEC-030 Phase 9
+
+---
+
+# 1. Purpose
+
+This specification defines the route geometry fingerprint policy required before durable Lanterne Route Relation lookup and reload can be considered safe.
+
+The purpose is to decide what "same route" means for relation lookup and reuse while preserving the distinction between:
+
+- exact source artifact identity,
+- normalized route-spine identity,
+- directional route relation identity,
+- future root or family-level route identity,
+- post-RouteLine member-chain equivalence.
+
+The policy must support non-loop routes, reverse routes, loops, trims, near-identical GPS tracks, noisy uploads, manual/free-draw routes, and route edits without collapsing unsafe matches. It also provides versioned gates for reload and invalidation.
+
+This spec exists because Route Relation persistence, reload lookup, and invalidation repeatedly identified route geometry identity as a blocker. Production reload must remain blocked until this policy is implemented and tested.
+
+---
+
+# 2. Non-Goals
+
+This spec does not implement:
+
+- fingerprint computation,
+- hashing code,
+- SQL or migration changes,
+- persistence writes,
+- relation lookup,
+- reload,
+- `route_cache` integration,
+- scoring changes,
+- heatmap changes,
+- viewport/substrate runtime changes,
+- UI behavior,
+- route save/history behavior,
+- production V1 behavior.
+
+It also does not finalize:
+
+- numeric tolerance values,
+- exact hash serialization format,
+- exact loop rotation algorithm,
+- exact near-match similarity algorithm,
+- production privacy behavior for geometry matching.
+
+---
+
+# 3. Why `route_cache.route_hash` Is Insufficient
+
+`route_cache` stores completed analysis reuse. Route Relations store durable computed route structure.
+
+Those are different identities:
+
+- A `route_cache` hit means completed analysis output may be reusable under the route cache contract.
+- A Route Relation hit means route structure may be reusable only after relation lookup, invalidation, source hydration, parser validation, and RouteLine projection gates pass.
+
+`route_cache.route_hash` was not designed as durable route-structure identity. Route Relation geometry fingerprinting must account for:
+
+- traversal direction,
+- reverse routes,
+- loops and rotational start offsets,
+- coordinate noise,
+- source artifact variation,
+- start/end trims,
+- simplification and densification,
+- near-identical versus meaningfully edited routes,
+- route versions and detours,
+- privacy/access boundaries.
+
+Therefore:
+
+- `route_cache.route_hash` must not be accepted as a substitute for Route Relation geometry identity.
+- A route cache hit and a Route Relation hit remain different concepts.
+- Future telemetry must keep cache hit/miss and relation lookup hit/miss separate.
+
+---
+
+# 4. Fingerprint Layers
+
+Route identity needs multiple conceptual layers. They should not collapse into one hash.
+
+## 4.1 `uploadedArtifactHash`
+
+Exact input artifact identity.
+
+Examples:
+
+- GPX file hash,
+- RWGPS route id plus route version,
+- Vault/source artifact id plus version,
+- manual/free-draw route revision id.
+
+Use:
+
+- duplicate artifact detection,
+- source lineage,
+- access/privacy decisions,
+- source artifact version gates.
+
+Non-use:
+
+- It is not enough to decide that two routes have the same geometry.
+- It is not a substitute for route-spine identity.
+
+Required now:
+
+- Conceptually required as source artifact metadata, but exact hashing policy can remain source-type specific.
+
+## 4.2 `routeSpineFingerprint`
+
+Normalized route geometry identity for the route polyline.
+
+It should represent the route's distance-ordered spine after reviewed normalization. It is the primary pre-RouteLine geometry lookup key.
+
+Required now:
+
+- Yes, as the central Phase 10 policy target.
+
+## 4.3 `directionalRelationFingerprint`
+
+Route structure identity for a specific traversal direction.
+
+It should preserve:
+
+- route order,
+- start/end for non-loops,
+- traversal direction,
+- direction-sensitive relation reuse gates.
+
+Required now:
+
+- Yes, at least as a conceptual lookup/reload gate.
+
+## 4.4 `rootRouteFingerprint`
+
+Future route-root identity for loops, reverse routes, and near-equivalent variants.
+
+It may eventually associate:
+
+- forward and reverse non-loop variants,
+- loop rotations with different uploaded start points,
+- near-identical routes that should share a route family/root context.
+
+Required now:
+
+- No. It is a future placeholder. It must not be treated as route-family implementation.
+
+## 4.5 `relationMemberFingerprint`
+
+Optional future fingerprint of the matched member chain after RouteLine construction.
+
+It may include:
+
+- ordered source way/member spans,
+- coordinate/unmatched/inferred span structure,
+- transition sequence,
+- blocker structure,
+- route-distance intervals.
+
+Required now:
+
+- No. It may become a post-construction equivalence check, not a pre-RouteLine lookup key.
+
+---
+
+# 5. Non-Loop Route Policy
+
+For non-loop routes, directional identity should preserve start and end.
+
+Conceptual policy:
+
+- Normalize the route spine into a deterministic route-distance representation.
+- Preserve traversal order for `directionalRelationFingerprint`.
+- Preserve start and end for non-loop directional relation identity.
+- Use a reviewed coordinate precision before hashing.
+- Use a reviewed route-distance resampling interval.
+- Apply simplification/densification only under a versioned algorithm.
+- Treat tiny start/end trims as possible related candidates, not automatic exact matches.
+- Treat GPS noise as tolerance-compatible only if the full route remains within reviewed distance/shape thresholds.
+- Treat meaningful route shape deviation as a separate relation candidate.
+
+Near-match behavior:
+
+- Exact match may be a reload candidate.
+- Near-match may be an associated/related candidate.
+- Related candidates must remain diagnostic unless a future explicit equivalence policy accepts them.
+- Associated candidates must not bypass RouteLine validation, source gates, or invalidation gates.
+
+Required decisions before implementation:
+
+- coordinate rounding precision,
+- route-distance resampling interval,
+- distance tolerance,
+- heading tolerance,
+- shape similarity metric,
+- trim tolerance,
+- duplicate/noisy point handling,
+- snapped versus unsnapped point treatment.
+
+---
+
+# 6. Reverse Route Policy
+
+Forward and reverse routes may share future root identity, but directional Route Relation reuse remains separate by default.
+
+Reverse traversal can differ in:
+
+- handoff sequence,
+- one-way legality,
+- side-of-road evidence,
+- intersection traversal,
+- cueing and turn context,
+- grade and rider effort,
+- glare, lighting, and timing context,
+- scoring/evidence projection.
+
+Rules:
+
+- Forward and reverse `directionalRelationFingerprint` values should differ.
+- Forward and reverse may eventually map to a shared `rootRouteFingerprint`.
+- Reverse-direction reuse must not be accepted unless a future reviewed bidirectional policy explicitly allows it.
+- Lookup may return a related reverse candidate as diagnostic context.
+- A related reverse candidate must not become reload input by itself.
+
+---
+
+# 7. Loop Route Policy
+
+Loop root identity should be rotationally invariant. Uploaded start point should not define canonical root identity.
+
+Rules:
+
+- `rootRouteFingerprint` for loops should eventually be independent of arbitrary uploaded start point.
+- Start offset belongs to route use, activity, load request, or directional relation metadata.
+- A directional loop relation may still preserve traversal direction and chosen start offset.
+- Clockwise and counterclockwise loop traversal should remain separate directional relation identities unless a future policy explicitly allows reuse.
+
+Loop fingerprinting must handle:
+
+- start/end closure tolerance,
+- near-loop GPX tracks that do not perfectly close,
+- rotation of sampled points,
+- clockwise versus counterclockwise traversal,
+- repeated subloops,
+- figure-eight ambiguity,
+- routes with overlapping segments,
+- routes that begin with a spur before entering a loop,
+- routes that end with a spur after leaving a loop.
+
+Production loop reuse remains blocked until these cases have explicit fixtures and pass a reviewed policy harness.
+
+---
+
+# 8. Route Edits And Versions
+
+Route edits must not be collapsed into one canonical relation unless geometry policy proves equivalence.
+
+Policy classes:
+
+- Exact same route: may be a reuse candidate when all gates pass.
+- Near-identical route: may be an associated candidate, not an automatic exact match.
+- Meaningful route edit: creates a new relation candidate.
+- Detour: may become an event, child relation, or route version under future policy.
+- Trimmed route: may share root/family context but not necessarily directional relation identity.
+- Extension: likely a separate relation with association.
+- Shortcut: likely a separate relation with association.
+- Route version: preserves lineage while keeping structure/version gates explicit.
+
+Rules:
+
+- User edits must remain visible as route versions or related relation candidates.
+- A route extension or shortcut must not reuse the original directional relation unless exact interval reuse is explicitly supported by a future partial-relation policy.
+- Detour acceptance must not silently mutate prior accepted relation truth.
+- Full reconstruction remains fallback for ambiguous edits.
+
+---
+
+# 9. Coordinate Precision And Tolerance
+
+Phase 10A does not set final numeric values, but implementation must define them before production use.
+
+Required decisions:
+
+- coordinate rounding precision,
+- route-distance resampling interval,
+- point deduplication policy,
+- duplicate/noisy point smoothing policy,
+- simplification algorithm and tolerance,
+- densification algorithm and interval,
+- distance tolerance,
+- heading tolerance,
+- shape-similarity metric such as Hausdorff/Frechet-style comparison,
+- start/end trim tolerance,
+- loop closure tolerance,
+- reverse comparison policy,
+- treatment of elevation,
+- treatment of GPX `z`, `m`, time, cadence, and sensor fields,
+- treatment of snapped versus unsnapped route points,
+- treatment of source-provided cues or route steps.
+
+Elevation policy:
+
+- Elevation should not be part of the initial geometry fingerprint unless explicitly reviewed.
+- Elevation may be a future evidence layer or route-use context.
+- Including elevation would require source, smoothing, and vertical tolerance decisions.
+
+Time/sensor policy:
+
+- Time and sensor fields should not affect route geometry identity.
+- They may be future activity or evidence metadata, not route structure identity.
+
+---
+
+# 10. Source Artifact Variation
+
+Source artifact identity is separate from route spine identity.
+
+Examples:
+
+- Two users may upload slightly different GPX files for the same route.
+- RWGPS public and private routes may have the same geometry but different access and source versions.
+- Manual/free-draw routes may have route geometry without source-owned refs.
+- A Vault route and an imported GPX may share route shape while preserving separate source lineage.
+
+Rules:
+
+- Same geometry from different artifacts may associate to the same route/root context.
+- Source artifact references and versions must remain separate gates.
+- Private artifacts must not leak through public fingerprint matching.
+- Access scope must participate in lookup before payload exposure.
+- Contribution consent may affect aggregate participation, not private reload eligibility.
+- Manual/free-draw routes may produce coordinate/unmatched/inferred relation structure without source-owned refs.
+
+Privacy:
+
+- A public lookup must not reveal that a private route with matching geometry exists.
+- Private geometry matching may occur only inside authorized scope.
+- Public aggregate matching must not reveal private route geometry.
+
+---
+
+# 11. Relationship To RouteLine Relation Members
+
+Geometry fingerprinting is a pre-RouteLine lookup key. It is not final route truth.
+
+RouteLine remains the route-structure validator.
+
+Rules:
+
+- Geometry fingerprint can propose candidate relation lookup.
+- Relation member chain can provide stronger post-construction equivalence.
+- A future `relationMemberFingerprint` may help confirm reuse after RouteLine validation.
+- OSM way ids are not the primary geometry join key.
+- Source way ids can change under source updates, splits, merges, or map corrections.
+- Member fingerprint must not replace route-distance spine truth.
+- Member index rows remain derived query surfaces, not accepted relation truth.
+
+Reload still requires:
+
+- persisted relation parsing,
+- relation validation,
+- source refs for source-owned spans,
+- invalidation gates,
+- RouteLine projection validation,
+- fallback on mismatch.
+
+---
+
+# 12. Privacy And Access
+
+Geometry fingerprints can be sensitive. They must not become a public side channel for private routes.
+
+Rules:
+
+- `access_scope` participates in lookup before payload exposure.
+- `user_private` routes may share an internal geometry fingerprint only inside authorized scope.
+- `global_public` relation candidates may be reused when all gates pass.
+- Organization and group scopes must remain future-compatible.
+- Home/start obfuscation is separate from geometry fingerprint, but may affect route-use metadata and sharing behavior.
+- Public aggregate matching must not reveal private geometry.
+- Contribution consent affects aggregate participation, not automatic public relation creation.
+- Loaded or analyzed does not mean public.
+
+The fingerprint itself should be treated as metadata with access implications. It should not be exposed in ways that let callers probe whether private route geometry exists.
+
+---
+
+# 13. Invalidation And Versioning Integration
+
+Geometry fingerprint policy participates directly in DS-041 invalidation.
+
+Version dimensions:
+
+- `routeGeometryFingerprint`
+- `routeGeometryFingerprintAlgorithm`
+- future `rootRouteFingerprintAlgorithm`
+- future `directionalRelationFingerprintAlgorithm`
+- future `loopIdentityPolicyVersion`
+- future `directionPolicyVersion`
+- future `startOffsetPolicyVersion`
+
+Rules:
+
+- Fingerprint mismatch is reload-blocking.
+- `routeGeometryFingerprintAlgorithm` changes may require `rebuild_required`.
+- Loop identity policy changes may require `rebuild_required`.
+- Direction policy changes may require `rebuild_required`.
+- Start-offset policy changes may require `rebuild_required`.
+- Unresolved fingerprint policy blocks production reload.
+- Derived member index or aggregate rebuilds do not make a geometry mismatch safe.
+
+The invalidation evaluator may model these as pure harness inputs, but production invalidation remains unimplemented until storage, lookup, and policy wiring exist.
+
+---
+
+# 14. Lookup And Reload Integration
+
+Lookup must use Route Relation geometry fingerprint fields, not `route_cache` hash.
+
+Lookup result classes:
+
+- exact candidate,
+- related candidate,
+- ambiguous candidates,
+- miss,
+- access-rejected candidate,
+- invalidated candidate,
+- diagnostic-only candidate.
+
+Rules:
+
+- Exact candidate can proceed to the reload gate evaluator.
+- Related candidate is diagnostic unless a future explicit policy accepts it.
+- Near-match must not be accepted silently.
+- Duplicate ambiguity must not select arbitrarily.
+- Access scope must be enforced before payload exposure.
+- Diagnostic-only and invalidated relations cannot become reload input.
+- Reload gate evaluator remains the final gate after lookup.
+- Full reconstruction remains fallback for miss, ambiguity, near-match, access failure, invalidation, source mismatch, validation failure, or RouteLine projection failure.
+
+---
+
+# 15. Test Fixture Requirements
+
+Implementation must begin with fixtures before production use.
+
+Required fixture classes:
+
+- exact same GPX,
+- same route with GPS noise,
+- same route forward and reverse,
+- non-loop route with tiny start trim,
+- non-loop route with tiny end trim,
+- route with small detour,
+- route with meaningful reroute,
+- route extension,
+- route shortcut,
+- out-and-back,
+- loop with different start points,
+- loop clockwise and counterclockwise,
+- near-loop GPX that does not perfectly close,
+- figure-eight or repeated overlap,
+- route with a spur into a loop,
+- private GPX versus public RWGPS same geometry,
+- manual/free-draw coordinate-only route,
+- snapped route versus unsnapped GPS track,
+- duplicated/noisy point route,
+- source artifact version change with same geometry.
+
+Fixture expectations should classify each case as:
+
+- exact directional relation match,
+- related root candidate,
+- related reverse candidate,
+- associated near-match only,
+- ambiguous,
+- miss,
+- rebuild required,
+- fallback required.
+
+No fixture should use `route_cache.route_hash` as the accepted relation identity.
+
+---
+
+# 16. Strategic Guardrails
+
+The Phase 7B.1 guardrails remain binding:
+
+- Route relation is not route family.
+- `rootRouteFingerprint` is not route-family implementation.
+- No route-family tables are introduced.
+- No social/feed implementation is introduced.
+- No temporal overlay implementation is introduced.
+- No recommendation implementation is introduced.
+- Route demand does not mutate Safety Score.
+- `route_cache` is not structure truth.
+- Unresolved or rejected observations do not become accepted route truth.
+- Substrate remains non-canonical candidate reduction and hint metadata.
+- RouteLine remains the route-structure validator.
+- Full reconstruction remains fallback.
+
+Fingerprint policy may preserve future family/root identity options, but it must not implement route-family graph behavior.
+
+---
+
+# 17. Phase 10B Recommendation
+
+Proceed next with **EXEC-030 Phase 10B: pure geometry fingerprint policy fixture/harness work**.
+
+Preferred Phase 10B scope:
+
+- either fixture design only, or pure TypeScript mechanics tests if existing geometry utilities make that safe,
+- no runtime lookup,
+- no reload,
+- no persistence,
+- no SQL execution,
+- no Supabase client/service code,
+- no `route_cache`,
+- no scoring changes,
+- no heatmap changes,
+- no UI behavior,
+- no production V1 behavior.
+
+Phase 10B should prove the fixture classifications before any production integration. Production lookup/reload must remain blocked until the geometry fingerprint policy is implemented, fixture-tested, and integrated with invalidation and lookup gates.
+
+---
+
+# 18. Boundary Statement
+
+After Phase 10A:
+
+- no fingerprint implementation exists,
+- no production invalidation exists,
+- no production reload exists,
+- no real relation lookup exists,
+- no production persistence exists,
+- no SQL has been executed,
+- `route_cache` remains separate,
+- scoring behavior is untouched,
+- heatmap behavior is untouched,
+- UI behavior is untouched,
+- viewport/substrate runtime behavior is untouched,
+- route save/history behavior is untouched,
+- production V1 behavior is untouched,
+- full reconstruction remains fallback.
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
@@ -24997,4 +30396,909 @@ The current repo audit does **not** change the product contract above, but it sh
 ### Explicit non-consequence
 
 This ADR does **not** redefine Safety Score semantics.
+
+
+---
+
+## Source File: docs/03-adrs/adr-045-route_indexed_evidence_platform.md
+
+# ADR-045 — Route-Indexed Evidence Platform
+
+**Status:** Accepted  
+**Date:** 2026-05-10  
+**Related:** [DS-031](../02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md), [DS-030](../02-architecture/design/ds-030-route_analysis_contract.md), [DS-029](../02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-017](../02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md), [EXEC-024](../04-execution/exec-024-route_line_interval_ownership_program.md), ADR-042, ADR-043
+
+---
+
+## 1. Context
+
+Lanterne is moving from point-first route matching toward route-line ownership.
+
+That reset started as a fix for road identity and boundary placement, but the same architectural issue appears across future evidence domains:
+
+- speed limits
+- traffic / AADT
+- shoulders
+- bike infrastructure
+- hazards
+- surface quality
+- elevation and grade
+- wind
+- precipitation
+- temperature
+- sunlight / glare
+- calories, watts, and other derived effort metrics
+
+These layers must not each invent their own geometry join, index model, confidence rules, cache shape, and debug story.
+
+The route polyline is the strongest common reference. Every evidence domain should attach to the rider's actual route as a distance-indexed layer.
+
+---
+
+## 2. Decision
+
+Lanterne will treat the route polyline as a **route-indexed evidence platform**.
+
+The canonical join key for route evidence is route distance:
+
+```ts
+type RouteMeasure = number; // meters from route start
+```
+
+Evidence attaches to the route as either:
+
+- point events at `distM`
+- half-open spans `[startDistM, endDistM)`
+- sampled series keyed by distance, and optionally time
+
+Road ownership is the first major V2 layer, but it is not the only layer. It is the substrate that many downstream layers depend on.
+
+The target model is:
+
+```text
+route axis
+  -> anchors / ownership spans
+  -> evidence layers projected to route
+  -> layer normalization / conflict resolution
+  -> derived metrics
+  -> display / scoring / inspection adapters
+```
+
+---
+
+## 3. Consequences
+
+### 3.1 Distance-first contracts
+
+All canonical route evidence must be expressed in route-distance terms.
+
+Raw GPX indices, densified point indices, sampled matcher indices, OSM way ids, HPMS segment ids, and API row ids are external references. They may be preserved as metadata, but they are not the primary route join key.
+
+### 3.2 Layer architecture
+
+Each evidence domain becomes a route-aligned layer with:
+
+- layer id
+- value type
+- units
+- source lineage
+- provenance
+- confidence
+- native resolution
+- route distance coverage
+- conflict-resolution rules
+- display/scoring eligibility
+
+### 3.3 Source lineage is not scoring provenance
+
+Operational source lineage answers:
+
+> Where did this evidence come from?
+
+Examples:
+
+- `self_hosted_roads`
+- `raw_overpass`
+- `noaa_forecast`
+- `usgs_elevation`
+- `user_observation`
+- `fixture`
+- `cache`
+
+DS-029 provenance answers:
+
+> Why is this value allowed to drive confidence, scoring, or explanation?
+
+Examples:
+
+- official imported
+- posted
+- OSM-derived
+- relationship-inferred
+- geometry-derived
+- model-derived
+- fallback / baseline
+
+These concepts must remain separate.
+
+### 3.4 Worker-first execution
+
+Route-scale evidence projection is worker-owned.
+
+Main-thread code may schedule work, render progress, and display results. It must not perform route-scale fetching, parsing, projection, merge, scoring, or diagnostic report building synchronously.
+
+### 3.5 Adapters, not contamination
+
+Downstream scoring, heatmap, hazards, receipts, inspection panels, and presentation surfaces consume route-indexed layers through adapters.
+
+They may not reach backward into V2 internals, and V2 may not absorb scoring/presentation rules.
+
+---
+
+## 4. Non-Goals
+
+This ADR does not:
+
+- replace production V1 route analysis immediately
+- define the full V2 ownership resolver
+- define a scoring rewrite
+- define weather, elevation, wind, or power models in detail
+- require every layer to have the same spatial or temporal precision
+- require raw public API calls for every route load
+
+This ADR defines the architectural shape that those future systems must fit.
+
+---
+
+## 5. Required Properties
+
+Any new route evidence layer must define:
+
+1. **Geometry binding**
+   - point, span, or sampled series
+   - route distance keys
+   - whether route time is required
+
+2. **Source lineage**
+   - external source
+   - cache layer
+   - freshness metadata where available
+
+3. **Provenance**
+   - DS-029 scoring/explanation provenance
+   - whether the layer can drive score, confidence, display only, or diagnostics only
+
+4. **Resolution**
+   - native spatial/temporal resolution
+   - conflict policy
+   - merge policy
+   - unknown/unavailable behavior
+
+5. **Execution**
+   - worker ownership
+   - cancellation
+   - progress reporting
+   - budget limits
+
+6. **Inspectability**
+   - human-readable diagnostics
+   - source/failure visibility
+   - confidence explanation
+
+---
+
+## 6. Migration Policy
+
+V1 remains production until V2 route ownership and route-indexed evidence layers beat it on golden routes.
+
+The migration path is:
+
+1. Build V2 route axis and ownership as independent localhost/admin infrastructure.
+2. Build V2 road evidence acquisition with owned-source-first and raw supplement support.
+3. Add route-indexed layer contracts.
+4. Adapt one downstream surface at a time.
+5. Compare V1 and V2 on golden routes.
+6. Promote V2 outputs only when they are more correct and more inspectable.
+
+Legacy truth may be used for comparison only. It must not become V2 evidence.
+
+---
+
+## 7. Rationale
+
+This decision prevents Lanterne from solving road identity one way, speed another way, weather another way, and hazards another way.
+
+The rider rode one route. The system should maintain one canonical route axis and attach evidence to it.
+
+That makes future ingestion easier because each new domain answers the same questions:
+
+- where on the route does this apply?
+- over what distance or point?
+- from what source?
+- with what confidence?
+- at what native resolution?
+- can it drive score, display, both, or neither?
+
+This gives Lanterne a route evidence substrate instead of a collection of special-case joins.
+
+
+
+---
+
+## Source File: docs/03-adrs/adr-047-profile_aware_hydration_cache_and_cyclist_mobility_substrate_runtime_architecture.md
+
+# ADR-047 - Profile-Aware Hydration Cache and Cyclist Mobility Substrate Runtime Architecture
+
+**Status:** Proposed
+**Date:** 2026-05-20
+**Related:** ADR-046, ADR-045, DS-035, DS-034, DS-031, DS-032, EXEC-029, EXEC-028
+
+---
+
+# 1. Context
+
+The recent substrate and viewport-runtime work split a single overloaded idea of "cached roads" into several systems with different truth contracts.
+
+The old runtime model blurred:
+
+- route-specific completed analysis reuse
+- broad road tile reuse
+- viewport overlay hydration
+- low-zoom cyclist presentation
+- future routing acceleration
+
+That blur created avoidable risk:
+
+- raw broad road cache rows could be mistaken for exact route truth
+- substrate corridors could be mistaken for canonical evidence
+- viewport overlays could inherit too much junk from upstream OSM
+- low-zoom maps could either blank during hydration or overload the browser with local detail
+- browser-written shared cache rows could become an integrity boundary problem
+
+The current architecture is three separate cache systems, three levels of road intelligence, and a layered runtime.
+
+---
+
+# 2. Decision
+
+Lanterne will treat the runtime architecture as three distinct cache systems:
+
+1. Route cache
+2. Profile-aware exact hydration cache
+3. Cyclist mobility substrate cache
+
+These systems have different identities, payloads, owners, and truth contracts.
+
+The runtime will layer them by zoom:
+
+```text
+low zoom  -> substrate first, cyclist geography
+mid zoom  -> progressive exact hydration enrichment
+high zoom -> full traversable local detail
+```
+
+The core boundary is explicit:
+
+```text
+SUBSTRATE IS NOT ROUTE TRUTH
+```
+
+DS-035 defines the detailed "Three Levels of Road Intelligence" model. This ADR adopts that model as the architecture boundary.
+
+---
+
+# 3. Three Levels of Road Intelligence
+
+The architecture distinguishes three levels of road intelligence.
+
+## 3.1 Raw Source Evidence
+
+Raw source evidence is the source-of-record layer.
+
+It includes:
+
+- full OSM/source tags
+- authoritative source fields
+- owned spatial source fields
+- exact source geometry and way/member identity
+- source provenance needed for scoring, RouteLine truth, and inspection
+
+It is retained on the spatial/owned-road side and must remain hydratable on demand by way id, tile, or corridor member.
+
+Raw source evidence is required for:
+
+- scoring
+- provenance
+- exact legality
+- RouteLine truth
+- conflict resolution
+- detailed inspection
+
+## 3.2 Exact Hydration Descriptor
+
+The exact hydration descriptor is the normalized hot-path runtime layer.
+
+It contains profile-specific fields optimized for:
+
+- viewport hydration
+- rendering
+- overlays
+- progressive interaction
+- mobile/runtime latency
+
+It is versioned by `schema_version` and `source_version`.
+
+It is not a replacement for raw source evidence.
+
+## 3.3 Substrate Descriptor
+
+The substrate descriptor is the cyclist mobility structure layer.
+
+It contains:
+
+- cyclist corridor identity
+- salience
+- continuity
+- zoom eligibility
+- planning/presentation/cache metadata
+
+It is explicitly non-canonical.
+
+Key principle:
+
+```text
+Fast normalized fields are indexes and summaries, not replacements for source evidence.
+```
+
+---
+
+# 4. Hot Path and Cold Path
+
+The hot path optimizes for low-latency interaction.
+
+Hot path systems include:
+
+- viewport hydration
+- rendering
+- overlays
+- progressive interaction
+- profile-aware cache payloads
+- mobile runtime behavior
+
+The hot path may use normalized descriptors because it needs compact, predictable payloads.
+
+The cold path preserves source authority.
+
+Cold path systems include:
+
+- full OSM/source tags
+- exact provenance
+- detailed inspection
+- scoring
+- RouteLine truth
+- conflict resolution
+- source-of-record hydration
+
+The cold path must remain able to hydrate precise source evidence. The exact hydration descriptor can speed rendering, but it cannot become the only copy of the evidence needed to prove truth.
+
+---
+
+# 5. Cache Contracts
+
+## 5.1 Route Cache
+
+The route cache is route-specific.
+
+It stores completed analysis for exact result reuse:
+
+- route hash
+- data version
+- canonical-compatible safety result
+- route-indexed evidence outputs
+- route scoring outputs
+- presentation outputs derived from route truth
+
+It does not store raw road geometry as its primary purpose.
+
+It does not store substrate.
+
+It does not define the viewport hydration payload.
+
+The route cache answers:
+
+> Have we already analyzed this exact route under the current analysis version?
+
+It does not answer:
+
+> What roads exist in this viewport?
+
+It does not answer:
+
+> What cyclist corridors matter at regional scale?
+
+## 5.2 Profile-Aware Exact Hydration Cache
+
+The profile-aware exact hydration cache is a tile/profile/stage cache for runtime evidence hydration.
+
+Key shape:
+
+- `tile_key`
+- `profile_key`
+- `stage_key`
+- `schema_version`
+- `source_version`
+
+Example profile keys:
+
+- `viewport_speed_v1`
+- `bike_infra_v1`
+- `hazard_control_v1`
+- `admin_broad_debug_v1`
+
+Reserved future profile:
+
+- `route_truth_v1`
+
+`route_truth_v1` is not currently in the TypeScript union or database check constraint. If introduced, it must be route-scoped or route-window-scoped and governed by RouteLine/canonical provenance contracts.
+
+The profile-aware cache stores exact-ish road/evidence hydration for runtime overlays. It is not substrate. It is not the route cache. It is not the raw source evidence store.
+
+## 5.3 Cyclist Mobility Substrate Cache
+
+The cyclist mobility substrate cache is a precomputed regional cyclist structure.
+
+It is:
+
+- non-canonical
+- presentation-oriented
+- cache/planning-oriented
+- continuity-aware
+- salience-scored
+- multi-zoom simplified
+- suitable for low-zoom cyclist geography
+- suitable for future prioritization and acceleration
+
+It answers:
+
+> What cyclist movement structure matters in this region?
+
+It does not answer:
+
+> What did this route exactly traverse?
+
+---
+
+# 6. Runtime Layering and Zoom Philosophy
+
+## 6.1 Low Zoom
+
+Low zoom uses substrate first.
+
+Goal:
+
+> show meaningful cyclist geography before exact local detail is available
+
+Low zoom should not wait for every local residential street in the viewport.
+
+## 6.2 Mid Zoom
+
+Mid zoom progressively enriches substrate with exact hydration.
+
+Goal:
+
+> keep cyclist structure visible while exact road evidence arrives
+
+## 6.3 High Zoom
+
+High zoom uses full traversable local detail.
+
+Goal:
+
+> render the local fabric needed for close inspection and route interaction
+
+At high zoom, exact hydration should dominate. The substrate can remain as context or acceleration metadata, but canonical evidence and RouteLine ownership continue to define truth.
+
+## 6.4 Zoom Philosophy
+
+Zoom level controls:
+
+- density
+- visual familiarity
+- how much local fabric is loaded and shown
+
+Cyclist salience controls:
+
+- styling
+- loading order
+- prioritization
+- substrate importance
+
+Zoom should not be treated as a pure cyclist priority ranking. A lower-zoom band means "appropriate density and familiarity for this zoom," not "more true" or "more important for scoring."
+
+---
+
+# 7. Presentation Continuity and Canonical Continuity
+
+The architecture separates presentation continuity from canonical continuity.
+
+Presentation continuity may say:
+
+> these source ways read as one cyclist corridor
+
+It is used for:
+
+- substrate
+- cache grouping
+- rendering
+- interaction
+- prioritization
+- planning
+
+It supports Mullica/Fleming-style corridor identity while preserving real member geometries and source way ids.
+
+Canonical continuity must still prove:
+
+> the route actually traverses these exact members
+
+Canonical continuity is owned by:
+
+- RouteLine
+- topology
+- provenance
+- scoring
+- route truth
+
+Canonical continuity does not inherit substrate corridor grouping as fact.
+
+This separation protects the existing invariant:
+
+```text
+regional presentation confidence != route truth confidence
+```
+
+---
+
+# 8. Strengthened Substrate Boundary
+
+Substrate can:
+
+- prioritize
+- suggest
+- accelerate
+- render
+- group for presentation
+- identify regional cyclist structure
+- help choose what to hydrate first
+
+Substrate cannot:
+
+- score
+- assign route ownership
+- replace DS-029 provenance
+- erase exact source evidence
+- declare that a route traversed a member way
+- replace RouteLine/topology proof
+- become a source-of-record evidence table
+
+Substrate fields such as corridor id, salience tier, zoom eligibility, and continuity explanation remain substrate fields. They must not overwrite RouteLine ownership, DS-029 provenance, route scoring, or canonical route truth.
+
+---
+
+# 9. Road Descriptor Field Governance
+
+Profile-aware descriptors are intentionally lossy hot-path summaries.
+
+Do not invent cached fields because they sound useful.
+
+Every cached or normalized field must have:
+
+- source
+- consumer
+- exactness classification
+- payload cost
+- risk if wrong
+- hot/cold placement decision
+
+Raw OSM/source evidence must remain hydratable. Scoring, provenance, RouteLine truth, detailed inspection, and conflict resolution must be able to hydrate exact source tags later.
+
+---
+
+# 10. Current Source/Test Snapshot
+
+This section records the current implementation/source-test snapshot so readers can understand the state of the system at the time of this ADR.
+
+It is not timeless product doctrine.
+
+Source and tests remain authoritative when stage names, priority groups, z-band membership, or track placement changes.
+
+## 10.1 Exact Hydration: `viewport_speed_v1`
+
+Current stages:
+
+- `z10_substrate_references`
+- `z11_secondary`
+- `z12_tertiary_residential`
+- `z13_local_detail`
+- `exact_fallback`
+
+Current priority groups:
+
+- `z10_trunks`
+- `z10_primaries`
+- `z10_paths_cycleways`
+- `z10_tracks`
+- `z11_secondaries`
+- `z11_tertiaries`
+- `z12_named_local_ge_0_5mi`
+- `z12_named_local_0_25_0_5mi`
+- `z12_unnamed_long_continuity`
+- `z12_short_named_residential_fragments`
+- `z13_remaining_local_detail`
+- `exact_fallback`
+
+Finalized cache split policy, expressed with current source-test group names:
+
+Central/warm cache:
+
+- `z10_trunks`
+- `z10_primaries`
+- `z10_paths_cycleways`
+- `z10_tracks`
+- `z11_secondaries`
+- `z11_tertiaries`
+- `z12_named_local_ge_0_5mi`
+- `z12_named_local_0_25_0_5mi`
+- `z12_unnamed_long_continuity`
+
+Viewport/on-demand hydration:
+
+- `z12_short_named_residential_fragments`
+- `z13_remaining_local_detail`
+- broad residential/unclassified local fabric
+
+The system centrally caches regional structure and connective tissue. Neighborhood-scale local detail hydrates progressively and on demand.
+
+Current naming note:
+
+- `z11_secondary` currently includes secondaries and tertiaries.
+- `z12_tertiary_residential` is historical naming; current code uses it for named/ref or continuous residential, unclassified, and living-street detail.
+- `z10_substrate_references` is exact hydration for low-zoom references. It is not the substrate cache.
+
+## 10.2 Zoom Hysteresis
+
+Current rule:
+
+- A road/cache band becomes eligible at its start zoom.
+- It remains visible one zoom level below that start zoom.
+- It is not visible two zoom levels below that start zoom.
+
+Examples:
+
+- z10 appears at z10 and remains visible at z9.
+- z11 appears at z11 and remains visible at z10.
+- z12 appears at z12 and remains visible at z11.
+- z13 appears at z13 and remains visible at z12.
+
+Non-examples:
+
+- z11 does not show at z9.
+- z12 does not show at z10.
+- z13 does not show at z11.
+
+Purpose:
+
+- prevent blanking
+- prevent flicker
+- preserve visual continuity during adjacent zoom transitions
+- avoid full layer clears
+- allow progressive replacement by newly eligible bands
+
+Post-proof note:
+
+- A regression showed old V1 admission logic could still veto retained V2 profile roads.
+- The final runtime treats V2 hysteresis eligibility as authoritative for retained V2 profile paint.
+
+## 10.3 Substrate and Cache Preview Bands
+
+Current substrate/cache-preview policy is separate from exact hydration.
+
+Current implementation snapshot:
+
+- z10: safe paths, protected cycle corridors, gravel tracks, and primary connectors
+- z11: z10 structure plus secondary roads and exceptional/named high-salience tracks
+- z12: broader connective network including tertiary roads, long residential continuity, selected/critical primary connectors, useful gravel, and bike anchors
+- z13: accepted local/residential/unclassified detail and higher-density cyclist-relevant fabric
+- z14: preview-only broad traversable street universe, excluding service/driveway/sidewalk/private/construction junk
+
+The simplified central substrate currently emits z10-z13. z14 exists as cache-candidate preview and sizing evidence, not as the central substrate serving contract.
+
+---
+
+# 11. Priority-Drip Hydration
+
+Profile-aware hydration uses priority-drip hydration.
+
+Runtime goals:
+
+- visible-first rendering
+- high-value cyclist structure first
+- roads stream in microbatches
+- stages are not rendered as giant blobs
+- lower-priority roads never block higher-priority visible roads
+- no giant payload flashes
+- no final full-blob flash
+- no blanking during refills
+- no full layer clears during adjacent zoom transitions
+- microbatch streaming
+- retained paint while newly eligible bands arrive
+
+Current microbatch behavior groups fresh roads by priority group and emits small batches. Runtime retention then filters by zoom hysteresis and merges previous eligible paint with newly arrived paint.
+
+This gives the runtime a progressive replacement model rather than a clear-and-repaint model.
+
+---
+
+# 12. Server-Authorized Profile Cache Writes
+
+Profile-cache writes must be server-authorized.
+
+Browser anonymous writes are rejected because shared cache rows are infrastructure, not user-owned state. Anonymous browser writes would allow:
+
+- poisoned shared cache records
+- stale schema/version drift
+- oversized payload abuse
+- inconsistent profile filtering
+- bypass of owned source validation
+
+Current database policy allows public reads and service-role writes.
+
+Finalized runtime outcome:
+
+- browser no longer directly mutates profile cache rows
+- browser requests hydration
+- same-origin/server authority validates and persists cache rows
+- RLS remains enforced against direct anon writes
+- preferred future owner is the spatial/cache service, not browser runtime
+
+The production write owner should be a server/spatial cache service that:
+
+- validates profile payload shape
+- applies profile filters
+- stamps `schema_version` and `source_version`
+- records payload metrics
+- owns backfill and refresh
+- can roll back by source/schema version
+
+Rollback strategy:
+
+- switch V2 speed hydration to the legacy broad adapter
+- bump `schema_version` for payload shape changes
+- bump `source_version` for upstream source changes
+- keep `exact_fallback` for empty staged rows
+- preserve legacy broad reads until profile cache hit rates and payload validation are stable
+
+---
+
+# 13. Substrate Evolution
+
+The substrate has evolved beyond a simple road filter.
+
+Current pieces:
+
+- graph filter
+- corridor continuity
+- salience scoring
+- multi-zoom simplification
+- cache candidate preview
+- golden corridor tests
+- Wharton golden territory audit
+- Mullica/Fleming continuity lessons
+- named track continuity
+- path/track bridge rules
+- corridor identity separate from member geometry
+
+Important lessons:
+
+- Raw OSM ways are not meaningful low-zoom cyclist geography.
+- Named gravel/forest corridors can split across `track` and `path` members.
+- A bridge member may be semantically part of a corridor even if its geometry remains a distinct source way.
+- Corridor identity should aggregate source members, but inspection must preserve member geometries.
+- Golden corridors and golden territories are required to prevent regressions in places like Wharton, Mullica River Road, and Fleming Pike.
+
+---
+
+# 14. Cache Sizing Findings
+
+Current sizing evidence supports a split:
+
+- z10-z12 central cache is viable.
+- curated z13 central cache is viable.
+- all-z14 residential/local fabric is not ideal as a central cache default.
+- z14 local fabric should hydrate on demand.
+- substrate central cache and viewport-on-demand exact hydration should remain separate.
+
+Local South Jersey artifacts show the expected shape:
+
+- simplified substrate z10-z13 is much smaller than cache-candidate preview payloads
+- cache-candidate z13/z14 broad local fabric becomes large quickly
+- z14 is useful for preview and sizing, but should not define the default central substrate serving layer
+
+Rationale for not centrally caching all z14 local fabric:
+
+- payload explosion
+- residential cul-de-sac tax
+- z14 broad residential payload dominates cache size
+- cyclist travel speed allows on-demand local hydration
+- ride-mode hydration can progressively fill local detail later
+
+The central/warm cache should carry regional structure and connective tissue. Broad neighborhood-scale fabric should remain viewport/on-demand hydration.
+
+---
+
+# 15. Runtime Proof Findings
+
+The post-commit runtime proof demonstrated:
+
+- no Page Unresponsive behavior
+- no giant blanking
+- no full-blob flash
+- no hazard/control/service/driveway/sidewalk pollution
+- staged/profile-keyed cache reads and writes
+- successful rollback path
+- Mullica/Fleming continuity preserved
+- Church Rd global merge regression fixed
+
+These findings confirm the architecture direction: priority-drip hydration, server-authorized profile-cache writes, and the substrate/profile/route cache split are runtime-stable.
+
+---
+
+# 16. Telemetry Follow-Up
+
+Remaining observability work:
+
+- `firstHighPriorityPaintMs` semantics
+- cap-complete vs all-visible-complete
+- retained/capped-state distinctions
+- continuously retained views
+
+This is telemetry semantics work, not runtime architecture instability.
+
+---
+
+# 17. Consequences
+
+Benefits:
+
+- route truth remains protected
+- low zoom becomes meaningful before exact hydration completes
+- profile-specific hydration avoids legacy broad-cache bloat
+- priority-drip hydration improves perceived runtime stability
+- server-authorized writes create a clean RLS boundary
+- substrate becomes reusable for future acceleration without becoming canonical truth
+- raw source evidence remains available for scoring, provenance, and inspection
+
+Costs:
+
+- profile schemas require version discipline
+- field governance must be enforced as profiles expand
+- backfill and write authority must exist server-side
+- substrate and exact hydration require separate observability
+- RouteLine and scoring boundaries must be documented and enforced
+- docs must be refreshed when source/test snapshots change
+
+---
+
+# 18. Future Direction
+
+Future work should build on this separation:
+
+- substrate-assisted route loading
+- candidate narrowing for RouteLine and hydration
+- detour and reroute acceleration
+- relation-aware continuity
+- gravel/adventure intelligence
+- global cyclist mobility substrate
+- object/CDN tile serving
+- profile-aware overlay ecosystem
+- dedicated spatial/cache service ownership
 
