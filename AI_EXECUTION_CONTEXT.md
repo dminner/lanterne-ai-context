@@ -40219,6 +40219,93 @@ Resume HPMS route-wide QA on the 60-mile route, then DS-029 live conformance, wi
 
 ---
 
+## Source File: docs/04-execution/exec-030-phase-16w-o-clean-checkpoint-summary.md
+
+# Exec 030 Phase 16W-O - Clean Checkpoint Summary
+
+## Direct Answer
+
+D. partial_ui_mounted_but_shared_contract_extraction_incomplete
+
+## Summary
+
+The original 16W-O work was split into clean checkpoints because the dirty worktree interleaved admin diagnostics with HPMS, cache, debug overlay, substrate, and prior route-line work. The clean checkpoints below preserve the usable 16W-O foundation without staging mixed files or overclaiming the main-app mount.
+
+## Clean Commits Landed
+
+- `c1d39597` - shared admin runtime contracts and viewport overlay registry
+- `fb98870c` - generated diagnostics artifact ignore rules
+- `8e27b241` - minimal `InspectableFeatureRef` contract
+- `515a5383` - `DebugControlCenter` mount with a Review Admin Diagnostics section
+- `d090fdcf` - generic Inspect detail adapter for admin overlay refs
+
+## What Is Actually True Now
+
+- Shared admin runtime contracts exist.
+- The viewport overlay registry exists.
+- A minimal generic `InspectableFeatureRef` exists.
+- `DebugControlCenter` has a mounted Review Admin Diagnostics section.
+- A generic inspect detail adapter exists for admin overlay refs.
+- Missing and unavailable states remain explicit.
+- No fake worker progress or fake provider counts are claimed.
+- Admin diagnostics remain read-only.
+
+## What Is Not Included
+
+- No live worker or provider stream binding.
+- No `SegmentInspectorDrawer` integration.
+- No `RouteMap` changes.
+- No `Index.tsx` changes.
+- No `/v2-review` shared view-model inversion.
+- No substrate overlay adapter.
+- No HPMS, cache, or debug overlay work.
+- No scoring changes.
+- No heatmap changes.
+- No Supabase writes.
+- No `route_cache` or `route_history` writes.
+- No production overlay enablement.
+- No V2 default change.
+
+## Dirty Work Intentionally Left Out
+
+- `SegmentInspectorDrawer` dirty and untracked work remains for a future manual split.
+- Dirty original `DebugControlCenter` work remains mixed and should not be staged wholesale.
+- The older full 16W-O surface-port doc remains excluded because it overclaims relative to the clean commits.
+
+## Architectural Guardrails Preserved
+
+- Admin/Dave owns toggles and diagnostics.
+- Inspect owns selected details.
+- `RouteMap` renders prepared features and emits refs only.
+- Viewport overlays are context, not route truth.
+- Substrate is presentation and planning only, not canonical truth.
+- Source lineage and provenance stay separate.
+- Missing data is unavailable or unknown, not invented.
+
+## Verification Summary
+
+- Admin runtime surface contract tests passed during the relevant clean checkpoint.
+- Viewport overlay registry tests passed during the relevant clean checkpoint.
+- Minimal debug surface contract tests passed during the relevant clean checkpoint.
+- `DebugControlCenter` mount tests passed in a clean worktree.
+- `ReviewAdminDiagnosticsSection` tests passed in a clean worktree.
+- Inspect detail adapter tests passed in a clean worktree.
+- TypeScript passed during the relevant clean checkpoints.
+- Git diff checks passed during the relevant clean checkpoints.
+
+## Current Recommendation
+
+16W-P must not begin yet.
+
+The next checkpoint should be `SegmentInspectorDrawer` integration only if it can be recreated clean-room from HEAD. If drawer integration cannot be cleanly separated, defer it and move to a runtime binding audit only after dirty worktree risks are contained.
+
+## Suggested Next Phase
+
+16W-O-CHECKPOINT-N - Clean-room SegmentInspectorDrawer ref integration audit
+
+
+---
+
 ## Source File: docs/04-execution/exec-030-phase-5-route-relation-closeout.md
 
 # EXEC-030 Phase 5 Closeout: Diagnostic Lanterne Route Relation Equivalence

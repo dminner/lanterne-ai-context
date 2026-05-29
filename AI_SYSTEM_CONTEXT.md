@@ -22707,6 +22707,895 @@ After Phase 10A:
 
 ---
 
+## Source File: docs/02-architecture/design/ds-043-hpms_multifield_route_indexed_evidence_spec.md
+
+# DS-043 — HPMS Multi-Field Route-Indexed Evidence Specification
+
+**Status:** Draft for EXEC-030 Phase 16V-C planning
+**Date:** 2026-05-26
+**Related:** DS-031, DS-032, DS-017, DS-020, DS-015, DS-035, ADR-045, EXEC-024, EXEC-030 Phase 16V-B, RES-008
+
+---
+
+## 1. Purpose
+
+This design specification defines HPMS as a multi-field, route-indexed evidence source family for Lanterne V2 route analysis.
+
+HPMS is not only a traffic source. It can provide source-backed values and diagnostics for traffic, speed, lane count, functional class, route/source identity, heavy vehicle traffic, pavement condition, access/facility metadata, and future comparative context.
+
+The central rule is unchanged from the route-indexed evidence platform:
+
+```text
+The route polyline is the canonical evidence axis.
+```
+
+HPMS records become route evidence only after their source geometry projects onto the canonical route axis and the projected value is policy-eligible for the target evidence layer.
+
+## 2. Status
+
+Draft planning spec. This document defines policy and implementation boundaries. It does not implement runtime behavior, scoring changes, heatmap changes, receipt changes, source fetch changes, database writes, or UI changes.
+
+## 3. Related Documents
+
+- [DS-031 - Route Indexed Evidence Layer Spec](./ds-031-route_indexed_evidence_layer_spec.md)
+- [DS-032 - Worker Streamed Route Construction and Presentation Spec](./ds-032-worker_streamed_route_construction_and_presentation_spec.md)
+- [DS-017 - Truth Resolution and Propagation Spec](./ds-017-truth_resolution_and_propagation_spec.md)
+- [DS-020 - Confidence Model and Tracing](./ds-020-confidence_model_and_tracing.md)
+- [DS-015 - Safety Scoring Model](./ds-015-safety_scoring_model.md)
+- [DS-035 - Profile-Aware Hydration Cache and Cyclist Mobility Substrate Runtime Spec](./ds-035-profile_aware_hydration_cache_and_cyclist_mobility_substrate_runtime_spec.md)
+- [ADR-045 - Route Indexed Evidence Platform](../../03-adrs/adr-045-route_indexed_evidence_platform.md)
+- [EXEC-024 - Route Line Interval Ownership Program](../../04-execution/exec-024-route_line_interval_ownership_program.md)
+- [EXEC-030 Phase 16V-B - Debug Inspect Detail Adapters](../../04-execution/exec-030-phase-16v-b-debug-inspect-detail-adapters.md)
+- [RES-008 - Lanterne HPMS Field Dictionary](../../research/res-008-lanterne_hpms_field_dictionary.md)
+
+## 4. Problem Statement
+
+The current V2 HPMS path grew from traffic/AADT coverage work. That is too narrow for the fields now visible in HPMS records. A single HPMS row may contain AADT, speed limit, lane count, functional class, source identifiers, facility/access metadata, heavy vehicle values, pavement diagnostics, and precise source geometry.
+
+Treating HPMS as traffic-only causes three problems:
+
+- Route load can miss authoritative speed/lane/class values that should be eligible evidence.
+- Inspect can show richer HPMS truth than scoring and heatmap used, creating split-brain evidence.
+- Debug surfaces cannot explain why a projected HPMS record was selected, rejected, propagated, or kept diagnostic-only.
+
+HPMS needs a formal route-indexed evidence model that keeps field governance explicit.
+
+## 5. Executive Decision
+
+HPMS is a multi-field authoritative source family. HPMS fields may become route-indexed evidence only after projection to the route axis and field-specific policy checks.
+
+HPMS may provide score-driving values for:
+
+- `aadt` -> `traffic_aadt`
+- `speed_limit` -> `speed_limit`
+- `through_lanes` -> `lane_count`, with interpretation diagnostics
+- `f_system` -> functional class / road class candidate, not automatic OSM identity
+- source metadata -> provenance, confidence, and source display
+- `geom_wkt` -> projection geometry, not a score input itself
+
+HPMS does not decide route ownership, road identity, presentation identity, or substrate truth.
+
+## 6. Non-Goals
+
+DS-043 does not implement or authorize:
+
+- scoring math changes
+- heatmap semantic changes
+- receipt math changes
+- HPMS deciding road ownership
+- HPMS overwriting OSM road identity
+- HPMS as substrate truth
+- production database writes
+- `route_cache` writes
+- `route_history` writes
+- `hpms_tile_cache` mutation
+- `hpms-proxy` usage
+- hidden inspect-time mutation of selected truth
+- standalone HPMS panels or one-off HPMS tooltips
+- RouteMap-local HPMS toggles
+- RouteMap-owned raw HPMS payload rendering
+- making every HPMS field score-driving immediately
+- hallucinating unknown HPMS field meanings
+
+## 7. Core Architectural Rules
+
+1. The route polyline is the canonical evidence axis.
+2. HPMS evidence attaches by route distance.
+3. HPMS `geom_wkt` and source geometry must project onto route ownership spans before values are score-eligible.
+4. HPMS row IDs, route IDs, object IDs, and source IDs are provenance references, not route join keys.
+5. HPMS may supply values for multiple evidence layers.
+6. HPMS must not decide road ownership.
+7. HPMS must not overwrite OSM road identity.
+8. Official HPMS/DOT traffic, speed, and lane evidence may override weaker value evidence after projection and policy checks.
+9. Unknown or unsupported HPMS fields remain diagnostic until RES-008 and a DS policy classify them.
+10. Raw HPMS payloads must remain inspectable.
+11. Inspect is presentation. It may display selected evidence and raw citations, but it must not upgrade score-driving truth after route load.
+12. Substrate remains noncanonical and can narrow source acquisition only.
+
+## 8. HPMS As Multi-Field Source Family
+
+HPMS may contribute to these families:
+
+- traffic / AADT
+- speed limit
+- lane count
+- functional system / road class
+- route/source identity
+- heavy vehicle counts
+- surface and pavement diagnostics
+- access/facility metadata
+- future comparative context
+- raw payload inspection
+
+Each family has separate readiness and policy status. A field being present in HPMS does not make it score-driving.
+
+## 9. Source Record Model
+
+An HPMS source record should preserve at least:
+
+- raw payload
+- source backend
+- source agency
+- source dataset
+- source state
+- source layer
+- data year
+- HPMS row ID
+- source object ID
+- route ID
+- route labels
+- begin/end station points
+- section length
+- source geometry
+- source query context
+
+IDs such as `hpms_row_id`, `gid`, `source_objectid`, `route_id`, and `sample_id` are source references. They must not replace route-distance projection.
+
+## 10. Route-Indexed Projection Model
+
+Projection produces route-indexed evidence candidates:
+
+- `startDistM`
+- `endDistM`
+- `coverageM`
+- `coveragePct`
+- projected route windows
+- average/max distance from route if available
+- ownership span IDs
+- applied OSM way IDs when available
+- selected/rejected status
+- selection/rejection/propagation reason
+- confidence and provenance
+
+Projection must block broad leakage. A nearby HPMS row is not score-eligible merely because it is in the route bbox or shares a route number. It must geometrically project to the relevant route span.
+
+## 10A. Projection Eligibility Policy Gate
+
+Implementation cannot select HPMS fields as score-driving until projection eligibility is explicit and test-backed.
+
+The projection eligibility gate must evaluate:
+
+- `overlapM`
+- `coveragePct`
+- `avgDistM`
+- `maxDistM`
+- `route_id` compatibility when available
+- `routenumber` compatibility when available
+- `routename` compatibility when available
+- road family compatibility when available
+- road ref compatibility when available
+- short HPMS segment on long route span behavior
+- nearby parallel-road rejection
+- rejection reason taxonomy
+
+The policy must specifically prevent a short HPMS segment from being smeared across a long route span. It must also prevent nearby parallel roads from being accepted merely because they are spatially close or share a broad bbox.
+
+Required rejection reason taxonomy:
+
+- `projection_overlap_below_threshold`
+- `projection_coverage_below_threshold`
+- `projection_avg_distance_too_high`
+- `projection_max_distance_too_high`
+- `route_id_mismatch`
+- `routenumber_mismatch`
+- `routename_mismatch`
+- `road_family_mismatch`
+- `road_ref_mismatch`
+- `parallel_road_candidate_rejected`
+- `short_segment_long_span_requires_windowing`
+- `geometry_missing`
+- `unsupported_geometry`
+- `field_policy_not_score_eligible`
+- `source_version_missing`
+- `code_table_missing`
+- `conflicting_official_source_unresolved`
+
+Any selected score-driving HPMS field must retain the projection metrics and the accepted eligibility reason in trace/debug artifacts.
+
+## 11. Field Governance Model
+
+Each HPMS field or field family must be classified with one of these governance statuses:
+
+- `score_driving_now`
+- `score_candidate_requires_policy`
+- `route_reality_now`
+- `inspect_debug_only`
+- `future_route_reality_layer`
+- `future_comparative_context`
+- `future_heavy_vehicle_layer`
+- `future_directional_shoulder_layer`
+- `pavement_quality_diagnostic`
+- `requires_code_table`
+- `unknown_pending_definition`
+- `ignore_for_now`
+
+The classification controls whether a field is normalized into route evidence, retained only in raw payload, used for display, reserved for future layers, blocked pending a code table, or ignored.
+
+RES-008 is the governing field dictionary for these classifications. If RES-008 does not define a field or code meaning, the implementation must not invent one.
+
+## 12. Score-Driving Fields Now
+
+The following are current score-driving or score-adjacent candidates when projected and policy-eligible:
+
+| HPMS field | Route evidence layer | Status | Notes |
+| --- | --- | --- | --- |
+| `aadt` | `traffic_aadt` | `score_driving_now` | Official imported traffic value after projection. |
+| `speed_limit` | `speed_limit` | `score_driving_now` | Official speed value after projection and freshness/source checks. |
+| `through_lanes` | `lane_count` | `score_candidate_requires_policy` | Requires interpretation diagnostics for directionality and total lanes. |
+| `shoulder_type` | shoulder / Bike Support evidence | `score_driving_now` | Day-one score-driving only when projected, code-table-valid, and policy-eligible. |
+| `shoulder_width_r` | shoulder width / Bike Support evidence | `score_driving_now` | Day-one score-driving only when projected and interpretation-valid. |
+| `f_system` | functional class / road class candidate | `score_candidate_requires_policy` | Does not become OSM highway identity. |
+| source metadata | provenance/confidence/source display | `route_reality_now` | Drives source labels and confidence trace. |
+| `geom_wkt` | projection geometry | `route_reality_now` | Used to attach values to route; not a score input itself. |
+
+These fields are not score-driving without projection, field policy, and confidence/provenance trace.
+
+## 13. Diagnostic / Future-Layer Fields
+
+The following launch exclusions are diagnostic or future-layer until coverage, policy, side/direction semantics, and code tables are ready:
+
+- `facility_type`
+- `access_control`
+- `surface_type`
+- `iri`
+- `rutting`
+- `cracking_percent`
+- `shoulder_width_l` by default
+- heavy vehicle fields
+- median fields
+- directionality fields
+- signal/stop/intersection environment fields
+- travel-time/sample/expansion context fields
+
+They may appear in Inspect and debug artifacts as raw/source-backed fields, but they must not silently change scoring.
+
+Launch shoulder governance:
+
+| HPMS field | Launch governance | Score policy |
+| --- | --- | --- |
+| `shoulder_type` | `score_driving_now` when projected, code-table-valid, and policy-eligible | May provide Bike Support / shoulder evidence. |
+| `shoulder_width_r` | `score_driving_now` when projected and interpretation-valid | May provide shoulder width evidence. |
+| `shoulder_width_l` | `inspect_debug_only`, `future_directional_shoulder_layer` | Not score-driving by default. May become score-driving only after side/direction semantics and state coverage are proven. |
+
+Launch surface/pavement governance:
+
+| HPMS field | Launch governance | Score policy |
+| --- | --- | --- |
+| `surface_type` | `route_reality_now` or `future_route_reality_layer` | Not Safety Score by default. Eligible for lazy Surface Quality / Tire Guidance. |
+| `iri` | `future_route_reality_layer`, `pavement_quality_diagnostic` | Not Safety Score by default. |
+| `rutting` | `future_route_reality_layer`, `pavement_quality_diagnostic` | Not Safety Score by default. |
+| `cracking_percent` | `future_route_reality_layer`, `pavement_quality_diagnostic` | Not Safety Score by default. |
+
+This launch split follows the HPMS coverage audit from `hpms_2024_not_null_pct_pivot_10_per_state.csv`:
+
+- `shoulder_type`: `22.12%` overall not-null
+- `shoulder_width_r`: `20.19%` overall not-null
+- `shoulder_width_l`: `8.46%` overall not-null, only 3 states at `>=50%`, and 0 states at `>=80%`
+- `surface_type`: `42.88%` overall not-null
+- `iri`: `39.04%` overall not-null
+- `rutting`: `35.38%` overall not-null
+- `cracking_percent`: `38.08%` overall not-null
+
+`shoulder_width_l` is too sparse for day-one score-driving use, while explicit `shoulder_type` and `shoulder_width_r` can provide useful source-backed Bike Support evidence when projected and policy-valid.
+
+## 14. Field Dictionary Dependency on RES-008
+
+RES-008 (`docs/research/res-008-lanterne_hpms_field_dictionary.md`) governs field-level readiness and interpretation. DS-043 delegates code meanings and field readiness to RES-008 unless this document explicitly classifies a field family.
+
+Implementation must preserve these states:
+
+- normalized into route evidence now
+- retained in raw payload only
+- display/inspect only
+- reserved for future layer
+- blocked pending code table / policy
+
+Unknown fields must be labeled `unknown_pending_definition` or equivalent.
+
+## 15. Source Labeling and State DOT Naming
+
+HPMS source labeling must be precise when source metadata exists.
+
+Examples:
+
+- `source_state=NJ` and `source_layer=HPMS_FULL_NJ_2024` -> `NJDOT / HPMS 2024`
+- `source_state=MA` -> `MassDOT / HPMS 2024`
+- `source_state=PA` -> `PennDOT / HPMS 2024`
+- `source_state=NY` -> `NYSDOT / HPMS 2024`
+
+Do not show vague `USDOT` when state/source metadata supports a more precise label.
+
+The source model should include:
+
+- `selectedSourceAgency`
+- `selectedSourceDataset`
+- `selectedSourceDisplay`
+- `federalProgram`
+- `sourceBackend`
+- `sourceState`
+- `sourceLayer`
+- `dataYear`
+
+If a source-label helper already exists, implementation should reuse it rather than creating a parallel label policy.
+
+## 15A. HPMS Source-Version Object
+
+Every normalized HPMS candidate and selected HPMS evidence item must carry a source-version object:
+
+```ts
+{
+  sourceLayer: string;
+  dataYear: number | string;
+  sourceState: string;
+  sourceTable?: string;
+  fetchedAt?: string;
+  sourceUpdatedAt?: string;
+  schemaVersion: "hpms_multifield_v1";
+}
+```
+
+`sourceLayer`, `dataYear`, `sourceState`, and `schemaVersion` are required. `sourceTable`, `fetchedAt`, and `sourceUpdatedAt` should be retained when available.
+
+If the required source-version object is missing, the HPMS record may remain inspectable as raw/debug payload, but its fields must not become score-driving.
+
+## 15B. Official-Source Conflict Policy
+
+HPMS and state/local DOT datasets are both authoritative source families. The resolver must not blindly rank state DOT over HPMS or HPMS over state DOT.
+
+Official-source conflicts must resolve by:
+
+- geometry/projection confidence
+- field specificity
+- source year/freshness
+- `route_id` / `routenumber` compatibility
+- source layer
+- selected field type
+
+Examples:
+
+- A better-projected HPMS AADT record may beat a broader DOT candidate for `traffic_aadt`.
+- A more specific DOT speed record may beat an HPMS speed if the DOT record has stronger geometry and fresher source metadata.
+- A stale or weakly projected official record must not override a better projected, fresher official record only because of source family name.
+
+OSM and mapped estimates remain weaker than projected official traffic/speed sources. If official-source conflict cannot be resolved, the candidate must remain blocked or diagnostic with `conflicting_official_source_unresolved`.
+
+## 16. Traffic / AADT Semantics
+
+`aadt` is official annual average daily traffic. It maps to `traffic_aadt` after route projection.
+
+Inspect may display derived vehicles per minute, but the selected evidence value remains AADT unless the score/display contract explicitly carries both units.
+
+Conversion guidance:
+
+```text
+vehicles_per_minute_all_directions = aadt / 1440
+vehicles_per_minute_directional = aadt / 1440 / 2
+```
+
+The directional divisor is allowed only when bidirectional interpretation is justified. The trace must explain the divisor.
+
+## 17. Speed Limit Semantics and Precedence
+
+`speed_limit` is an official HPMS/DOT speed candidate. After route projection and policy checks, it may override weaker speed evidence such as OSM posted speed, same-road propagation, local prediction, regional prior, or highway baseline.
+
+Precedence must remain explicit:
+
+1. Direct authoritative / HPMS / DOT speed after projection.
+2. Direct OSM posted speed after projection.
+3. Same-road or same-corridor propagation when policy permits.
+4. Local prediction / regional prior.
+5. Highway or highway-area baseline.
+
+Estimated speeds must be labeled as fallback or predicted, not posted truth.
+
+## 18. Lane Count and Directionality Semantics
+
+`through_lanes` may become lane count evidence/candidate after projection, but it requires interpretation diagnostics:
+
+- total through lanes versus directional lanes
+- divided road implications
+- one-way/two-way route context
+- relation to `dir_through_lanes`
+- relation to managed/peak/counter-peak lanes
+
+Directionality fields remain diagnostic until policy defines score-driving use.
+
+## 19. Functional System / Road Class Semantics
+
+`f_system` is an HPMS functional class candidate. It is useful route reality, but it is not OSM road identity.
+
+If RES-008 maps `f_system=3` to Principal Arterial - Other, the value may be displayed as HPMS functional class and used as a road-class evidence candidate where policy accepts it. It must not overwrite OSM `highway`, OSM name/ref, or ownership spans.
+
+## 20. Heavy Vehicle Fields
+
+Heavy vehicle fields include:
+
+- `aadt_single_unit`
+- `aadt_single_unit_vt`
+- `aadt_single_unit_vd`
+- `aadt_combination`
+- `aadt_combination_vt`
+- `aadt_combination_vd`
+- `pct_dh_single`
+- `pct_dh_combination`
+
+These fields are `future_heavy_vehicle_layer` unless a later DS and scoring policy make them score-driving.
+
+## 21. Surface Quality / Tire Guidance
+
+Surface and pavement fields include:
+
+- `surface_type`
+- `iri`
+- `iri_vt`
+- `iri_vd`
+- `psr`
+- `psr_vt`
+- `psr_vd`
+- `rutting`
+- `rutting_vt`
+- `rutting_vd`
+- `faulting`
+- `faulting_vt`
+- `faulting_vd`
+- `cracking_percent`
+- `cracking_percent_vt`
+- `cracking_percent_vd`
+- `year_last_improvement`
+- `year_last_construction`
+- `last_overlay_thickness`
+- `thickness_rigid`
+- `thickness_flexible`
+- `base_type`
+- `base_thickness`
+- `soil_type`
+
+HPMS surface and pavement fields may support a future or lazy route-reality layer, not the narrow Safety Score by default.
+
+Potential product outputs:
+
+- any road tires / high pressure
+- wider road tires / medium pressure
+- gravel tires recommended
+- rough pavement caution
+- degraded pavement / comfort penalty
+- unknown surface confidence
+
+This layer:
+
+- is not part of the narrow Safety Score by default
+- may contribute to a Surface Quality Index
+- may contribute to a Fatigue Index later
+- may contribute to Descent Risk later only after separate model policy
+- may be lazy-loaded after first paint
+- must preserve confidence, provenance, and source state
+
+Launch governance:
+
+- `surface_type` is `route_reality_now` or `future_route_reality_layer`, but not Safety Score by default.
+- `iri` is `future_route_reality_layer` and `pavement_quality_diagnostic`.
+- `rutting` is `future_route_reality_layer` and `pavement_quality_diagnostic`.
+- `cracking_percent` is `future_route_reality_layer` and `pavement_quality_diagnostic`.
+- `psr` and `faulting` follow the same lazy route-reality / diagnostic path when present.
+
+Raw payload and pavement details are inspect/admin payloads. They are not required for initial risk paint.
+
+## 22. Access / Facility Metadata
+
+Access and facility metadata includes:
+
+- `access_control`
+- `facility_type`
+- `structure_type`
+- `ownership`
+- `maintenance_operations`
+- `is_restricted`
+- `toll_id`
+- `median_type`
+- `median_width`
+- `shoulder_type`
+- `shoulder_width_r`
+- `shoulder_width_l`
+- `peak_parking`
+- `turn_lanes_r`
+- `turn_lanes_l`
+- `signal_type`
+- `pct_green_time`
+- `number_signals`
+- `stop_signs`
+- `at_grade_other`
+
+These fields may help future facility, access, shoulder, crossing, or comparative context layers.
+
+Launch exception:
+
+- `shoulder_type` may become score-driving Bike Support / shoulder evidence when explicit, projected, code-table-valid, and policy-eligible.
+- `shoulder_width_r` may become score-driving shoulder width evidence when explicit, projected, and interpretation-valid.
+- `shoulder_width_l` remains inspect/debug only at launch and is reserved for a future directional shoulder layer.
+
+Missing shoulder fields remain unknown/unavailable. Missing shoulder data is not explicit no-shoulder.
+
+## 23. Raw Payload Inspection Contract
+
+Raw HPMS records must remain inspectable through the unified Admin/Inspect debug surface.
+
+Inspect details should expose:
+
+- full raw HPMS payload
+- source label
+- source state/layer/data year
+- HPMS row ID / `gid` / source object ID
+- AADT, speed limit, through lanes, functional system
+- access/facility/surface/pavement fields when present
+- geometry summary or `geom_wkt`
+- projected route windows
+- selected/rejected/propagated status
+- applied ownership spans
+- applied OSM way IDs
+- traffic math
+- speed/lane selected truth
+- confidence and provenance
+- RES-008 field classification
+
+Large raw payloads should be collapsed by default in Inspect. RouteMap must not render raw payloads.
+
+## 24. Admin / Inspect Debug Surface Contract
+
+HPMS debug uses the unified debug surface introduced in EXEC-030 Phase 16V-A and Phase 16V-B.
+
+Admin drawer owns toggles:
+
+- `hpms_all_candidates`
+- `hpms_selected`
+- `hpms_rejected`
+- `hpms_propagated_spans`
+- `hpms_speed`
+- `hpms_lane_count`
+- `hpms_surface_diagnostic`
+- `hpms_pavement_condition_diagnostic`
+- `hpms_functional_class`
+
+`hpms_surface_diagnostic` and `hpms_pavement_condition_diagnostic` are explicitly diagnostic overlay IDs unless a later DS and RES-008 policy promote those layers. If implementation temporarily keeps legacy labels such as `hpms_surface`, the UI label and contract must qualify them as diagnostic and non-score-driving.
+
+Inspect drawer owns selected feature details:
+
+- full raw HPMS payload
+- source label
+- projection stats
+- selected/rejected/propagated status
+- applied route windows
+- applied ownership spans
+- applied OSM way IDs
+- traffic math
+- speed/lane selected truth
+- RES-008 field classification
+
+RouteMap may only:
+
+- render prepared overlay geometry
+- apply style tokens supplied by overlay models
+- emit `InspectableFeatureRef`
+
+RouteMap must not:
+
+- own HPMS toggle state
+- render raw HPMS payload
+- mutate evidence
+- decide truth
+
+## 25. Confidence / Provenance / Traceability
+
+Every selected HPMS value must carry:
+
+- selected evidence ID
+- source agency/dataset/display label
+- source backend
+- source state/layer/data year
+- route projection stats
+- selected/rejected reason
+- confidence
+- provenance class
+- field governance status
+
+ScoreTrace, receipt trace, Inspect, and debug overlays must explain the same selected route-indexed truth. Presentation cannot create a second truth.
+
+## 26. Cache and Hydration Boundaries
+
+HPMS may be acquired through allowed read-safe source paths such as `hpms-read-proxy` and owned/source hydration paths when available. DS-043 does not authorize:
+
+- `hpms-proxy` use
+- `hpms_tile_cache` mutation
+- Supabase writes
+- `route_cache` writes
+- `route_history` writes
+- local persistence writes
+
+Substrate and route candidate caches may narrow acquisition, but they remain noncanonical. They cannot become HPMS truth, OSM truth, or route ownership truth.
+
+## 26A. Runtime Budget Requirements
+
+HPMS multi-field hydration must have explicit runtime budgets before implementation is enabled in the app path.
+
+Budgets must cover:
+
+- maximum HPMS records per route
+- maximum raw HPMS payload bytes retained in app state
+- maximum overlay feature count
+- maximum projected route windows
+- maximum source timeout
+- maximum worker message size
+- maximum worker message frequency
+- cancellation behavior when the route, engine, or candidate set changes
+- separate debug/admin budget versus normal route-load budget
+
+Normal route-load mode should carry only selected evidence, rejected summaries, projection stats, source version, and bounded raw excerpts needed for traceability. Admin/debug mode may request richer raw payloads and overlay detail, but it must remain bounded and cancellable.
+
+If runtime budgets are exceeded:
+
+- route scoring must not silently use partial HPMS truth as final without diagnostics
+- overlay/debug payloads should degrade first
+- selected score-driving evidence must report truncation or blocking reasons
+- Inspect may show `payload_truncated_by_budget`
+
+## 26B. Loading Policy for Safety Fields and Lazy Route Reality
+
+Safety-critical HPMS fields hydrate before scoring:
+
+- `aadt`
+- `speed_limit`
+- `through_lanes`
+- `shoulder_type`
+- `shoulder_width_r`
+- projected/source metadata needed to prove eligibility
+
+Non-safety route-reality fields may hydrate after first paint:
+
+- `surface_type`
+- `iri`
+- `rutting`
+- `cracking_percent`
+- `psr`
+- `faulting`
+- raw pavement payload details
+
+Surface Quality / Tire Guidance must not block first paint and must not change the Safety Score. It may populate later route-reality, comfort, tire guidance, or admin/inspect diagnostics.
+
+Raw payload and pavement details are inspect/admin payloads, not requirements for initial risk paint.
+
+## 27. Route 206 Regression Scenario
+
+Route 206 is the normative regression scenario for HPMS multi-field evidence.
+
+Sample HPMS payload:
+
+- `hpms_row_id`: `2024:NJ:67459`
+- `source_state`: `NJ`
+- `source_layer`: `HPMS_FULL_NJ_2024`
+- `data_year`: `2024`
+- `route_id`: `00000206__`
+- `routename`: `US 206`
+- `routenumber`: `206`
+- `begin_point`: `5.2`
+- `end_point`: `5.3`
+- `f_system`: `3`
+- `through_lanes`: `2`
+- `aadt`: `11380`
+- `aadt_single_unit`: `645`
+- `aadt_combination`: `154`
+- `speed_limit`: `50`
+- `access_control`: `3`
+- `facility_type`: `2`
+- `surface_type`: `7`
+- `iri`: `61`
+- `rutting`: `0.15`
+- `cracking_percent`: `0`
+- `sectionlength`: `0.1`
+- `geom_wkt`: `MULTILINESTRING(...)`
+- query point near `39.71669, -74.7427`
+- distance from point: `189.12m`
+
+Expected behavior if the geometry projects to the route span:
+
+- `traffic_aadt` selected = `11380`
+- vehicles/minute all directions = `11380 / 1440 = 7.90`
+- vehicles/minute directional = `11380 / 1440 / 2 = 3.95` when the bidirectional divisor is justified
+- `speed_limit` selected = `50`
+- speed source label = `NJDOT / HPMS 2024` or a precise equivalent
+- `through_lanes=2` becomes lane count evidence/candidate with interpretation caveat
+- shoulder fields are selected only if explicit projected HPMS shoulder values exist
+- `shoulder_width_l` is not required and must not be score-driving by default
+- `surface_type=7` is retained in debug / Surface Quality artifact, not Safety Score
+- `iri=61` is retained in debug / Surface Quality artifact, not Safety Score
+- `rutting=0.15` is retained in debug / Surface Quality artifact, not Safety Score
+- `cracking_percent=0` is retained in debug / Surface Quality artifact, not Safety Score
+- `f_system=3` is retained as Principal Arterial - Other or dictionary equivalent, but does not automatically become OSM highway truth
+- raw payload is inspectable
+- HPMS source geometry is inspectable as evidence overlay
+- Inspect cannot mutate traffic, speed, or lane selected truth after route load
+
+If the geometry does not project to the route span, the payload remains a nearby diagnostic candidate and must not drive scoring.
+
+## 28. Minimum Field Coverage
+
+DS-043 covers the following HPMS fields at minimum.
+
+Identity / source:
+
+- `hpms_row_id`
+- `gid`
+- `source_objectid`
+- `source_state`
+- `source_layer`
+- `data_year`
+- `state_id`
+- `route_id`
+- `begin_point`
+- `end_point`
+- `sectionlength`
+- `shape_length`
+- `geom_wkt`
+
+Route identity / classification:
+
+- `f_system`
+- `routenumber`
+- `routename`
+- `routequalifier`
+- `routesigning`
+- `nhs`
+- `strahnet_type`
+- `nn`
+- `nhfn`
+- `urban_id`
+- `facility_type`
+- `structure_type`
+- `ownership`
+- `county_id`
+- `maintenance_operations`
+- `is_restricted`
+
+Traffic / lanes:
+
+- `through_lanes`
+- `dir_through_lanes`
+- `managed_lanes_type`
+- `managed_lanes`
+- `peak_lanes`
+- `counter_peak_lanes`
+- `aadt`
+- `aadt_vt`
+- `aadt_vd`
+- `aadt_single_unit`
+- `aadt_single_unit_vt`
+- `aadt_single_unit_vd`
+- `aadt_combination`
+- `aadt_combination_vt`
+- `aadt_combination_vd`
+- `pct_dh_single`
+- `pct_dh_combination`
+- `k_factor`
+- `dir_factor`
+- `future_aadt`
+- `future_aadt_vd`
+
+Road environment:
+
+- `speed_limit`
+- `access_control`
+- `toll_id`
+- `lane_width`
+- `median_type`
+- `median_width`
+- `shoulder_type`
+- `shoulder_width_r`
+- `shoulder_width_l`
+- `peak_parking`
+- `turn_lanes_r`
+- `turn_lanes_l`
+- `signal_type`
+- `pct_green_time`
+- `number_signals`
+- `stop_signs`
+- `at_grade_other`
+
+Pavement / surface:
+
+- `iri`
+- `iri_vt`
+- `iri_vd`
+- `psr`
+- `psr_vt`
+- `psr_vd`
+- `surface_type`
+- `rutting`
+- `rutting_vt`
+- `rutting_vd`
+- `faulting`
+- `faulting_vt`
+- `faulting_vd`
+- `cracking_percent`
+- `cracking_percent_vt`
+- `cracking_percent_vd`
+- `year_last_improvement`
+- `year_last_construction`
+- `last_overlay_thickness`
+- `thickness_rigid`
+- `thickness_flexible`
+- `base_type`
+- `base_thickness`
+- `soil_type`
+
+Geometry / operating context:
+
+- `widening_potential`
+- `widening_potential_vt`
+- `curves_a`
+- `curves_b`
+- `curves_c`
+- `curves_d`
+- `curves_e`
+- `curves_f`
+- `terrain_type`
+- `grades_a`
+- `grades_b`
+- `grades_c`
+- `grades_d`
+- `grades_e`
+- `grades_f`
+- `pct_pass_sight`
+- `travel_time_code`
+- `sample_id`
+- `expansion_factor`
+
+## 29. Open Questions
+
+- Which HPMS code tables from RES-008 are sufficiently complete to normalize `facility_type`, `access_control`, `surface_type`, and `f_system` in the first implementation pass?
+- Should `through_lanes` initially populate lane count only when directionality is unambiguous?
+- What minimum projection overlap should be required for short HPMS segments on long route spans?
+- Should heavy vehicle fields become a separate route risk modifier or remain comparative context?
+- Which pavement/surface fields should ship first in lazy tire guidance versus remain long-term infrastructure diagnostics?
+- How should source freshness and state-specific HPMS release years affect confidence?
+
+## 30. Acceptance Criteria
+
+DS-043 is accepted when:
+
+- It describes HPMS as multi-field route-indexed source evidence.
+- It references RES-008 as field governance.
+- It separates score-driving, diagnostic, and future fields.
+- It defines Route 206 regression expectations.
+- It defines day-one shoulder governance and excludes left shoulder width from launch score-driving by default.
+- It defines lazy Surface Quality / Tire Guidance separate from Safety Score.
+- It defines source label precision.
+- It defines projection eligibility and official-source conflict gates.
+- It defines HPMS source-version requirements.
+- It defines HPMS runtime budgets.
+- It defines Admin/Inspect debug surface requirements.
+- It preserves no runtime behavior changes.
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
