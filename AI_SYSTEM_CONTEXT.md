@@ -23596,6 +23596,421 @@ DS-043 is accepted when:
 
 ---
 
+## Source File: docs/02-architecture/design/ds-044-staged_route_experience_truth_and_refinement_spec.md
+
+# DS-044 - Staged Route Experience Truth and Refinement Spec
+
+**Status:** Draft for EXEC-039 Phase 17A planning
+**Date:** 2026-05-29
+**Related:** DS-029, DS-031, DS-032, DS-033, DS-035, DS-043, ASS-019, EXEC-039
+
+---
+
+## 1. Purpose
+
+This design specification defines the V2 route builder model for balancing fast product usability with the fuller route-truth vision behind `/v2-review`.
+
+The core product goal is:
+
+```text
+Load a useful substrate-backed route quickly, then refine toward the complete experienced route in the background.
+```
+
+V2 must not become V1 corridor analysis with a new label. It must remain route-line-first:
+
+- the uploaded GPX polyline is the route axis
+- candidate ways, nodes, coordinates, and off-map connectors describe the experienced ride
+- evidence attaches by route distance
+- score-driving values require source-backed evidence and provenance
+- national cyclist substrate coverage is the product foundation for first load
+- substrate accelerates and stabilizes initial load but does not become canonical truth
+- `/v2-review` supplies the pure refinement lineage, not a separate downstream product path
+
+## 2. Executive Decision
+
+V2 route construction is substrate-first for product use. The practical product path is:
+
+```text
+national substrate -> quickBuilder -> routeTruth -> evidenceBuilder -> scoreBuilder -> displayBuilder
+```
+
+The robust `/v2-review` lineage remains essential, but its product role is background refinement, QA, and substrate backfill. It should improve and expand the substrate over time; it should not be treated as an equivalent live first-load product path for normal users.
+
+V2 route construction has two truth stages:
+
+1. **Initial Usable Truth**
+   - Fast enough for first product load.
+   - Normally built from cyclist substrate hints, strong geometry transitions, partial topology, exact source closure for gaps, and route-derived hints.
+   - Can drive first presentation and provisional scoring only when evidence confidence, missingness, and provenance are explicit.
+
+2. **Refined Route Experience Truth**
+   - Slower background refinement toward an ordered node/way/coordinate route-experience tape.
+   - Uses the `/v2-review` lineage: route-windowed candidates, topology graph, continuity solve, blockers, and off-OSM connectors.
+   - May take minutes on difficult or uncached routes.
+   - Produces route-derived hint candidates for future substrate/cache improvement.
+
+Both stages must converge into one downstream contract. Evidence, enrichment, scoring, heatmap, inspect, cues, hazards, and debug surfaces must not each invent their own route representation.
+
+The implementation vocabulary is:
+
+```text
+quickBuilder or robustBuilder -> routeTruth -> evidenceBuilder -> scoreBuilder
+```
+
+- `quickBuilder` creates the fastest honest initial route truth from substrate/cache hints and bounded source reads.
+- `robustBuilder` creates or refines ordered route truth from the `/v2-review` lineage, primarily for background refinement, QA, and substrate improvement.
+- `routeTruth` is the ordered lived path artifact: ways, nodes, route coordinates, connectors, blockers, and route-distance spans.
+- `evidenceBuilder` attaches source-backed facts to route truth without changing the route itself.
+- `scoreBuilder` converts route truth plus evidence truth into risk, paint, scorecard, and score diagnostics.
+
+`truthBuilder` is intentionally not used as a current component name. Truth is an output of the staged system, not one single builder process.
+
+`RouteExperiencePath` remains the code-facing contract name for now because it describes the artifact without overclaiming that every segment is already durable, score-ready truth. When a `RouteExperiencePath` reaches promotion policy, it becomes saved route truth.
+
+## 3. Definitions
+
+### 3.1 Route Axis
+
+The route axis is the GPX-derived polyline with cumulative route distance. It is the measurement axis for evidence, display spans, hazards, cues, and scoring handoff.
+
+### 3.2 Source-Backed Evidence Truth
+
+Source-backed evidence truth is a score-eligible value from an evidence source such as OSM, HPMS, DOT, or another governed provider.
+
+Evidence truth requires:
+
+- route-distance attachment
+- source lineage
+- DS-029 provenance family
+- confidence or selection status
+- explicit unknown/unavailable handling
+
+### 3.3 Route Experience Truth
+
+Route experience truth is the broader description of what the rider actually traversed. It may include:
+
+- OSM ways
+- OSM nodes
+- route coordinates
+- implied connectors where the GPX traverses missing OSM topology
+- unresolved gaps/blockers when continuity cannot be proven
+
+This is the bigger product truth. It describes the experienced ride, including places where the route goes off the mapped network.
+
+Today, off-OSM connectors are not automatically score-driving source evidence. In the end-state product, they may become evidence-eligible after user/community/source validation.
+
+In implementation discussions, this broader artifact may be called `routeTruth`. That term means the lived route path, not the score-ready evidence set. A route-truth segment can be real experience truth while still having unknown speed, shoulder, bike, traffic, hazard, or surface evidence.
+
+### 3.4 Initial Usable Truth
+
+Initial usable truth is the first product-grade route representation. It is allowed to be imperfect, but it must be honest. For normal product use, initial usable truth is expected to be substrate-backed.
+
+It may use:
+
+- full substrate cache candidates
+- partial substrate cache candidates
+- route-windowed source closure
+- topology fragments
+- clear geometry handoffs
+- route-derived hints
+- explicit experience connectors
+
+It must not:
+
+- silently run the V1 corridor builder when V2 is selected
+- treat substrate as canonical truth
+- hide missing evidence
+- invent speed, shoulder, bike, traffic, hazard, or surface values
+- produce cue-looking topology output when continuity is not satisfied
+
+When no substrate coverage exists, the app may run robustBuilder as a diagnostic or degraded fallback, but it should not present the result as equivalent to a substrate-backed product route unless the route experience path and evidence coverage meet explicit product-quality gates.
+
+### 3.5 Refined Route Experience Truth
+
+Refined route experience truth is the slow, high-fidelity route path. It should be built using the `/v2-review` approach:
+
+- sample the GPX route at fixed spacing
+- build plausible edge candidates per sample
+- solve a connected ordered path over samples
+- prefer continuity over nearest-road wins
+- penalize discontinuity, backtracking, wrong-way travel, cross-streets, and route offsets
+- keep short connectors only when they connect the chosen path sequence
+- emit blockers where continuity cannot be proven
+
+Refinement may improve presentation, evidence attachment, future scoring readiness, cue transitions, and future route hints.
+
+## 4. Route Experience Path Contract
+
+The shared output of initial usable truth and refined truth should be a `RouteExperiencePath`.
+
+Illustrative shape:
+
+```ts
+type RouteExperienceStage =
+  | 'initial_usable'
+  | 'refining'
+  | 'refined'
+  | 'partial_with_blockers';
+
+type RouteExperienceSegmentKind =
+  | 'osm_way'
+  | 'osm_node'
+  | 'experience_connector'
+  | 'unresolved_gap';
+
+interface RouteExperiencePath {
+  routeFingerprint: string;
+  stage: RouteExperienceStage;
+  routeDistanceM: number;
+  routeAxis: RouteAxisSummary;
+  topologyStatus: 'complete' | 'complete_with_connectors' | 'partial' | 'blocked';
+  identityConfidence: 'high' | 'medium' | 'low' | 'unavailable';
+  evidenceConfidence: 'source_backed' | 'mixed' | 'insufficient' | 'unavailable';
+  segments: RouteExperienceSegment[];
+  blockers: RouteExperienceBlocker[];
+  sourceWayContributions: SourceWayContribution[];
+  acquisitionSummary: RouteExperienceAcquisitionSummary;
+  refinement: RouteExperienceRefinementState;
+}
+
+interface RouteExperienceSegment {
+  segmentId: string;
+  kind: RouteExperienceSegmentKind;
+  startDistM: number;
+  endDistM: number;
+  osmWayId?: string;
+  osmNodeIds?: string[];
+  coordinates?: Array<{ lat: number; lon: number }>;
+  domain?: 'motor_road' | 'cycleway' | 'path' | 'service' | 'connector' | 'unknown';
+  experienceTruth: true;
+  sourceBacked: boolean;
+  scoreEligibleNow: boolean;
+  futureEvidenceEligible: boolean;
+  confidence: 'high' | 'medium' | 'low' | 'unavailable';
+  reason: string;
+}
+```
+
+The contract is intentionally broader than source-backed evidence. A rider can traverse an experience connector even when the connector is not currently score-driving source truth.
+
+## 5. Route-Experience Tape
+
+The refined path should be serializable as a JSON-like tape that preserves ordered traversal:
+
+```json
+[
+  { "type": "node", "id": "n1001", "distM": 0 },
+  { "type": "way", "id": "w2001", "startNode": "n1001", "endNode": "n1002", "domain": "secondary" },
+  { "type": "node", "id": "n1002", "distM": 420 },
+  { "type": "connector", "from": "n1002", "toCoord": [36.01215, -114.79430], "reason": "off_osm_experience" },
+  { "type": "coord", "lat": 36.01215, "lon": -114.79430, "distM": 455 },
+  { "type": "coord", "lat": 36.02365, "lon": -114.79749, "distM": 1210 },
+  { "type": "way", "id": "w101595484", "domain": "cycleway" },
+  { "type": "node", "id": "n3002", "distM": 1840 }
+]
+```
+
+This tape is not only a scoring input. It is the durable description of the route experience. Source-backed evidence can attach to parts of it today; future user/community/source validation may attach evidence to currently unmapped connectors.
+
+## 6. Four Runtime Modes
+
+### 6.1 Full Substrate Cache
+
+Full substrate is the preferred V2 product path. It provides fast candidate hints, stable first-load identity, and low-zoom presentation context.
+
+Required behavior:
+
+- substrate seeds candidate acquisition
+- selected ways still require exact source hydration before score-driving evidence
+- missing substrate fields remain unavailable until another source confirms them
+- downstream handoff uses `RouteExperiencePath`, not raw substrate candidates
+
+### 6.2 Partial Substrate Cache
+
+Partial substrate is expected to be common.
+
+Required behavior:
+
+- substrate covers what it knows
+- exact source closure fills gaps where budget allows
+- `/v2-review`-style refinement is queued for unresolved windows
+- first load may proceed when there is sufficient initial usable truth
+- gaps remain explicit in trace, inspect, and debug
+
+Partial substrate must not split the route into multiple truth systems. Once initial usable truth is emitted, all downstream consumers must read the same route experience path.
+
+The product standard is to make partial substrate good enough for first load where coverage is substantial, then use robustBuilder refinement to fill deficits and produce route-derived hint candidates for future substrate expansion.
+
+### 6.3 No Substrate Cache
+
+No substrate is not the target first-load product experience. It is a diagnostic, QA, coverage-gap, or explicitly degraded fallback mode.
+
+Required behavior:
+
+- no-substrate routes may run the route-windowed source/review path
+- no-substrate routes do not block forever waiting for substrate
+- no-substrate routes do not silently downgrade to V1 corridor analysis
+- first load may use a lower-confidence initial path only if evidence, missingness, and degraded status are explicit
+- background refinement continues toward the ordered route-experience tape
+- product UI must not make no-substrate output look as trustworthy as a substrate-backed route unless quality gates prove it
+- no-substrate runs should produce coverage-gap diagnostics and route-derived hint candidates
+
+### 6.4 `/v2-review`
+
+`/v2-review` remains the purest existing expression of the ordered topology builder.
+
+Required behavior:
+
+- its path construction logic should become the refinement engine lineage
+- its output must be adapted into the shared route experience path
+- it must not become a separate product handoff
+- its slower runtime is acceptable for background refinement, not for blocking the whole first product experience
+- its successful refinements should inform future substrate coverage when a later write policy exists
+
+## 7. Stage Pipeline
+
+The intended V2 pipeline is:
+
+```text
+GPX upload
+  -> route axis
+  -> substrate-backed candidate acquisition plan
+  -> initial usable route experience path from quickBuilder
+  -> source-backed evidence hydration
+  -> first presentation / first score when eligible
+  -> background route-experience refinement from robustBuilder
+  -> refined evidence reattachment
+  -> refined presentation / score refresh when policy allows
+  -> route-derived hint candidate artifact
+```
+
+The first presentation path and the refined path must share the same downstream evidence/scoring/presentation contract.
+
+## 8. Evidence And Scoring Policy
+
+Initial usable truth may drive first score only if:
+
+- route-distance spans cover the scored route windows
+- score-driving fields are source-backed or explicitly unavailable
+- DS-029 provenance is present for selected evidence
+- unknown values do not present as selected source truth
+- confidence/missingness is visible in diagnostics
+- unresolved topology blockers are not hidden
+
+Refined route truth may later replace or amend initial spans. Promotion must be traceable. It must not silently change truth without explaining which spans were promoted, rejected, or left provisional.
+
+## 9. Enrichment Policy
+
+V2 enrichment should port existing V1 enrichment capabilities into route-indexed adapters, not run V1 in parallel.
+
+Targets include:
+
+- hazards projected to route distance
+- rail crossings
+- bus/airport context
+- cues and cue transitions
+- surface/path context
+- future off-map connector annotations
+
+The output should attach to the route experience path and become cue-sheet/presentation-ready where appropriate.
+
+## 10. Runtime Trace Requirements
+
+The V2 runtime trace must distinguish these phases:
+
+- `route_axis_ready`
+- `initial_candidate_acquisition_start`
+- `initial_candidate_acquisition_ready`
+- `initial_route_experience_build_start`
+- `initial_route_experience_ready`
+- `initial_evidence_hydration_start`
+- `initial_evidence_hydration_ready`
+- `first_presentation_ready`
+- `first_score_ready` or `first_score_blocked`
+- `refinement_queued`
+- `refinement_source_fetch_start`
+- `refinement_graph_build_start`
+- `refinement_path_solve_start`
+- `refinement_path_solve_ready`
+- `refinement_blockers_ready`
+- `refined_route_experience_ready`
+- `refined_evidence_hydration_ready`
+- `route_hint_candidate_ready`
+
+The trace must show which acquisition mode was used:
+
+- `full_substrate`
+- `partial_substrate`
+- `no_substrate`
+- `review_refinement`
+
+It must also show when evidence or scoring is blocked by source unavailability, topology blockers, or budget caps.
+
+For no-substrate and low-substrate routes, the trace must also show that the route is a coverage-gap/degraded mode rather than a normal product-ready substrate path.
+
+## 11. Hint Candidate Policy
+
+Refined routes can produce route-derived hint candidates for future substrate improvement.
+
+For now, route-derived hints are diagnostic artifacts only unless a later product policy explicitly enables writes.
+
+Hint artifacts should include:
+
+- route fingerprint
+- route experience tape summary
+- candidate ways/nodes/connectors
+- confidence
+- blockers
+- source evidence coverage
+- regions/tile keys affected
+- whether the hint is reusable
+- privacy/safety status
+
+No `route_cache`, `route_history`, Supabase, or substrate write is authorized by this spec.
+
+## 12. Guardrails
+
+This spec does not authorize:
+
+- a V3 engine
+- scoring math changes
+- heatmap semantic changes
+- HPMS deciding route identity
+- substrate becoming canonical truth
+- no-substrate robustBuilder output being presented as equivalent to substrate-backed first-load product output without quality gates
+- viewport overlays becoming route truth
+- hidden V1 execution when V2 is selected
+- duplicate downstream scoring handoffs
+- route_cache writes
+- route_history writes
+- Supabase writes
+- production deployment
+- fake source-backed evidence
+- fake route continuity
+- cue-looking output when continuity is not satisfied
+
+## 13. Acceptance Standard
+
+The implementation is on target when:
+
+- full substrate, partial substrate, no substrate, and `/v2-review` refinement converge into the same route experience path contract
+- US substrate coverage becomes the default product foundation for V2 route load
+- non-substrate routes can run as degraded/diagnostic/refinement paths without blocking or masquerading as product-equivalent output
+- substrate improves speed, first-load quality, and user trust while remaining noncanonical
+- `/v2-review` logic improves background truth without blocking first product usability
+- hazards/cues/transit context can be attached by route distance without V1 running in parallel
+- route-derived hints can be emitted as artifacts for future cache improvement
+- debug output explains initial truth, refinement truth, blockers, and evidence eligibility separately
+
+## 14. Recommended Execution
+
+Implement through EXEC-039 Phase 17A.
+
+The first implementation step should define the shared route experience path contract and audit current main-app and `/v2-review` outputs against it before moving runtime code.
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records

@@ -45038,6 +45038,372 @@ No scoring logic, heatmap semantics, Supabase behavior, SQL behavior, route_cach
 
 ---
 
+## Source File: docs/04-execution/exec-039-phase-17a-staged-v2-route-builder-hardening.md
+
+# EXEC-039 Phase 17A - Staged V2 Route Builder Hardening
+
+## Direct Answer
+
+A. staged_v2_builder_hardening_plan_ready
+
+The next implementation phase should harden the current V2 work into the DS-044 staged truth model with a substrate-first product posture: fast substrate-backed initial usable route truth for product load, background `/v2-review`-lineage refinement toward full route-experience truth, and one shared downstream evidence/scoring/presentation handoff.
+
+This is not V3. It is a purity pass on the V2 replacement.
+
+## Why This Phase Exists
+
+The app now has pieces of the intended V2 system:
+
+- route-axis thinking
+- substrate acceleration
+- `/v2-review` topology behavior
+- HPMS route-indexed evidence work
+- debug overlays
+- source labels and inspect diagnostics
+- first steps toward app-facing V2 selection
+
+But the runtime can still behave as separate paths:
+
+- full substrate cache path
+- partial substrate cache path
+- no substrate fallback path
+- `/v2-review` path
+
+That split is the problem. The product needs one V2 route experience pipeline with different acquisition speeds, not multiple engines with different downstream truth.
+
+The product lesson from no-substrate testing is that live robust solving without substrate is not a trustworthy first-load experience. It can avoid a freeze, but it tends to expose incomplete hydration and fallback evidence in ways that make the map look confidently wrong. Therefore Phase 17A pivots to treating national cyclist substrate coverage as the practical V2 product foundation. RobustBuilder remains critical, but its role is background refinement, QA, coverage-gap analysis, and future substrate backfill.
+
+## Design Target
+
+The design target is DS-044:
+
+```text
+GPX upload
+  -> route axis
+  -> substrate-backed candidate acquisition plan
+  -> initial usable route experience path
+  -> source-backed evidence hydration
+  -> first presentation / first score when eligible
+  -> background route-experience refinement
+  -> refined evidence reattachment
+  -> refined presentation / score refresh when policy allows
+  -> route-derived hint candidate artifact
+```
+
+All substrate modes and `/v2-review` refinement must converge into one contract.
+
+## Scope
+
+Phase 17A should harden:
+
+1. Route experience path contract
+2. Initial usable route truth
+3. `/v2-review`-lineage refinement path
+4. Substrate/full, substrate/partial, no-substrate convergence
+5. Route-indexed evidence attachment from the shared route path
+6. Hazard/cue/transit enrichment adapters that do not require V1 running in parallel
+7. Runtime trace coverage for all modes
+8. Diagnostic-only route-derived hint artifacts
+
+## Non-Goals
+
+This phase must not:
+
+- create a V3 engine
+- silently run V1 when V2 is selected
+- run V1 and V2 in parallel for normal product output
+- change scoring math
+- change heatmap semantics
+- make HPMS route identity truth
+- make substrate canonical truth
+- make viewport overlays route truth
+- write Supabase
+- write `route_cache`
+- write `route_history`
+- deploy
+- make fake source-backed evidence
+- make fake topology continuity
+- hide blockers
+
+## Guardrails
+
+1. Route polyline remains the evidence axis.
+2. Route experience truth may include nodes, ways, coordinates, connectors, and blockers.
+3. Source-backed evidence truth remains separate from route experience truth.
+4. Substrate is the product foundation for initial V2 route load; it accelerates candidate acquisition and initial presentation, but it does not own truth.
+5. `/v2-review` logic is the refinement, QA, and substrate-backfill lineage.
+6. Initial usable truth can drive first presentation only with explicit confidence and missingness.
+7. Scoring can run only when score-driving fields are source-backed or explicitly unavailable.
+8. All runtime modes must produce the same downstream handoff shape.
+9. Missing substrate must not masquerade as product-equivalent V2 route load; it must run as degraded/diagnostic/refinement mode with explicit coverage-gap status.
+10. Route-derived hints are diagnostic artifacts until a later write policy exists.
+
+## Workstream 1 - Inventory Current Runtime Modes
+
+Audit the current implementation paths for:
+
+- full substrate cache route load
+- partial substrate cache route load
+- no substrate route load
+- `/v2-review` route build
+- main-app active V2 handoff
+- HPMS source/evidence attachment
+- OSM speed/shoulder/bike attachment
+- hazards/rail/bus/airport/cue attachment
+
+Output:
+
+- file inventory
+- call graph
+- runtime trace comparison
+- where each path diverges before evidence/scoring
+- which paths are product-ready substrate paths versus degraded/diagnostic coverage-gap paths
+- exact blockers to one shared handoff
+
+No code changes in this workstream.
+
+## Workstream 2 - Shared Route Experience Path Contract
+
+Create a shared contract matching DS-044.
+
+The contract should represent:
+
+- route axis
+- initial/refined stage
+- ordered route experience segments
+- OSM way/node references
+- coordinate connector segments
+- unresolved gaps
+- blockers
+- source way contributions
+- acquisition summary
+- refinement status
+- evidence readiness summary
+
+Tests should prove:
+
+- a full OSM topology path can be represented
+- a mixed node/way/coordinate connector path can be represented
+- an unresolved gap can be represented without cue-looking output
+- initial and refined paths share the same downstream shape
+
+## Workstream 3 - Initial Usable Route Adapter
+
+Adapt the existing fast main-app V2 path into the shared route experience path, with substrate as the default product entry point.
+
+Requirements:
+
+- full substrate maps into candidate hints, not canonical truth
+- partial substrate produces explicit deficits
+- no substrate does not wait forever for substrate, but is marked degraded/diagnostic unless quality gates prove product readiness
+- initial usable route emits confidence and missingness
+- selected source way contributions are derived from accepted route spans
+- downstream evidence request reads the shared path, not raw substrate or fallback arrays
+
+This is the product first-paint path.
+
+## Workstream 4 - `/v2-review` Refinement Adapter
+
+Promote `/v2-review` lineage as the background refinement path.
+
+Requirements:
+
+- preserve ordered path construction behavior
+- preserve continuity-first solving
+- preserve blockers
+- preserve off-OSM connector capability
+- adapt output into the shared route experience path
+- do not create a second scoring handoff
+- do not block initial product load on slow refinement
+- produce coverage-gap and substrate-backfill diagnostics for uncached/weakly cached regions
+
+The output should be able to supersede or amend the initial usable path with traceable promotion events.
+
+## Workstream 5 - One Evidence And Scoring Handoff
+
+Collapse downstream consumers onto one route experience path handoff.
+
+Evidence attachment must use route distance from the shared path for:
+
+- OSM speed
+- OSM shoulders
+- OSM bike lanes / paths
+- HPMS traffic
+- HPMS speed
+- HPMS shoulder/lane fields where policy allows
+- hazards
+- rail/bus/airport context
+- future surface/context layers
+
+Scoring receives one source-backed evidence model. It must not care whether the original route path was full-substrate, partial-substrate, no-substrate, or refined.
+
+## Workstream 6 - V1 Enrichment Port, Not V1 Parallel Run
+
+Port existing V1 enrichment capabilities into V2 route-indexed adapters:
+
+- hazards projected to route distance
+- rail crossings
+- bus/airport context
+- cue sheet events
+- cue transitions when route identity changes
+
+Do not run the V1 engine as a parallel product engine just to feed these features.
+
+Expected output:
+
+- V2 analysis result can drive the analysis drawer
+- hazards can appear on route load
+- route hazards can become cue-sheet entries
+- enrichment remains route-distance indexed
+
+## Workstream 7 - Runtime Trace And Debug Coverage
+
+The runtime trace must explain:
+
+- acquisition mode: full substrate, partial substrate, no substrate, review refinement
+- candidate counts
+- source closure counts
+- topology blockers
+- connector counts
+- initial route ready
+- initial evidence ready
+- first score ready or blocked
+- refinement queued/running/complete
+- refined evidence ready
+- route-derived hint candidate ready
+
+It must be obvious when a route is:
+
+- product-ready but refining
+- blocked by source fetch
+- blocked by topology
+- blocked by evidence policy
+- blocked by budget
+
+## Workstream 8 - Golden Route Harness
+
+Use golden routes to verify behavior.
+
+Required cases:
+
+1. Medford-Batsto
+   - full/partial substrate should load quickly
+   - HPMS speed/shoulder/traffic should attach where eligible
+   - risk paint should match expected 206-heavy pattern
+
+2. Dam Ride
+   - no South Jersey substrate should enter degraded/coverage-gap mode rather than a product-equivalent mode
+   - non-substrate source path may produce diagnostic route evidence but must not paint fallback values as confident truth
+   - Pike Path/cycleway sections should stay safe/path-like where OSM supports them
+   - missing OSM connectors should become explicit experience connectors or blockers
+
+3. Route 206 / Albertson Brook
+   - U-shaped nearby paths must not steal road identity unless continuity and domain support it
+   - cycleway/path exceptions must remain allowed when the rider actually traverses them
+
+4. Non-South-Jersey route with hazards
+   - route can load without substrate
+   - hazards attach by route distance
+   - cue sheet can show route hazard events where policy allows
+
+## Workstream 9 - Route-Derived Hint Artifact
+
+Emit a diagnostic-only route-derived hint artifact after refinement.
+
+It should include:
+
+- route fingerprint
+- route experience tape summary
+- accepted ways/nodes
+- connector segments
+- blockers
+- acquisition mode
+- source coverage
+- confidence
+- future substrate/cache usefulness
+
+No writes are authorized in this phase.
+
+## Proposed Commit Sequence
+
+1. `test(route-line-v2): add route experience path contract`
+2. `test(route-line-v2): adapt initial v2 route path to shared experience contract`
+3. `test(route-line-v2): adapt review path refinement to route experience contract`
+4. `test(route-line-v2): converge v2 evidence handoff on route experience path`
+5. `test(route-line-v2): port v1 enrichment adapters to v2 route distance`
+6. `test(route-line-v2): trace staged v2 acquisition and refinement`
+7. `test(route-line-v2): add staged v2 golden route harness`
+8. `test(route-line-v2): audit national substrate coverage readiness`
+9. `docs(route-line-v2): close staged v2 hardening phase`
+
+If the first audit shows current dirty work is mixed, use clean-room commits from HEAD or a verified candidate baseline. Do not stage dirty mixed files wholesale.
+
+## Verification Plan
+
+Targeted tests should come first:
+
+```bash
+npx vitest run src/lib/route-line-v2/<route-experience-contract-test>.test.ts
+npx vitest run src/lib/route-line-v2/<initial-route-adapter-test>.test.ts
+npx vitest run src/lib/route-line-v2/<review-refinement-adapter-test>.test.ts
+npx vitest run src/lib/route-line-v2/<evidence-handoff-test>.test.ts
+npx vitest run src/lib/route-line-v2/<hazards-cues-enrichment-test>.test.ts
+```
+
+Then run:
+
+```bash
+npx tsc --noEmit --pretty false
+npm run build
+git diff --check
+```
+
+Golden route verification must include browser checks for first load, refinement trace, debug overlays, inspect/source details, hazards, cues, and expected risk paint.
+
+## Stop Conditions
+
+Stop and reassess if:
+
+- V2 can only work by running V1 in parallel
+- no-substrate mode is being treated as product-equivalent instead of degraded/diagnostic/refinement
+- evidence/scoring needs separate handoffs per acquisition mode
+- route experience truth and source-backed evidence truth become collapsed
+- source-backed values are invented from presentation geometry
+- topology continuity cannot be represented without fake cue output
+- route-derived hints require writes before policy exists
+
+## Acceptance Criteria
+
+Phase 17A is successful when:
+
+- all acquisition modes produce one route experience path shape
+- first product load is substrate-backed and usable without requiring full refinement
+- background refinement can improve route truth without a second downstream engine
+- no-substrate V2 is a real degraded/diagnostic/refinement mode, not a purple-line dead end and not a product-equivalent route
+- `/v2-review` logic is available as refinement lineage
+- national substrate coverage readiness is tracked as the V2 product gating path
+- HPMS and OSM evidence attach from the shared route path
+- hazards/cues/transit context can be driven by V2 analysis output
+- runtime trace clearly separates initial truth, evidence, scoring, and refinement
+- route-derived hint artifacts are emitted diagnostic-only
+
+## Recommended Next Prompt
+
+Run a no-code audit for Phase 17A-1:
+
+```text
+Codex, EXEC-039 Phase 17A-1 - Audit current V2 route builder modes against DS-044.
+
+Do not edit files. Do not stage or commit.
+
+Inventory the current full-substrate, partial-substrate, no-substrate, and /v2-review paths from GPX ingestion through route identity, evidence attachment, enrichment, scoring handoff, and presentation.
+
+Report the exact files, contracts, runtime trace events, and handoff objects used by each path. Identify where they diverge before evidence/scoring, which pieces can be reused, which pieces must be adapted into RouteExperiencePath, and the smallest safe first implementation checkpoint.
+```
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
@@ -54476,6 +54842,2222 @@ The core correction is straightforward in principle:
 - render crossing contributors explicitly
 - keep rider-friendly grouping and sorting
 - move provenance / confidence visibility from hidden inspector-only value into the receipts tab itself
+
+
+---
+
+## Source File: docs/assessments/ass-018-documentation_contradictions_audit_2026_05_29.md
+
+# ASS-018 - Documentation Contradictions Audit
+
+**Date:** 2026-05-29
+**Status:** Audit only
+**Scope:** Internal contradictions across active documentation under `docs/`.
+**Non-scope:** Code changes, archive cleanup, or implementation verification.
+
+## Executive Summary
+
+The documentation is not merely stale in a few places. It has several active contract collisions where older V3/V3.1 safety-score language, newer DS-015 risk-point language, V2 route-indexed evidence planning, product heatmap references, and ADR lineage all describe overlapping systems as if each were current.
+
+The strongest pattern is clear:
+
+- `DS-015` has moved the canonical safety model to route risk points and risk per mile.
+- Product and analysis docs still present a canonical 0-100 Safety Score with absolute A-F bands.
+- Route paint docs oscillate between speed-only display bands and canonical risk paint.
+- Evidence/provenance docs disagree on whether measured/user evidence can become canonical.
+- Broad route-indexed evidence docs mark future/non-safety layers as score-driving without explicitly separating them from the narrow launch Safety Score.
+
+This audit treats `docs/archive/` as lineage unless an active doc points to archived semantics as current.
+
+## 1. DS-015 Canonical Status Is Internally Ambiguous
+
+### A. Citations
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:1-5` says:
+  > `# DS-015 - Safety Scoring Model 5.5`
+  > `**Status:** Draft canonical replacement candidate`
+  > `**Date:** 2026-04-25`
+  > `**Filename:** ds-015-safety_scoring_model.md`
+
+- `docs/02-architecture/safety-score-system-contract.md:3-10` says:
+  > `**Status:** Archived redirect`
+  > `This file is no longer authoritative.`
+  > `The single canonical safety model specification now lives at:`
+  > `- [DS-015 - Safety Scoring Model](./design/ds-015-safety_scoring_model.md)`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model_5_4.md:1-8` says:
+  > `# DS-015 - Safety Scoring Model`
+  > `**Status:** Canonical`
+  > `This document is the single authoritative specification for Lanterne's safety model.`
+  > `If code, admin audit, receipts, scorecard, inspector, analyzed route paint, heatmap, or rider-facing comparative surfaces disagree with this document, the implementation is wrong until fixed or explicitly re-specified.`
+
+### B. Conflict
+
+The redirect points all authority to `ds-015-safety_scoring_model.md`, but that target says it is only a draft replacement candidate. Meanwhile the versioned `_5_4` file says it is canonical and single-authoritative. A reader cannot know whether 5.4 or 5.5 governs when they differ.
+
+### C. Survivor
+
+`docs/02-architecture/design/ds-015-safety_scoring_model.md` should survive as the canonical DS-015 because the redirect points there, it is the unversioned primary path, and later docs such as DS-029 refer to `DS-015` as the canonical family hierarchy.
+
+`ds-015-safety_scoring_model_5_4.md` should become a retained historical snapshot, not a competing canonical spec.
+
+### D. Updated Survivor Wording
+
+At the top of `docs/02-architecture/design/ds-015-safety_scoring_model.md`:
+
+```md
+**Status:** Canonical
+**Date:** 2026-04-25
+**Model version:** DS-015 5.5
+**Supersedes:** `ds-015-safety_scoring_model_5_4.md` and archived DS-015 draft versions.
+
+This file is the single authoritative specification for Lanterne's canonical safety model. Versioned DS-015 files are retained for lineage only unless this file explicitly incorporates them.
+```
+
+At the top of `docs/02-architecture/design/ds-015-safety_scoring_model_5_4.md`:
+
+```md
+**Status:** Superseded historical snapshot
+**Superseded by:** `ds-015-safety_scoring_model.md`
+
+This file records DS-015 5.4 for lineage. It is not the active canonical safety model.
+```
+
+## 2. Canonical Output: 0-100 Safety Score vs Risk Points / Risk Per Mile
+
+### A. Citations
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:13-20` says:
+  > `The canonical score objects are:`
+  > `Total Route Risk = sum(continuous-road risk points) + sum(crossing-event risk points)`
+  > `Route Risk Per Mile = Total Route Risk / Route Miles`
+  > `Those two objects are the stable scoring layer. Rank and grade are projections on top of them, not replacements for them.`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:38-39` says:
+  > `The system must not collapse them into a single 0-100 shell. A 0-100 number implies false precision, hides the chosen comparison universe, and makes one display value pretend to be both absolute model output and relative rider-facing summary.`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model_5_4.md:700` says:
+  > `There is no canonical 0-100 score.`
+
+- `docs/05-product/prod-010-safety_score_methodology_v3.md:7-10` says:
+  > `The Safety Score estimates the relative expected motor-vehicle harm per mile for a bicyclist on a given route. It is a single number from 0-100, where higher is safer.`
+
+- `docs/02-architecture/analysis/anal-002-score_calculation_v2.md:25-31` says:
+  > `The relative expected motor-vehicle harm per mile for a bicyclist.`
+  > `Normalized to a 0-100 scale and mapped to letter grades (A+ through F).`
+
+### B. Conflict
+
+The newer DS-015 contract says canonical truth is risk points and risk per mile, while product and analysis docs still call the 0-100 number the Safety Score itself. That creates a schema, UI, cache, and communication conflict: are 0-100 and A-F canonical outputs, or projections?
+
+### C. Survivor
+
+The DS-015 risk-point model should survive. A 0-100 shell may survive only as a legacy display or explicitly named projection with corpus/network metadata. Absolute A-F bands should not survive as canonical score truth.
+
+### D. Updated Survivor Wording
+
+Replace active public/product 0-100 language with:
+
+```md
+Lanterne's canonical safety output is route risk: total route risk points and route risk per mile. Lower risk per mile is safer.
+
+Rider-facing ranks, grades, and any 0-100 display are projection layers derived from canonical risk per mile. They must carry their comparison universe, model version, evidence snapshot, and grade/rank method. They are not canonical score truth.
+```
+
+If a temporary 0-100 value remains in UI:
+
+```md
+Legacy Safety Score (0-100) is a non-canonical display projection. It must not be persisted, cached, ranked, or explained as the canonical safety result.
+```
+
+## 3. Safety Math: V3 Weighted Soup vs DS-015 Likelihood x Severity
+
+### A. Citations
+
+- `docs/05-product/prod-010-safety_score_methodology_v3.md:17-21` says:
+  > `Every route is divided into slices. Each slice's risk contribution is:`
+  > `ContinuousSliceRisk = SliceMiles × (0.60 × SpeedFactor + 0.40 × TrafficFactor) × InfraFactor × ShoulderFactor`
+
+- `docs/02-architecture/analysis/anal-002-score_calculation_v2.md:37-47` says:
+  > `Segment risk modeling`
+  > `SliceMiles × (0.60 × SpeedFactor + 0.40 × TrafficFactor) × InfraFactor × ShoulderFactor`
+  > `Continuous RPM + Effective Crossing RPM (capped at 40% of total)`
+  > `Logistic normalization: 100 / (1 + e^(1.4 × (RawRPM - 2.5)))`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:270-303` says:
+  > `RoadRisk_j = RoadLikelihood_j * RoadSpeedSeverityWeight_j`
+  > `RoadLikelihood_j = sliceMiles_j * TrafficFactor_j * CurvatureFactor_j * FacilityLikelihoodFactor_j * ShoulderLikelihoodFactor_j`
+  > `CrossingRisk_i = CrossingLikelihood_i * CrossingSpeedSeverityWeight_i`
+  > `Total Route Risk = Σ RoadRisk_j + Σ CrossingRisk_i`
+  > `Route Risk Per Mile = Total Route Risk / Route Miles`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:370-386` defines a traffic anchor table that runs from `500 -> 0.35` through `150,000+ -> 12.50`.
+
+- `docs/05-product/heatmap-color-reference.md:199-203` says:
+  > `The route-level score (A+ through F) uses a sophisticated multiplicative model with speed (0.60), traffic (0.30), rail (0.10), infrastructure multipliers (0.25-1.0), shoulder factors, and left-turn penalties.`
+  > `The per-segment heatmap color uses only rider-facing display-speed bands with cutpoints at 15 / 30 / 45 mph.`
+
+### B. Conflict
+
+The V3 docs describe speed and traffic as additive weighted factors, with smaller capped tables and logistic normalization. DS-015 describes speed as severity, traffic/curvature/facility/shoulder as likelihood, no canonical 0-100 normalization, and a much wider traffic tail. The heatmap reference is even older, reintroducing rail and left-turn penalties that DS-015 excludes or replaces.
+
+### C. Survivor
+
+DS-015 likelihood x severity should survive. The V3/V3.1 formula should be marked legacy. The heatmap appendix should not describe route-level score constants unless it is updated to the DS-015 model.
+
+### D. Updated Survivor Wording
+
+In V3/V3.1 product and analysis docs:
+
+```md
+Legacy note: This document describes the V3.1 launch score model. It is superseded for canonical safety scoring by DS-015 5.5.
+
+The active canonical model is:
+
+Road risk = road likelihood x speed severity
+Crossing risk = crossing-event likelihood x crossed-road speed severity
+Total route risk = sum(road risk points) + sum(crossing risk points)
+Risk per mile = total route risk / route miles
+
+Use this document only for historical comparison or legacy implementation migration.
+```
+
+In `heatmap-color-reference.md`, remove the route-level V3 constants appendix or replace it with a link to DS-015.
+
+## 4. Crossing Risk: Route-Level Crossing Cap vs Additive Trace
+
+### A. Citations
+
+- `docs/03-adrs/adr-039-bounded_crossing_risk_and_report_only_critical_stretch.md:57-61` says:
+  > `Route-level crossing cap:`
+  > `EffectiveCrossingRPM = min(RawCrossingRPM, ContinuousRPM × 0.6667)`
+  > `This ensures crossings cannot exceed 40% of raw canonical route risk.`
+
+- `docs/05-product/prod-010-safety_score_methodology_v3.md:136-143` says:
+  > `EffectiveCrossingRPM = min(RawCrossingRPM, ContinuousRPM × 0.6667)`
+  > `SafetyScore = 100 ÷ (1 + e^(1.4 × (RawRPM − 2.5)))`
+  > `The 0.6667 cap ensures crossings cannot exceed 40% of raw canonical route risk.`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:523-542` says:
+  > `CrossingLikelihood_i = min(CrossingLikelihoodCap, BaseCrossingLikelihood * sqrt(TrafficFactor_cross_i) * WidthFactor_i * ControlFactor_i * MovementFactor_i)`
+  > `CrossingRisk_i = CrossingLikelihood_i * CrossingSpeedSeverityWeight_i`
+  > `BaseCrossingLikelihood = 0.150`
+  > `CrossingLikelihoodCap = 0.300`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:593-605` says:
+  > `Canonical Total Route Risk is an additive sum of score-bearing road and crossing units. The launch model does not apply a route-level crossing-share clamp after summing, because that would make the canonical total no longer equal the sum of its trace.`
+  > `Expected crossing share ranges are diagnostics, not formula caps.`
+
+### B. Conflict
+
+ADR-039 and V3 product docs make a route-level crossing cap part of canonical scoring. DS-015 explicitly forbids the post-hoc route-level clamp and controls crossing influence through event eligibility, per-event likelihood cap, bounded factors, and diagnostics.
+
+### C. Survivor
+
+DS-015 should survive. ADR-039 should be marked superseded by DS-015 for active scoring, while retaining historical value for why crossings became bounded and critical stretch became report-only.
+
+### D. Updated Survivor Wording
+
+In ADR-039:
+
+```md
+**Status:** Superseded for active scoring by DS-015 5.5.
+
+Historical decision retained: crossings are explicit score-bearing events and critical stretch is report-only.
+
+Superseded detail: the V3.1 route-level crossing cap is no longer canonical. DS-015 uses additive road and crossing risk trace. Crossing influence is bounded by event eligibility, per-event crossing likelihood cap, bounded width/control/movement factors, square-root traffic compression, and corpus diagnostics.
+```
+
+## 5. Path / MUP Risk: Nonzero Baseline vs Zero Continuous-Road Risk
+
+### A. Citations
+
+- `docs/02-architecture/analysis/anal-002-score_calculation_v2.md:211-213` says:
+  > `Separated paths (bike paths, multi-use trails): 0.05 risk/mile baseline (not zero).`
+
+- `docs/05-product/prod-010-safety_score_methodology_v3.md:214-220` says:
+  > `100% bike path | ~0.05 | 97+ | A+`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:472-484` says:
+  > `A path, MUP, or similarly separated corridor carries zero continuous-road risk when the route slice is functionally outside the motor-vehicle roadway stream.`
+  > `The same route may still carry crossing-event risk where it crosses, joins, exits, or interacts with motor-vehicle roads.`
+
+- `docs/02-architecture/design/ds-033-route_line_v2_osm_domain_policy.md:21-24` says:
+  > `Domain classification is not cosmetic. A path/trail segment should not carry continuous traffic exposure, while a motor road does.`
+
+### B. Conflict
+
+Older V3 docs assign true separated paths a nonzero continuous baseline. DS-015 and DS-033 say true path/MUP domain should not invent continuous motor-road exposure, while preserving path-road crossing risk.
+
+### C. Survivor
+
+DS-015 plus DS-033 should survive. The old `0.05 risk/mile` path baseline should be removed from canonical scoring docs. If the product wants to avoid displaying "zero danger," that should be handled in language and crossing/hazard layers, not fake continuous-road risk.
+
+### D. Updated Survivor Wording
+
+```md
+True path/MUP mileage carries zero continuous-road risk when it is functionally outside the motor-vehicle roadway stream. It remains in the score trace with `roadRisk = 0` and a path/MUP explanation.
+
+Path-road crossings, joins, exits, driveways, and access-road interactions remain eligible for crossing-event risk when they meet DS-015 criteria. Do not add a generic path baseline to canonical road risk.
+```
+
+## 6. Map Paint: Speed-Only Heatmap vs Canonical Route Risk Paint
+
+### A. Citations
+
+- `docs/05-product/heatmap-color-reference.md:119-129` says:
+  > `Bike Infrastructure Does NOT Directly Change the Heatmap Color`
+  > `The heatmap color is driven by the resolved display speed band, which is determined only by the segment's resolved speed value.`
+  > `The composite risk calculation (which includes infrastructure, traffic, shoulders) feeds the aggregate route score, not the per-segment color.`
+
+- `docs/05-product/prod-008-dynamic-risk-indicators.md:115-130` says:
+  > `Dynamic risk indicators visualize segment risk results derived from the Safety Score pipeline.`
+  > `All UI surfaces that display segment risk must use the same dynamic palette logic, including:`
+  > `- route heatmap`
+  > `- segment highlighting`
+  > `- cue sheet risk markers`
+  > `- map overlays`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:696-718` says:
+  > `Lanterne has two map-paint contracts. They are intentionally different.`
+  > `Required contract names are Route Risk Paint for the selected analyzed route and Road-Stress Overlay for off-route visible roads.`
+  > `Route Risk Paint applies to an analyzed route.`
+  > `It uses: canonical score-bearing road slices; canonical crossing events; score trace factors; selected inputs; provenance; confidence; cached canonical route artifact when available.`
+  > `Once a canonical analyzed-route artifact exists, route paint must not silently fall back to viewport proxy coloring.`
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:720-751` says:
+  > `Road-Stress Overlay applies to off-route visible roads in the viewport.`
+  > `It does not answer: What is the canonical risk of this route?`
+  > `The viewport overlay may use fast proxies: speed band; road class; facility class; traffic availability or coarse traffic prior; shoulder availability; simple stress / suitability heuristics`
+  > `label itself as road stress, road environment, or proxy overlay unless backed by canonical score-bearing artifacts`
+
+### B. Conflict
+
+The heatmap reference says per-segment heatmap color is speed-only, while dynamic risk indicators say the route heatmap visualizes segment risk from the Safety Score pipeline. DS-015 resolves this by splitting selected route paint from off-route road-stress overlay, but the product docs still use "heatmap" for both.
+
+### C. Survivor
+
+DS-015's two-contract model should survive. Speed-only coloring may survive only as `Road-Stress Overlay` / viewport proxy. The selected analyzed route must use `Route Risk Paint` once canonical analysis exists.
+
+### D. Updated Survivor Wording
+
+```md
+Use two paint names:
+
+- Route Risk Paint: selected analyzed route only; projects canonical score trace, selected inputs, provenance, and confidence.
+- Road-Stress Overlay: visible off-route roads; budgeted proxy layer that may use speed band, road class, facility, traffic availability, shoulder availability, or simple road-stress heuristics.
+
+Legacy "heatmap" labels may remain in controls, but explanatory text must say which paint contract is active.
+```
+
+## 7. Score-Bearing Layer Scope: Future Evidence Layers vs Narrow Launch Safety
+
+### A. Citations
+
+- `docs/02-architecture/design/ds-015-safety_scoring_model.md:69-79` says these are out of canonical score at launch:
+  > `weather, wind, temperature, daylight, darkness, and seasonal surface state`
+  > `fatigue, rider skill, group size, and rider compliance`
+  > `remoteness, services, rescue access, and route difficulty`
+  > `railroad flangeway risk, metal bridges, gravel, descents, potholes, and other non-motor-vehicle hazards`
+  > `driveway density, curb activity, parking, lane width, lighting, heavy-vehicle share, and state-level crash culture until defensible data exists`
+  > `time-of-day traffic storytelling`
+  > `critical-stretch warnings as score modifiers`
+
+- `docs/02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md:160-178` lists initial layers and says:
+  > `surface | span | score_driving or display | Surface quality and type`
+  > `hazard | point/span | score policy TBD | Presentation and optional score impact by hazard spec`
+  > `grade | span/series | score_driving or effort | Derived from elevation`
+  > `precipitation | span/series | display / risk TBD`
+  > `sunlight | span/series | display / risk TBD`
+
+- `docs/02-architecture/design/ds-035-profile_aware_hydration_cache_and_cyclist_mobility_substrate_runtime_spec.md:572-586` says in the field ownership matrix:
+  > `surface` has `route scoring eligible | yes`
+  > `hazard flags` has `route scoring eligible | yes`
+  > `time_of_day_traffic_multiplier` has `route scoring eligible | yes`
+
+### B. Conflict
+
+DS-031 and DS-035 use broad `score_driving` / `route scoring eligible` language for layers that DS-015 explicitly excludes from the launch canonical Safety Score. The conflict is partly vocabulary: "route scoring" can mean future route intelligence, but readers will reasonably interpret it as Safety Score eligibility.
+
+### C. Survivor
+
+DS-015 should govern canonical Safety Score scope. DS-031 and DS-035 should survive as evidence-platform architecture, but their eligibility columns need to distinguish `canonical_safety_score`, `confidence_only`, `display`, `future_model_candidate`, and `diagnostic`.
+
+### D. Updated Survivor Wording
+
+In DS-031 and DS-035:
+
+```md
+Score eligibility must name the score family.
+
+For launch canonical Safety Score:
+- score-driving now: speed, traffic/AADT, shoulder, bike infrastructure, sustained curvature, crossing width/control/movement, crossed-road speed/traffic.
+- confidence/display/diagnostic only: surface, hazards, grade/elevation, weather, wind, precipitation, temperature, sunlight, time-of-day traffic, calories, watts.
+- future model candidate: layers that may later become score-driving only through a versioned DS/ADR change.
+```
+
+Replace generic `route scoring eligible` with:
+
+```md
+canonical_safety_score_eligible
+route_reality_or_future_model_eligible
+display_or_diagnostic_only
+```
+
+## 8. User Observations: Canonical Provenance Kind vs Overlay-Only Evidence
+
+### A. Citations
+
+- `docs/03-adrs/adr-040-user-observations-as-overlay-evidence-not-canonical-truth.md:53-70` says:
+  > `User observations do not participate in canonical truth resolution.`
+  > `They do not affect:`
+  > `- Safety Score`
+  > `- heatmap colors`
+  > `- risk calculations`
+  > `- canonical inspector truth`
+  > `- any other deterministic scoring or truth output`
+
+- `docs/02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md:135-143` says:
+  > `These may exist operationally, but they are not currently canonical score-bearing truth:`
+  > `user_observation | presentation-only / session-only | Must not silently enter canonical score truth without a future DS/ADR change`
+
+- `docs/02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md:187-198` includes:
+  > `type RouteEvidenceSourceKind = ... 'sensor' | 'user_observation' | 'cache' | 'fixture' | 'derived_model' | 'merged';`
+
+- `docs/02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md:216-232` says:
+  > `Provenance records why evidence is allowed to drive score, confidence, or explanation.`
+  > `type RouteEvidenceProvenanceKind = ... 'model_derived' | 'user_observed' | 'baseline_fallback' | 'unknown';`
+
+### B. Conflict
+
+ADR-040 and DS-029 are explicit that user observations do not affect canonical truth, scoring, heatmap, or risk. DS-031 includes `user_observed` in a provenance enum described as explaining why evidence is allowed to drive score, confidence, or explanation. Even if intended as display provenance, the wording makes it look eligible for score-driving use.
+
+### C. Survivor
+
+ADR-040 and DS-029 should survive. DS-031 should retain `user_observation` as operational source lineage, but remove or reserve `user_observed` from score-driving provenance until a future moderated/admin-approved path exists.
+
+### D. Updated Survivor Wording
+
+```md
+`user_observation` is valid operational lineage for overlay/display evidence.
+
+Raw `user_observation` / `user_observed` evidence is `display_only` and may not drive canonical truth, Safety Score, route risk paint, heatmap colors, risk calculations, or canonical inspector truth.
+
+Only reviewed evidence promoted through an explicit moderation/admin path may enter canonical resolution, and it must be labeled as `admin_approved` or another future DS-defined source type, not raw `user_observation`.
+```
+
+## 9. Measured / Sensor Evidence: Highest Priority vs Reserved
+
+### A. Citations
+
+- `docs/02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md:49-71` says:
+  > `0. measured (sensor-derived)`
+  > `Measured data represents direct, instrumented observations of the road.`
+  > `this is the closest thing to ground truth`
+
+- `docs/02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md:396-404` says:
+  > `Measured data may be promoted to canonical truth only when ALL conditions are met:`
+  > `- at least 10 measured events`
+  > `- at least 3 distinct ride sessions`
+  > `- (if multi-user data exists) at least 2 unique users`
+  > `- data is not highly unstable`
+
+- `docs/03-adrs/adr-042-evidence_resolution_and_truth_propagation_model.md:41-57` says:
+  > `When multiple sources exist:`
+  > `1. observed (founder/admin)`
+  > `2. authoritative_posted (DOT / HPMS)`
+  > ...
+  > `Measured evidence is the highest-priority input and supersedes all other evidence types.`
+
+- `docs/02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md:135-142` says:
+  > `These may exist operationally, but they are not currently canonical score-bearing truth:`
+  > `measured | reserved | May later promote above observed, but is not yet canonical truth`
+
+### B. Conflict
+
+DS-017 and ADR-042 treat measured evidence as the highest-priority canonical truth source, including promotion criteria. DS-029, which explicitly resolves provenance ambiguity, says measured is reserved and not currently canonical score-bearing truth.
+
+### C. Survivor
+
+DS-029 should survive for current canonical scoring. DS-017 and ADR-042 should be amended to mark measured/sensor evidence as future/reserved until a new DS defines collection, aggregation, privacy, calibration, provenance, and score eligibility.
+
+### D. Updated Survivor Wording
+
+```md
+Measured/sensor evidence is reserved for a future canonical source type. It may be collected and inspected operationally, but it is not currently score-bearing truth and does not outrank observed/admin-approved, official, OSM, inferred, predicted, baseline, or unknown values.
+
+Promotion of measured evidence into canonical truth requires a future DS/ADR defining aggregation thresholds, privacy rules, source confidence anchors, trace payload, decay/propagation behavior, and field-specific score eligibility.
+```
+
+## 10. Propagation Lineage: Do Not Persist Chains vs Trace Every Propagation/Rejection
+
+### A. Citations
+
+- `docs/02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md:504-518` says:
+  > `For each segment field (speed, shoulder, bikeInfra, traffic), we persist:`
+  > `- value`
+  > `- source_type`
+  > `- confidence (implicit via source_type)`
+  > `- segment_id`
+  > `We do NOT persist:`
+  > `- propagation chains`
+  > `- inferred relationships between segments`
+  > `Propagation is recomputed deterministically.`
+
+- `docs/02-architecture/design/ds-030-route_analysis_contract.md:47-49` says:
+  > `Resolver recomputation per truth segment is allowed only if it preserves upstream evidence lineage or records a specific rejection reason. Minimum lineage is: source type, selected value, source identifier when available, segment span, propagation reason when accepted, and rejection reason when rejected.`
+  > `Baseline, regional prior, and local-area estimates may fill only after stronger official/posted/OSM/relationship evidence has been rejected with traceable cause.`
+  > `Provenance resets at segment boundaries are invalid; the trace must show whether evidence was direct, propagated, rejected, or unavailable.`
+
+- `docs/02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md:767-777` says:
+  > `Every score-bearing chosen value must be inspectable. The system must be able to answer:`
+  > `1. what value won`
+  > `2. what source type won`
+  > `3. what provenance family it belongs to`
+  > `4. what stronger sources were absent or ineligible`
+  > `5. what concrete math or lookup produced the chosen value`
+  > `6. what exact inputs contributed if the value was derived`
+
+### B. Conflict
+
+DS-017 says propagation chains and inferred relationships are not persisted. DS-029/DS-030 require durable traceability of selected, propagated, rejected, and unavailable evidence. Recomputing deterministically can be an implementation strategy, but it cannot erase audit lineage from artifacts, receipts, and cache.
+
+### C. Survivor
+
+DS-029 and DS-030 should survive. DS-017 should be narrowed: do not persist bulky raw chains as primary storage, but do persist compact lineage/provenance/rejection traces in canonical artifacts.
+
+### D. Updated Survivor Wording
+
+```md
+Propagation may be recomputed deterministically, but every score-bearing chosen value must export compact lineage:
+
+- winning value and source type
+- provenance family
+- source identifier when available
+- segment/span
+- propagation reason when accepted
+- stronger-source absence or rejection reasons
+- fallback math or lookup path
+
+Do not persist unbounded raw propagation chains as primary truth storage. Do persist audit-grade trace sufficient for receipts, confidence, inspector, cache replay, and admin review.
+```
+
+## 11. Route Identity: Canonical Equivalence vs Ride Envelope Containment
+
+### A. Citations
+
+- `docs/03-adrs/adr-026-canonical_route_identity.md:46-55` says:
+  > `Lanterne will maintain a canonical route identity for routes that represent the same underlying road experience.`
+  > `Route identity is determined primarily by geometry similarity, not by metadata.`
+  > `If two routes represent the same corridor of roads with only minor variation, they should resolve to the same canonical route.`
+  > `Sources and variants are attached as provenance or versions, not as separate canonical routes.`
+
+- `docs/02-architecture/design/ds-006-route_canonicalization_spec.md:80-87` says:
+  > `Two routes are considered equivalent if they share most of the same road corridor.`
+  > `Typical threshold: overlap ≥ 85–90%`
+  > `Minor deviations are tolerated.`
+
+- `docs/02-architecture/design/ds-006-route_canonicalization_spec.md:100-104` says:
+  > `Routes that follow the same corridor in opposite directions should generally resolve to the same canonical route.`
+  > `Direction is treated as a variant attribute, not a canonical identity attribute.`
+
+- `docs/03-adrs/adr-037-canonical_route_identity_vs_ride_envelope_containment.md:20-31` says:
+  > `Riders may start at home and ride 20, 30, or 50 miles to the route.`
+  > `Riders may enter a route at any point.`
+  > `Riders may ride the route in either direction when allowed.`
+  > `A long uploaded ride may contain the perm without being equal to the perm.`
+  > `Canonical route truth: the perm itself must remain stable, strict, and geometry-first.`
+  > `Rider truth: a rider can meaningfully have ridden the perm without uploading a route that is geometrically equal to it.`
+
+- `docs/03-adrs/adr-037-canonical_route_identity_vs_ride_envelope_containment.md:74-80` says:
+  > `Association between a ride envelope and a canonical route is based on containment, not equality.`
+  > `Does this ride envelope contain this canonical route as an ordered subpath of the rider-experienced corridor?`
+
+### B. Conflict
+
+ADR-026/DS-006 describe route canonicalization as broad equivalence of road experience and variants. ADR-037 says using canonical equality for uploaded rides is the wrong model; ride uploads may contain a route without being equal to it. The older docs do not clearly scope canonicalization to route-source imports versus ride activity uploads, so they risk over-merging ride envelopes into canonical routes.
+
+### C. Survivor
+
+Both ideas should survive, but with stricter boundaries:
+
+- Canonical route identity survives for route artifacts/import sources.
+- Ride envelope containment survives for uploaded rides, expedition progress, and proof that a rider rode a route.
+
+ADR-037 is only Proposed, but it is the more precise correction for rider behavior and should be promoted or incorporated into ADR-026/DS-006.
+
+### D. Updated Survivor Wording
+
+In ADR-026/DS-006:
+
+```md
+Canonical route identity applies to route artifacts: planned routes, RUSA/RWGPS/GPX route sources, manual route drawings, and meaningful route variants.
+
+Ride activity uploads are not assumed to be canonical route candidates by equality. A ride activity is a ride envelope. It may contain one or more canonical routes, include extra prefix/suffix miles, reverse direction where allowed, or include small practical detours.
+
+Association between a ride envelope and a canonical route is a containment relation, not canonical-route equality.
+```
+
+## 12. Confidence: Coverage Buckets vs Risk-Weighted Confidence Burden
+
+### A. Citations
+
+- `docs/05-product/prod-010-safety_score_methodology_v3.md:181-186` says:
+  > `Score confidence is based on data coverage:`
+  > `High — ≥ 80% of route miles have known speed, traffic, and facility data`
+  > `Medium — 50–79%`
+  > `Low — < 50%`
+
+- `docs/02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md:312-324` says:
+  > `At route and road levels, confidence must be weighted by actual score participation rather than flat source averaging.`
+  > `confidence burden of an input = source uncertainty * risk contribution of that input`
+  > `This preserves the original DS-020 intuition that rough approximations on higher-severity, higher-risk roads should hurt confidence more, without distorting provenance semantics.`
+
+- `docs/02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md:326-339` says:
+  > `Unless a future DS explicitly revises them, canonical confidence bands are:`
+  > `90-100 | very_high`
+  > `75-89 | high`
+  > `60-74 | medium`
+  > `40-59 | low_medium`
+  > `0-39 | low`
+  > `Bands are presentation projections of numeric confidence. They do not alter precedence and do not replace exact numeric confidence in trace.`
+
+- `docs/02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md:341-354` defines:
+  > `sourceUncertainty = 1 - (sourceConfidenceAnchor / 100)`
+  > `normalizedRiskShare_i = riskContribution_i / totalRelevantRisk`
+  > `uncertaintyBurden_i = sourceUncertainty_i * normalizedRiskShare_i`
+  > `confidencePenalty = sum(uncertaintyBurden_i)`
+  > `confidenceScore = 100 * (1 - confidencePenalty)`
+
+### B. Conflict
+
+The product methodology makes confidence a simple route-mile coverage bucket. DS-029 makes confidence an exact numeric, source-type-aware, risk-weighted trace output. Coverage-only confidence can overstate confidence when the missing/weak data sits on the riskiest parts of the route, and understate confidence when weak data sits on low-risk path/residential spans.
+
+### C. Survivor
+
+DS-029 should survive. Coverage can remain a secondary diagnostic, but it should not define canonical confidence.
+
+### D. Updated Survivor Wording
+
+```md
+Canonical confidence is a numeric trace output computed from the same chosen inputs and source types used by risk. Route and road confidence are risk-weighted: uncertainty on high-contribution inputs carries more confidence burden than uncertainty on low-contribution inputs.
+
+Coverage percentages may be shown as supporting diagnostics, but they do not determine canonical confidence by themselves.
+
+Display bands:
+- 90-100: very_high
+- 75-89: high
+- 60-74: medium
+- 40-59: low_medium
+- 0-39: low
+```
+
+## Consolidated Cleanup Order
+
+1. Promote `ds-015-safety_scoring_model.md` to explicit canonical status and mark `_5_4` as superseded lineage.
+2. Mark V3/V3.1 score docs as legacy, especially 0-100 score, logistic normalization, V3 weighted factors, old crossing cap, and safe-path baseline.
+3. Rename map paint docs around `Route Risk Paint` and `Road-Stress Overlay`; reserve speed-only heatmap semantics for viewport proxy overlays.
+4. Tighten DS-031/DS-035 eligibility fields so future route-intelligence layers do not appear score-driving for launch Safety Score.
+5. Resolve evidence provenance vocabulary: user observations display-only, measured evidence reserved, propagation lineage compact but mandatory.
+6. Update route identity docs to distinguish route artifact canonicalization from ride envelope containment.
+
+
+---
+
+## Source File: docs/assessments/ass-019-main_app_v2_builder_purity_assessment_2026_05_29.md
+
+# ASS-019 - Main-App V2 Builder Purity Assessment
+
+Date: 2026-05-29
+
+Scope: app-facing V2 route builder from GPX ingestion through identity kernel, evidence attachment, enrichment, scoring handoff, and presentation readiness.
+
+Compared modes:
+
+1. Full substrate cache available
+2. Partial substrate cache available
+3. No substrate cache available
+4. `/v2-review` route builder
+
+Reference intent:
+
+- DS-031: the route polyline is the canonical evidence axis.
+- DS-032: route identity is an ordered OSM topology path, not nearest-road ownership.
+- DS-033: safe path vs motor road is domain truth, not styling.
+- DS-035: substrate accelerates and presents; it is noncanonical.
+- DS-043: HPMS is route-indexed evidence after projection, not identity.
+- DS-029: source lineage and provenance must remain separate.
+
+## Direct Assessment
+
+The main app V2 builder is directionally aligned with the V2 replacement vision, but it is not yet the pure implementation.
+
+The closest expression of the intended architecture remains `/v2-review`: route axis, source candidates, topology path, blockers, ownership spans, handoffs, and then derived presentation. The main app has begun to consume that topology path, but it still has mode-specific source acquisition and runtime gating paths that can make full substrate, partial substrate, and no-substrate behave differently before they reach evidence/scoring.
+
+The pure implementation should not be V3. It should be:
+
+```text
+GPX route axis
+  -> candidate acquisition plan
+  -> shared /v2-review identity kernel
+  -> one topologyPath / ownershipSpans output
+  -> route-indexed exact evidence hydration
+  -> one Product Evidence / scoring handoff
+  -> presentation subscribers
+```
+
+Substrate should change only the speed and order of candidate acquisition. It should not change the downstream builder contract.
+
+## What The User Is Trying To Build
+
+The spirit of the V1 to V2 replacement is not simply "new data sources." It is a different center of gravity.
+
+V1 behavior was corridor-ish: fetch a corridor, match nearby roads, infer ownership, then decorate and score. That produced useful results but could make local nearest-road wins look like route truth.
+
+V2 should be route-line-first:
+
+- the GPX polyline is the measurement axis
+- OSM ways and nodes are selected as an ordered topology path
+- continuity matters more than local nearest candidate wins
+- discontinuity becomes a blocker or explicit off-OSM exception
+- evidence attaches by route distance
+- HPMS/OSM/substrate/hazards enrich the route, but do not own the route
+- presentation and debug panels explain what the builder did, but do not mutate truth
+
+The pure V2 builder should feel like `/v2-review` got promoted into the app, not like V1 got decorated with V2 labels.
+
+## Phase Model
+
+For this assessment, "three phases" means:
+
+1. Ingestion and candidate acquisition
+2. Identity kernel and topology path construction
+3. Evidence attachment, enrichment, scoring handoff, and presentation
+
+The key design requirement is that all runtime modes converge after phase 1.
+
+```text
+full substrate      \
+partial substrate    -> shared identity kernel -> shared route evidence request -> shared scoring handoff
+no substrate        /
+/v2-review --------/
+```
+
+## Mode 1 - Full Substrate Cache Available
+
+### What Is Good
+
+Full substrate is useful and exactly the right kind of accelerator.
+
+It can:
+
+- identify likely cyclist corridors quickly
+- reduce broad Overpass/source reads
+- supply candidate way ids and geometries early
+- make the first paint/debug experience feel alive
+- avoid rebuilding the same regional candidate universe repeatedly
+
+This matches DS-035 as long as substrate remains noncanonical.
+
+### What Is On Point
+
+The main app correctly treats substrate as noncanonical in its stated diagnostics. The route builder has hooks for substrate candidates, and those candidates can narrow source reads instead of forcing a broad bbox/corridor path.
+
+The runtime trace also makes the substrate state visible, which is important. "South Jersey cache ready/empty/unavailable" is operationally useful because it explains which acquisition path was used.
+
+### What Is Bad
+
+The full-substrate path can still behave too much like a distinct route builder. If substrate candidates are treated as the primary route identity universe rather than as hints into the shared identity kernel, the app risks building from "what the cache happened to contain" rather than "what the route actually traverses."
+
+The biggest risk is false completeness:
+
+- a full substrate hit can hide the need for exact OSM source hydration
+- candidate geometry can look convincing before source tags/provenance are hydrated
+- presentation can paint quickly while the route evidence layer is not actually complete
+
+This is acceptable for a debug overlay, but not as canonical route truth.
+
+### Improve It
+
+Full substrate should become:
+
+```text
+substrate candidates -> candidate hint provider -> shared identity kernel -> topologyPath
+```
+
+Then, regardless of how complete the substrate is:
+
+- selected topology ways must be exact-source hydratable by way id or route window
+- evidence request must be built from topologyPath ownership spans
+- sourceWayContributions must come from accepted topology ownership spans
+- exact hydration must confirm score-driving speed, traffic, shoulder, bike, surface, and hazard evidence
+- substrate can display deficits and candidate confidence, but cannot fill scoring fields by itself
+
+The implementation should remove any route-building branch where "substrate candidate list" and "route identity" are effectively the same object.
+
+## Mode 2 - Partial Substrate Cache Available
+
+### What Is Good
+
+Partial substrate is probably the realistic production norm for a long time. It is valuable because it can resolve common cyclist corridors quickly while letting exact source fallback close the rest.
+
+This is the mode where V2 should shine:
+
+```text
+fast where substrate knows enough
+exact where substrate is incomplete
+honest where topology cannot be proven
+```
+
+### What Is On Point
+
+The app now has concepts for:
+
+- substrate cache status
+- candidate overlay worker fallback
+- topology spans
+- topology blockers
+- route identity source selection
+- route-indexed evidence request
+
+Those are the right ingredients.
+
+### What Is Bad
+
+Partial substrate is currently the danger zone because it can split the route into competing acquisition stories.
+
+Observed failure pattern:
+
+- substrate returns some candidates
+- worker/review fallback resolves additional topology
+- engine starts when enough "candidate" state exists
+- source plan may be built from one view of the route
+- evidence/scoring request may be built from another
+- debug trace appears to say V2 is active, but the paint/evidence feels like a hybrid
+
+This is exactly where the "all three options have the same handoff" claim breaks down. If phase 1 and phase 3 are built from different route representations, the handoff is not actually unified.
+
+### Improve It
+
+The partial-substrate path should be explicit:
+
+```text
+substrate candidate hints
+  + exact source closure for deficits
+  + off-OSM exception windows where applicable
+  -> one topologyPath
+```
+
+Do not start evidence/scoring until the builder has produced one of:
+
+- `topologyPath.status = complete`
+- `topologyPath.status = complete_with_explicit_off_osm_connectors`
+- `topologyPath.status = partial_with_blockers`
+
+Then downstream logic must consume only that topology path.
+
+Recommended contract:
+
+```ts
+interface V2RouteIdentityBuildResult {
+  routeAxis: RouteLineV2Axis;
+  topologyPath: RouteLineV2TopologyPathResult;
+  ownershipSpans: RouteOwnershipSpan[];
+  sourceWayContributions: V2SSSourceWayContribution[];
+  blockers: RouteLineV2TopologyPathBlocker[];
+  acquisitionSummary: {
+    substrateCandidateCount: number;
+    exactSourceClosureCount: number;
+    offOsmConnectorCount: number;
+    unresolvedGapCount: number;
+  };
+}
+```
+
+All later phases should take this object, not separate substrate candidates, ownership overlays, and topology path fragments.
+
+## Mode 3 - No Substrate Cache Available
+
+### What Is Good
+
+No-substrate mode is the architectural truth serum. If V2 only works inside the South Jersey substrate cache, then substrate has accidentally become truth. That would violate DS-035.
+
+The correct no-substrate flow is already mostly known because `/v2-review` used it:
+
+- fetch route-windowed OSM candidates
+- build topology graph
+- solve ordered path
+- hydrate missing node/neighbor context
+- produce blockers/off-OSM exceptions when needed
+
+### What Is On Point
+
+The current app can invoke the review worker when substrate is empty or unavailable. It can receive `topologyPath` and use ownership spans for route evidence. That is the right fallback shape.
+
+The recent source-plan correction also points in the right direction: selected topology spans should drive evidence reads even when substrate is absent.
+
+### What Is Bad
+
+The no-substrate path is still operationally fragile.
+
+Problems:
+
+- it can wait on "candidate overlay" state as if substrate candidate availability were required
+- it can look like a broad bbox fallback rather than a topology-source fallback
+- it can freeze or delay because acquisition, identity solve, and evidence reads are not cleanly budgeted as separate phases
+- it can produce "route loaded" with little or no motor-road risk paint if source evidence was not acquired from the selected topology path
+
+The no-substrate path should never mean "V2 cannot build." It should mean "V2 runs the exact `/v2-review` source/identity path without substrate acceleration."
+
+### Improve It
+
+No-substrate should become a first-class source acquisition mode:
+
+```text
+mode=no_substrate_exact_review_path
+```
+
+It should not be called broad bbox fallback unless it truly is an emergency degraded search.
+
+Required behavior:
+
+- route-windowed source acquisition, not corridor-style V1 fetch
+- topology path solve before evidence/scoring
+- explicit phase trace for source fetch, graph build, path solve, gap closure, evidence hydration, scoring
+- unresolved windows shown as blockers, not silent green/unknown
+- exact source closure budgeted independently from substrate cache status
+
+If no substrate exists for Nevada, Maui, Germany, or any other region, V2 should still load by running the review identity builder.
+
+## Mode 4 - `/v2-review`
+
+### What Is Good
+
+`/v2-review` is closest to the design intent.
+
+It has:
+
+- a route axis
+- worker progress
+- route-windowed candidate acquisition
+- topology path output
+- ownership spans
+- handoff/cue diagnostics
+- blockers
+- usable evidence audit
+- topology node hydration
+- exact source recovery concepts
+- evidence overlay diagnostics
+- substrate QA as noncanonical presentation
+
+Most importantly, it treats `topologyPath` as the rider-facing path output. The old ownership overlay is diagnostic/supporting, not the source of cue-like truth.
+
+### What Is On Point
+
+`/v2-review` embodies DS-032 better than the main app because it is built around:
+
+- ordered path construction
+- topology continuity
+- blocker reporting
+- topology-derived cue handoffs
+- "legacy route path quarantined" posture
+
+That is the spirit to preserve.
+
+### What Is Bad
+
+`/v2-review` is not production-shaped:
+
+- too much UI and diagnostic state is local to the review page
+- worker output is not packaged as the single production build artifact
+- source acquisition is too slow for route-load UX
+- evidence/enrichment/scoring are not cleanly downstreamed into the main app contract
+- substrate QA is useful but not nationally generalized
+- route hazards, cue sheet, transit/airport/rail/bus enrichments are not all ported through the V2 result
+
+It worked because it kept the builder honest. It was not fast enough because it was still a review harness.
+
+### Improve It
+
+Do not copy the review page UI. Promote the review builder contract.
+
+Production should extract:
+
+- `runV2RouteIdentityBuild`
+- `RouteLineV2IdentityBuildResult`
+- worker progress events
+- source acquisition summary
+- topologyPath/blockers/handoffs
+- exact source closure diagnostics
+- selected candidate/debug overlays as prepared diagnostic features
+
+The main app should call that builder, then hand the result to evidence/scoring.
+
+## Cross-Mode Comparison
+
+| Requirement | Full substrate | Partial substrate | No substrate | `/v2-review` |
+| --- | --- | --- | --- | --- |
+| Fast first candidate set | strong | medium | weak | weak/medium |
+| Topology-first identity | partial | partial | partial | strong |
+| Noncanonical substrate boundary | mostly | fragile | not applicable | strong |
+| Exact source closure | partial | needs improvement | required but fragile | strong |
+| Ordered path continuity | depends on kernel use | fragile | fragile | strongest |
+| Off-OSM exception expression | weak | weak | weak | closest |
+| Evidence by route distance | improving | improving | improving | partial/review-only |
+| One scoring handoff | improving but not pure | not pure | not pure | not production-integrated |
+| Debug explainability | good but noisy | good but confusing | good but can mislead | strongest |
+| Production UX | strongest | medium | weak | weak |
+
+## Off-OSM Exceptions
+
+The parking-lot-to-cycleway case is important because it exposes the difference between "OSM topology truth" and "route reality."
+
+The route can legitimately travel:
+
+```text
+service/parking way -> off-OSM connector -> cycleway
+```
+
+If OSM has no connector, the builder should not invent a shared node. But it also should not snap back to a nearby motor road if the GPX geometry clearly continues to a bicycle-designated path.
+
+The pure V2 answer is an explicit off-OSM connector edge:
+
+```ts
+interface RouteLineV2OffOsmConnector {
+  startDistM: number;
+  endDistM: number;
+  fromWayId: number;
+  toWayId: number;
+  geometry: Array<[number, number]>;
+  reason: 'gpx_continuity_between_disconnected_osm_edges';
+  confidence: 'medium' | 'low';
+  canDriveRoadIdentity: false;
+  canBridgeTopologyPath: true;
+  canDriveEvidence: false;
+  diagnostics: string[];
+}
+```
+
+This connector can preserve ordered path continuity, but it must not become score-driving source evidence. It is a route geometry continuity fact, not an OSM source fact.
+
+For the Pike Path case:
+
+- parking/service way is service-road identity
+- disconnected connector is an off-OSM continuity segment
+- cycleway is safe-path identity
+- the route paint should become blue on the cycleway
+- the connector should be low/neutral/diagnostic, not a real road evidence source
+
+For the Route 206 / Albertson Brook case:
+
+- an intersecting U-shaped path should not steal identity from the road
+- domain switch needs topology/path evidence or explicit off-OSM connector evidence
+- path selection must require route-aligned continuity, not just two intersections
+
+This is not a scoring change. It is identity truth construction.
+
+## Evidence Attachment And Enrichment
+
+The pure implementation should split route identity from evidence:
+
+```text
+identity:
+  route axis + topology path + ownership spans
+
+evidence:
+  speed, traffic, shoulder, bike infra, surface, hazards, transit/rail/airport context
+
+scoring:
+  one SegmentInput stream built from route-indexed selected evidence
+```
+
+HPMS:
+
+- attaches by projected route distance
+- can provide traffic, speed, lane, shoulder, and source labels
+- must not decide road identity
+- must not smear short projected records across long spans
+- must retain selected/rejected diagnostics
+
+OSM:
+
+- road class, maxspeed, lanes, shoulder, bike tags, surface, and hazards attach by selected topology ways or route windows
+- exact OSM source hydration is required when substrate was only a hint
+- OSM source tags should not be lost when topology was produced by substrate acceleration
+
+Hazards:
+
+- should be route-indexed point/span evidence
+- should be emitted into cue sheet when route-affecting
+- should port V1 hazard normalizers into V2 evidence attachment, not run a parallel V1 engine
+
+Transit/rail/bus/airport context:
+
+- should be V2 enrichment layers
+- if already V1-normalized, port the normalizer output into route-indexed evidence/adapters
+- do not run full V1 analysis just to get these fields
+
+## Runtime Trace Requirements
+
+The V2 runtime trace should make the four modes obvious without implying different downstream truth.
+
+Recommended trace phases:
+
+```text
+route_axis_ready
+candidate_acquisition_start
+substrate_candidates_ready | substrate_empty | substrate_unavailable
+review_source_fetch_start
+review_source_fetch_ready
+topology_graph_start
+topology_path_ready
+off_osm_connectors_ready
+identity_build_ready
+route_evidence_request_ready
+exact_evidence_hydration_start
+exact_evidence_hydration_ready
+hpms_projection_ready
+osm_evidence_ready
+hazard_evidence_ready
+scoring_input_ready
+scoring_ready
+presentation_handoff_ready
+```
+
+The trace should label acquisition mode:
+
+- `full_substrate_accelerated`
+- `partial_substrate_with_exact_closure`
+- `no_substrate_review_source_path`
+- `review_harness`
+
+But after identity build, the trace should converge to the same downstream labels.
+
+## Main Architectural Problem
+
+The current main app has too many things that can look like "the route":
+
+- GPX route axis
+- substrate candidates
+- ownership overlay
+- topology path
+- source fetch plan
+- route evidence request
+- RouteMap paint segments
+- debug overlay features
+
+The pure implementation needs exactly one route identity artifact:
+
+```text
+RouteLineV2IdentityBuildResult
+```
+
+Everything else is either:
+
+- an input candidate
+- a selected route-indexed evidence layer
+- a diagnostic view of the selected artifact
+- a presentation output
+
+## Recommended Pure Implementation
+
+### Step 1 - Extract The Builder Core
+
+Create a production-facing builder around the `/v2-review` identity kernel:
+
+```ts
+runV2RouteIdentityBuild({
+  routePoints,
+  routeFingerprint,
+  substrateHints,
+  sourceProvider,
+  budgets,
+})
+```
+
+It returns one `RouteLineV2IdentityBuildResult`.
+
+### Step 2 - Make Substrate A Hint Provider
+
+Full substrate, partial substrate, and no substrate should all call the same builder.
+
+Substrate can provide:
+
+- candidate way hints
+- candidate node hints
+- corridor continuity hints
+- budget priorities
+
+Substrate cannot provide:
+
+- canonical ownership
+- score-driving speed/traffic/shoulder/bike values
+- final route truth
+
+### Step 3 - Promote Exact Source Closure
+
+Every deficit window should be handled by policy:
+
+- exact way-id hydration if way ids are known
+- route-windowed source search when way ids are missing
+- topology bridge probe when node continuity is missing
+- off-OSM connector when GPX continuity is clear but OSM lacks an edge
+- blocker when continuity cannot be proven
+
+This is the missing bridge between "v2-review worked" and "main app V2 loads everywhere."
+
+### Step 4 - One Evidence Request
+
+Build `ProductEvidenceRequest` only from the selected identity result:
+
+```text
+identityBuild.ownershipSpans
+identityBuild.sourceWayContributions
+identityBuild.routeDistanceM
+```
+
+Do not build it directly from substrate candidates or ownership overlays.
+
+### Step 5 - One Enrichment Pipeline
+
+Port V1 enrichments into V2 as route-indexed evidence adapters:
+
+- hazards
+- rail crossings
+- bus/rail/airport/transit context
+- route cues
+- bridge/tunnel/surface hazards
+
+Do not run the V1 engine in parallel for these. Reuse normalizers and attach their outputs to the route axis.
+
+### Step 6 - One Scoring Handoff
+
+The scoring adapter should consume only route-indexed selected evidence.
+
+It should not care whether candidates came from:
+
+- full substrate
+- partial substrate
+- no substrate
+- `/v2-review`
+
+The handoff should see the same shape.
+
+### Step 7 - Presentation As Subscriber
+
+RouteMap should receive:
+
+- route paint segments
+- cue points
+- hazard markers
+- debug overlay features
+
+It should not own:
+
+- source fetch mode
+- substrate state
+- route truth
+- evidence selection
+- score truth
+
+## What Not To Do
+
+Do not create V3.
+
+Do not make a separate fallback builder.
+
+Do not keep three downstream handoffs.
+
+Do not use substrate as route truth.
+
+Do not make no-substrate mean "old broad corridor fallback."
+
+Do not keep `/v2-review` as a separate truth path long-term.
+
+Do not copy the `/v2-review` UI into the main app.
+
+Do not run the full V1 engine just to recover hazards/cues/transit context.
+
+Do not make HPMS a road identity source.
+
+Do not hide blockers by painting unknown spans as safe or solved.
+
+## What Is Most Worth Keeping
+
+Keep from `/v2-review`:
+
+- identity kernel
+- topology path result
+- blocker model
+- handoff/cue model
+- source closure ideas
+- topology node hydration
+- usable evidence diagnostics
+- substrate QA posture
+
+Keep from main app:
+
+- production route load UX
+- debug/dev drawer
+- RouteMap rendering stack
+- existing scoring adapter
+- selected evidence and inspect surfaces
+- HPMS multi-field work
+- source labels and provenance work
+
+Keep from V1:
+
+- hazard normalizers
+- rail/bus/airport/transit context where already working
+- proven scoring math
+- rider-facing inspect/card affordances
+
+But route identity should come from V2.
+
+## Final Recommendation
+
+The next implementation should be a convergence refactor, not a feature patch.
+
+Name:
+
+```text
+V2-PURE-A - Promote /v2-review identity builder as the single main-app V2 identity path
+```
+
+Goal:
+
+```text
+all substrate modes produce one RouteLineV2IdentityBuildResult
+all downstream evidence/scoring uses that result
+```
+
+Acceptance criteria:
+
+- full substrate, partial substrate, and no substrate all call the same identity builder
+- no-substrate works outside South Jersey
+- partial substrate closes deficits with exact source review path
+- selected topology path is the only route identity source
+- evidence request is built from topology ownership spans only
+- HPMS/OSM/hazards enrich by route distance only
+- RouteMap renders prepared output only
+- V2 runtime trace shows converged phases
+- no V1 engine is required for V2 route load
+- blockers and off-OSM connectors are explicit
+
+This is the purest version of the intended system: `/v2-review` becomes the builder, substrate becomes acceleration, HPMS/OSM/hazards become route-indexed evidence, and the main app becomes the production surface for the same truth pipeline.
+
+
+---
+
+## Source File: docs/assessments/ass-020-exec039_phase17a_v2_mode_audit_2026_05_29.md
+
+# ASS-020 - EXEC-039 Phase 17A-1 V2 Builder Mode Audit
+
+Date: 2026-05-29
+
+## Direct Answer
+
+A. audit_ready_first_checkpoint_route_experience_path_contract
+
+## Scope
+
+This assessment inventories the current app-facing V2 builder from GPX ingestion through route identity, evidence attachment, enrichment, scoring handoff, and display handoff across four modes:
+
+1. Full substrate cache coverage.
+2. Partial substrate cache coverage.
+3. No substrate cache coverage.
+4. `/v2-review` ordered path construction.
+
+The goal is not to define a V3. The goal is to harden the existing V2 direction into the clearest version of the product intent: fast initial route experience when hints exist, review-grade ordered path refinement when they do not, and one downstream handoff into evidence, scoring, hazards, cues, and map presentation.
+
+## Files Inventoried
+
+| Area | Path | Current role |
+| --- | --- | --- |
+| Main app orchestration | `src/pages/Index.tsx` | Owns active engine selection, substrate cache load, review-worker fallback, production engine invocation, display handoff, and route-map props. |
+| Main app V2 runtime drawer | `src/components/MainAppShadowTestDrawer.tsx` | Displays active engine state, V2 runtime trace, timing, readiness, and artifact capture. |
+| Admin diagnostics drawer | `src/components/DebugControlCenter.tsx` | Hosts dev/admin controls, including restored HPMS and candidate overlay controls plus Review Admin Diagnostics. |
+| Map presentation | `src/components/RouteMap.tsx` | Renders prepared route outputs, overlays, hazards, markers, and click inspection behavior. |
+| App-facing V2 engine | `src/lib/route-line-v2/v2ss-current-route-production-engine.ts` | Converts route identity candidates/topology into source fetch, gateway evidence, scoring, heatmap, cues, hazards, and presentation output. |
+| Source fetch and evidence gateway | `src/lib/route-line-v2/current-route-source-plan.ts`, `src/lib/route-line-v2/current-route-source-fetcher.ts`, `src/lib/route-line-v2/current-route-evidence.ts` | Builds read-only HPMS/OSM source plans and normalizes source-backed evidence. |
+| Worker client and contract | `src/lib/route-line-v2/worker-client.ts`, `src/lib/route-line-v2/worker-contract.ts` | Runs the route-line worker and streams route construction progress. |
+| Review pipeline | `src/lib/route-line-v2/evidence-pipeline.ts` | Produces `/v2-review` inventory, route path, topology path, ownership overlay, hydration, and identity outputs. |
+| Review page | `src/pages/V2Review.tsx` | Runs the review worker directly and displays review diagnostics. |
+| Review result adapter | `src/lib/route-line-v2/review-page-adapter.ts` | Converts pipeline output into `/v2-review` page state. |
+| Active display handoff | `src/lib/route-line-v2/v2ss-active-display-handoff.ts` | Converts app-facing production result into analysis, map, scorecard, and readiness data. |
+| Downstream parity adapter | `src/lib/route-line-v2/v2ss-downstream-parity-adapter.ts` | Keeps V2 display outputs shaped like the existing app analysis surface. |
+| Cue presentation | `src/lib/route-line-v2/cue-presentation.ts` | Builds route-number/name transition cue presentation from route identity topology. |
+
+## Current Flow Summary
+
+The main app currently has the right broad pieces, but the mode boundaries are implicit.
+
+`Index.tsx` starts with the GPX polyline as the route axis. It tries to hydrate candidate identity from the South Jersey substrate cache. It can also invoke the `/v2-review` worker path through `runRouteLineV2EvidenceInWorker`. The app-facing engine then receives `substrateCandidates`, optional `routeIdentityTopologyPath`, optional ownership spans, and optional handoffs.
+
+`runCurrentRouteV2ProductionEngine` then builds a source fetch plan, fetches allowlisted sources, normalizes route evidence, runs the identity kernel, chooses either review topology or current-route kernel topology, builds cues, attaches HPMS/traffic/speed/shoulder evidence, builds scoring/heatmap outputs, and returns one production result.
+
+`buildV2SSActiveDisplayHandoff` is the current single downstream handoff into the main app analysis, map props, scorecard, receipts-facing structures, topology handoffs, guardrails, and readiness.
+
+That is directionally correct. The weakness is that the app does not yet name the route identity artifact as one shared "route experience path" across full substrate, partial substrate, no substrate, and review refinement. Because of that, budgets and readiness differ by accident instead of by product policy.
+
+## Naming Recommendation
+
+The current names `main app V2` and `/v2-review` are implementation locations, not product architecture. They make the system sound like two competing engines when the intended shape is one staged route builder.
+
+Use builder-role names instead:
+
+| Proposed name | Current location | Meaning |
+| --- | --- | --- |
+| `quickBuilder` | Main app substrate/cache-first V2 path | Produces the first usable route experience from substrate hints, candidate cache, route geometry, and bounded source reads. It optimizes for time-to-first-map. |
+| `robustBuilder` | `/v2-review` worker/pipeline path | Produces ordered route topology with continuity, blockers, node/way handoffs, implied coordinate connectors, and review-grade refinement. It optimizes for correctness. |
+| `routeExperiencePath` | New shared contract | The ordered route artifact consumed by evidence, scoring, hazards, cues, and map presentation. Both builders produce or refine it. |
+| `initialExperience` | First main-app handoff | A usable but explicitly staged route experience, usually from `quickBuilder`. |
+| `refinedExperience` | Later refinement handoff | The more complete route experience after `robustBuilder` finishes or improves topology. |
+| `routeTruth` | Promoted route-experience artifact | The bigger truth of the ride: ordered ways, nodes, route coordinates, connectors, blockers, and route-distance spans. It can exist before every evidence field is score-ready. |
+| `evidenceBuilder` | Source attachment stage | Attaches OSM, HPMS, DOT, hazard, transport, surface, and other source-backed facts to route truth without changing the route path. |
+| `scoreBuilder` | Risk interpretation stage | Converts route truth plus evidence truth into risk, paint, scorecard, and score diagnostics. |
+
+This avoids implying that `/v2-review` is a separate product path. It is the robust builder behind the same V2 product experience.
+
+`truthBuilder` is not recommended as a component name yet because it suggests one process owns truth. In this model, truth is staged: route truth is produced/refined first, evidence truth is attached next, and score truth is interpreted last.
+
+## Mode 1 - Full Substrate Cache Coverage
+
+### What Is On Point
+
+When the substrate cache returns enough candidates, the app can produce a fast initial experience. `Index.tsx` converts the cache result into `V2CurrentRouteSubstrateCandidate` records and starts `runCurrentRouteV2ProductionEngine` without waiting for review-grade node/way continuity.
+
+This matches the product intent for the first screen: substrate is a fast hint layer that lets the route become inspectable and scoreable quickly enough to be usable.
+
+### What Is Bad
+
+The app can still kick off the review worker as a supplement, but the first substrate pass and the later review topology pass are not represented as two stages of the same route artifact. They are separate state inputs that happen to flow into the same engine function.
+
+That means the runtime trace can say what happened, but the model itself does not yet say:
+
+- this is the initial substrate-derived route experience;
+- this is a later topology-refined route experience;
+- this exact downstream handoff was built from stage N.
+
+### What To Improve
+
+Create a shared `RouteExperiencePath` contract that can be produced from full substrate cache coverage and later refined by review topology. The initial substrate pass should be explicitly labeled `full_substrate_initial`, not silently treated as the final route identity.
+
+## Mode 2 - Partial Substrate Cache Coverage
+
+### What Is On Point
+
+The current app already has the right instinct: substrate does not need to be complete. If the cache returns some candidates, the review worker can supplement missing sections. When a `RouteLineV2TopologyPathResult` arrives, `Index.tsx` can convert topology ownership spans to current-route source candidates and merge them with cache candidates.
+
+This is close to the intended hybrid model: fast where substrate is available, review-grade closure where substrate has gaps.
+
+### What Is Bad
+
+Partial substrate is not a named mode. The app infers it from candidate counts, ownership spans, and topology availability. That is fragile.
+
+There is also no explicit contract for unresolved gaps, off-OSM connectors, implied coordinate spans, or topology blockers as part of the same route identity artifact that later feeds evidence/scoring.
+
+### What To Improve
+
+The same `RouteExperiencePath` should support mixed segments:
+
+- known OSM way/node spans;
+- substrate-derived hint spans;
+- review-worker topology spans;
+- implied coordinate connectors when continuity is real but OSM lacks the connector;
+- blockers when continuity cannot be proven.
+
+The downstream engine should receive one route experience artifact, not separate candidate lists plus optional topology fields whose relative authority has to be reconstructed at runtime.
+
+## Mode 3 - No Substrate Cache Coverage
+
+### What Is On Point
+
+The current app no longer needs to give up when the South Jersey cache is empty or unavailable. It starts the review worker with the same route-line V2 worker path used by `/v2-review`, and it passes worker events into the V2 runtime trace.
+
+This is the right direction. No-substrate routes should still be V2 routes. They should not silently become V1, and they should not stay purple forever waiting for a regional cache that does not cover the area.
+
+### What Is Bad
+
+No-substrate currently exposes the biggest remaining product risk: the review worker can fill topology spans, but the app-facing source fetch can then fan out HPMS/Overpass reads across the route before the display experience is ready.
+
+For long no-substrate routes, that makes the app feel like it has solved identity but then hangs during source acquisition. The runtime trace shows this shape clearly: candidate/review path work resolves, then `hpms-read-proxy` route-window reads can dominate wall time.
+
+The current source plan has a cap for broad bbox fallback, but `route_candidate_cache` mode can still attempt all route windows. That is too heavy for the initial no-substrate experience.
+
+### What To Improve
+
+No-substrate should have two distinct stages:
+
+1. `no_substrate_review_initial`: enough ordered route identity to render, inspect, show cues, and attach bounded evidence.
+2. `review_refinement`: background route-grade evidence expansion and exact hydration that can take longer without blocking the first useful app state.
+
+The first stage should preserve one downstream handoff but carry an initial-load source budget. It should not block display while trying to exhaustively hydrate HPMS/OSM windows.
+
+## Mode 4 - `/v2-review`
+
+### What Is On Point
+
+`/v2-review` is still the purest implementation of ordered V2 route construction. It runs the route-line worker directly through `runRouteLineV2EvidenceInWorker`, produces inventory, route path, topology path, ownership overlay, hydration diagnostics, and review-grade construction state.
+
+It is closest to the design in DS-032 and DS-033:
+
+- sample the GPX;
+- generate plausible edge candidates near the route;
+- prefer continuity over nearest-road wins;
+- emit blockers when continuity cannot be proven;
+- keep ordered topology separate from presentation;
+- allow off-OSM or implied coordinate continuity instead of pretending every transition is a clean OSM node.
+
+### What Is Bad
+
+`/v2-review` is not product-fast by itself. It can be correct but too slow to be the first route-load experience. It also does not directly run the app-facing source gateway, HPMS attachment, scoring, heatmap, hazards, cue-sheet handoff, or left-drawer analysis path.
+
+So `/v2-review` should not replace the main app route load directly. It should seed and refine the main app route experience artifact.
+
+### What To Improve
+
+Port the route construction semantics, not the page. The main app should consume the same worker topology/path result shape as `/v2-review`, adapt it into a shared route experience artifact, and then hand that artifact to the existing app-facing engine.
+
+## Downstream Handoff Assessment
+
+The downstream shape is mostly right: `runCurrentRouteV2ProductionEngine` returns a production result, and `buildV2SSActiveDisplayHandoff` converts it into the active app analysis and map handoff.
+
+The desired end state is not three downstream pipelines. It is one downstream handoff fed by different route-experience stages:
+
+| Stage | Purpose | Downstream path |
+| --- | --- | --- |
+| `full_substrate_initial` | Fast first load when substrate is sufficient. | Same production engine and display handoff. |
+| `partial_substrate_initial` | Fast first load with review worker closure for gaps. | Same production engine and display handoff. |
+| `no_substrate_review_initial` | Review-worker route identity when no cache exists. | Same production engine and display handoff with initial-load budgets. |
+| `review_refinement` | Background exact topology/evidence refinement. | Same production engine and display handoff, replacing or annotating earlier stage when ready. |
+
+## Hazards, Cues, And Transport
+
+Hazards, cues, rail, bus, and airport data should not require the V1 engine to run in parallel.
+
+The current app already has the start of this:
+
+- cues are built from route identity topology through `cue-presentation.ts`;
+- transport anchors are route-level lookup data and can run from the uploaded route state;
+- hazards are attached into the V2 `SafetyResult`;
+- the active drawer and map can consume `activeGpxAnalysis`, where V2 can provide the active analysis result.
+
+The gap is evidence availability and route-distance projection quality. Hazards and transport should become route-distance-keyed V2 presentation events fed by the same route experience artifact. They should not be a separate V1-only analysis dependency.
+
+## The Core Defect
+
+The main app currently has useful parts of both systems, but it lacks one named artifact between route construction and evidence/scoring:
+
+`RouteExperiencePath`
+
+That artifact should be the bigger route truth object for this product direction. It is not just score truth. It is the ordered experience of the ride:
+
+- OSM node and way identity where known;
+- route-distance spans;
+- source lineage;
+- implied coordinate connectors where OSM lacks a connector;
+- off-map or off-OSM sections;
+- blockers where continuity is unproven;
+- refinement status;
+- handoff readiness;
+- source acquisition budget class.
+
+Scoring evidence can still remain stricter than experience truth. But the app needs a first-class place to represent the ride before every evidence field is canonical.
+
+In the product vocabulary, `RouteExperiencePath` is the code-facing contract for route truth before promotion. After continuity and promotion policy are satisfied, it becomes durable `routeTruth`. `evidenceBuilder` and `scoreBuilder` must consume it rather than reconstruct their own route geometry.
+
+## Recommended First Code Checkpoint
+
+Create a narrow, test-backed route experience path contract and adapters. Do not wire runtime behavior in the first checkpoint.
+
+Suggested files:
+
+- `src/lib/route-line-v2/route-experience-path.ts`
+- `src/lib/route-line-v2/route-experience-path.test.ts`
+
+The contract should support:
+
+- `RouteExperiencePath`
+- `RouteExperienceStage`
+  - `full_substrate_initial`
+  - `partial_substrate_initial`
+  - `no_substrate_review_initial`
+  - `review_refinement`
+- ordered segments that can reference:
+  - OSM way ids;
+  - OSM node ids;
+  - coordinate-only connectors;
+  - substrate hint spans;
+  - unresolved blockers;
+- route-distance start/end meters;
+- source lineage separate from provenance;
+- continuity status;
+- handoff readiness;
+- source acquisition budget policy for initial load versus refinement.
+
+Adapters should include:
+
+- from `RouteLineV2TopologyPathResult` to `RouteExperiencePath`;
+- from substrate/current-route candidates to `RouteExperiencePath`;
+- a merge/refinement helper that preserves stage lineage.
+
+## Recommended Second Code Checkpoint
+
+Wire `RouteExperiencePath` into the main app V2 production path without changing scoring math.
+
+The key behavior should be:
+
+- all three main-app modes produce the same artifact shape before evidence attachment;
+- the runtime trace names the active route experience stage;
+- no-substrate routes can display an initial V2 route without waiting for exhaustive HPMS/OSM source hydration;
+- HPMS and OSM source fetch budgets are initial-load bounded, with full refinement allowed later;
+- display handoff remains one path through `runCurrentRouteV2ProductionEngine` and `buildV2SSActiveDisplayHandoff`.
+
+## Explicit Non-Goals
+
+This phase should not:
+
+- create V3;
+- run V1 in parallel just to recover hazards or transport;
+- make substrate canonical truth;
+- make viewport overlays route truth;
+- change scoring math;
+- change heatmap semantics;
+- change HPMS evidence precedence;
+- change DS-029 provenance;
+- write Supabase;
+- write route cache or route history;
+- make RouteMap own builder state;
+- add another downstream scoring/handoff path.
+
+## Bottom Line
+
+The current main app is closer than it feels, but it is missing the shared route experience artifact that would make the four modes honest and composable. `/v2-review` should be ported as the ordered topology/refinement engine behind that artifact. Substrate should stay the fast initial hint layer. Evidence, scoring, hazards, cues, and map presentation should continue through one downstream handoff.
+
+The next safe checkpoint is the `RouteExperiencePath` contract and adapters only.
+
+
+---
+
+## Source File: docs/assessments/ass-021-dev_test_drawer_diagnostics_audit_2026_05_29.md
+
+# ASS-021 - Dev/Test Drawer Diagnostics Audit
+
+Date: 2026-05-29
+
+## Direct Answer
+
+A. drawer_audit_ready_cleanup_before_source_budget_work
+
+## Scope
+
+This audit reviews the admin-facing Dev and Test drawers before the next V2 behavioral checkpoint. The goal is to identify which controls are real, which are stale, which are unclear, and which should be renamed around the new builder vocabulary:
+
+- `quickBuilder`
+- `robustBuilder`
+- `routeExperiencePath`
+- `initialExperience`
+- `refinedExperience`
+
+This is a docs-only checkpoint. No runtime behavior changed.
+
+## Surfaces Inventoried
+
+| Surface | File | Purpose today |
+| --- | --- | --- |
+| Dev drawer shell | `src/components/DevTuningPanel.tsx` | Admin-only drawer shell, localStorage persistence, reset button, and prop plumbing into `DebugControlCenter`. |
+| Dev drawer body | `src/components/DebugControlCenter.tsx` | Registry-driven debug toggles, Review Admin Diagnostics, substrate candidate overlays, HPMS debug overlays, and guardrail display. |
+| Debug registry | `src/lib/debug-registry.ts` | Metadata for most Dev drawer controls. |
+| Test drawer | `src/components/MainAppShadowTestDrawer.tsx` | Engine selection, V1/V2 timing, runtime trace, artifact capture, readiness rows, and route experience stage display. |
+| Main app wiring | `src/pages/Index.tsx` | Owns settings state, debug overlay ids, route builder state, V2 runtime trace, RouteMap props, and right-side drawer visibility. |
+| Map rendering | `src/components/RouteMap.tsx` | Consumes Dev settings and debug overlay ids to render actual map diagnostics. |
+
+## High-Level Finding
+
+The drawers are valuable, but they mix four different jobs:
+
+1. Product engine selection and runtime trace.
+2. V1 legacy route/matcher debugging.
+3. V2 builder, substrate, and HPMS diagnostics.
+4. Experimental or stale controls from earlier phases.
+
+That makes the UI feel powerful but unreliable. Some controls do real work, some only change localStorage flags, some show diagnostics without live data, and some settings are not represented consistently between the registry, defaults, TypeScript settings shape, and runtime consumers.
+
+The next cleanup should not remove useful diagnostics. It should make them honest, staged, and named by role.
+
+## Registry And Settings Drift
+
+`DEBUG_REGISTRY` contains 47 user-facing debug item ids after excluding presets and category ids.
+
+The following registry ids are missing from both `DevTuningSettings` and `DEFAULTS` in `DevTuningPanel.tsx`:
+
+- `CORRIDOR_DEBUG`
+- `ROUTE_LINE_OWNERSHIP_SHADOW`
+- `ROUTE_LINE_V2_MAIN_APP_SHADOW`
+- `apexInspectorOnly`
+- `routeLineV2OwnershipReviewOnly`
+- `showRouteLineApexCandidates`
+- `showSuppressedRouteLineApexCandidates`
+- `showRouteLineShadowBoundaries`
+- `showRouteLineV2AuditMarkers`
+- `showRouteLineV2SpanNames`
+- `showRouteLineV2OwnershipSpans`
+- `showRouteLineV2OwnershipUnresolvedOnly`
+- `showRouteLineV2OwnershipInferredOnly`
+- `showRouteLineV2OwnershipLabels`
+
+That is risky because these are among the most important route-line/V2 controls. The app can still set them dynamically through loose object updates, but they are not first-class in the typed settings contract or reset defaults.
+
+The following defaults/settings exist but are not in `DEBUG_REGISTRY`:
+
+- `showRefinedMarkers`
+- `showConnectorLines`
+- `godFilterQuery`
+
+These may still affect runtime, but they are not governed by registry metadata. That makes them harder to explain, reset, or group.
+
+## Dev Drawer - What Works
+
+### Candidate / Substrate Debug
+
+Mounted in `DebugControlCenter.tsx` through `SubstrateCacheDebugSection`.
+
+Controls:
+
+- `candidate_cache_selected`
+- `candidate_cache_rejected`
+- `candidate_cache_nodes`
+- `candidate_cache_blockers`
+- `candidate_cache_deficit_windows`
+- `candidate_cache_all`
+
+Runtime path:
+
+- Stored in `v2DebugOverlayIds`.
+- Toggled by `handleV2DebugOverlayToggle` in `Index.tsx`.
+- Converted to `substrateCandidateDebugOverlayEnabled`.
+- Passed into `RouteMap` as `showSubstrateCandidateDebugOverlay`.
+- Also turns on V2 shadow/substrate hint flags when any candidate overlay becomes active.
+
+Assessment:
+
+This surface is important and should stay. It should be renamed from "Candidate / substrate" to "quickBuilder candidates" or "Route candidates" so users do not think substrate is canonical truth.
+
+### HPMS Debug
+
+Mounted in `DebugControlCenter.tsx` through `HpmsDebugSection`.
+
+Controls:
+
+- `hpms_source_geometry`
+- `hpms_traffic_aadt`
+- `hpms_speed_limit`
+- `hpms_lane_count`
+- `hpms_shoulder_type`
+- `hpms_selected`
+- `hpms_rejected`
+- `hpms_propagated_spans`
+- `hpms_surface_diagnostic`
+- `hpms_pavement_condition_diagnostic`
+- `hpms_functional_class`
+
+Runtime path:
+
+- Stored in `v2DebugOverlayIds`.
+- Any `hpms_` overlay id turns on `hpmsDebugSurfaceOverlayEnabled`.
+- Passed into legacy and V2 paths as a keep-debug-artifact signal.
+- RouteMap also checks HPMS overlay settings for rendering and inspect behavior.
+
+Assessment:
+
+This surface is important and should stay. It should be split visually into:
+
+- HPMS source records.
+- HPMS selected route evidence.
+- HPMS rejected candidates.
+- HPMS diagnostic-only fields.
+
+The current single list is too dense, especially because not every field is guaranteed to be present on every route.
+
+### Review Admin Diagnostics
+
+Mounted in `DebugControlCenter.tsx` through `AdminRuntimeSurfaceSection`.
+
+Runtime path:
+
+- Uses `buildAdminRuntimeSurfaceViewModel`.
+- Currently mostly default/unavailable diagnostic state unless a richer view model is injected.
+
+Assessment:
+
+This is useful as the future admin foundation, but it should be labeled as "contract surface" or "not live-bound" when its values are defaults. Right now it can look more alive than it is.
+
+### Test Drawer Runtime Trace
+
+Mounted in `MainAppShadowTestDrawer.tsx`.
+
+Runtime path:
+
+- `Index.tsx` appends `v2AppTrace` events.
+- Test drawer renders timing, source plan, route experience stage, readiness, and artifact capture.
+
+Assessment:
+
+This is the best place for lifecycle and timing. It should not absorb overlay controls. It should show what happened, not decide what should render.
+
+## Dev Drawer - Unclear Or Misleading Controls
+
+### V2 Shadow Naming
+
+Controls:
+
+- `ROUTE_LINE_V2_MAIN_APP_SHADOW`
+- Test drawer "Shadow flag enabled"
+- `routeLineV2MainAppShadowEnabled`
+
+Problem:
+
+V2 is now the active engine path for uploaded GPX routes, not only a shadow. The label "shadow" is stale and confusing.
+
+Recommendation:
+
+Rename around builder roles:
+
+- "V2 route builder enabled"
+- "quickBuilder substrate hints"
+- "robustBuilder refinement"
+- "routeExperiencePath stage"
+
+### V2 Ownership Review Only
+
+Control:
+
+- `routeLineV2OwnershipReviewOnly`
+
+Problem:
+
+This is basically "run robustBuilder without full analysis", but the current name sounds like an ownership-only legacy experiment. It also sits in Boundary/Apex, which hides its importance.
+
+Recommendation:
+
+Rename to `robustBuilder review only` and move under a Route Builder section.
+
+### Apex Inspector Only
+
+Control:
+
+- `apexInspectorOnly`
+
+Problem:
+
+This is valuable but currently mixed with V2 ownership and boundary controls. It can stop full analysis, so it is more than a visual overlay.
+
+Recommendation:
+
+Move into a "Builder mode" or "Preflight only" group and clearly mark that it prevents normal route analysis.
+
+### Skip Substrate Cache
+
+Control:
+
+- synthetic `skipV2SubstrateCache` in `DebugControlCenter.tsx`
+
+Runtime path:
+
+- Inverts `v2CandidateSourcePlanEnabled`.
+
+Problem:
+
+The label says skip substrate cache, but the state actually disables the candidate source plan. That may include more than the regional cache as the system evolves.
+
+Recommendation:
+
+Rename to "Disable quickBuilder candidate hints" or split into:
+
+- "Disable substrate cache"
+- "Disable candidate source plan"
+
+Do not keep the current ambiguous name once route-experience stages are wired into behavior.
+
+### South Jersey Cache Label
+
+Problem:
+
+The cache is still labeled "South Jersey" in the Test drawer and some descriptions. That is accurate for the current fixture/region, but it is not the product concept.
+
+Recommendation:
+
+Display two lines:
+
+- `Substrate region: south-jersey` when known.
+- `Candidate hint source: regional substrate cache`.
+
+That keeps the current limitation honest without baking the region into the architecture.
+
+## Dev Drawer - Likely Legacy Or V1-Only Controls
+
+These controls are useful for old analysis and should not be removed blindly, but they should be labeled as V1 or legacy until proven otherwise:
+
+- `useWindowMatcher`
+- `disableContinuity`
+- `useCoarseBoundaries`
+- `enableBoundarySnapping`
+- `collapseSameRoadBoundaries`
+- `renderRawTruth`
+- `showCoarseMarkers`
+- `showRefinedMarkers`
+- `showConnectorLines`
+- `enableTurnAudit`
+- `enableSequenceAudit`
+- `showTopCandidates`
+- `enableCandidateAudit`
+- `enableRawNearbyAudit`
+
+Assessment:
+
+Some of these still help diagnose map output, but they do not necessarily describe the V2 route-experience path. If they stay in the same Dev drawer, they need a badge:
+
+- `V1`
+- `shared display`
+- `quickBuilder`
+- `robustBuilder`
+- `HPMS`
+- `legacy`
+
+## Dev Drawer - Real Runtime Controls That Need Better Placement
+
+These affect rendering or expensive computation and should remain admin-only:
+
+- `skipCache`
+- `skipCorridorCache`
+- `forcePoiCacheMiss`
+- `disablePoiRendering`
+- `heatmapFlowIntensity`
+- `highContrastDebug`
+- `alternatingSegmentColors`
+- `debugMetalGrateBridges`
+- `debugLeftTurns`
+- `overlayBikeInfra`
+- `overlayShoulder`
+- `overlayTrafficProvenance`
+- `routeSpeedPostedOnly`
+- `anchorDistanceMi`
+- `handleIntervalOverrideMi`
+
+Recommendation:
+
+Keep them, but group by ownership:
+
+- Analysis cache controls.
+- Map paint controls.
+- Hazard debug.
+- Viewport verification overlays.
+- Detour routing.
+
+Do not mix them with route-builder controls.
+
+## Test Drawer Assessment
+
+The Test drawer is mostly coherent. It should remain:
+
+- active engine selector;
+- runtime trace;
+- timing;
+- readiness;
+- artifact capture;
+- route experience stage readout.
+
+It should not grow new overlay toggles. Those belong in Dev.
+
+Issues:
+
+- "Shadow flag enabled" is stale naming now that V2 can be active.
+- "A/B Timing" still implies V1 and V2 both run, which the user explicitly does not want.
+- Artifact capture still says V1/V2, but current direction is active V2 plus optional debug artifacts.
+
+Recommendation:
+
+Rename Test drawer sections:
+
+- `Engine`
+- `V2 Runtime Trace`
+- `Route Experience`
+- `Source Timing`
+- `Artifacts`
+- `Readiness`
+
+Avoid "shadow" unless the code is literally running shadow comparison.
+
+## Extra Right-Side Audit Drawers
+
+Right handle tools are conditionally visible:
+
+- `roads` when `enableSequenceAudit`
+- `candidates` when `enableCandidateAudit`
+- `raw` when `enableRawNearbyAudit`
+- `fragments` when candidate/raw audit is active
+
+Assessment:
+
+These are advanced V1/matcher audit tools. They can stay, but should be labeled as legacy/shared unless ported to the route-experience path. Otherwise they look like V2 builder diagnostics but may not reflect `quickBuilder` or `robustBuilder`.
+
+## Recommended Cleanup Sequence
+
+### Checkpoint 1 - Settings Schema Repair
+
+Narrow code checkpoint.
+
+Files:
+
+- `src/components/DevTuningPanel.tsx`
+- focused tests if present or useful
+
+Actions:
+
+- Add missing registry ids to `DevTuningSettings`.
+- Add missing registry ids to `DEFAULTS`.
+- Decide whether `showRefinedMarkers` and `showConnectorLines` should be registry entries or retired.
+- Keep behavior unchanged.
+
+Commit message:
+
+`fix(debug): align dev drawer settings registry`
+
+### Checkpoint 2 - Drawer Label Audit Pass
+
+Narrow UI text checkpoint.
+
+Files:
+
+- `src/components/DebugControlCenter.tsx`
+- `src/components/MainAppShadowTestDrawer.tsx`
+- tests for both drawers
+
+Actions:
+
+- Rename stale "shadow" wording where it does not represent actual shadow mode.
+- Label route-builder controls by role.
+- Mark Review Admin Diagnostics as contract/default state when live data is unavailable.
+- Keep all controls wired exactly as they are.
+
+Commit message:
+
+`chore(debug): clarify V2 drawer diagnostics labels`
+
+### Checkpoint 3 - Route Builder Control Group
+
+Narrow UI structure checkpoint.
+
+Files:
+
+- `src/lib/debug-registry.ts`
+- `src/components/DebugControlCenter.tsx`
+- tests if existing coverage is practical
+
+Actions:
+
+- Create a visible Route Builder group.
+- Move/label:
+  - quickBuilder candidate hints;
+  - robustBuilder review only;
+  - apex inspector only;
+  - route experience path stage diagnostics;
+  - substrate/cache candidate overlays.
+
+Commit message:
+
+`feat(debug): group V2 route builder diagnostics`
+
+### Checkpoint 4 - Source Budget Behavior
+
+Only after drawer cleanup.
+
+Actions:
+
+- Use `routeExperiencePath.stage` to prevent initial no-substrate display from blocking on full HPMS route-window fanout.
+- Keep full refinement available as a later robustBuilder phase.
+- Do not change scoring math.
+
+Commit message:
+
+`fix(route-line-v2): bound initial source hydration by route experience stage`
+
+## Bottom Line
+
+The drawers should be cleaned before the next behavioral source-budget change. The user needs the diagnostics to explain the system while we are hardening it, and right now the drawer language makes real V2 builder state look like a grab bag of old experiments.
+
+The next safest checkpoint is settings schema repair only.
+
+
+---
+
+## Source File: docs/assessments/ass-022-v1_resolver_v2_evidencebuilder_ds029_audit_2026_05_30.md
+
+# ASS-022 - V1 Resolver vs V2 evidenceBuilder vs DS-029 Audit
+
+Date: 2026-05-30
+
+## Direct Answer
+
+V1's evidence resolver is architecturally closer to DS-029 because precedence, propagation, confidence, provenance, and presentation-facing source meaning are centralized behind one resolver contract.
+
+V2 has many of the right primitives: route-indexed evidence spans, a DS-029-style source registry, HPMS projection policy, source traces, rejection reasons, and tests proving that propagated HPMS speed should stop at conflicting direct OSM speed. But those primitives are not yet hardened as the one contract consumed by every builder, score path, display path, and inspect path.
+
+The Medford-Tabernacle symptom should not happen if V2 receives exact OSM and HPMS spans correctly. If a direct OSM 25 mph section is being papered over by HPMS 45 mph, the likely defect is upstream span construction/projection or downstream display/inspect consumption, not the isolated V2 speed propagation rule itself.
+
+## Scope
+
+This assessment compares:
+
+- The V1 evidence resolver model in `src/lib/evidence/`.
+- The V2 `evidenceBuilder` direction represented by route-indexed evidence and speed spans.
+- DS-029 provenance, precedence, confidence, and traceability requirements.
+
+It is intentionally an assessment, not an implementation patch. The goal is to clarify what should be hardened next without inventing a V3 or patching individual UI surfaces.
+
+## DS-029 Requirements
+
+DS-029 requires a waterfall:
+
+1. Source family.
+2. Concrete source type.
+3. Derivation and trace.
+4. Presentation.
+
+Presentation surfaces must not invent provenance semantics. They should render the resolved source meaning produced by the evidence system.
+
+For speed, DS-029 distinguishes direct evidence from inferred evidence. The important Medford-Tabernacle rule is:
+
+- Direct OSM posted speed outranks authoritative inferred speed.
+- Authoritative direct speed can override weaker direct sources only where its projection and eligibility are valid.
+- Propagated authoritative speed must become inferred and must not retain the same meaning as direct evidence.
+
+That means HPMS should not smear a 45 mph value across a directly observed OSM 25 mph section. If that happens, the app has either broadened the HPMS interval incorrectly, lost the exact OSM interval, or rendered from a flattened downstream field.
+
+## V1 Evidence Resolver
+
+V1 has a central resolver shape that matches DS-029 well.
+
+Key properties:
+
+- `SOURCE_PRIORITY` defines one canonical precedence order.
+- Source types map to source families.
+- Propagation carries the value but relabels the source.
+- Direct source labels downgrade when propagated, for example `authoritative_posted` becomes `authoritative_inferred`.
+- Propagation stops at stronger or equal direct conflicting evidence.
+- Confidence and provenance details are built as part of resolution, not invented later in the UI.
+- Inspector, scoring, rendering, and tooltips consume the same resolved evidence meaning.
+
+The architectural strength is not that V1 is perfect. It is that V1 makes evidence resolution a central semantic contract instead of letting each surface decide what a source means.
+
+## V2 evidenceBuilder
+
+V2 is directionally correct in its geometry model.
+
+Good pieces:
+
+- The route polyline is treated as the canonical measurement axis.
+- Evidence can attach by route distance instead of by loose road identity alone.
+- HPMS and OSM can become route-indexed spans.
+- Rejection reasons, source traces, and confidence fields exist.
+- V2 tests already assert that propagated HPMS speed stops at conflicting direct OSM speed.
+- Substrate can accelerate candidate discovery without becoming canonical truth.
+
+Current risks:
+
+- V2 has its own DS-029-style registry instead of reusing the V1 resolver source contract.
+- HPMS projection may enter the resolver as an over-broad direct authoritative interval.
+- OSM direct evidence may be lost if accepted edge detail collapses into a larger ownership span.
+- Fallbacks, baselines, or area estimates may leak into display as if they were resolved truth.
+- Display and inspect surfaces may read stale or flattened fields instead of the canonical route-indexed resolved evidence span.
+- quickBuilder, robustBuilder, and review fallback can produce different handoff shapes, which makes the same physical route display differently depending on how it was built.
+
+## Known Failure Modes
+
+### HPMS Interval Too Broad
+
+If HPMS 45 mph is selected as direct evidence over an entire road span, direct OSM 25 mph cannot win because the resolver sees HPMS as direct and higher priority. The bug is then not "HPMS propagation won"; the bug is that HPMS was handed to the resolver as direct evidence where it should have been absent, clipped, or inferred.
+
+### Exact OSM Evidence Lost
+
+If robustBuilder or quickBuilder collapses accepted OSM ways into a broad route span, the resolver may not know that part of the span had a direct OSM speed. Once that exactness is gone, DS-029 cannot be enforced downstream.
+
+### DisplayBuilder Bypass
+
+If displayBuilder uses heatmap segments, old selected evidence snapshots, debug artifacts, or fallback fields instead of the canonical resolved evidence stream, the map, card, inspect panel, and debug drawer can disagree.
+
+### Inspect Source Drift
+
+Inspect can show one value and one source while the map color is driven by a different field. This is especially damaging for trust because it makes provenance look arbitrary.
+
+### Baseline And Area Estimate Leakage
+
+Area estimates and highway baselines are useful fallbacks, but they must remain visibly lower trust. They should not render as if they are selected direct evidence, and they should not replace a known unknown with false certainty.
+
+## Comparison Summary
+
+| Area | V1 resolver | V2 evidenceBuilder today | Desired V2 hardening |
+| --- | --- | --- | --- |
+| Precedence | Central `SOURCE_PRIORITY` | Registry exists, but duplicated | Shared DS-029 resolver contract |
+| Propagation | Central, relabeled, continuity-aware | Exists for speed spans | Same rule for every evidence field |
+| Direct vs inferred | Explicit source types | Present but vulnerable to broad inputs | Projection and handoff must preserve directness |
+| Confidence | Resolver-owned | Registry and trace fields exist | One confidence/provenance output contract |
+| Display | Consumes resolved meaning | Can diverge by path | DisplayBuilder consumes only resolved spans |
+| Inspect | Aligned to resolver meaning | Can drift from map/score | Inspect reads same resolved evidence stream |
+| Builder consistency | Single legacy path | quickBuilder, robustBuilder, review fallback differ | Builders produce one evidenceBuilder input contract |
+
+## Recommended Direction
+
+Do not patch individual UI surfaces to hide these symptoms. The next phase should harden the contracts between builders.
+
+Recommended system shape:
+
+1. `quickBuilder`, `robustBuilder`, and review fallback all produce the same route-indexed candidate/evidence input contract.
+2. `evidenceBuilder` is the only place that resolves source precedence, directness, inferred propagation, confidence, and provenance.
+3. `scoreBuilder` consumes only `evidenceBuilder` output.
+4. `displayBuilder` consumes only `evidenceBuilder` and `scoreBuilder` output.
+5. Inspect, cards, map paint, cue labels, debug drawers, and overlays all render from the same resolved evidence stream.
+6. Substrate remains a hint/acceleration layer. It must never become truth.
+
+The cleanest migration is to extract the V1 resolver's source priority, family mapping, propagation relabeling, and confidence/provenance semantics into a shared DS-029 evidence contract, then make V2 route-indexed spans use that contract.
+
+## Required Tests
+
+The next implementation phase should require tests for these cases:
+
+- Medford-Tabernacle: direct OSM 25 mph must block propagated HPMS 45 mph.
+- HPMS direct projected speed can override weaker OSM only on the route interval where projection overlap and eligibility are valid.
+- Propagated HPMS speed must render as `authoritative_inferred`, not direct HPMS.
+- Direct OSM speed must keep OpenStreetMap source in inspect, display, and debug output.
+- Area estimate and highway baseline must never masquerade as selected source truth.
+- Unknown values must remain visibly unknown unless evidenceBuilder resolves a valid source.
+- quickBuilder, robustBuilder, and review fallback must produce equivalent evidenceBuilder input for the same route section.
+- displayBuilder must render identical source, color, and risk for identical resolved evidence, regardless of builder path.
+- Inspect panel, route card, map paint, cue sheet, and HPMS/debug drawer must agree on the selected source and value.
+
+## Recommended Next Exec
+
+Create a focused hardening phase:
+
+`EXEC-041 - DS-029 EvidenceBuilder Contract Hardening`
+
+Goals:
+
+- Inventory every V2 evidence resolver path: speed, traffic, shoulder, bike infrastructure, hazards, and future fields.
+- Identify which paths currently use shared route-indexed evidence and which bypass it.
+- Extract or reuse V1 evidence resolver semantics where safe.
+- Add a canonical `ResolvedRouteEvidenceSpan` contract that preserves route interval, source family, source type, directness, provenance, confidence, trace, rejection reasons, and display eligibility.
+- Force every builder path to hand off into that contract before scoreBuilder or displayBuilder can run.
+
+## Assumptions
+
+- This is not a V3 rewrite.
+- V2 route-indexed geometry remains the target architecture.
+- V1 resolver behavior should be reused where it still matches DS-029.
+- The immediate problem is contract hardening, not UI polish.
+- Substrate can make first load fast, but substrate cannot define canonical evidence truth.
+- Review fallback can continue to exist, but its output must converge into the same evidenceBuilder contract before scoring or display.
 
 
 ---
