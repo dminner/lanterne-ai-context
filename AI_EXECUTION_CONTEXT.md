@@ -57062,6 +57062,376 @@ Goals:
 
 ---
 
+## Source File: docs/assessments/ass-023-ds029_route_builder_consistency_swot_2026_05_30.md
+
+# ASS-023 - DS-029 Route Builder Consistency SWOT
+
+**Date:** 2026-05-30
+**Status:** Assessment
+**Scope:** DS-029 provenance, precedence, confidence, traceability, and presentation consistency across the three app-facing V2 route building modes.
+
+## Direct Answer
+
+DS-029 is directionally strong and the current codebase has moved materially closer to it, but the contract is not applied with the same strength across the three route building modes yet.
+
+The strongest DS-029 implementation is the speed evidence path. It has route-indexed spans, source precedence, direct-vs-inferred source typing, propagation relabeling, selected/rejected evidence metadata, and tests for HPMS propagation stopping at conflicting direct OSM speed.
+
+The weakest point is not the DS-029 vocabulary anymore. The V2 evidence registry now reuses the shared V1 evidence source priority and provenance-family mapping. The weak point is runtime enforcement: every route builder mode must hand off the same canonical evidenceBuilder input shape, and every score/display/inspect surface must consume the same resolved evidence stream.
+
+The three modes are therefore best described as:
+
+| Mode | Current DS-029 Consistency | Summary |
+| --- | --- | --- |
+| Full substrate initial, quickBuilder | Medium | Fast and well guarded in type contracts as noncanonical, but must not let substrate hints become score truth or direct evidence identity. |
+| Partial substrate initial, quickBuilder plus robustBuilder closure | Medium-low | Most dangerous mode because mixed hint and refinement boundaries can create source/exactness drift unless the handoff contract is mandatory. |
+| No substrate initial, robustBuilder/review path | Medium | Closest to ordered topology truth, but slow and source-hydration-heavy; first display can still look certain when evidence is bounded or missing. |
+
+The target state is not a new builder. It is one contract:
+
+```text
+routeExperiencePath
+  -> evidenceBuilder
+  -> scoreBuilder
+  -> displayBuilder
+```
+
+Every builder mode should differ only in how it constructs the route experience path and what budget it has on first load. After that, the evidence, score, display, inspect, cue, and debug outputs should all read the same resolved evidence meaning.
+
+## Sources Reviewed
+
+- `docs/02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md`
+- `docs/assessments/ass-020-exec039_phase17a_v2_mode_audit_2026_05_29.md`
+- `docs/assessments/ass-022-v1_resolver_v2_evidencebuilder_ds029_audit_2026_05_30.md`
+- `src/lib/evidence/types.ts`
+- `src/lib/evidence/resolver.ts`
+- `src/lib/route-line-v2/evidence-registry.ts`
+- `src/lib/route-line-v2/evidence-registry.test.ts`
+- `src/lib/route-line-v2/route-indexed-speed-spans.ts`
+- `src/lib/route-line-v2/route-experience-path.ts`
+- `src/lib/route-line-v2/route-experience-evidence-handoff.ts`
+- `src/lib/route-line-v2/v2ss-current-route-production-engine.ts`
+- `src/lib/route-line-v2/v2ss-existing-scoring-adapter-contract.ts`
+
+## DS-029 Baseline
+
+DS-029 requires a waterfall:
+
+1. Provenance family.
+2. Concrete source type.
+3. Source-specific derivation, eligibility, and trace payload.
+4. Presentation.
+
+The important invariant is that presentation surfaces must not invent provenance semantics independently. Map paint, placards, inspect rows, cue surfaces, debug panels, receipts, and score traces should all render one resolved evidence meaning.
+
+DS-029 also requires:
+
+- traffic and speed symmetry unless the spec explicitly says otherwise;
+- source lineage to remain separate from DS-029 provenance;
+- direct evidence to outrank inferred evidence where the field ladder says so;
+- propagated direct evidence to be relabeled as inferred;
+- confidence to be computed from the same chosen inputs and fallback structure as risk;
+- score-bearing fields to preserve traceability for speed, traffic, bike facility, shoulder, and crossings;
+- noncanonical context layers, such as substrate hints and viewport overlays, to remain context unless promoted by an explicit resolver contract.
+
+## What Is Working
+
+The V2 evidence registry is now aligned with the shared V1 source vocabulary. `src/lib/route-line-v2/evidence-registry.ts` imports `SOURCE_PRIORITY`, `sourceTypeToFamily`, and `EvidenceSourceType` from `src/lib/evidence/types.ts`, instead of inventing an unrelated DS-029 ladder.
+
+The registry has useful guardrails:
+
+- speed and traffic share the core active source ladder required by DS-029;
+- traffic does not allow `regional_prior`, `highway_baseline`, or `viewport_area_predicted`;
+- `viewport_area_predicted` is explicitly viewport-only and not score-bearing;
+- bike facility and shoulder disallow predicted and baseline source families;
+- operational lineage is explicitly separate from DS-029 source type;
+- evidence visualization groups are derived from registry entries instead of purely hardcoded UI strings.
+
+The speed path is the best implemented resolver path. `route-indexed-speed-spans` contains route-distance spans, source type, provenance family, confidence, trace, selected/rejected reasons, propagation metadata, and readiness checks. Tests already cover direct OSM conflict boundaries and HPMS propagation relabeling to `authoritative_inferred`.
+
+The route experience contract is also pointed in the right direction. `RouteExperiencePath` names `quickBuilder` and `robustBuilder`, distinguishes full substrate, partial substrate, no-substrate review, and refinement stages, and marks substrate candidates as `substrate_hint`.
+
+The handoff contract is important:
+
+- substrate hints become `available_not_used`;
+- robust ordered OSM paths can become `accepted_by_identity_path`;
+- quickBuilder paths require robustBuilder refinement before route truth and score truth are fully canonical;
+- source budgets distinguish initial bounded loads from expanded review refinement.
+
+Recent semantic split work in `v2ss-existing-scoring-adapter-contract.ts` is also directionally correct. It prevents long same-name or same-route spans from hiding meaningful selected speed changes, without forcing every repeated HPMS window to become a performance-killing fragment.
+
+## SWOT
+
+### Strengths
+
+- DS-029 itself is unusually explicit: it names source families, source types, precedence, confidence anchors, trace payloads, and presentation rules.
+- V2 now reuses the V1 evidence source priority and provenance family contract instead of duplicating it.
+- The speed resolver has real route-indexed evidence semantics rather than flat display fields.
+- Propagation relabeling exists and is tested for the highest-risk failure: authoritative HPMS speed must not smear across conflicting direct OSM speed.
+- Substrate is typed as a hint layer, not route truth.
+- The route experience model names builder role and stage, which gives runtime traces a place to explain how a route was built.
+- DS-029 conformance and selected-evidence audits exist in the V2 stack.
+- The evidence registry is beginning to act like the central display/control registry needed for future modes such as traffic, wind, elevation, surface, and comfort.
+
+### Weaknesses
+
+- DS-029 is still listed as draft/partially implemented, while parts of the app already behave as if it is law.
+- Runtime enforcement is thinner than type-level enforcement. The app can still pass around route identity, ownership spans, substrate candidates, topology paths, and display handoff fields separately.
+- Speed is much more mature than traffic, bike facility, shoulder, hazards, rail/bus/airport context, and future event layers.
+- The no-substrate and partial-substrate paths can generate convincing display output before the evidence contract is actually canonical.
+- Inspect, cue, debug, and display surfaces can still drift if they read flattened fields instead of one resolved evidence stream.
+- Confidence is represented in several places, but the complete DS-029 confidence rollup is not yet the unavoidable output of every field resolver.
+- The V1 resolver remains architecturally closer to DS-029 in some ways because propagation, precedence, source labels, and confidence/provenance are centralized there.
+- `/v2-review` had useful diagnostics and topology behavior that are not fully present in the main app path.
+
+### Opportunities
+
+- Make `RouteExperienceEvidenceBuilderInput` the mandatory internal handoff before source read, score, display, inspect, cue, and debug output.
+- Extract the V1 resolver's useful DS-029 machinery into a shared evidence contract that V2 route-indexed evidence must use.
+- Promote a canonical `ResolvedRouteEvidenceSpan` or equivalent output for every score-bearing field.
+- Add parity tests that prove quickBuilder, partial quickBuilder plus refinement, and no-substrate robustBuilder produce the same selected evidence for the same route intervals when their input sources are equivalent.
+- Make displayBuilder consume only resolved evidence, not builder-specific route artifacts.
+- Make dev/test drawers explain builder stage, budget, canonical readiness, and source truth status in DS-029 terms.
+- Use the golden harness routes now exposed in the vault as the regression corpus for DS-029 parity.
+- Bring hazards, transit/airport/rail context, and cue sheet event surfaces into the same route-indexed trace model instead of bolting them onto V1-style analysis output.
+
+### Threats
+
+- UI patches can accidentally make presentation look correct while score/inspect/debug remain semantically wrong.
+- Substrate hints can quietly become truth if any downstream path ignores `available_not_used` or `canDriveRouteTruth=false`.
+- Partial-substrate routes are prone to mixed-mode bugs where one section is source-backed and another is display-only, but both look equally certain.
+- No-substrate routes can take long enough that users lose trust before refinement finishes.
+- Baseline, area estimate, and predicted values can look like evidence if displayBuilder does not visually preserve source weakness.
+- HPMS projection can become over-broad if semantic split boundaries do not include every relevant source change.
+- Future visualization modes will multiply inconsistency if each surface invents its own field/color/source interpretation.
+
+## Consistency Across The Three Route Building Modes
+
+| DS-029 Requirement | Full Substrate Initial | Partial Substrate Initial | No Substrate Initial |
+| --- | --- | --- | --- |
+| Builder role and stage are explicit | Strong: `full_substrate_initial` and `quickBuilder` exist. | Strong in type model: `partial_substrate_initial` exists. | Strong in type model: `no_substrate_review_initial` exists. |
+| Route identity is canonical before evidence attaches | Partial: substrate candidates are hints and should not be canonical. | Weak-to-partial: mixed gaps/refinement make this the riskiest mode. | Medium: robustBuilder topology is closest, but source closure can still be incomplete. |
+| Substrate remains noncanonical | Strong in contract: `substrate_hint`, `available_not_used`, `canDriveRouteTruth=false`. | Medium: depends on enforcing the same guard during gap closure. | Not applicable, except no-substrate must not fake substrate status. |
+| Evidence handoff uses one shape | Partial: the shape exists, but production paths still accept parallel inputs. | Partial: same concern, plus merge boundaries. | Partial: robust path can produce the shape, but app runtime must require it. |
+| Direct vs inferred source distinction | Medium for speed; weaker for other fields. | Weak-to-medium because partial merge can erase exactness. | Medium for topology-derived exactness, but source fetch budget can force fallback. |
+| Propagation relabeling | Strong for speed. | Strong only if exact intervals survive the merge. | Strong for speed after source spans exist. |
+| Stronger direct evidence blocks weaker/inferred evidence | Strong for tested speed cases. | Medium: recent semantic split helps, but mixed builders need parity tests. | Medium: robust route identity helps, but late source hydration can still be inconsistent. |
+| Traffic DS-029 ladder | Medium: registry now blocks inactive traffic rungs, but resolver parity needs more tests. | Medium-low: partial routes are vulnerable to traffic fallback looking certain. | Medium-low: no-substrate source windows can be slow and incomplete. |
+| Bike facility and shoulder ladder | Medium: registry forbids predicted/baseline, but resolver/display parity is thinner than speed. | Medium-low: exact path/sidepath handling is sensitive to builder handoff. | Medium-low: robust path can identify geometry, but display can still misclassify if handoff is inconsistent. |
+| Hazards and object evidence | Low-to-medium: DS-029 covers traceability, but current V2 parity is less mature. | Low: partial routes need route-distance hazard/event attachment. | Low-to-medium: robust topology is a good target, but not fully unified with display/cues. |
+| Confidence rollup | Partial: fields carry confidence, but one unavoidable confidence output is not yet proven. | Partial: mixed source readiness makes this fragile. | Partial: robust path can support it, but budget and fallback status must be visible. |
+| Presentation must not invent provenance | Partial: displayBuilder direction is right, but not yet the sole source of truth. | Weak-to-partial: most likely to show mismatched map/card/inspect/cue states. | Partial: route truth can be better, but display may still flatten or fallback. |
+| Runtime trace explains source budget | Medium: stage/budget diagnostics exist. | Medium: needs clearer partial-gap and refinement status. | Medium: needs explicit "display now, refine later" status and nonblocking behavior. |
+
+## Mode-by-Mode Assessment
+
+### 1. Full Substrate Initial
+
+This is the best first-load product experience and should remain the default where substrate coverage is good.
+
+It is DS-029-safe only if the substrate is treated as an acceleration layer, not an evidence authority. The current type contract supports that by making quickBuilder substrate segments `substrate_hint` and converting their source-way contributions to `available_not_used`.
+
+The main hardening need is enforcement. Any downstream source fetch, evidence attachment, score, or display path that bypasses the handoff can accidentally treat substrate identity as direct evidence. That would violate DS-029 even if the map looks right.
+
+Recommended standard:
+
+```text
+Full substrate can drive first display.
+Full substrate cannot by itself drive route truth, selected evidence truth, or score truth.
+It becomes score-safe only through a canonical evidenceBuilder handoff and accepted route-indexed evidence spans.
+```
+
+### 2. Partial Substrate Initial
+
+This is the most important and most dangerous mode.
+
+It is important because real coverage will always have gaps. It is dangerous because it can combine:
+
+- substrate hints;
+- accepted OSM ways;
+- coordinate connectors;
+- unresolved blockers;
+- robustBuilder refinement;
+- bounded source hydration;
+- later expanded source hydration.
+
+If those pieces do not converge into one evidenceBuilder input, this mode can produce exactly the trust failures we have seen: one surface says path, another says road; one surface says HPMS, another says OSM; one color implies risk while the inspect source says unknown.
+
+Recommended standard:
+
+```text
+Partial substrate should be display-first, refinement-required.
+Every gap, connector, or noncanonical hint must be visible to evidenceBuilder.
+No score-bearing selected evidence should be emitted from a partial route interval unless its source span is route-indexed and DS-029-valid.
+```
+
+### 3. No Substrate Initial
+
+This mode is closest to `/v2-review` in spirit because it must solve route identity through ordered topology rather than cache hints.
+
+It is therefore architecturally attractive but product-risky. If it waits for too much source hydration before showing anything, it feels broken. If it shows fallback values as confident evidence, it violates DS-029 and looks weak.
+
+The right model is:
+
+```text
+No-substrate initial may show a bounded first route.
+It must visibly mark what is display-ready vs canonical-score-ready.
+Expanded review refinement can continue after first presentation.
+When refinement changes evidence or score, downstream display should update from the same resolved evidence stream.
+```
+
+This mode should not become a V1 corridor fetch with V2 labels. It should produce the same routeExperiencePath/evidenceBuilder contract as the other modes, even if the first pass is incomplete.
+
+## Field-by-Field Assessment
+
+### Speed
+
+Status: strongest DS-029 path.
+
+Speed has the right route-indexed structure and tests. The key concern is no longer the isolated propagation rule. It is whether exact OSM and HPMS spans reach the resolver with correct intervals and whether display/inspect consumes the selected span rather than a flattened route label.
+
+Required hardening:
+
+- continue semantic splitting where selected speed source/value changes;
+- preserve direct OSM intervals;
+- preserve direct HPMS intervals only where projection overlap is valid;
+- relabel propagated HPMS as `authoritative_inferred`;
+- prove identical display/inspect/source output across all three builder modes.
+
+### Traffic
+
+Status: improving, but less proven than speed.
+
+The registry now keeps traffic aligned with DS-029 by allowing the shared speed/traffic core ladder while excluding traffic-inactive rungs such as `regional_prior`, `highway_baseline`, and viewport prediction.
+
+Required hardening:
+
+- add the same selected/rejected route-indexed span rigor that speed has;
+- prove HPMS AADT windows split only at meaningful semantic boundaries;
+- prevent area estimates from looking like direct or authoritative traffic;
+- ensure debug overlays and inspect rows use the same selected traffic span.
+
+### Bike Facility
+
+Status: structurally guarded, but builder-sensitive.
+
+The registry correctly forbids predicted and baseline bike facility source types. That matters for sidepaths, protected lanes, separated paths, and off-road facilities.
+
+Required hardening:
+
+- centralize sidepath/path handling in evidenceBuilder/displayBuilder, not scattered UI conditions;
+- prove path facilities do not inherit road speed/traffic/shoulder when they are selected route experience;
+- prove roads merely intersecting tracks, paths, or side streets do not inherit those identities;
+- preserve source type as OSM geometry or authoritative imported evidence, not a visual inference.
+
+### Shoulder
+
+Status: structurally guarded, but under-tested.
+
+Like bike facility, shoulder disallows predicted and baseline sources. That is good. But the resolver/display parity is not as mature as speed.
+
+Required hardening:
+
+- add exact-vs-inferred shoulder tests;
+- prove unknown shoulder stays unknown with source `None`;
+- prevent shoulder values from being generated from road class or visual defaults unless DS-029 explicitly adds that source type.
+
+### Hazards, Transit, Airport, Rail, And Other Context
+
+Status: DS-029-aware in concept, not fully route-indexed in V2.
+
+These layers should not be revived as independent V1 side outputs. They should become route-indexed event/context evidence with trace payloads and route-distance anchors.
+
+Required hardening:
+
+- project hazards/events onto route distance;
+- expose them to cue sheet and displayBuilder through the same resolved route evidence model;
+- keep object/source trace separate from score-bearing selected evidence unless a DS promotes it.
+
+## Where Consistency Breaks Today
+
+The likely consistency breaks are boundary breaks, not vocabulary breaks:
+
+1. Builder output boundary: quickBuilder, partial quickBuilder, and robustBuilder do not yet have an unavoidable shared handoff before evidence attachment.
+2. Source projection boundary: HPMS/OSM projection can produce intervals broader than the real direct source interval.
+3. Semantic split boundary: route display spans can merge sections that should remain separated because source, value, or directness changed.
+4. Display boundary: map/card/inspect/cue/debug can read different derived shapes.
+5. Budget boundary: bounded initial source reads can look like truth instead of "not fully hydrated yet."
+
+## Recommended Hardening Phases
+
+### Phase 1 - EvidenceBuilder Gate
+
+Make `RouteExperienceEvidenceBuilderInput` or its successor the required internal handoff for every builder mode before source fetch, selected evidence, score, display, inspect, cue, or debug output.
+
+Acceptance criteria:
+
+- full substrate, partial substrate, and no-substrate all emit the same handoff shape;
+- quickBuilder handoff cannot mark substrate hints as accepted truth;
+- robustBuilder handoff marks accepted ordered path segments explicitly;
+- runtime trace names builder role, stage, source budget, and contract status.
+
+### Phase 2 - Field Parity
+
+Bring traffic, bike facility, shoulder, and hazards closer to the speed resolver standard.
+
+Acceptance criteria:
+
+- every score-bearing field has source type, provenance family, confidence, selected/rejected reason, trace, and display eligibility;
+- traffic has route-indexed selected/rejected spans analogous to speed;
+- bike/shoulder never use predicted/baseline sources;
+- hazards and object context are route-distance anchored before appearing in cues or analysis.
+
+### Phase 3 - DisplayBuilder Contract
+
+Make displayBuilder consume only canonical resolved evidence fields.
+
+Acceptance criteria:
+
+- identical resolved evidence produces identical map color, placard, inspect row, cue row, debug row, and receipt output;
+- displayBuilder owns color matrices for risk, traffic, wind, elevation, surface, and future modes;
+- displayBuilder visually distinguishes unavailable, unknown, predicted, inferred, and direct evidence;
+- no UI surface invents source labels.
+
+### Phase 4 - Builder Mode Parity Harness
+
+Use the golden route files in the vault as a parity corpus.
+
+Acceptance criteria:
+
+- Batsto/Medford-Tabernacle proves direct OSM 25 mph blocks propagated HPMS 45 mph spillover;
+- Dam Ride proves no-substrate does not hang and does not fall back to corridor-fetch-as-V2;
+- Las Vegas proves sidepath/path sections do not inherit road speed/traffic/shoulder;
+- Iowa proves no-substrate robustBuilder and displayBuilder do not create inconsistent path/road evidence;
+- the same route interval has the same selected evidence across all builder modes when source inputs are equivalent.
+
+## Practical Definition Of "Consistent Enough"
+
+The system is DS-029-consistent enough when this statement is true:
+
+```text
+For any route interval, regardless of whether the route was initially built by full substrate,
+partial substrate, or no substrate, the selected evidence object for each field is the only source
+used by scoreBuilder, displayBuilder, inspect, cues, debug, receipts, and runtime trace.
+```
+
+Until that is true, the product may still look right on some routes while failing trust on others.
+
+## Bottom Line
+
+DS-029 is the right north star. The current codebase has meaningful DS-029 pieces, especially for speed and source vocabulary. The next improvement should not be more one-off display or builder patches.
+
+The next improvement should be contract hardening:
+
+1. One route experience handoff for all three builder modes.
+2. One resolved evidence stream for all fields.
+3. One displayBuilder contract for all surfaces.
+4. One parity harness proving the three route building modes converge.
+
+That keeps the current V2 direction intact without inventing a V3, and it matches the product spirit: fast first experience when substrate exists, graceful bounded first display when it does not, and increasingly exact route-indexed truth as refinement completes.
+
+
+---
+
 ## Source File: docs/migrations/2026-03-21-canonical_boostrap.md
 
 # Canonical Route Bootstrap Migration

@@ -199,17 +199,18 @@ Typical slice length: 200–500 meters, capped at 750–1,000 meters. See DS-007
 
 ## 3. Safety Definition
 
-**Safety Score** is defined narrowly as:
+**Route Safety Score** is defined narrowly as:
 
 > Likelihood of a rider being struck by a motor vehicle, and severity of the likely outcome.
 
 ### Included in Safety
-- Traffic Index
-- Bike Support Index
+- road exposure
+- crossing exposure
+- traffic, speed, bike operating space, shoulder, curvature, and crossing inputs only as they shape those two exposure domains
 
 ### Not included in Safety
 
-These may matter greatly for the ride but are not part of the narrow safety definition. They are modeled separately and must never contaminate the Safety Score:
+These may matter greatly for the ride but are not part of the narrow safety definition. They are modeled separately and must never contaminate the Route Safety Score:
 
 - Remoteness
 - Fatigue
@@ -226,11 +227,12 @@ These may matter greatly for the ride but are not part of the narrow safety defi
 ## 4. Index Families
 
 ### A. Safety
-Contribute to the top-line Safety Score.
+Contribute to the top-line Route Safety Score or its rider-facing projection.
 
 | Index | Rider question |
 |-------|---------------|
-| Safety Score | How safe is this road from a motor vehicle collision standpoint? |
+| Route Safety Score | How much raw motor-vehicle risk does this route accumulate, per mile, and per scored crossing event? |
+| Route Family Rank | How does this route compare within the selected route family or network? |
 | Traffic Index | How dangerous is the motor vehicle environment? |
 | Bike Support Index | How well does this road support cyclists? |
 
@@ -407,14 +409,16 @@ Indices keep the same meaning across modes. What changes by mode is prominence, 
 
 | Profile | Emphasis |
 |---------|---------|
-| Road | Safety Score, Traffic Index, Bike Support Index, Fatigue |
+| Road | Route Safety Score, Route Family Rank, Traffic Index, Bike Support Index, Fatigue |
 | Bikepacking / Gravel | Surface Quality, Remoteness, Fatigue, Temperature, Precipitation |
 
 ---
 
-## 9. Safety Score Structure
+## 9. Route Safety Score Structure
 
-Safety Score remains narrow: **Traffic Index + Bike Support Index**.
+Route Safety Score remains narrow: **road exposure + crossing exposure**.
+
+The detail-level truth keeps road exposure and crossing exposure independently visible: road risk per mile, crossing risk per mile, crossing risk per event, and their underlying totals. The combined Route Safety Score is a product-calibrated summary, not a pure empirical claim that road and crossing exposure have one universal exchange rate. Route Family Rank may simplify the combined result for riders.
 
 Everything else remains visible but separate.
 
@@ -448,7 +452,7 @@ A dangerous segment on a road with no bike infrastructure should score the same 
 Lanterne should not try to collapse the whole ride into one giant abstract number.
 
 It should provide:
-- One disciplined Safety Score
+- One disciplined Route Safety Score
 - A clear set of route reality indices
 - A rich but elegant conditions layer
 
@@ -489,7 +493,7 @@ Safety refers specifically to:
 
 > risk of collision with motor vehicles and injury severity.
 
-Other challenges — fatigue, weather, remoteness — are modeled separately and never contaminate the Safety Score.
+Other challenges — fatigue, weather, remoteness — are modeled separately and never contaminate the Route Safety Score.
 
 ---
 
@@ -551,13 +555,26 @@ Expedition state is durable. Live session state is transient. These are differen
 
 ## Source File: docs/05-product/heatmap-color-reference.md
 
-# Heatmap Color Pipeline — Authoritative Reference
+# Heatmap Color Pipeline — Viewport Speed Overlay Reference
 
-_Generated from codebase audit, April 2026. Faithful to the implemented logic._
+_Generated from codebase audit, April 2026. Faithful to the implemented viewport overlay logic._
 
 ---
 
-## 1. The Actual Pipeline (End-to-End)
+## 0. Current Paint Contract
+
+Lanterne has two different paint contracts:
+
+- **Route Risk Paint** applies to the selected analyzed route. Its default paint is canonical risk because route evidence, direction, continuity, crossings, confidence, and score trace are available.
+- **Viewport Heatmap / Road-Stress Overlay** applies to roads visible around the route. Its default paint is currently speed band because it is fast, stable, and the closest defensible proxy when full route-specific risk context is unavailable.
+
+This document describes the current **viewport speed overlay** pipeline. It must not be cited as the route-risk paint contract.
+
+Future paint modes may let riders switch either surface among speed, traffic, risk, elevation gain, remoteness, or other layers. Until then, default selected-route paint is risk and default viewport paint is speed.
+
+---
+
+## 1. The Current Viewport Pipeline (End-to-End)
 
 ```
 OSM Road Data
@@ -673,13 +690,13 @@ These describe composite behavior that cannot be reduced to a single threshold.
 
 **This is the most important thing to understand.**
 
-The heatmap color is driven by the resolved **display speed band**, which is determined **only by the segment's resolved speed value**. Bike infrastructure (protected lane, painted lane, shoulder) affects the **route-level safety score** (the letter grade A–F) but does NOT directly change the per-segment heatmap color.
+The viewport heatmap color is driven by the resolved **display speed band**, which is determined **only by the segment's resolved speed value**. Bike infrastructure (protected lane, painted lane, shoulder) affects selected-route risk scoring but does NOT directly change the off-route viewport speed overlay color.
 
 A 45 mph road with a protected bike lane is still **red** on the heatmap.
 
 A 25 mph residential street with no bike lane is still **green** on the heatmap.
 
-_Why:_ The heatmap shows "what kind of road environment are you in right now" — speed class is the visual signal. The composite risk calculation (which includes infrastructure, traffic, shoulders) feeds the aggregate route score, not the per-segment color.
+_Why:_ The viewport overlay answers "what kind of road environment is around me?" Speed class is the current visual signal. The composite route-risk calculation, including infrastructure, traffic, shoulders, crossings, direction, and confidence, feeds selected-route risk paint and route receipts.
 
 ### B. Traffic Volume Does NOT Directly Change the Heatmap Color
 
@@ -747,14 +764,14 @@ Most suburban arterials and collectors (30–35 mph) land in the medium/orange b
 - Shoulder presence
 - Railroad crossing risk
 - Left-turn conflict density
-- The composite risk that actually determines the route grade
+- The composite risk that actually determines selected-route risk paint
 
 ### The core tension:
-The **route-level score** (A+ through F) uses a sophisticated multiplicative model with speed (0.60), traffic (0.30), rail (0.10), infrastructure multipliers (0.25–1.0), shoulder factors, and left-turn penalties.
+The selected route uses canonical risk paint from hydrated route evidence and score trace.
 
-The **per-segment heatmap color** uses only rider-facing display-speed bands with cutpoints at 15 / 30 / 45 mph.
+The viewport heatmap color uses only rider-facing display-speed bands with cutpoints at 15 / 30 / 45 mph.
 
-This means a rider can see an all-orange route and not understand why it scores well (because it has great infrastructure and low traffic) or why it scores poorly (because it has high traffic and no shoulders). The heatmap gives the speed story but hides everything else.
+This means the off-route viewport can show many orange roads without making a canonical risk claim about every visible road. The viewport overlay gives the speed story; selected-route paint gives the route risk story once evidence is hydrated.
 
 ---
 
@@ -778,39 +795,41 @@ For the map legend / segment click card:
 
 Add a "Color Pipeline" info card to the dev panel showing: `display band → risk value → color` with the live segment's values when inspecting.
 
-### D. Potential Refactor: Composite Color Bands
+### D. Future Paint Modes
 
-If you want the heatmap to communicate more than just speed, consider a named color-band abstraction:
+If you want the viewport overlay to communicate more than just speed, consider a named mode abstraction:
 
 ```typescript
-type HeatmapBand = 'safe_path' | 'low_stress' | 'moderate_stress' | 'high_stress' | 'extreme_stress';
+type PaintMode = 'risk' | 'speed' | 'traffic' | 'elevation' | 'remoteness';
 ```
 
-Where `low_stress` could mean "low speed + good infra" and `moderate_stress` could mean "medium speed + no infra" OR "high speed + great infra." This would let the heatmap reflect the composite scoring model instead of just speed — but it's a significant product decision because it changes what riders see and learn to trust.
+Route paint and viewport paint may both become mode-switchable. Risk mode requires route-specific evidence or canonical precomputed artifacts; speed mode can remain the budget-safe default for the general viewport.
 
-The current speed-only model has the advantage of being simple and predictable. A composite model would be more accurate but harder to explain. Both are defensible choices.
+The current speed-only viewport model has the advantage of being simple, predictable, and cheap to render. It is not a claim that speed is the complete safety model.
 
 ---
 
-## Appendix: Scoring Constants Reference
+## Appendix: Legacy Scoring Constants Reference
+
+These constants came from the audited legacy implementation. They are retained here only to explain why the viewport speed overlay did not change when old aggregate scoring constants changed. DS-015 controls current route-risk scoring.
 
 | Constant | Value | Used In |
 |----------|-------|---------|
-| W_SPEED | 0.60 | Route score only |
-| W_TRAFFIC | 0.30 | Route score only |
-| W_RAIL | 0.10 | Route score only |
-| W_LEFT_TURN | 0.21 | Route score only |
-| Protected track multiplier | 0.25× | Route score only |
-| Painted lane multiplier | 0.70× | Route score only |
-| Shoulder factor (wide) | 0.72× | Route score only |
-| High-speed infra floor | 0.50× (if ≥ 40 mph) | Route score only |
-| Speed risk: 25 mph | 1.0 | Route score only |
-| Speed risk: 35 mph | 3.0 | Route score only |
-| Speed risk: 45 mph | 5.0 | Route score only |
-| Speed risk: 55 mph | 7.0 (cap) | Route score only |
-| Safety score formula | `100 / (1 + e^(1.4 × (RPM - 2.5)))` | Route score only |
+| W_SPEED | 0.60 | Legacy route score only |
+| W_TRAFFIC | 0.30 | Legacy route score only |
+| W_RAIL | 0.10 | Legacy route score only |
+| W_LEFT_TURN | 0.21 | Legacy route score only |
+| Protected track multiplier | 0.25× | Legacy route score only |
+| Painted lane multiplier | 0.70× | Legacy route score only |
+| Shoulder factor (wide) | 0.72× | Legacy route score only |
+| High-speed infra floor | 0.50× (if ≥ 40 mph) | Legacy route score only |
+| Speed risk: 25 mph | 1.0 | Legacy route score only |
+| Speed risk: 35 mph | 3.0 | Legacy route score only |
+| Speed risk: 45 mph | 5.0 | Legacy route score only |
+| Speed risk: 55 mph | 7.0 (cap) | Legacy route score only |
+| Safety score formula | `100 / (1 + e^(1.4 × (RPM - 2.5)))` | Legacy route score only |
 
-**None of these affect heatmap color.** They all feed the aggregate route score / letter grade.
+**None of these affect viewport speed-overlay color.** Route Risk Paint is separate and must come from the selected route's canonical score trace.
 
 
 ---
@@ -1735,7 +1754,7 @@ without forcing riders to interpret complex numeric data.
 
 ## Core Principle
 
-The **meaning of colors never changes**.
+Within a paint mode, the **meaning of colors never changes**.
 
 Only the **visual palette** adapts to the surrounding light environment.
 
@@ -1829,35 +1848,38 @@ They exist solely as a **visual legibility system**.
 
 ---
 
-## Relationship to Safety Score
+## Relationship to Route Safety Score
 
-Dynamic risk indicators visualize **segment risk results derived from the Safety Score pipeline**.
+Dynamic risk indicators apply to two paint contracts:
 
-They do not replace the Safety Score and do not change how it is calculated.
+- **Route Risk Paint** visualizes segment and crossing risk results derived from the canonical route score trace for the selected analyzed route.
+- **Viewport Heatmap / Road-Stress Overlay** currently visualizes speed bands as a noncanonical proxy for surrounding roads.
+
+They do not replace the Route Safety Score and do not change how it is calculated.
 
 ---
 
 ## Implementation Rule
 
-All UI surfaces that display segment risk must use the **same dynamic palette logic**, including:
+All UI surfaces that display the same paint mode must use the **same dynamic palette logic** for that mode, including:
 
 - route heatmap
 - segment highlighting
 - cue sheet risk markers
 - map overlays
 
-This ensures consistent visual interpretation across the product.
+This ensures consistent visual interpretation across the product without collapsing route risk paint and viewport speed overlays into the same semantic claim.
 
 ---
 
 ## Design Rule
 
 ```
-Hue = meaning  
+Hue = mode-specific meaning
 Brightness = legibility
 ```
 
-The hue assigned to a risk level must **never change between day and night**.
+The hue assigned to a given risk or speed band must **never change between day and night**.
 
 Only brightness, contrast, and saturation may adapt to light conditions.
 
@@ -1871,12 +1893,12 @@ Possible future improvements include:
 
 - twilight palette interpolation
 - color-blind accessibility palettes
-- mode-aware emphasis (road vs gravel contexts)
+- selectable paint modes such as speed, traffic, risk, elevation gain, and remoteness
 - adaptive contrast based on ambient brightness
 
 These enhancements must maintain the core rule:
 
-**risk color meaning remains constant.**
+**color meaning remains constant within each selected paint mode.**
 
 
 ---
@@ -2610,15 +2632,33 @@ That gives Lanterne a stop system that is simple on the surface, truthful in the
 
 ## Source File: docs/05-product/prod-010-safety_score_methodology_v3.md
 
-# Lanterne Safety Score — Public Methodology (v3.1-launch)
+# Lanterne Safety Score — Public Methodology (v3.1-launch, superseded)
 
 > How Lanterne measures the relative motor-vehicle risk of an endurance cycling route.
 
 ---
 
+## Supersession Notice
+
+This v3.1 methodology is historical. The active canonical model is [DS-015 - Safety Scoring Model 5.5](../02-architecture/design/ds-015-safety_scoring_model.md).
+
+Current doctrine:
+
+- detail-level truth preserves independent road-risk and crossing-risk outputs
+- the combined Route Safety Score is an evidence-informed product calibration, not a pure empirical truth about the universal exchange rate between road exposure and crossing exposure
+- Route Family Rank is the rider-facing simplification
+- there is no canonical 1-100 score, school-like curve, or A-F band
+- crossing risk is additive with per-event guardrails; route-level crossing-share caps are diagnostics, not score clamps
+- separated paths/MUPs carry zero continuous-road risk, while score-bearing crossings still count
+- confidence follows DS-020/DS-029 risk-weighted provenance, not flat data-coverage buckets
+
+The remaining sections document the legacy V3.1 launch model for lineage only. They must not be cited as current product or implementation authority.
+
+---
+
 ## What the Safety Score measures
 
-The Safety Score estimates the **relative expected motor-vehicle harm per mile** for a bicyclist on a given route. It is a single number from 0–100, where higher is safer.
+In the superseded V3.1 model, the Safety Score estimated the **relative expected motor-vehicle harm per mile** for a bicyclist on a given route and projected it into a 0-100 shell. That projection is no longer canonical.
 
 It does **not** measure weather, fatigue, navigation difficulty, or surface quality. Those are separate layers.
 
@@ -2752,7 +2792,7 @@ RawRPM = ContinuousRPM + EffectiveCrossingRPM
 SafetyScore = 100 ÷ (1 + e^(1.4 × (RawRPM − 2.5)))
 ```
 
-The 0.6667 cap ensures crossings cannot exceed 40% of raw canonical route risk.
+Legacy V3.1 used the 0.6667 cap to keep crossings below 40% of raw route risk. DS-015 supersedes that cap: crossing events retain per-event guardrails, route rollup is additive, and crossing share is diagnostic.
 
 ---
 

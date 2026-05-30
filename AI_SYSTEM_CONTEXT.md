@@ -64,7 +64,7 @@ Corridor and proximity-derived support context (ADR-019). Settlement proximity, 
 Container for any scoring pass. Tracks what version of logic ran over which route under which assumptions (stable_route or ride_instance family).
 
 ### `route_slice_analysis`
-Per-slice scoring outputs for an analysis run. Safety Score, Traffic Index, Bike Support Index, Remoteness Index, Surface Quality Index, Fatigue Index, Descent Risk Index.
+Per-slice analysis outputs for an analysis run. Route Safety Score inputs/trace for road exposure and crossing exposure, plus independent Traffic Index, Bike Support Index, Remoteness Index, Surface Quality Index, Fatigue Index, and Descent Risk Index projections.
 
 ### `route_analysis_summary`
 Route-level rollup per analysis run. Fast retrieval for cards and summary views.
@@ -217,7 +217,8 @@ The analysis engine processes route geometry and generates indices on **small in
 - DOT/HPMS traffic data
 
 **Stable analysis outputs:**
-- Safety Score (Traffic Index + Bike Support Index)
+- Route Safety Score (raw road-exposure and crossing-exposure risk)
+- Route Family Rank projection
 - Remoteness Index
 - Surface Quality Index
 - Fatigue Index
@@ -408,7 +409,8 @@ The analysis engine operates on **small internal slices** (ADR-020), not giant a
 ### Analysis families
 
 **Safety** (narrow definition — motor vehicle risk only)
-- Safety Score
+- Route Safety Score
+- Route Family Rank
 - Traffic Index
 - Bike Support Index
 
@@ -502,7 +504,7 @@ Indices keep the same meaning across profiles. What changes is emphasis, orderin
 
 | Profile | Emphasis |
 |---------|---------|
-| Road | Safety Score, Traffic Index, Bike Support Index, Fatigue |
+| Road | Route Safety Score, Route Family Rank, Traffic Index, Bike Support Index, Fatigue |
 | Bikepacking / Gravel | Surface Quality, Remoteness, Fatigue, Temperature, Precipitation |
 
 Urban may be added later but the center of gravity remains long-distance riding.
@@ -524,7 +526,7 @@ The ultimate job of the system is to help riders make better choices:
 
 ## 14. Guiding Architectural Rules
 
-1. Keep Safety Score narrow — motor vehicle risk only
+1. Keep Route Safety Score narrow — motor-vehicle road exposure and crossing exposure only
 2. Keep indices distinct from one another
 3. Compute on small slices, present with human-readable summaries
 4. Separate route identity from analysis output
@@ -571,13 +573,15 @@ That lived truth should remain visible in every major system decision.
 
 _Internal Documentation — Updated 2026-04-04 (v3.1-launch)_
 
+> Superseded for safety scoring by [DS-015](./design/ds-015-safety_scoring_model.md) and the v4 safety update guide. V3.1 references to composite A-F grades, 0-100 score shells, route-level crossing caps, and hazard/time-of-day score modifiers are lineage only.
+
 ---
 
 ## 1. Overview
 
 ### What Lanterne Is
 
-Lanterne is a mobile-first Progressive Web App that provides cyclists with segment-level safety analysis of their routes. Users upload a GPX file or create a route on-map, and the platform analyzes every road segment for risk factors — speed, traffic volume, shoulders, bike infrastructure, and crossing exposure — producing a composite safety grade (A+ through F) and a color-coded heatmap overlay. Railroad crossings and bridge hazards are detected and shown as a separate hazard layer.
+Lanterne is a mobile-first Progressive Web App that provides cyclists with segment-level safety analysis of their routes. Users upload a GPX file or create a route on-map, and the platform analyzes road exposure and crossing exposure — speed, traffic volume, shoulders, bike infrastructure, curvature, and bounded crossing conflicts — producing raw route risk, Route Family Rank, route risk paint, cue sheet, and decision-support surfaces. Railroad crossings and bridge hazards are detected and shown as a separate hazard layer.
 
 ### The Problem
 
@@ -814,7 +818,7 @@ Before matching begins, two preparatory scans run:
 
 **Purpose:** Compute per-segment and aggregate route risk.
 **Input:** Enriched truth segments.
-**Output:** `TotalRisk`, `RiskPerMile`, `SafetyScore` (0–100), `LetterGrade` (A+ to F).
+**Output:** `TotalRouteRisk`, `RouteRiskPerMile`, `CrossingRiskPerEvent`, score trace, confidence, and provenance summary. Legacy `SafetyScore` (0-100) and `LetterGrade` (A+ to F) are not current canonical output.
 **Code:** `safety-scoring.ts → computeRouteSafetyScore()`.
 
 **V3.1-Launch Scoring Model:**
@@ -827,11 +831,11 @@ SliceRisk = SliceMiles × (0.60 × SpeedFactor + 0.40 × TrafficFactor) × Infra
 
 Where SpeedFactor uses a piecewise-linear breakpoint table (≤20→0.50 through 55+→6.20), TrafficFactor uses a 6-step AADT-per-lane ladder with a fallback evidence chain, InfraFactor is multiplicative (protected 0.50, buffered 0.68, painted 0.82, none 1.00), and ShoulderFactor applies only when speed ≥ 30 and no bike facility exists.
 
-**Crossing risk contribution** replaces the former left-turn penalty: `min(0.75, 0.05 × √(SpeedFactor × TrafficFactor) × Width × Control × Movement)`, capped so crossings never exceed 40% of total raw canonical risk.
+**Crossing risk contribution** replaces the former left-turn penalty: `min(0.75, 0.05 × √(SpeedFactor × TrafficFactor) × Width × Control × Movement)`. Crossing share is diagnostic; it does not cap additive route risk.
 
 **Excluded from headline score:** rail crossings, bridge hazards, time-of-day traffic, critical stretch penalties, weather, surface, fatigue. These are report-only layers.
 
-The aggregate `RiskPerMile` is transformed to a 0–100 score via a logistic curve (midpoint 2.5, steepness 1.4).
+The aggregate `RouteRiskPerMile` remains raw arithmetic model output. Route Family Rank may summarize it for riders; a 0-100 logistic shell is not canonical.
 
 ### Step 11b — Post-Analysis Validation
 
@@ -859,10 +863,10 @@ The aggregate `RiskPerMile` is transformed to a 0–100 score via a logistic cur
 ### Step 14 — Visualization
 
 **Input:** Truth segments, safety result, cue sheet.
-**Output:** Heatmap overlays, grade card, cue sheet table, corridor reveal animation.
+**Output:** route risk paint, viewport speed overlay, Route Family Rank card, cue sheet table, corridor reveal animation.
 **Code:** `heatmap/builder.ts`, `RouteMap.tsx`, `useCorridorReveal.ts`.
 
-**Heatmap architecture:** Truth segments → display segments via zoom-banded merging strategies (Low ≤12, Mid 13–14, High ≥15) using worst-case risk scoring. A Strava-style overlap rule (±1 coordinate extension) eliminates visual seams from browser rasterization.
+**Map paint architecture:** Selected-route paint should use canonical route-risk trace once available. The viewport heatmap / road-stress overlay may use speed-band display segments with zoom-banded merging strategies (Low ≤12, Mid 13–14, High ≥15). A Strava-style overlap rule (±1 coordinate extension) eliminates visual seams from browser rasterization.
 
 **Corridor reveal:** After analysis completes, a 2.2-second staged animation illuminates nearby corridor roads (near → far → hold → fade) before leaving only the selected route.
 
@@ -916,8 +920,8 @@ Throughout the pipeline, `IoMetrics` (in `route-analysis.ts`) tracks: corridor t
 
 | Feature | Description | Key Code |
 |---------|-------------|----------|
-| **Safety Scoring** | 0–100 score with A+–F grade. V3.1 model: speed(60%)/traffic(40%) core weights × multiplicative bike infra × shoulder factor + bounded crossing risk contribution. Rail, critical stretch, time-of-day traffic are report-only, NOT in headline score. | `safety-scoring.ts`, `safety-constants.ts` |
-| **Heatmap** | Speed-colored road overlays with zoom-banded truth-to-display rendering | `heatmap/builder.ts`, `RouteMap.tsx` |
+| **Safety Scoring** | Independent road-risk and crossing-risk outputs, product-calibrated combined route risk, confidence, provenance, and Route Family Rank projection. Rail, critical stretch, time-of-day traffic, weather, surface, fatigue, and remoteness are report/display layers unless promoted by a future score-model change. | `safety-scoring.ts`, `safety-constants.ts` |
+| **Map Paint** | Route Risk Paint for analyzed routes plus speed-colored viewport overlays for surrounding roads | `heatmap/builder.ts`, `RouteMap.tsx` |
 | **Corridor Analysis** | Fetches and indexes the broader road network; builds CorridorGraph for local pathfinding | `corridor.ts`, `corridor-graph.ts` |
 | **Micro-Hazard Detection** | 7 hazard types from OSM tags (railroad crossings, metal grate bridges, cattle grids, covered bridges, etc.) | `hazards.ts` |
 | **Forensic Matching** | Dense sub-sampling re-analysis of suspicious zones | `forensic-matcher.ts` |
@@ -944,7 +948,7 @@ Throughout the pipeline, `IoMetrics` (in `route-analysis.ts`) tracks: corridor t
 
 | Feature | Description | Key Code |
 |---------|-------------|----------|
-| **Onboarding** | Multi-row swipeable flow with inline auth, safety-grade mockup, feature showcase | `OnboardingGate.tsx` |
+| **Onboarding** | Multi-row swipeable flow with inline auth, safety-summary mockup, feature showcase | `OnboardingGate.tsx` |
 | **Subscription Gating** | Free vs Nerd tier with Stripe checkout, admin grants, promo codes | `SubscriptionGate.tsx`, `TierPicker.tsx` |
 | **PWA Install** | Home Screen prompt, standalone refresh button (iOS-only) | `AddToHomeScreenPrompt.tsx`, `StandaloneRefreshButton.tsx` |
 | **Backend Resilience** | Auth timeout → cached subscription fallback → banner with retry | `AuthContext.tsx`, `BackendUnavailableBanner.tsx` |
@@ -1096,7 +1100,7 @@ _Internal Documentation — Updated 2026-04-04 (v4, safety-model update)_
 
 ### What Lanterne Is
 
-Lanterne is a mobile-first Progressive Web App that provides cyclists with segment-level safety analysis of their routes. Users upload a GPX file or create a route on-map, and the platform analyzes every road segment for risk factors — speed, traffic, shoulder and bike operating space, bounded crossing conflicts, and route-specific hazards — producing a rider-facing grade, heatmap, cue sheet, and decision-support surfaces.
+Lanterne is a mobile-first Progressive Web App that provides cyclists with segment-level safety analysis of their routes. Users upload a GPX file or create a route on-map, and the platform analyzes road exposure and crossing exposure — speed, traffic, shoulder and bike operating space, curvature, and bounded crossing conflicts — producing raw route risk, Route Family Rank, route risk paint, cue sheet, and decision-support surfaces. Route-specific hazards are displayed separately unless promoted by a future score-model change.
 
 ### The Problem
 
@@ -1110,12 +1114,12 @@ GPX Upload → Corridor Fetch → Road Matching → Data Enrichment → Hazard D
 
 ### What Makes It Unique
 
-1. **Client-side analysis** — all computation runs in the browser; infrastructure cost stays low because the user’s device is the compute engine.  
-2. **Multi-source data fusion** — OSM road geometry + federal HPMS traffic + state DOT attributes + imported route-source metadata such as RWGPS surface when available.  
-3. **Shared geographic tile caching** — every user warms global caches for others in the same geography.  
-4. **Truth-segment scoring** — scoring operates on canonical internal route slices rather than purely visual map segments.  
-5. **Two-pass forensic matching** — coarse matching followed by targeted re-analysis in suspicious zones.  
-6. **Narrow safety definition** — the canonical Safety Score is limited to motor-vehicle strike exposure and likely severity, not a kitchen-sink route score.  
+1. **Client-side analysis** — all computation runs in the browser; infrastructure cost stays low because the user’s device is the compute engine.
+2. **Multi-source data fusion** — OSM road geometry + federal HPMS traffic + state DOT attributes + imported route-source metadata such as RWGPS surface when available.
+3. **Shared geographic tile caching** — every user warms global caches for others in the same geography.
+4. **Truth-segment scoring** — scoring operates on canonical internal route slices rather than purely visual map segments.
+5. **Two-pass forensic matching** — coarse matching followed by targeted re-analysis in suspicious zones.
+6. **Narrow safety definition** — the canonical Route Safety Score is limited to motor-vehicle strike exposure and likely severity, not a kitchen-sink route score.
 
 ---
 
@@ -1123,16 +1127,16 @@ GPX Upload → Corridor Fetch → Road Matching → Data Enrichment → Hazard D
 
 ### Computation Model
 
-All CPU-intensive work — GPX parsing, spatial indexing, road matching, forensic analysis, scoring, heatmap building, cue generation — runs in the browser. The backend is a data-and-proxy layer: it stores caches/user data and proxies rate-limited external APIs. No analysis runs server-side.
+All CPU-intensive work — GPX parsing, spatial indexing, road matching, forensic analysis, scoring, route paint / viewport overlay building, cue generation — runs in the browser. The backend is a data-and-proxy layer: it stores caches/user data and proxies rate-limited external APIs. No analysis runs server-side.
 
 ### Safety-model summary
 
-The launch canonical Safety Score has two parts:
+The launch canonical Route Safety Score has two parts:
 
-1. **Continuous segment exposure risk**  
+1. **Continuous segment exposure risk**
    Built from non-linear speed environment, traffic exposure, and operating-space mitigation.
 
-2. **Bounded crossing risk contribution**  
+2. **Bounded crossing risk contribution**
    Built from discrete score-bearing crossing events using speed, traffic, width, control, and movement context.
 
 The canonical score explicitly excludes:
@@ -1166,7 +1170,7 @@ Enriches matched roads and slices with:
 - hazard context
 
 ### Step 5 — Safety scoring
-Canonical Safety Score is computed in two layers:
+Canonical Route Safety Score is computed in two layers:
 
 #### A. Continuous segment exposure
 For each internal slice:
@@ -1193,17 +1197,19 @@ Launch policy constants:
 - `E0 = 0.05 crossing risk points`
 - `E_cap = 0.75 crossing risk points`
 
-The route-level crossing contribution is bounded so crossings cannot exceed 40% of raw canonical route risk.
+Each crossing event is bounded by per-event guardrails. Route-level crossing share is diagnostic only; it does not clamp the additive route trace.
 
 ### Step 6 — Route rollup
 
 ```text
-ContinuousRPM = TotalContinuousRisk / RouteMiles
-RawCrossingRiskContributionPerMile = TotalCrossingRiskContribution / RouteMiles
-EffectiveCrossingRiskContributionPerMile = min(RawCrossingRiskContributionPerMile, ContinuousRPM × 0.6667)
-RawRPM = ContinuousRPM + EffectiveCrossingRiskContributionPerMile
-SafetyScore = 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
+RoadRiskTotal = sum(continuous-road risk points)
+CrossingRiskTotal = sum(crossing-event risk points)
+TotalRouteRisk = RoadRiskTotal + CrossingRiskTotal
+RouteRiskPerMile = TotalRouteRisk / RouteMiles
+CrossingRiskPerEvent = CrossingRiskTotal / eligible scored crossing-event count
 ```
+
+Road and crossing outputs remain independently visible as the detail-level truth. The combined Route Safety Score is a product-calibrated summary, and Route Family Rank may summarize that combined comparison for riders; a 0-100 score or A-F grade is not canonical.
 
 ### Step 7 — Report-only interpretive layers
 These may appear in the analysis drawer or route explanation but do not modify the canonical score:
@@ -1247,7 +1253,7 @@ Sub-usable shoulder remains visible to riders but earns no safety credit.
 ## 5. Presentation rules
 
 ### Canonical score vs explanation layers
-The canonical Safety Score answers:
+The canonical Route Safety Score answers:
 
 > how much motor-vehicle danger this route exposes a cyclist to
 
@@ -1266,8 +1272,8 @@ Whenever traffic is shown publicly as a daily figure, the UI should also provide
 
 ## 6. Current strategic priorities
 
-- stabilize the final V3 safety model implementation
-- keep stale V2 scoring language from leaking into live docs or UI
+- stabilize the DS-015 safety model implementation
+- keep stale V2/V3 scoring language from leaking into live docs or UI
 - preserve narrow score semantics
 - support route-source precedence cleanly (especially RWGPS surface)
 - keep guest mode and client-side compute intact
@@ -1276,12 +1282,12 @@ Whenever traffic is shown publicly as a daily figure, the UI should also provide
 
 ## 7. Guiding rules
 
-1. Keep Safety Score narrow.  
-2. Keep route explanation richer than route score.  
-3. Compute on small slices, present on readable segments.  
-4. Separate canonical score from contextual interpretation.  
-5. Use clear precedence ladders for truth and confidence.  
-6. Do not let unknown silently turn into asserted truth.  
+1. Keep Route Safety Score narrow.
+2. Keep route explanation richer than route score.
+3. Compute on small slices, present on readable segments.
+4. Separate canonical score from contextual interpretation.
+5. Use clear precedence ladders for truth and confidence.
+6. Do not let unknown silently turn into asserted truth.
 
 
 ---
@@ -1525,7 +1531,7 @@ Key columns: inferred_posted_speed_mph, inferred_aadt, inferred_lane_count, infe
 
 ### `traffic_behavior_baselines`
 
-Regional comparison priors. **Starts mostly empty.** Not used to rescale Safety Score.
+Regional comparison priors. **Starts mostly empty.** Not used to rescale Route Safety Score.
 
 Key columns: geography_level, geography_key, road_class, urbanicity_class, baseline_passes_per_mile, baseline_vehicle_speed_mph, p25/p50/p75/p90 percentiles.
 
@@ -1884,8 +1890,8 @@ That is enough structure to stop building by thread vibes and start building wit
 │    - routeSpeedSegments[] (display compaction — legacy)        │
 │    - truthSegments[] built from truthRuns                      │
 │                                                                │
-│  Output: SafetyResult { truthRuns, truthSegments,              │
-│          routeSpeedSegments, score, grade, ... }               │
+│  Output: SafetyResult / route-risk artifact { truthRuns,       │
+│          truthSegments, routeSpeedSegments, risk rollups, ... }│
 │  Side effect: setGpxAnalysis(result)                           │
 └──────────────────────────┬──────────────────────────────────────┘
                            │
@@ -2628,7 +2634,7 @@ For this moment in time, the route-load system is in a good place when:
 
 This document explains how individual **indices** are calculated.
 
-Indices describe specific aspects of a route and are the building blocks behind route intelligence. Only some indices feed the Safety Score. Others are independent.
+Indices describe specific aspects of a route and are the building blocks behind route intelligence. Only road-exposure and crossing-exposure inputs feed the Route Safety Score. Others are independent.
 
 ---
 
@@ -2642,19 +2648,28 @@ This document distinguishes:
 
 ---
 
-## 1. Safety Score (Currently Implemented)
+## 1. Route Safety Score (Current DS-015 Contract)
 
-Safety Score represents:
+Route Safety Score represents:
 
 > The relative likelihood of a rider being struck by a motor vehicle and the expected severity of the outcome.
 
-Normalized to a **0–100 scale**, mapped to letter grades (A through F).
+The canonical detail-level output keeps road and crossing risk separate, then also provides a combined product-calibrated summary:
 
-**Current composition:**
-- Traffic Exposure Index (dominant contributor — higher = more risk)
-- Bike Support Index (mitigating factor — higher = less risk)
+- total route risk points
+- combined route risk per mile
+- road risk per mile
+- crossing risk per mile
+- crossing risk per scored crossing event
 
-See `SCORE_CALCULATION.md` for the full pipeline.
+The combined Route Safety Score is a product decision, not a claim that road exposure and crossing exposure have an objectively knowable universal exchange rate. Lanterne weights sustained road exposure as the backbone because crash and severity data support it, but route detail surfaces must expose both independent domain signals. Route Family Rank may simplify the combined result for riders. The prior 0-100 score and A-F grade are legacy projections and are not canonical.
+
+**Current score-driving composition:**
+- continuous road exposure
+- crossing exposure
+- speed, traffic, bike operating space, shoulder, curvature, and crossing inputs only insofar as they shape those two exposure domains
+
+See [DS-015](../design/ds-015-safety_scoring_model.md) for the canonical pipeline.
 
 ---
 
@@ -2662,21 +2677,16 @@ See `SCORE_CALCULATION.md` for the full pipeline.
 
 **Rider question:** How dangerous is the motor vehicle environment on this road?
 
-**Major inputs:**
+**Major inputs for the road-exposure domain:**
 - Road classification
 - Speed environment (posted limit → inferred class → observed if available)
 - Lane count
 - Traffic volume (AADT if available via HPMS/DOT)
-- Time-of-day multiplier
-- Intersection density
-- Rail crossings and hazard penalties
+- Crossing inputs when the rider crosses, joins, exits, or turns across motor-vehicle roads
 
-**Output:** Higher value → higher risk. Dominant contributor to Safety Score.
+Time-of-day traffic, rail crossings, and non-motor-vehicle hazards may be displayed elsewhere, but they do not drive the launch Route Safety Score.
 
-**Speed data hierarchy:**
-1. Observed car speed (radar data with ≥3 samples)
-2. Posted speed limit
-3. Inferred speed environment class
+**Output:** Higher value → higher motor-vehicle exposure. Dominant contributor to route risk points.
 
 ---
 
@@ -2694,9 +2704,9 @@ See `SCORE_CALCULATION.md` for the full pipeline.
 
 ---
 
-## 4. Hazard Modifiers (Currently Implemented)
+## 4. Hazard Layers (Display / Report Only)
 
-Micro-hazards add penalties to segment risk.
+Micro-hazards are route intelligence, not launch score math.
 
 **Examples:**
 - Bridges
@@ -2704,17 +2714,17 @@ Micro-hazards add penalties to segment risk.
 - Railroad crossings
 - Underpasses
 
-Detected in `hazards.ts`. Each hazard adds a small penalty to the segment risk score.
+Detected hazards may be shown in route context, cue sheets, debug panels, or future hazard models. They must not be silently included in the narrow Route Safety Score unless promoted through a versioned safety-model change.
 
 ---
 
-## 5. Time-of-Day Traffic Model (Currently Implemented)
+## 5. Time-of-Day Traffic Context (Display / Report Only)
 
-Traffic exposure adjusts based on estimated rider arrival time (`traffic-time.ts`).
+Traffic context may be interpreted based on estimated rider arrival time (`traffic-time.ts`).
 
 **Inputs:** Estimated rider pace, start time, segment distance.
 
-The system calculates expected arrival hour and scales traffic risk accordingly. This is especially important for randonneuring where overnight and dawn riding are common.
+The system may calculate expected arrival hour for cue context, warnings, and future ride intelligence. It does not scale canonical launch route risk.
 
 ---
 
@@ -2761,7 +2771,7 @@ Especially important for gravel and bikepacking contexts.
 
 **Inputs:** Negative grade, descent length, curvature, road width, shoulder availability, surface quality. Future: weather interaction, darkness interaction.
 
-Not currently part of the narrow Safety Score unless future evidence justifies it.
+Not currently part of the narrow Route Safety Score unless future evidence justifies it through a versioned model change.
 
 ---
 
@@ -2833,14 +2843,18 @@ If an index cannot be explained in one sentence to a rider, it should not exist.
 
 ## Source File: docs/02-architecture/analysis/anal-002-score_calculation_v2.md
 
-# Lanterne Score Calculation — V3.1 Launch
+# Lanterne Score Calculation — V3.1 Launch (superseded)
 2026-04-04
+
+> Superseded by [DS-015 - Safety Scoring Model 5.5](../design/ds-015-safety_scoring_model.md). This document remains for lineage only.
+>
+> Current doctrine: canonical detail-level safety output preserves independent road-risk and crossing-risk values. The combined Route Safety Score is an evidence-informed product calibration, and Route Family Rank is the rider-facing simplification derived from the combined comparison basis. A 0-100 score, A-F grade, route-level crossing-share cap, and nonzero safe-path baseline are legacy V3.1 concepts and must not be treated as current canonical output.
 
 ## Purpose
 
-This document explains how rider-facing **scores** are produced from underlying analysis data.
+This document explains how rider-facing **scores** were produced from underlying analysis data in the legacy V3.1 launch model.
 
-It reflects the **V3.1-launch scoring engine** (`safety-constants.ts`, `safety-scoring.ts`).
+It reflects the historical **V3.1-launch scoring engine** (`safety-constants.ts`, `safety-scoring.ts`), not the active DS-015 contract.
 
 ---
 
@@ -2853,7 +2867,7 @@ Lanterne does **not** collapse all route intelligence into one number.
 - Environmental **conditions**
 - A **hazard summary layer** (separate from Safety Score)
 
-The Safety Score is the only true "headline score." Everything else is supporting analysis.
+In the current DS-015 contract, road risk and crossing risk remain separate detail-level signals. The combined Route Safety Score is a product-calibrated summary, and Route Family Rank is the rider-facing simplification. Other layers remain supporting analysis.
 
 ---
 
@@ -2861,7 +2875,7 @@ The Safety Score is the only true "headline score." Everything else is supportin
 
 > The relative expected motor-vehicle harm per mile for a bicyclist.
 
-Normalized to a **0–100 scale** and mapped to letter grades (A+ through F).
+Legacy V3.1 normalized this to a **0-100 scale** and mapped it to letter grades (A+ through F). DS-015 abandons that projection as canonical output.
 
 This is NOT a kitchen-sink danger score. It **excludes** weather, surface, fatigue, rail hazards, time-of-day traffic, and all non-motor-vehicle factors.
 
@@ -2877,11 +2891,11 @@ Segment risk modeling
     ↓
 Crossing risk contribution (bounded per-event model)
     ↓
-Continuous RPM + Effective Crossing RPM (capped at 40% of total)
+Continuous RPM + Effective Crossing RPM (legacy V3 cap at 40% of total)
     ↓
 Logistic normalization: 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
     ↓
-Final Safety Score (0–100)
+Final Safety Score (0-100, legacy)
     ↓
 Letter grade + confidence level
 ```
@@ -2996,7 +3010,7 @@ When no official AADT data exists, the gate reverse-engineers an approximate AAD
 
 Total crossing risk is capped: `EffectiveCrossingRPM ≤ ContinuousRPM × 0.6667`
 
-This ensures crossings never exceed 40% of total raw canonical risk.
+This was the legacy V3.1 route-level crossing cap. DS-015 supersedes it: crossing events retain per-event guardrails, route rollup is additive, and crossing share is diagnostic.
 
 ---
 
@@ -3088,14 +3102,18 @@ A dangerous road in light rain should not score better than the same road in sun
 
 ## Source File: docs/02-architecture/analysis/anal-002-score_calculation_v3_final.md
 
-# Lanterne Score Calculation
+# Lanterne Score Calculation (V3 final, superseded)
 2026-04-04
+
+> Superseded by [DS-015 - Safety Scoring Model 5.5](../design/ds-015-safety_scoring_model.md). This document remains for V3 lineage only.
+>
+> Current doctrine: canonical detail-level truth preserves road-risk and crossing-risk outputs separately. The combined Route Safety Score is an evidence-informed product calibration, and Route Family Rank is the rider-facing simplification derived from the combined comparison basis. The 0-100 score, letter grades, and route-level crossing-share cap below are legacy concepts.
 
 ## Purpose
 
 This document explains how rider-facing scores are produced from underlying analysis data.
 
-It reflects the intended launch V3 canonical Safety Score model.
+It reflects the historical intended launch V3 Safety Score model, not the active DS-015 contract.
 
 The goal is a score that is:
 - narrow
@@ -3114,7 +3132,7 @@ Instead it uses:
 - route reality and condition layers outside the headline score
 - report and explainer layers that help riders understand context without diluting the canonical score
 
-The Safety Score is the only headline score today.
+In the active DS-015 contract, road risk and crossing risk are the clearest detail-level truth. The combined Route Safety Score is a product-calibrated summary, and Route Family Rank is the rider-facing simplification.
 
 ---
 
@@ -3124,7 +3142,7 @@ Safety Score represents:
 
 > the relative expected harm from a bicyclist being struck by a motor vehicle
 
-The score is normalized to a **0–100** scale and mapped to letter grades.
+Legacy V3 normalized the score to a **0-100** scale and mapped it to letter grades. DS-015 no longer treats that as canonical.
 
 It is **not**:
 - a crash probability
@@ -3145,13 +3163,13 @@ Continuous slice risk modeling
     ↓
 Crossing event contribution modeling
     ↓
-Route rollup (continuous + bounded crossing contribution)
+Route rollup (continuous + legacy bounded crossing contribution)
     ↓
-Logistic normalization
+Legacy logistic normalization
     ↓
-Safety Score (0–100)
+Safety Score (0-100, legacy)
     ↓
-Letter grade
+Letter grade (legacy)
 ```
 
 ---
@@ -3286,7 +3304,7 @@ RawRPM = ContinuousRPM + EffectiveCrossingRiskContributionPerMile
 SafetyScore = 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
 ```
 
-This route-level crossing cap ensures crossing contribution cannot exceed 40% of raw canonical route risk at launch.
+This route-level crossing cap was a V3 policy. DS-015 supersedes it: crossing events retain per-event guardrails, but route rollup is additive and crossing share is diagnostic only.
 
 ---
 
@@ -3319,7 +3337,7 @@ Time-of-day contextual interpretation may appear in cue sheets and explainers, b
 
 ## 9. Design rule
 
-Safety Score must remain:
+Route Safety Score must remain:
 - explainable
 - grounded in traffic safety research
 - resistant to feature creep
@@ -3672,7 +3690,7 @@ Once slice arrival time is known, the system can model ride-time conditions (lig
 | Sun glare risk | Bearing vs solar azimuth (ADR-010) |
 | Moonlight context | Phase and cloud cover (ADR-009) |
 
-**Separation rule:** Contextual conditions must remain distinct from the Safety Score per ADR-006 and ADR-007.
+**Separation rule:** Contextual conditions must remain distinct from the Route Safety Score per ADR-006 and ADR-007.
 
 > **Guiding principle:** Show what the ride may feel like at that time, without contaminating the meaning of safety.
 
@@ -4515,6 +4533,8 @@ The goal is to identify routes representing the same real-world road experience 
 ## Core Concept
 
 A canonical route represents a unique corridor of roads. Different route files representing the same corridor should map to that canonical route. Variants attach to the canonical route rather than creating duplicates.
+
+Canonical route matching is an identity/reuse decision, not a ride-envelope containment decision. A traversal can be associated with a canonical route while preserving its own source artifact, direction, timestamps, controls, edits, and user-history record. Containment may create links; it must not overwrite route truth or collapse distinct rider artifacts into one indistinguishable record.
 
 ---
 
@@ -5872,7 +5892,7 @@ create index on segment_behavior_inputs (road_class, urbanicity_class);
 
 ## 4. `traffic_behavior_baselines`
 
-**Purpose:** Regional and contextual comparison priors for benchmarking, explanation, and future model calibration. **Not used to rescale the headline Safety Score.**
+**Purpose:** Regional and contextual comparison priors for benchmarking, explanation, Route Family Rank context, and future model calibration. **Not used to rescale the Route Safety Score.**
 
 ```sql
 create table traffic_behavior_baselines (
@@ -6160,7 +6180,7 @@ The canonical mapper is introduced as an explicit admin/batch operation. **No sy
 These tables do not change what Lanterne scores.
 They change what Lanterne **knows**, **compares**, and can eventually **explain**.
 
-> Build the schema now. Populate it incrementally. Keep the Safety Score absolute throughout.
+> Build the schema now. Populate it incrementally. Keep Route Safety Score as raw route-risk truth throughout.
 > Route analyses produce occurrences. Canonical segments accumulate knowledge.
 
 
@@ -6708,11 +6728,16 @@ If it happens, how severe is it likely to be?
 Then it applies that logic in two domains:
 
 ```text
-Total Risk = Road Risk + Crossing Risk
+Road Risk / Mile = Road Risk Total / Route Miles
+Crossing Risk / Mile = Crossing Risk Total / Route Miles
+Crossing Risk / Event = Crossing Risk Total / scored crossing events
+Total Risk = product-calibrated sum(Road Risk, Crossing Risk)
 Risk / Mile = Total Risk / Route Miles
 ```
 
-Road risk and crossing risk are not competing truth systems. They are two places where the same likelihood-versus-severity logic applies.
+Road risk and crossing risk are not competing truth systems. They are two places where the same likelihood-versus-severity logic applies. But the single combined score is not magic truth: it depends on Lanterne choosing a relative scale between sustained road exposure and discrete crossing exposure.
+
+That product choice is not arbitrary. It follows crash and severity evidence that sustained road exposure is more common in severe bicycle motor-vehicle outcomes than crossing exposure. Still, the most honest route explanation keeps the two domains visible. A quiet urban path with many crossings and a high-speed rural route with almost no crossings can deserve very different rider decisions even when their combined score is close.
 
 ## Road Risk
 
@@ -6851,35 +6876,36 @@ So the canonical outputs are simpler:
 ```text
 Total Risk
 Risk / Mile
+Crossing Risk / Event
 ```
 
-Total Risk tells you how much motor-vehicle risk the route accumulates.
+Total Risk tells you how much motor-vehicle risk the route accumulates under Lanterne's declared road-vs-crossing calibration.
 
 Risk / Mile tells you what kind of route it is, mile for mile.
 
+Road Risk / Mile tells you whether the route's risk mainly comes from sustained riding in the motor-vehicle stream.
+
+Crossing Risk / Mile tells you whether the route's risk mainly comes from many discrete crossing conflicts over the route distance.
+
+Crossing Risk / Event tells you whether the route's scored crossings are mostly mild or severe when they occur.
+
 A 200-mile route can accumulate more total risk than a 40-mile route and still be better mile-for-mile. Both truths matter.
 
-## Rank And Grade Are Comparisons, Not Truth
+## Route Family Rank Is A Comparison, Not Truth
 
 I still believe riders need an interpretation layer.
 
-Most people do not want to stare at raw risk points and reverse-engineer whether a route is a good idea. So Lanterne can show rank and curved grade.
+Most people do not want to stare at raw risk points and reverse-engineer whether a route is a good idea. So Lanterne can show Route Family Rank.
 
-But those are projections.
+But that is a projection.
 
-Rank means:
+Route Family Rank means:
 
 ```text
 How does this route compare to routes in this selected network?
 ```
 
-Curved grade means:
-
-```text
-Where does this route land on an A-F curve within that selected network?
-```
-
-A route can be an A among one family of routes and a C among another. That is not a bug. That is honesty. Every route belongs to more than one universe.
+A route can rank very well among one family of routes and poorly among another. That is not a bug. That is honesty. Every route belongs to more than one universe.
 
 ## Why Provenance Matters
 
@@ -7052,8 +7078,8 @@ Those stories are not the model. The model still has to stand on defensible meth
 
 # DS-015 - Safety Scoring Model 5.5
 
-**Status:** Draft canonical replacement candidate  
-**Date:** 2026-04-25  
+**Status:** Canonical
+**Date:** 2026-04-25
 **Filename:** `ds-015-safety_scoring_model.md`
 
 ## Purpose
@@ -7062,14 +7088,17 @@ This artifact defines Lanterne's safety scoring contract as a complete, standalo
 
 The model estimates **relative motor-vehicle strike risk for a bicyclist**, weighted by the severity of the likely outcome if a strike occurs. It is built for pre-ride route intelligence, route comparison, score tracing, and cached corpus analysis. It is not a crash probability model, a weather model, a rider skill model, a fatigue model, a policing model, or a complete all-hazards route danger model.
 
-The canonical score objects are:
+The canonical score object family is a set of transparent route-risk outputs:
 
 ```text
-Total Route Risk = sum(continuous-road risk points) + sum(crossing-event risk points)
+Road Risk Per Mile = Road Risk Total / Route Miles
+Crossing Risk Per Mile = Crossing Risk Total / Route Miles
+Crossing Risk Per Event = Crossing Risk Total / eligible scored crossing-event count
+Total Route Risk = policy-calibrated sum(continuous-road risk points, crossing-event risk points)
 Route Risk Per Mile = Total Route Risk / Route Miles
 ```
 
-Those two objects are the stable scoring layer. Rank and grade are projections on top of them, not replacements for them.
+The road and crossing breakouts are the most honest detail-level safety signals. The combined Route Safety Score is still useful, but it is a declared product calibration: it chooses how to place continuous-road exposure and crossing-event exposure onto one scale. That choice is evidence-informed by crash and severity patterns that make sustained road exposure the backbone, but it is not a discovered physical law. Route Family Rank is the rider-facing simplification derived from the combined comparison basis. A 1-100 score, school-like curve, or A-F band is not canonical.
 
 ## 1. Architectural Decision
 
@@ -7093,8 +7122,12 @@ The canonical route artifact must therefore preserve:
 
 - `totalRouteRisk`
 - `routeRiskPerMile`
+- `roadRiskPerMile`
+- `crossingRiskPerMile`
+- `crossingRiskPerEvent`
 - `roadRiskTotal`
 - `crossingRiskTotal`
+- `eligibleCrossingEventCount`
 - `routeMiles`
 - `scoreTrace`
 - `confidenceSummary`
@@ -7102,7 +7135,7 @@ The canonical route artifact must therefore preserve:
 - `modelVersion`
 - evidence and cache version metadata
 
-Rank and grade may be computed later from `routeRiskPerMile`, but they are projections that must carry their own network metadata.
+Route Family Rank may be computed later from `routeRiskPerMile`, but it is a projection that must carry its own route-family and network metadata. A route detail or admin surface may not present the combined score or rank without preserving road-vs-crossing breakout values close enough for interpretation.
 
 Projection layers may not compute alternate score truth. They may only interpret the canonical route artifact for a named network, universe, UI context, or cache version.
 
@@ -7142,6 +7175,7 @@ The governing evidence shape is:
 - AADT-per-lane benchmark families provide defensible traffic breakpoints, but Lanterne must extend the high-volume tail because real roads exceed a simple 18,000 AADT ceiling.
 - Intersection and crossing research supports width, control, and movement as meaningful factors, but not with nationally stable exact coefficients.
 - U.S. fatality and severity patterns support keeping sustained road exposure central while still scoring crossing conflicts explicitly.
+- The relative weight between road exposure and crossing exposure is therefore a product calibration, not an externally published coefficient. It must be inspectable through road and crossing breakouts.
 
 Source families used by this contract:
 
@@ -7167,10 +7201,14 @@ Minimum required fields:
 | --- | --- | --- |
 | `modelVersion` | Safety model version, e.g. `ds-015-5.5` | cache key, trace, rank eligibility |
 | `routeMiles` | Route length in miles | denominator for risk per mile |
-| `totalRouteRisk` | Sum of road and crossing risk points | canonical accumulated score |
-| `routeRiskPerMile` | `totalRouteRisk / routeMiles` | canonical comparison basis |
-| `roadRiskTotal` | Sum of continuous-road risk points | receipt and diagnostics |
-| `crossingRiskTotal` | Sum of crossing-event risk points | receipt and diagnostics |
+| `totalRouteRisk` | Policy-calibrated sum of road and crossing risk points | combined route score |
+| `routeRiskPerMile` | `totalRouteRisk / routeMiles` | combined comparison basis |
+| `roadRiskTotal` | Sum of continuous-road risk points | independent road-exposure signal |
+| `roadRiskPerMile` | `roadRiskTotal / routeMiles` | independent road-exposure comparison basis |
+| `crossingRiskTotal` | Sum of crossing-event risk points | independent crossing-exposure signal |
+| `crossingRiskPerMile` | `crossingRiskTotal / routeMiles` | crossing burden over route distance |
+| `eligibleCrossingEventCount` | Count of scored crossing events | denominator for crossing risk per event |
+| `crossingRiskPerEvent` | `crossingRiskTotal / eligibleCrossingEventCount` when count is positive | crossing-event severity / complexity comparison basis |
 | `crossingRiskShare` | `crossingRiskTotal / totalRouteRisk` when total is positive | corpus sanity diagnostic |
 | `scoreTrace` | Road-slice and crossing-event records | route paint, receipts, audit, cache |
 | `confidenceSummary` | Route, road, traffic, crossing, and evidence confidence | caveats and cache status |
@@ -7178,7 +7216,7 @@ Minimum required fields:
 | `evidenceSnapshotId` | Version of imported / resolved evidence | cache invalidation |
 | `routeGeometryHash` | Stable geometry identity | cache invalidation |
 
-No implementation may persist only grade, rank, or a legacy score shell and call that a complete safety result.
+No implementation may persist only Route Family Rank, only a combined score, or a legacy score shell and call that a complete safety result.
 
 ## 5. Score Trace Contract
 
@@ -7308,7 +7346,7 @@ Missingness is carried in confidence, receipts, and caveats. It is not hidden in
 
 The primary conceptual split is **likelihood versus severity**.
 
-Road risk and crossing risk are score-bearing domains. They are not competing kinds of truth. Both are derived the same way:
+Road risk and crossing risk are score-bearing domains. They are not competing truth systems, but they are different safety signals. Both are derived the same way:
 
 ```text
 Risk = Likelihood * SeverityWeight
@@ -7318,6 +7356,8 @@ This naming discipline matters because it prevents the model from treating "road
 
 - Road risk is sustained-exposure likelihood multiplied by speed severity.
 - Crossing risk is discrete-event likelihood multiplied by crossed-road speed severity.
+
+The model may add these domains into one Route Safety Score only because Lanterne has made an explicit calibration choice about their relative scale. That choice is grounded in crash evidence that serious and fatal bicycle motor-vehicle patterns more often involve non-intersection / sustained-road contexts than crossing-event contexts, but riders must still be able to inspect the two domains independently. A high-crossing urban path and a high-speed rural road can have similar combined risk for very different reasons.
 
 For each continuous road slice `j`:
 
@@ -7350,7 +7390,12 @@ CrossingLikelihood_i =
 Route rollup:
 
 ```text
-Total Route Risk = Σ RoadRisk_j + Σ CrossingRisk_i
+Road Risk Total = Σ RoadRisk_j
+Road Risk Per Mile = Road Risk Total / Route Miles
+Crossing Risk Total = Σ CrossingRisk_i
+Crossing Risk Per Mile = Crossing Risk Total / Route Miles
+Crossing Risk Per Event = Crossing Risk Total / eligible scored crossing-event count
+Total Route Risk = policy-calibrated sum(Road Risk Total, Crossing Risk Total)
 Route Risk Per Mile = Total Route Risk / Route Miles
 ```
 
@@ -7359,9 +7404,10 @@ In plain English:
 - Traffic, curvature, facilities, and shoulders shape sustained road likelihood.
 - Crossed-road traffic, width, control, and movement shape crossing-event likelihood.
 - Speed shapes severity in both domains.
-- The model computes local risk points from likelihood times severity, then sums them.
+- The model computes local risk points from likelihood times severity, keeps road and crossing totals separate, then computes a combined product-calibrated score.
 - Longer routes may accumulate more total risk even when their mile-for-mile character is benign.
-- `routeRiskPerMile` is the normalized basis for comparison.
+- `roadRiskPerMile` and `crossingRiskPerMile` explain route character by domain.
+- `routeRiskPerMile` is the default combined basis for Route Family Rank; it must be read as a product-weighted comparison basis, not as a pure measurement that eliminates the road-vs-crossing judgment.
 
 ## 8. Continuous-Road Risk
 
@@ -7644,7 +7690,7 @@ Unknown movement should be rare. If it is common, the problem is movement classi
 
 ### 9.6 No Route-Level Crossing Clamp
 
-Canonical `Total Route Risk` is an additive sum of score-bearing road and crossing units. The launch model does not apply a route-level crossing-share clamp after summing, because that would make the canonical total no longer equal the sum of its trace.
+Canonical `Total Route Risk` is a product-calibrated sum of score-bearing road and crossing units. The launch model does not apply a route-level crossing-share clamp after summing, because that would make the combined score no longer equal its declared calibration and trace.
 
 Crossing influence is controlled through:
 
@@ -7689,7 +7735,7 @@ The canonical model outputs risk. Rider-facing comparison is a projection.
 
 ### 11.1 Rank
 
-Rank compares `routeRiskPerMile` against a selected route network.
+Rank compares combined `routeRiskPerMile` against a selected route network.
 
 ```text
 Rank = ordinal position by ascending Route Risk Per Mile within the selected network
@@ -7717,33 +7763,22 @@ Examples:
 - Gravel-adjacent Exclusion Rank
 - User-library Rank
 
-Only `routeRiskPerMile` is the default ranking basis. `totalRouteRisk` remains visible because long rides accumulate more total exposure, but it must not be the default rank basis unless a projection explicitly says it is ranking total accumulated risk.
+Only combined `routeRiskPerMile` is the default Route Family Rank basis. `roadRiskPerMile`, `crossingRiskPerMile`, `crossingRiskPerEvent`, and `totalRouteRisk` remain visible because the combined rank is a product-weighted summary and the domain breakouts are often the clearer rider signal. `totalRouteRisk` must not be the default rank basis unless a projection explicitly says it is ranking total accumulated risk.
 
-### 11.2 Curved Grade
+### 11.2 Route Family Rank
 
-Curved Grade is a school-analogous A-F label derived from percentile standing in a selected network.
+Route Family Rank is the launch rider-facing simplification derived from `routeRiskPerMile` within a named family or comparison universe.
 
-Default launch mapping:
+It may be shown as an ordinal, percentile, or concise family-relative label, but it must not use school-like A-F grading and must not imply a universal 1-100 safety scale.
 
-| Percentile in selected network by `routeRiskPerMile` | Grade |
-| --- | --- |
-| safest 10% | A |
-| next 20% | B |
-| middle 40% | C |
-| next 20% | D |
-| riskiest 10% | F |
-
-This is not an absolute grade. It is a curve. A route can be a `B` among endurance routes and a `D` among local recreational routes if those networks have different distributions.
-
-Every grade must carry:
+Every Route Family Rank must carry:
 
 - network name and version
 - model version
-- grade mapping version
 - percentile basis
 - whether ties are dense-rank, ordinal, or percentile-smoothed
 
-The product may display grade first for readability, but receipts and admin views must preserve `totalRouteRisk` and `routeRiskPerMile`.
+The product may display Route Family Rank first for readability, but receipts and admin views must preserve `totalRouteRisk`, `routeRiskPerMile`, `roadRiskPerMile`, `crossingRiskPerMile`, and `crossingRiskPerEvent`.
 
 ## 12. Map Paint Contract
 
@@ -7754,6 +7789,8 @@ Required contract names are **Route Risk Paint** for the selected analyzed route
 ### 12.1 Route Risk Paint
 
 Route Risk Paint applies to an analyzed route.
+
+Default selected-route paint is risk paint.
 
 It uses:
 
@@ -7785,7 +7822,7 @@ It does not answer:
 What is the canonical risk of this route?
 ```
 
-The viewport overlay may use fast proxies:
+Default viewport overlay is speed band because it is cheap, stable, and direction/context-neutral enough for first paint. The viewport overlay may use other fast proxies:
 
 - speed band
 - road class
@@ -7810,15 +7847,19 @@ Full off-route risk may be computed only by:
 
 This is not split-brain architecture. It is two named contracts for two different questions.
 
+Future UI may make paint modes selectable for both route and viewport surfaces, including speed, traffic, risk, elevation gain, remoteness, or other layers. Mode switching must preserve the distinction between canonical route-risk claims and proxy viewport exploration.
+
 ## 13. Scorecard, Method, Receipts, And Cache Contract
 
 ### 13.1 Scorecard
 
 The scorecard should display:
 
-- Curved Grade for the selected network
-- Rank for the selected network
-- Route Risk Per Mile
+- Route Family Rank for the selected network or route family
+- Combined Route Risk Per Mile
+- Road Risk Per Mile
+- Crossing Risk Per Mile
+- Crossing Risk Per Event when scored crossings exist
 - Total Route Risk
 - confidence band
 - short caveat when important inputs are relationship-inferred, predicted, or baseline
@@ -7834,7 +7875,7 @@ The method card should explain:
 - speed shapes likely outcome severity
 - crossings are discrete score-bearing events
 - missing data affects confidence and receipts
-- rank and grade are relative to the selected network
+- Route Family Rank is relative to the selected network or route family
 
 ### 13.3 Receipt Cards
 
@@ -7862,12 +7903,11 @@ Cache key requirements:
 - route matching version
 - score-trace schema version
 
-Rank and grade caches additionally require:
+Route Family Rank caches additionally require:
 
 - network id
 - network version
 - inclusion filters
-- grade mapping version
 - scoring run id
 
 Route load should prefer cached canonical artifacts. If a route must be scored live, the UI should show provisional status and persist the completed artifact for reuse.
@@ -7895,9 +7935,12 @@ Source keys:
 | --- | --- | --- | --- | --- |
 | Vehicle-strike-only scope | Model boundary | `S-LOCATION`, `P-LANTERNE` | Canonical scope | Keeps the score narrow enough to defend and prevents weather, fatigue, remoteness, and surface hazards from becoming hidden score math. |
 | `Risk = Likelihood x SeverityWeight` | Governing score structure | `S-HSM-NCHRP`, `S-LOCATION` | Benchmark-shaped architecture | Separates conflict opportunity from likely outcome severity, which is the clearest and most defensible launch model form. |
-| `Total Route Risk = Σ road risk + Σ crossing risk` | Canonical accumulated score object | `P-LANTERNE` | Canonical formula | Preserves additive traceability and lets riders see total accumulated exposure. |
-| `Route Risk Per Mile = Total Route Risk / Route Miles` | Normalized comparison object | `P-LANTERNE` | Canonical formula | Compares route character without punishing long benign routes solely for length. |
-| Projections may not compute alternate score truth | Projection boundary | `P-LANTERNE` | Canonical invariant | Rank, grade, and UI summaries must interpret the canonical artifact, not become competing scoring systems. |
+| `Road Risk Per Mile = Road Risk Total / Route Miles` | Independent road-exposure signal | `S-LOCATION`, `P-LANTERNE` | Canonical output | Shows whether risk comes from sustained road environment, especially high-speed or high-volume rural and suburban stretches. |
+| `Crossing Risk Per Mile = Crossing Risk Total / Route Miles` | Independent crossing-burden signal | `P-LANTERNE` | Canonical output | Shows whether risk comes from many discrete conflicts, especially urban paths and crossing-dense routes. |
+| `Crossing Risk Per Event = Crossing Risk Total / eligible scored crossing-event count` | Crossing-event comparison object | `P-LANTERNE` | Canonical output | Lets crossing-heavy routes expose whether their discrete conflict events are mild or severe without hiding total route risk. |
+| `Total Route Risk = policy-calibrated sum(road risk, crossing risk)` | Combined score object | `S-LOCATION`, `P-LANTERNE` | Product calibration | Keeps a single sortable summary while making clear that road-vs-crossing weighting is a transparent product decision, not pure empirical truth. |
+| `Route Risk Per Mile = Total Route Risk / Route Miles` | Normalized combined comparison object | `P-LANTERNE` | Product-calibrated formula | Compares combined route character without punishing long benign routes solely for length. |
+| Projections may not compute alternate score truth | Projection boundary | `P-LANTERNE` | Canonical invariant | Route Family Rank and UI summaries must interpret the canonical artifact, not become competing scoring systems. |
 | Intersection versus midblock split | Architecture support | `S-LOCATION` | Supporting empirical evidence | It explains why crossings matter while sustained open-road exposure remains the backbone of severe-outcome route risk. |
 | Speed severity shape `sigma(s)` | Conditional severity curve | `S-SPEED-156` | Direct benchmark-derived shape | Speed has the strongest nationally available support for a steep severe-outcome curve. |
 | Posted speed as severity proxy | Practical mapping of severity curve to route truth | `S-SPEED-156`, `P-LANTERNE` | Calibration / measurement policy | Posted speed is nationally available and explainable even though it is not literal operating-speed truth. |
@@ -7936,8 +7979,7 @@ Source keys:
 | Propagated truth relabeling | Provenance integrity | `P-PROVENANCE` | Canonical policy | A propagated value from a direct source must not masquerade as directly observed. |
 | Crossing share diagnostic | Route-level calibration and explanation signal | `S-LOCATION`, `P-LANTERNE` | Diagnostic only | Crossing share should reveal whether calibration is behaving plausibly without clamping the additive score trace. |
 | Critical stretch artifact | Preserves short dangerous sections | `P-LANTERNE` | Report-only | Route averages alone should not hide short ugly connectors, but the artifact should explain concentration rather than mutate score. |
-| Rank by risk per mile | Comparative interpretation basis | `P-LANTERNE` | Projection | Comparative route character should be normalized for length and scoped to a named network. |
-| Curved Grade | Relative network / universe grading | `P-LANTERNE` | Projection | Riders need school-like A-F interpretation without pretending absolute precision. |
+| Route Family Rank by risk per mile | Comparative interpretation basis | `P-LANTERNE` | Projection | Comparative route character should be normalized for length and scoped to a named network or route family. |
 | Route Risk Paint | Analyzed-route visualization | Canonical score trace, `P-PAINT-BUDGET` | Canonical projection | The analyzed route should show actual score-bearing route truth, including direction, continuity, crossings, and chosen inputs. |
 | Road-Stress Overlay | Off-route viewport visualization | `P-PAINT-BUDGET` | Non-canonical proxy | Visible off-route roads need a fast, budgeted proxy, not full canonical route-risk scoring for every visible road. |
 
@@ -7945,7 +7987,8 @@ Source keys:
 
 The implementation is wrong if any of these are true:
 
-- A route has grade or rank but no canonical `totalRouteRisk` and `routeRiskPerMile`.
+- A route has Route Family Rank but no canonical `totalRouteRisk`, `routeRiskPerMile`, `roadRiskPerMile`, `crossingRiskPerMile`, and crossing-event risk summary.
+- A rider-facing route detail presents the combined score without making road risk and crossing risk visible as independent signals.
 - A 0-100 value is treated as canonical score output.
 - A projection layer computes alternate score truth instead of interpreting the canonical route artifact.
 - Exact DOT / HPMS AADT is flattened into traffic buckets instead of interpolated.
@@ -7956,7 +7999,7 @@ The implementation is wrong if any of these are true:
 - Propagated evidence retains a direct provenance label.
 - Route paint uses viewport proxy colors after a canonical score trace exists.
 - Viewport overlay is labeled as canonical route risk without score-bearing artifacts.
-- Rank or grade is shown without network and version metadata.
+- Route Family Rank is shown without network/family and version metadata.
 - Cache keys omit model version, evidence snapshot, or route geometry identity.
 
 ## 16. Launch Validation
@@ -7964,7 +8007,7 @@ The implementation is wrong if any of these are true:
 Before freezing this as production canon:
 
 - Run the full seed corpus through the same scorer.
-- Fix route corpus bugs that distort safety inputs before using ranks or grades.
+- Fix route corpus bugs that distort safety inputs before using Route Family Rank.
 - Check the traffic tail against known high-AADT routes and rider intuition.
 - Check path / MUP routes to confirm zero road risk and preserved crossing risk.
 - Check rural long routes to ensure sustained exposure remains the backbone.
@@ -7982,12 +8025,13 @@ The desired launch state is not a prettier display. It is one score-bearing cont
 
 # DS-015 — Safety Scoring Model
 
-**Status:** Canonical  
+**Status:** Superseded historical snapshot
 **Updated:** 2026-04-25
+**Superseded by:** [DS-015 - Safety Scoring Model 5.5](./ds-015-safety_scoring_model.md)
 
-This document is the single authoritative specification for Lanterne's safety model.
+This document preserves DS-015 5.4 for lineage only. It is not the active authoritative specification for Lanterne's safety model.
 
-If code, admin audit, receipts, scorecard, inspector, analyzed route paint, heatmap, or rider-facing comparative surfaces disagree with this document, the implementation is wrong until fixed or explicitly re-specified.
+If code, admin audit, receipts, scorecard, inspector, analyzed route paint, heatmap, or rider-facing comparative surfaces disagree with the unversioned DS-015 5.5 document, DS-015 5.5 controls until explicitly re-specified.
 
 ## 1. Purpose
 
@@ -9041,7 +9085,7 @@ type ExperienceDecision = {
 These are banned:
 
 - `mode` must not select `single_push` vs `expedition`
-- `mode` must not alter Safety Score semantics
+- `mode` must not alter Route Safety Score semantics
 - `audience_role` must not alter route truth or scoring
 - `analysis_state` must not be inferred from drawer visibility
 - `resume_state` must not be inferred from UI memory alone
@@ -9434,7 +9478,7 @@ Each launch input should capture:
 
 # 9. Mode-specific policy differences
 
-Shared law first: **same route truth, same Safety Score semantics, same stable/contextual split across all modes.** Only prominence, copy, defaults, and review framing change.
+Shared law first: **same route truth, same Route Safety Score semantics, same stable/contextual split across all modes.** Only prominence, copy, defaults, and review framing change.
 
 ## 9.1 Launch differences
 
@@ -9456,7 +9500,7 @@ Shared law first: **same route truth, same Safety Score semantics, same stable/c
 Do **not** invent analytical mode differences that change truth.
  Examples of things mode must **not** do:
 
-- change Safety Score meaning
+- change Route Safety Score meaning
 - reinterpret the same shoulder differently
 - make stale data acceptable in one mode but not another
 - silently disable expedition logic because the mode is `road`
@@ -9824,23 +9868,23 @@ Truth must be:
 - reproducible
 - stable under identical inputs
 
-User contributions do not directly modify truth.
+Raw user contributions do not directly modify truth. Administrator-verified observations may become canonical only through an audited approval path.
 
 ------
 
 ## 3. Evidence Sources (Ordered by Decreasing Trust)
 
-The following evidence sources are used to determine canonical truth.
+The following evidence sources define canonical-truth resolution. Reserved measured evidence is documented first because it is strategically important, but it is not part of the active launch precedence order.
 
-They are listed in **strict order of precedence**, from most trusted to least trusted.
+Active sources after the reserved measured section are listed in **strict order of precedence**, from most trusted to least trusted.
 
 Higher-priority sources always override lower-priority ones.
 
 ------
 
-### 0. measured (sensor-derived)
+### Reserved. measured (sensor-derived)
 
-Measured data represents direct, instrumented observations of the road.
+Measured data represents direct, instrumented observations of the road. It is a reserved future category, not an active canonical truth source in the launch resolver.
 
 Examples:
 
@@ -9857,9 +9901,9 @@ Characteristics:
 
 Notes:
 
-- this is the closest thing to ground truth
-- values are typically aggregated (median / trimmed mean), not single samples
-- propagation requires sufficient sample density
+- measured data is valuable evidence, but measured vehicle behavior is not the same as posted speed or official traffic truth
+- operating-speed and pass-frequency samples can be biased by where riders happen to use radar or sensors
+- measured data must remain outside canonical score truth until a future DS defines its source category, sampling thresholds, bias controls, aggregation method, and provenance/confidence rules
 
 ------
 
@@ -9882,6 +9926,7 @@ Notes:
 
 - used when we explicitly know something is true
 - overrides all posted and inferred data
+- raw rider submissions do not qualify; observed truth must be administrator-verified and approved before it enters the canonical resolver
 
 ------
 
@@ -9931,7 +9976,7 @@ Notes:
 
 ### 4. observation_inferred
 
-Values propagated from nearby **observed or measured segments**.
+Values propagated from nearby **observed or admin-approved segments**.
 
 Examples:
 
@@ -10074,7 +10119,7 @@ This ordering ensures:
 
 ------
 
-## 3.5 Measured Evidence (Highest Priority)
+## 3.5 Measured Evidence (Reserved Future Category)
 
 Measured evidence represents direct sensor-derived data.
 
@@ -10099,14 +10144,16 @@ Measured data is:
 
 ### Priority
 
-Measured evidence is the highest-priority source.
+Measured evidence is not an active canonical source in the launch truth resolver.
 
-It overrides:
+It must not override:
 
-- observed
-- posted
-- inferred
-- baseline
+- observed / admin-approved truth
+- posted truth
+- inferred truth
+- baseline truth
+
+unless a future DS/ADR promotes a measured category with explicit sampling, bias, aggregation, precedence, and traceability rules.
 
 ------
 
@@ -10138,28 +10185,26 @@ Measured data may support:
 - pass frequency estimation
 - driver behavior metrics
 
-This enables a transition from inferred traffic behavior to directly measured reality.
+This may eventually support a transition from inferred traffic behavior to directly measured reality, but that is not near-term product reality.
 
 ------
 
 ### Design Principle
 
-Measured data represents what actually happens on the road.
-
-It is the closest approximation to ground truth available to the system.
+Measured data represents a sampled view of what happened on the road. It is valuable evidence, but it can reflect sensor deployment patterns as much as true comparative riding reality. The system must not let radar density or sensor availability become hidden score truth.
 
 ------
 
-## 3.6 Measured Evidence — Aggregation & Promotion
+## 3.6 Measured Evidence — Future Aggregation & Promotion
 
-Measured data is the highest-trust input in the system.
+Measured data is reserved future input.
 
 However, a single measurement is not truth.
 
 The system must distinguish between:
 
 - raw measured events
-- aggregated measured truth
+- aggregated measured evidence
 
 ------
 
@@ -10177,22 +10222,25 @@ These are stored individually and must NOT directly influence canonical truth.
 
 ------
 
-### Aggregated Measured Truth
+### Aggregated Measured Evidence
 
-Measured truth is derived from a sufficient number of measured events.
+Aggregated measured evidence is derived from a sufficient number of measured events.
 
 It represents the **typical real-world behavior** on a segment or road.
 
 ------
 
-### Promotion Criteria (v1)
+### Future Promotion Criteria (not active)
 
-Measured data may be promoted to canonical truth only when ALL conditions are met:
+Measured data may be promoted to canonical truth only after a future DS/ADR defines active criteria. Any future criteria must address at least:
 
-- at least 10 measured events
-- at least 3 distinct ride sessions
-- (if multi-user data exists) at least 2 unique users
-- data is not highly unstable (see spread rules below)
+- minimum event count
+- minimum distinct ride sessions
+- minimum user/sensor diversity where applicable
+- route-context grouping quality
+- instability/spread rejection
+- sampling-bias controls, including radar-use density bias
+- whether the measured value is a separate category rather than a replacement for posted or official truth
 
 ------
 
@@ -10209,7 +10257,7 @@ Raw values:
 28, 30, 31, 29, 60
 
 → median = 30
-→ canonical = 30 mph
+→ aggregated measured evidence = 30 mph
 
 ------
 
@@ -10231,11 +10279,13 @@ This prevents:
 
 ### Propagation Behavior
 
-Once promoted:
+No measured propagation behavior is active at launch.
 
-- measured truth behaves like observed truth
-- it propagates along the road per standard rules
-- downstream segments are labeled as measured_inferred
+If later promoted:
+
+- measured evidence must retain its own provenance/category rather than masquerading as posted speed or admin-observed truth
+- propagation must be separately specified
+- downstream segments must be labeled with measured-specific inferred provenance
 
 ------
 
@@ -10271,17 +10321,9 @@ This may differ significantly from:
 
 ### Interaction with Other Evidence
 
-Measured truth:
+Measured evidence is currently display, diagnostic, research, or future-model input only.
 
-- overrides observed
-- overrides posted
-- overrides inferred
-- overrides baseline
-
-Measured truth is only superseded by:
-
-- higher-quality measured data
-- explicit admin override
+It does not override observed, posted, inferred, or baseline truth in the active resolver.
 
 ------
 
@@ -10289,7 +10331,7 @@ Measured truth is only superseded by:
 
 One measurement is an event.
 
-Enough measurements become reality.
+Enough measurements may become governed evidence after the product defines the sampling and bias controls that make that claim defensible.
 
 ------
 
@@ -10302,12 +10344,14 @@ For each segment field (speed, shoulder, bikeInfra, traffic), we persist:
 - confidence (implicit via source_type)
 - segment_id
 
-We do NOT persist:
+We do NOT persist as primary truth storage:
 
 - propagation chains
 - inferred relationships between segments
 
 Propagation is recomputed deterministically.
+
+However, compact lineage, provenance, rejection reasons, and confidence trace are required by DS-029/DS-030 for audit and receipts. The system must not discard the information needed to explain why a propagated value won.
 
 ------
 
@@ -10601,18 +10645,18 @@ They may:
 
 ## 11.5 Observation Promotion to Canonical Truth
 
-User observations may be promoted to canonical truth through aggregation.
+User observations may be promoted to canonical truth only through administrator verification and approval.
 
 ------
 
-### Promotion Criteria (v1)
+### Promotion Criteria
 
-An observation set may be promoted when:
+An observation or observation set may be promoted when:
 
-- at least N authenticated users (initially N = 3)
-- values agree within tolerance:
-  - speed: ±5 mph
-  - categorical values: exact match
+- an administrator verifies the real-world condition
+- supporting evidence is recorded when available
+- conflicts are reviewed rather than automatically averaged
+- the approval writes an audited `admin_approved` / observed-family truth value
 
 ------
 
@@ -10631,9 +10675,10 @@ This ensures propagation-consistent counting.
 
 When promoted:
 
-- source_type becomes "observed"
+- source_type becomes `admin_approved` or another observed-family source explicitly defined by DS-029
 - value becomes canonical truth
 - propagation rules apply from that point
+- the raw user observation remains in trace as supporting evidence, not as the canonical source
 
 ------
 
@@ -10641,13 +10686,14 @@ When promoted:
 
 - anonymous observations do not count toward promotion
 - conflicting observations delay promotion
-- promotion must be deterministic
+- promotion must be audited and reproducible
+- raw aggregation alone must not produce canonical truth
 
 ------
 
 ### Design Principle
 
-User input becomes truth only after sufficient agreement.
+User input becomes truth only after governed verification.
 
 Truth is earned, not assumed.
 
@@ -10674,8 +10720,8 @@ Example:
 
 Only canonical truth feeds:
 
-- safety score
-- heatmap coloring
+- Route Safety Score
+- selected-route risk paint
 - route metrics
 
 ------
@@ -11179,7 +11225,7 @@ Score Tracing is not a cosmetic explainer. It is the system by which Lanterne pr
 
 ## Core principle
 
-Lanterne’s Safety Score must never become a black box.
+Lanterne's Route Safety Score must never become a black box.
 
 If a route receives a score, the system should be able to answer:
 
@@ -11200,7 +11246,7 @@ It records:
 5. **segment math**
 6. **crossing-event math**
 7. **route rollup math**
-8. **final score normalization**
+8. **route risk rollup**
 9. **warnings, fallbacks, and caveats**
 
 ## What score tracing is not
@@ -11321,12 +11367,12 @@ The full route-level derivation:
 
 - total continuous risk
 - continuous risk per mile
-- raw crossing burden per mile
-- effective crossing contribution per mile after saturation
-- raw route risk per mile
-- logistic midpoint and steepness
-- final Safety Score
-- letter grade
+- total crossing risk
+- crossing risk per mile
+- crossing risk per event
+- combined route risk per mile
+- total route risk
+- Route Family Rank projection metadata, when shown
 - route-level caveats
 
 ### 6. Warnings and caveats
@@ -11497,9 +11543,11 @@ At minimum, a complete future score trace must answer:
 ### For route rollup
 
 - how much of the total came from continuous exposure?
-- how much came from crossings after route-level saturation?
-- what final raw route burden fed the logistic curve?
-- what score and grade came out?
+- how much came from crossings?
+- what road risk per mile and crossing risk per mile came out?
+- what crossing risk per event came out?
+- what combined route risk per mile and total route risk came out?
+- what Route Family Rank projection, if any, was derived from that artifact?
 
 ## Non-goals
 
@@ -11519,8 +11567,8 @@ A score tracing implementation is acceptable only if:
 2. it uses canonical scoring slices rather than display segments
 3. it shows provenance and confidence for every load-bearing input
 4. it makes fallback usage explicit
-5. it shows crossing contribution before and after route-level saturation
-6. it shows the exact rollup and final normalization steps
+5. it shows crossing contribution before and after per-event guardrails
+6. it shows the exact additive rollup and any Route Family Rank projection metadata
 7. it can explain why a score changed between analysis versions once change summaries are added
 
 ## Design principle
@@ -11530,28 +11578,29 @@ A score tracing implementation is acceptable only if:
 Score Tracing is how the product proves that reliability is not branding.
 It is architecture.
 
+
 ---
 
 ## Source File: docs/02-architecture/design/ds-020-confidence_model_and_tracing.md
 
 # DS-020 — Confidence Model and Tracing
 
-**Status:** Draft for review  
-**Date:** April 14, 2026  
+**Status:** Draft for review
+**Date:** April 14, 2026
 **Filename:** `ds-020-confidence_model_and_tracing.md`
 
 ---
 
 ## 1. Purpose
 
-This document defines the canonical **confidence model** for Lanterne’s narrow Safety Score.
+This document defines the canonical **confidence model** for Lanterne's narrow Route Safety Score.
 
 It answers a different question than the score itself.
 
-- **Safety Score** asks:  
+- **Route Safety Score** asks:
   > how risky is this route, given the canonical values the system chose?
 
-- **Confidence** asks:  
+- **Confidence** asks:
   > how confident are we that those chosen values, and therefore the resulting score, are trustworthy?
 
 This is not optional polish.
@@ -11599,7 +11648,7 @@ If the score is calculated slice-by-slice and event-by-event, confidence must be
 
 ## 3. Scope
 
-This spec governs confidence for the canonical narrow Safety Score only.
+This spec governs confidence for the canonical narrow Route Safety Score only.
 
 It applies to the first five canonical safety input families:
 
@@ -12647,7 +12696,7 @@ the uncertainty sits directly on the variables that materially drive the route�
 
 These examples all point to the same design rule:
 
-> Confidence does not care how many fields are ugly.  
+> Confidence does not care how many fields are ugly.
 > Confidence cares how uncertain the risk-driving truths are.
 
 That is why:
@@ -12817,9 +12866,9 @@ If an alternate cannot be found within budget, the product must say so rather th
 
 ---
 
-## 7. Safety-score separation rule
+## 7. Route Safety Score separation rule
 
-The headline Safety Score remains canonical route analysis output.
+The Route Safety Score remains canonical raw route-risk analysis output.
 
 Routing profiles influence:
 
@@ -12829,7 +12878,7 @@ Routing profiles influence:
 Routing profiles do **not** redefine:
 
 - score semantics
-- score curve meaning
+- raw risk meaning
 - route-analysis truth
 
 ---
@@ -15872,7 +15921,7 @@ These are the only canonical DS-015 provenance families for score-bearing truth:
 
 | Family | Meaning |
 | --- | --- |
-| `observed` | Direct field measurement or validated first-hand evidence |
+| `observed` | Administrator-verified field observation or validated first-hand evidence |
 | `official_imported` | Authoritative agency source such as DOT, HPMS, or equivalent |
 | `geometry_derived` | Deterministic derivation from route or road geometry / OSM explicit tag truth |
 | `relationship_inferred` | Inferred from stronger nearby or related evidence through continuity or other documented relationship |
@@ -15907,9 +15956,9 @@ These may exist operationally, but they are not currently canonical score-bearin
 
 | Source type | Status | Notes |
 | --- | --- | --- |
-| `measured` | reserved | May later promote above `observed`, but is not yet canonical truth |
+| `measured` | reserved future category | Valuable sensor/radar/loop evidence, but not yet canonical truth; future promotion must address sampling bias, aggregation, provenance, and whether measured values remain separate from posted/official truth |
 | `community_reported` | reserved / pending policy | If later promoted, it must receive its own family mapping, precedence, confidence anchor, and trace requirements rather than being folded into `geometry_derived` |
-| `user_observation` | presentation-only / session-only | Must not silently enter canonical score truth without a future DS/ADR change |
+| `user_observation` | presentation-only / session-only | Raw observations may support admin review, but only an audited approval such as `admin_approved` may enter canonical score truth |
 
 ### 4.2.1 `admin_approved` scope
 
@@ -17344,6 +17393,8 @@ This spec is intentionally broader than road ownership. Road ownership is the fi
 - sunlight
 - effort metrics such as calories and watts
 
+Breadth of attachment is not breadth of launch scoring. Under DS-015, the launch Route Safety Score is driven only by road exposure and crossing exposure. Future/non-safety layers may attach to the route axis for display, diagnostics, effort, or separate route-reality models, but they are not score-driving for the narrow safety model unless a future versioned DS explicitly promotes them.
+
 ---
 
 ## 2. Core Model
@@ -17482,14 +17533,14 @@ Initial layer ids:
 | `traffic_aadt` | span | score_driving | Official or inferred traffic context |
 | `shoulder` | span | score_driving | Shoulder width/presence/quality |
 | `bike_infra` | span | score_driving | Bike lanes, cycletracks, paths |
-| `surface` | span | score_driving or display | Surface quality and type |
-| `hazard` | point/span | score policy TBD | Presentation and optional score impact by hazard spec |
-| `elevation` | series | derived input | Base layer for grade |
-| `grade` | span/series | score_driving or effort | Derived from elevation |
+| `surface` | span | display_only / future route-reality | Surface quality and type; not DS-015 launch safety scoring |
+| `hazard` | point/span | display_only / diagnostic_only | Presentation and optional future hazard model; not DS-015 launch safety scoring |
+| `elevation` | series | diagnostic_only / effort input | Base layer for effort and grade; not DS-015 launch safety scoring |
+| `grade` | span/series | effort/display | Derived from elevation; not DS-015 launch safety scoring |
 | `wind` | span/series | effort/display | Requires route time |
-| `precipitation` | span/series | display / risk TBD | Requires route time |
-| `temperature` | span/series | display / effort TBD | Requires route time |
-| `sunlight` | span/series | display / risk TBD | Requires route time and heading |
+| `precipitation` | span/series | display_only | Requires route time |
+| `temperature` | span/series | display / effort | Requires route time |
+| `sunlight` | span/series | display_only | Requires route time and heading |
 | `effort_watts` | series | derived display | Derived from speed/grade/wind/rider model |
 | `calories` | series/span | derived display | Derived from effort model |
 
@@ -17535,6 +17586,8 @@ Provenance records why evidence is allowed to drive score, confidence, or explan
 
 This must remain compatible with DS-029.
 
+Raw user observations are explanation/display evidence only. They may become canonical score-bearing observed-family truth only after administrator verification and approval, at which point the provenance must be represented as `admin_approved`, not raw `user_observed`.
+
 ```ts
 type RouteEvidenceProvenanceKind =
   | 'official_imported'
@@ -17543,6 +17596,7 @@ type RouteEvidenceProvenanceKind =
   | 'relationship_inferred'
   | 'geometry_derived'
   | 'model_derived'
+  | 'admin_approved'
   | 'user_observed'
   | 'baseline_fallback'
   | 'unknown';
@@ -17665,7 +17719,7 @@ Adapters may produce:
 - legacy truth-run compatibility output
 - route paint display segments
 - heatmap segments
-- scoring inputs
+- DS-015 scoring inputs for road exposure and crossing exposure only
 - hazard markers
 - inspection receipts
 - admin diagnostics
@@ -17724,11 +17778,11 @@ The system must not:
 - use OSM way id as the canonical route join key
 - use raw GPX point index as the canonical route join key
 - silently convert unresolved spans into score-bearing truth
+- mark surface, weather, elevation/grade, remoteness, hazards, or effort layers as DS-015 launch `score_driving` without a versioned safety-model change
 - collapse source lineage into DS-029 provenance
 - perform route-scale evidence projection on the main thread
 - let debug/admin mode remove all fetch and payload budgets
 - make derived metrics such as watts or calories mutate base evidence layers
-
 
 
 ---
@@ -18690,9 +18744,9 @@ Raw owned source evidence:
 | `shoulder` | no | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | medium | medium |
 | `bike_infra` / `cycleway` / `bicycle` | yes | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | medium | medium |
 | `lane_count` / `lanes` | no | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | medium | medium |
-| `surface` | no | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | low | low/medium |
-| hazard flags | no | yes | yes | yes | yes | yes | yes | yes | yes | no | yes | high | medium/high |
-| `time_of_day_traffic_multiplier` | no | no | yes | no | yes | yes | no | no | yes | no | yes | high | low |
+| `surface` | no | yes | yes | yes | yes | no | yes | yes | no | regionally | yes | low | low/medium |
+| hazard flags | no | yes | yes | yes | yes | no | yes | yes | no | no | yes | high | medium/high |
+| `time_of_day_traffic_multiplier` | no | no | yes | no | yes | no | no | no | no | no | yes | high | low |
 | heatmap risk fields | no | no | no | no | no | yes | no | yes | no | no | yes | depends on inputs | medium |
 
 Notes:
@@ -18701,6 +18755,7 @@ Notes:
 - Traffic/AADT is a common overlay candidate because owned HPMS/DOT/AADT source control makes it viable.
 - Heatmap risk fields are derived scoring/display output, not source evidence, not RouteLine truth, and not base substrate.
 - Hazard flags can come from source facts or detected route-indexed events; lineage must distinguish those cases.
+- Under DS-015, launch route scoring eligibility is limited to road exposure and crossing exposure. Surface, hazards, time-of-day traffic, weather, remoteness, elevation/grade, and effort fields may be hydrated for display, diagnostics, route-reality layers, or future models, but they must not silently mutate the narrow Route Safety Score.
 
 ## 8.3 Default Overlay Selection
 
@@ -18744,7 +18799,7 @@ V2S+S identity produces ownership spans and source-way contributions. The eviden
 
 OSM/source way ids remain metadata and hydration references. They are not the primary route join key. The route-distance evidence bundle is the scoring worker input.
 
-The scoring worker consumes the route-indexed evidence bundle and emits score spans, route rollups, heatmap input spans, traces, and missing-field diagnostics. Missing fields remain explicit. No score-driving field may be fabricated silently.
+The scoring worker consumes the route-indexed evidence bundle and emits score spans, route rollups, route-paint input spans, traces, and missing-field diagnostics. Missing fields remain explicit. No score-driving field may be fabricated silently.
 
 ## 8.6 Owned-Source Production Posture
 
@@ -20807,7 +20862,7 @@ Loaded, analyzed, or saved does not mean public. Aggregation policy must disting
 
 ## 12.4 Relationship To ADR-031 Cohorts
 
-Way participation is a many-to-many analytical context layer, similar to segment cohort membership. It must not alter canonical segment facts. It must not rescale Safety Score. Popularity, created-route frequency, planned-route demand, or curated-route participation belongs in explanation and analytics surfaces, not the core safety score.
+Way participation is a many-to-many analytical context layer, similar to segment cohort membership. It must not alter canonical segment facts. It must not rescale Route Safety Score. Popularity, created-route frequency, planned-route demand, or curated-route participation belongs in explanation and analytics surfaces, not the core safety score.
 
 ## 12.5 Relationship To Route Cache And Scoring
 
@@ -21444,10 +21499,10 @@ Phase 8 reload design must preserve the Phase 7B.1 strategic guardrails:
 - no social/feed implementation is introduced,
 - no temporal overlay implementation is introduced,
 - no recommendation implementation is introduced,
-- route demand does not mutate Safety Score,
+- route demand does not mutate Route Safety Score,
 - behavior signals do not collapse into one popularity count,
 - unresolved/rejected observations do not become accepted route truth,
-- bad-but-necessary connectors remain explanation/intelligence context, not Safety Score mutation,
+- bad-but-necessary connectors remain explanation/intelligence context, not Route Safety Score mutation,
 - substrate remains non-canonical candidate reduction and hint metadata,
 - RouteLine remains the route-structure validator.
 
@@ -21913,7 +21968,7 @@ Source-backed behavior:
 
 # 9. Aggregate Invalidation
 
-Way participation aggregates are privacy-filtered analytics. They are not route truth and not Safety Score truth.
+Way participation aggregates are privacy-filtered analytics. They are not route truth and not Route Safety Score truth.
 
 Rules:
 
@@ -21922,7 +21977,7 @@ Rules:
 - Private aggregate threshold changes require aggregate rebuild.
 - Aggregate rows must remain tied to aggregate policy/version and privacy threshold state.
 - Aggregate rows are never reload truth.
-- Route demand aggregate invalidation does not touch Safety Score.
+- Route demand aggregate invalidation does not touch Route Safety Score.
 - Failed aggregate rebuild should not mutate accepted relation payload.
 - Rebuild from accepted member index rows and accepted current revisions must remain possible.
 
@@ -22115,7 +22170,7 @@ The Phase 7B.1 strategic guardrails remain binding:
 - No social/feed implementation is introduced.
 - No temporal overlay implementation is introduced.
 - No recommendation implementation is introduced.
-- Route demand does not mutate Safety Score.
+- Route demand does not mutate Route Safety Score.
 - Unresolved or rejected observations do not become accepted route truth.
 - Bad-but-necessary connector remains explanation/intelligence, not safety mutation.
 - `diagnostic_only` relations cannot be reload input.
@@ -22652,7 +22707,7 @@ The Phase 7B.1 guardrails remain binding:
 - No social/feed implementation is introduced.
 - No temporal overlay implementation is introduced.
 - No recommendation implementation is introduced.
-- Route demand does not mutate Safety Score.
+- Route demand does not mutate Route Safety Score.
 - `route_cache` is not structure truth.
 - Unresolved or rejected observations do not become accepted route truth.
 - Substrate remains non-canonical candidate reduction and hint metadata.
@@ -22981,10 +23036,10 @@ Launch surface/pavement governance:
 
 | HPMS field | Launch governance | Score policy |
 | --- | --- | --- |
-| `surface_type` | `route_reality_now` or `future_route_reality_layer` | Not Safety Score by default. Eligible for lazy Surface Quality / Tire Guidance. |
-| `iri` | `future_route_reality_layer`, `pavement_quality_diagnostic` | Not Safety Score by default. |
-| `rutting` | `future_route_reality_layer`, `pavement_quality_diagnostic` | Not Safety Score by default. |
-| `cracking_percent` | `future_route_reality_layer`, `pavement_quality_diagnostic` | Not Safety Score by default. |
+| `surface_type` | `route_reality_now` or `future_route_reality_layer` | Not Route Safety Score by default. Eligible for lazy Surface Quality / Tire Guidance. |
+| `iri` | `future_route_reality_layer`, `pavement_quality_diagnostic` | Not Route Safety Score by default. |
+| `rutting` | `future_route_reality_layer`, `pavement_quality_diagnostic` | Not Route Safety Score by default. |
+| `cracking_percent` | `future_route_reality_layer`, `pavement_quality_diagnostic` | Not Route Safety Score by default. |
 
 This launch split follows the HPMS coverage audit from `hpms_2024_not_null_pct_pivot_10_per_state.csv`:
 
@@ -23170,7 +23225,7 @@ Surface and pavement fields include:
 - `base_thickness`
 - `soil_type`
 
-HPMS surface and pavement fields may support a future or lazy route-reality layer, not the narrow Safety Score by default.
+HPMS surface and pavement fields may support a future or lazy route-reality layer, not the narrow Route Safety Score by default.
 
 Potential product outputs:
 
@@ -23183,7 +23238,7 @@ Potential product outputs:
 
 This layer:
 
-- is not part of the narrow Safety Score by default
+- is not part of the narrow Route Safety Score by default
 - may contribute to a Surface Quality Index
 - may contribute to a Fatigue Index later
 - may contribute to Descent Risk later only after separate model policy
@@ -23192,7 +23247,7 @@ This layer:
 
 Launch governance:
 
-- `surface_type` is `route_reality_now` or `future_route_reality_layer`, but not Safety Score by default.
+- `surface_type` is `route_reality_now` or `future_route_reality_layer`, but not Route Safety Score by default.
 - `iri` is `future_route_reality_layer` and `pavement_quality_diagnostic`.
 - `rutting` is `future_route_reality_layer` and `pavement_quality_diagnostic`.
 - `cracking_percent` is `future_route_reality_layer` and `pavement_quality_diagnostic`.
@@ -23378,7 +23433,7 @@ Non-safety route-reality fields may hydrate after first paint:
 - `faulting`
 - raw pavement payload details
 
-Surface Quality / Tire Guidance must not block first paint and must not change the Safety Score. It may populate later route-reality, comfort, tire guidance, or admin/inspect diagnostics.
+Surface Quality / Tire Guidance must not block first paint and must not change the Route Safety Score. It may populate later route-reality, comfort, tire guidance, or admin/inspect diagnostics.
 
 Raw payload and pavement details are inspect/admin payloads, not requirements for initial risk paint.
 
@@ -23424,10 +23479,10 @@ Expected behavior if the geometry projects to the route span:
 - `through_lanes=2` becomes lane count evidence/candidate with interpretation caveat
 - shoulder fields are selected only if explicit projected HPMS shoulder values exist
 - `shoulder_width_l` is not required and must not be score-driving by default
-- `surface_type=7` is retained in debug / Surface Quality artifact, not Safety Score
-- `iri=61` is retained in debug / Surface Quality artifact, not Safety Score
-- `rutting=0.15` is retained in debug / Surface Quality artifact, not Safety Score
-- `cracking_percent=0` is retained in debug / Surface Quality artifact, not Safety Score
+- `surface_type=7` is retained in debug / Surface Quality artifact, not Route Safety Score
+- `iri=61` is retained in debug / Surface Quality artifact, not Route Safety Score
+- `rutting=0.15` is retained in debug / Surface Quality artifact, not Route Safety Score
+- `cracking_percent=0` is retained in debug / Surface Quality artifact, not Route Safety Score
 - `f_system=3` is retained as Principal Arterial - Other or dictionary equivalent, but does not automatically become OSM highway truth
 - raw payload is inspectable
 - HPMS source geometry is inspectable as evidence overlay
@@ -23585,7 +23640,7 @@ DS-043 is accepted when:
 - It separates score-driving, diagnostic, and future fields.
 - It defines Route 206 regression expectations.
 - It defines day-one shoulder governance and excludes left shoulder width from launch score-driving by default.
-- It defines lazy Surface Quality / Tire Guidance separate from Safety Score.
+- It defines lazy Surface Quality / Tire Guidance separate from Route Safety Score.
 - It defines source label precision.
 - It defines projection eligibility and official-source conflict gates.
 - It defines HPMS source-version requirements.
@@ -24358,7 +24413,7 @@ Analyze small. Display aggregated. Never let display granularity determine analy
 
 ## Context
 
-Safety is a word that means different things to different people. Without a precise definition, the Safety Score risks absorbing unrelated factors — weather discomfort, rough surfaces, fatigue — that dilute its meaning and undermine trust.
+Safety is a word that means different things to different people. Without a precise definition, the Route Safety Score risks absorbing unrelated factors — weather discomfort, rough surfaces, fatigue — that dilute its meaning and undermine trust.
 
 Lanterne must define safety narrowly and defend that definition as the product evolves.
 
@@ -24370,12 +24425,14 @@ Lanterne must define safety narrowly and defend that definition as the product e
 
 > The likelihood of a rider being struck by a motor vehicle, and the severity of the resulting injury.
 
-**The Safety Score (v3.1-launch) is derived from:**
+**The Route Safety Score is derived from:**
 
-- **Continuous road risk**: 60% Speed + 40% Traffic (AADT), modified by InfraFactor and ShoulderFactor
-- **Crossing risk contribution**: bounded per-event model (E0=0.05, E_cap=0.75), capped at 40% of route risk
+- **Continuous road exposure risk**: speed, traffic, operating space, shoulder, and other DS-015 road-exposure inputs
+- **Crossing exposure risk**: bounded per-event crossing model using crossed/entered road speed, traffic, width, control, and movement
 
-**Explicitly excluded from the canonical Safety Score:**
+The detail-level truth keeps road exposure and crossing exposure visible as separate outputs: road risk per mile, crossing risk per mile, crossing risk per event, and the underlying totals. The combined Route Safety Score is an evidence-informed product calibration that weights sustained road exposure as the backbone because serious and fatal bicycle motor-vehicle crash patterns more often involve non-intersection / sustained-road contexts than crossing-event contexts. Route Family Rank may simplify the combined result for riders; a 0-100 score or A-F grade is not canonical.
+
+**Explicitly excluded from the canonical Route Safety Score:**
 
 - Wind, temperature, precipitation
 - Light state, UV
@@ -24385,7 +24442,7 @@ Lanterne must define safety narrowly and defend that definition as the product e
 - Critical stretch / hotspot penalties (report-only)
 - Fatigue, navigation difficulty
 
-These belong in other index families (see ADR-007) and may be presented alongside safety, but they must never contaminate the Safety Score itself.
+These belong in other index families (see ADR-007) and may be presented alongside safety, but they must never contaminate the Route Safety Score itself.
 
 ---
 
@@ -24404,13 +24461,13 @@ Keeping safety narrowly defined does three things:
 ## Consequences
 
 **Advantages:**
-- Safety Score is meaningful and defensible
+- Route Safety Score is meaningful and defensible
 - Score is stable across weather and conditions that don't affect motor vehicle risk
 - Aligns with the broader architecture principle of keeping index families separate (ADR-007)
 
 **Tradeoffs:**
 - Some riders may expect a broader "overall risk" score that includes weather
-- The system must clearly communicate what the Safety Score does and does not include
+- The system must clearly communicate what the Route Safety Score does and does not include
 
 ---
 
@@ -24435,7 +24492,7 @@ Safety means motor vehicle risk. Everything else is a different question with a 
 
 ## Context
 
-Lanterne computes many different kinds of route intelligence. Without explicit grouping, these indices risk being treated as interchangeable or averaged together in ways that destroy their meaning — particularly the Safety Score, which must remain narrow and uncontaminated.
+Lanterne computes many different kinds of route intelligence. Without explicit grouping, these indices risk being treated as interchangeable or averaged together in ways that destroy their meaning — particularly the Route Safety Score, which must remain narrow and uncontaminated.
 
 ---
 
@@ -24444,11 +24501,12 @@ Lanterne computes many different kinds of route intelligence. Without explicit g
 Indices are grouped into **three conceptual families**.
 
 ### Safety Family
-Inputs to the core Safety Score. These reflect motor vehicle risk only (per ADR-006).
+Inputs and projections for the core Route Safety Score. These reflect motor-vehicle road exposure and crossing exposure only (per ADR-006 / DS-015).
 
 | Index | Role |
 |-------|------|
-| Safety Score | Rider-facing composite |
+| Route Safety Score | Independent road-risk and crossing-risk truth, plus product-calibrated combined route risk and Route Family Rank projection |
+| Route Family Rank | Rider-facing simplification scoped to a named route family or network |
 | Traffic Index | Motor vehicle exposure |
 | Bike Support Index | Infrastructure protection from traffic |
 
@@ -24485,7 +24543,7 @@ The family structure also gives the UI a natural organization: safety first, the
 ## Consequences
 
 **Advantages:**
-- Safety Score stays clean and defensible
+- Route Safety Score stays clean and defensible
 - Riders can evaluate safety, route character, and conditions independently
 - Index families provide a natural UI organization
 - New indices slot into an existing family rather than floating unanchored
@@ -24541,7 +24599,7 @@ Lanterne models riding light conditions using a **sun/moon visual system**.
 
 Riders intuitively understand sun and moon conditions without needing numeric output. A sun icon with a glare warning communicates danger faster than "solar azimuth 87°, bearing delta 12°." A moon phase icon immediately conveys whether a nighttime stretch will have natural illumination.
 
-This system sits in the Conditions family (ADR-007) — it is a contextual overlay, not part of the Safety Score.
+This system sits in the Conditions family (ADR-007) — it is a contextual overlay, not part of the Route Safety Score.
 
 ---
 
@@ -26851,6 +26909,8 @@ canonical_route
 Analysis and slice calculations attach to the canonical route, allowing reuse
 of computation across multiple sources.
 
+Canonical route identity is not the same as ride envelope containment. A ride, event, file, or user traversal may be linked to a canonical route when it fits the same corridor, but the traversal-specific artifact remains distinct for provenance, controls, direction, timing, edits, and history. Containment may associate; it must not silently merge route truth or erase the rider's actual artifact.
+
 Metadata such as:
 	•	start location
 	•	control placement
@@ -27827,11 +27887,11 @@ Related ADRs: ADR-033 (Canonical Segment Identity), ADR-020 (Atomic Analysis Uni
 
 Context
 
-Lanterne's core Safety Score is defined narrowly: the likelihood of a rider being struck by a motor vehicle and the severity of the likely outcome.
+Lanterne's core Route Safety Score is defined narrowly: the likelihood of a rider being struck by a motor vehicle and the severity of the likely outcome.
 
 That definition is intentional and must remain stable.
 
-However, safety analysis produces richer signal than a single absolute score.
+However, safety analysis produces richer signal than a single raw route-risk artifact.
 
 Two related problems emerged:
 
@@ -27919,7 +27979,7 @@ Baselines are used for:
 	•	calibrating and auditing model outputs
 	•	future model training slices
 
-Baselines are not used to rescale the headline Safety Score.
+Baselines are not used to rescale the Route Safety Score.
 
 A dangerous segment does not become safer because it is average for its region.
 
@@ -27986,13 +28046,13 @@ They feed the safety scoring subsystem. They do not replace it.
 
 ⸻
 
-5. Absolute score vs relative context
+5. Raw score vs relative context
 
-The headline Safety Score remains absolute.
+The Route Safety Score remains a narrow route-risk artifact. Its road and crossing components remain independently visible; the combined score is a product-calibrated summary used for comparison and rank.
 
-It is not graded on a national or regional curve.
+It is not graded on a national or regional curve and is not projected into a universal 0-100 shell.
 
-Relative context belongs in the explanation layer, not the score itself.
+Relative context belongs in the explanation layer or Route Family Rank projection, not the score itself.
 
 Examples of valid relative context:
 	•	"Passing speed is higher than typical for roads like this in Hawaii."
@@ -28005,7 +28065,7 @@ Examples of invalid score manipulation:
 
 Design principle
 
-Absolute Safety Score: how risky is this segment for the rider?
+Route Safety Score: how risky is this segment or route for the rider?
 Comparative context: how unusual is this segment relative to a chosen cohort?
 
 These are different questions and must not be collapsed.
@@ -28021,7 +28081,7 @@ Field naming must communicate provenance.
 	•	predicted_* — model output
 	•	baseline_* — regional or cohort prior
 	•	confidence_* — evidence strength
-	•	score_* — normalized Lanterne output
+		•	score_* — Lanterne model output, not necessarily normalized
 
 Examples:
 	•	observed_passes_per_mile
@@ -28039,7 +28099,7 @@ This naming scheme must be applied consistently across all traffic behavior tabl
 
 When inputs conflict, apply this order:
 
-	1.	observed — direct field measurement
+		1.	observed — administrator-verified observation
 	2.	inferred — deterministic from segment truth
 	3.	predicted — model output
 	4.	baseline — geographic or cohort prior
@@ -28074,14 +28134,14 @@ A separate observations layer absorbs raw evidence and feeds the inputs layer th
 
 This keeps the inputs table clean and prevents provenance from becoming ambiguous.
 
-Note: This is where future Varia radar data belongs.
+Note: This is where future Varia radar data belongs. Measured/sensor evidence is valuable but remains a separate future category until sampling-bias, aggregation, and provenance rules are specified.
 
 ⸻
 
 10. Consequences
 
 Advantages:
-	•	preserves trust in the absolute Safety Score
+		•	preserves trust in the route-risk artifact
 	•	supports richer traffic behavior modeling without coupling it to the headline score
 	•	cleanly handles segments that belong to multiple comparative contexts
 	•	keeps the fact model structured and queryable
@@ -28102,7 +28162,7 @@ This ADR does not require:
 	•	building all comparative baselines immediately
 	•	populating all cohort types at launch
 	•	implementing rider-facing percentile or z-score displays now
-	•	changing the current Safety Score definition or weights
+		•	changing the current Route Safety Score definition or weights
 
 This ADR establishes the model direction.
 Implementation is phased.
@@ -28115,7 +28175,7 @@ A segment has one canonical fact profile.
 
 A segment may have many comparative contexts.
 
-The Safety Score answers: how risky is this for the rider?
+The Route Safety Score answers: how risky is this for the rider?
 Comparative context answers: how unusual is this relative to its peers?
 
 These are different questions and must stay that way.
@@ -28426,7 +28486,7 @@ This ADR does not require:
 	•	perfect automatic reconciliation of all future map edits
 	•	backfilling all legacy route analyses immediately
 	•	rider-facing UI changes
-	•	changes to the headline Safety Score
+	•	changes to the headline Route Safety Score
 
 ⸻
 
@@ -28688,7 +28748,7 @@ This ADR does not require:
 - Storing every GPS tick in the database
 - Forcing the rider to plan every overnight stop up front
 - Replacing canonical segment identity with expedition-window identity
-- Changing the definition of the Safety Score
+- Changing the definition of the Route Safety Score
 
 ---
 
@@ -30108,15 +30168,15 @@ All downstream systems will respect this distinction.
 
 # ADR-039: Bounded Crossing Risk Contribution + Report-Only Critical Stretch
 
-**Status:** Accepted  
-**Date:** 2026-04-04  
+**Status:** Superseded for score rollup by DS-015; retained for crossing-event lineage
+**Date:** 2026-04-04
 **Model Version:** v3.1-launch
 
 ## Context
 
 The V3.0 crossing-conflict penalty model used a flat base penalty (0.12 risk points) with speed/traffic/width gate multipliers. This produced unbounded penalties for crossing-dense urban routes and did not account for crossing control type or movement type.
 
-The V3.0 model also applied critical-stretch caps to the canonical Safety Score, which conflated route-average risk with localized risk exposure.
+The V3.0 model also applied critical-stretch caps to the canonical Safety Score shell, which conflated route-average risk with localized risk exposure.
 
 ## Decision
 
@@ -30162,26 +30222,31 @@ CrossingEventContribution = min(E_cap,
 - Lanes crossed ≥ 3
 - Left across traffic on a road with speed ≥ 30 mph or AADT per lane ≥ 2,000/day/lane
 
-**Route-level crossing cap:**
+**Route-level crossing cap (superseded):**
+The V3.1 route-level crossing-share cap is no longer canonical. DS-015 keeps per-event crossing guardrails but preserves additive route traceability:
+
+```text
+Total Route Risk = product-calibrated sum(road risk points, crossing-event risk points)
 ```
-EffectiveCrossingRPM = min(RawCrossingRPM, ContinuousRPM × 0.6667)
-```
-This ensures crossings cannot exceed 40% of raw canonical route risk.
+
+Crossing share remains a diagnostic and calibration signal, not a post-hoc score clamp. The combined score's road-vs-crossing weight is a product calibration backed by crash and severity evidence; road risk and crossing risk must remain independently visible.
 
 ### Critical Stretch: Report-Only
 
-The critical-stretch mechanism (worst-1km RPM → score cap) is retained for transparency and report-only purposes but does **NOT** modify the canonical Safety Score.
+The critical-stretch mechanism (worst-1km RPM → score cap) is retained for transparency and report-only purposes but does **NOT** modify the canonical Route Safety Score.
 
-The canonical Safety Score is derived solely from:
+The legacy V3.1 Safety Score was derived from:
 ```
 RawRPM = ContinuousRPM + EffectiveCrossingRPM
 SafetyScore = 100 / (1 + e^(1.4 × (RawRPM - 2.5)))
 ```
 
+The current DS-015 contract does not use the 0-100 logistic shell as canonical output. The detail-level truth preserves road risk and crossing risk separately, then exposes a combined Route Safety Score as an evidence-informed product summary.
+
 ## Consequences
 
-1. Crossing risk is bounded per-event and as fraction of route risk
-2. Canonical score is purely RPM-derived — no hotspot overrides
+1. Crossing risk is bounded per-event; route-level crossing share is diagnostic only under DS-015
+2. Canonical score is raw risk-derived with no 0-100 shell and no hotspot overrides
 3. Critical stretch remains useful for rider awareness
 4. Urban crossing-dense routes are no longer disproportionately penalized
 5. Control type and movement type are captured for future refinement
@@ -30423,7 +30488,7 @@ That behavior was architecturally incorrect.
 It violated several core system principles:
 
 - canonical truth must remain deterministic
-- Safety Score must remain explainable from model inputs
+- Route Safety Score must remain explainable from model inputs
 - user observations are evidence, not truth
 - the heatmap must not become crowd-voted or silently user-modified
 
@@ -30464,7 +30529,7 @@ They do not appear in:
 
 They do not affect:
 
-- Safety Score
+- Route Safety Score
 - heatmap colors
 - risk calculations
 - canonical inspector truth
@@ -30474,6 +30539,8 @@ Instead, user observations are applied only as:
 
 - immediate session/UI overlays
 - persisted evidence records for future review
+
+Reviewed observations may later support canonical truth only after administrator verification and approval. In that case, the canonical source is the audited approval (for example `admin_approved` in the observed family), not the raw user observation.
 
 ## Architectural Model
 
@@ -30552,7 +30619,7 @@ The heatmap must remain the output of the deterministic model. It must not becom
 ### Positive
 
 - canonical truth remains deterministic
-- Safety Score provenance remains explainable
+- Route Safety Score provenance remains explainable
 - heatmap trust is preserved
 - guest contributions remain possible
 - UI can acknowledge rider input immediately
@@ -30588,7 +30655,7 @@ If that happens, the architecture must remain:
 
 raw observation
 → review / moderation
-→ approved override
+→ administrator-approved override
 → canonical resolver input
 
 Not:
@@ -30624,18 +30691,19 @@ But those observations do not alter canonical truth, scoring, or heatmap behavio
 
 Canonical safety outputs remain fully explainable from deterministic model inputs only.
 
+
 ---
 
 ## Source File: docs/03-adrs/adr-041-crossing_risk_contribution_and_critical_stretch.md
 
 # ADR-041 — Bounded Crossing Risk Contribution and Report-Only Critical Stretch
 
-Status: Accepted  
+Status: Superseded for score rollup by DS-015; retained for crossing-event lineage
 Date: 2026-04-04
 
 ## Context
 
-Lanterne’s headline Safety Score is intentionally narrow:
+Lanterne's Route Safety Score is intentionally narrow:
 
 > relative expected harm from a bicyclist being struck by a motor vehicle
 
@@ -30655,11 +30723,13 @@ Recent research and implementation pressure-testing established several importan
 
 ## Decision
 
-### 1. Canonical Safety Score structure
-The canonical Safety Score is built from:
+### 1. Canonical Route Safety Score structure
+The canonical Route Safety Score family is built from:
 
 - continuous segment exposure risk
 - bounded crossing risk contribution
+
+Road and crossing risk must remain separately visible. A single combined score is a product-calibrated summary that chooses a relative scale between sustained road exposure and discrete crossing exposure. That choice is defensible because crash and severity evidence supports sustained road exposure as the backbone, but it is not a pure empirical fact that riders should be forced to accept without the breakout.
 
 ### 2. Continuous segment exposure remains the backbone
 Continuous segment exposure is computed on small internal slices using:
@@ -30689,10 +30759,16 @@ A crossing event enters score math when at least one of the following is true:
 
 Signalized and stop-controlled crossings may still be counted and reported even when not every one is score-bearing.
 
-### 5. Route-level crossing share is capped
-At launch, effective crossing risk contribution may not exceed **40% of total raw canonical route risk**.
+### 5. Route-level crossing share is diagnostic, not a score cap
+The older V3.1 route-level crossing-share cap is superseded.
 
-This is an explicit product-policy safeguard informed by the evidence base that speed and volume over distance remain the stronger backbone of severe-harm risk for long endurance routes. [1][2]
+Under DS-015, crossing events retain per-event guardrails, but route rollup remains additive:
+
+```text
+Total Route Risk = product-calibrated sum(road risk points, crossing-event risk points)
+```
+
+Crossing share should be reported as a diagnostic and calibration signal. It must not clamp the canonical score trace.
 
 ### 6. Critical stretch is report-only
 Critical stretch remains a report and explanation layer only.
@@ -30702,7 +30778,7 @@ It may appear in:
 - route explanation surfaces
 - cue / push intelligence context
 
-It does not modify the canonical Safety Score.
+It does not modify the canonical Route Safety Score.
 
 ### 7. Time-of-day traffic context is report-only
 AADT bell-curving / time-of-day traffic contextualization is not part of canonical score math.
@@ -30713,9 +30789,9 @@ It may appear in:
 - future push-intelligence surfaces
 
 ### 8. Comparative / endurance-route context is separate
-Canonical Safety Score remains absolute within the model.
+Road risk per mile, crossing risk per mile, and crossing risk per event remain the strongest detail-level truth. The combined Route Safety Score remains a useful product summary only when its domain breakouts are retained.
 
-Corpus-relative percentile context for endurance rides may be shown separately, but must not rescale the canonical score.
+Route Family Rank may be shown separately as a rider-facing simplification scoped to a named route family or network. It must not rescale, replace, or masquerade as the canonical score.
 
 ## Rationale
 
@@ -30728,7 +30804,7 @@ This keeps the score:
 It also separates **benchmark-derived structure** from **launch policy safeguards**:
 
 - benchmark-derived: speed non-linearity, traffic flow relevance, factorized intersection structure, lanes-to-cross relevance
-- policy-derived: crossing event cap, route-level crossing share cap, compression exponents, launch calibration constants
+- policy-derived: crossing event cap, crossing-share diagnostics, compression exponents, launch calibration constants
 
 ## Consequences
 
@@ -30747,15 +30823,15 @@ These tradeoffs are accepted.
 
 ## Design principles
 
-1. Continuous exposure is the backbone.  
-2. Crossings are bounded event contributions.  
-3. Critical stretch explains the route; it does not define the canonical score.  
-4. Public docs must distinguish benchmark-derived structure from launch policy values.  
+1. Continuous road exposure and crossing exposure are the only launch score domains.
+2. Crossings are bounded per-event contributions and remain additive in route rollup.
+3. Critical stretch explains the route; it does not define the canonical score.
+4. Public docs must distinguish benchmark-derived structure from launch policy values.
 5. Unknown values must remain unknown rather than being silently promoted to truth.
 
 ## References
 
-[1] `ass-005-lanterne_safety_model_pressure_test.md` — production-oriented pressure test of Lanterne’s intersection crossing risk, bounded contributions, hotspot logic, and public transparency.  
+[1] `ass-005-lanterne_safety_model_pressure_test.md` — production-oriented pressure test of Lanterne’s intersection crossing risk, bounded contributions, hotspot logic, and public transparency.
 [2] `ass-006-defensible_math_for_crossings_and_speed.md` — defensible production math shapes for Lanterne crossings and speed.
 
 
@@ -30797,9 +30873,9 @@ A segment has:
 - one canonical truth
 - multiple possible evidence sources
 
-Truth is derived deterministically from evidence.
+Truth is derived deterministically from governed evidence.
 
-User-submitted observations are **not canonical truth**.
+Raw user-submitted observations are **not canonical truth**. Administrator-approved observations may become canonical observed-family truth after review.
 
 ------
 
@@ -30818,7 +30894,8 @@ When multiple sources exist:
 9. highway_baseline
 
 Lower-confidence sources must not overwrite higher-confidence ones.
-**Measured** evidence is the highest-priority input and supersedes all other evidence types.
+
+**Measured** evidence is reserved for a future governed category. It does not supersede active canonical evidence in the launch resolver.
 
 ------
 
@@ -30915,7 +30992,9 @@ User observations:
 - are stored in a separate observations layer
 - do not directly modify canonical truth
 - may be applied as session-level overlays
-- may be aggregated in future
+- may support future admin review / approval workflows
+
+An approved observation can enter canonical truth only as an audited observed-family source such as `admin_approved`; the raw observation itself remains supporting evidence.
 
 ------
 
@@ -30930,8 +31009,8 @@ Canonical truth is used for:
 Observations are used for:
 
 - UI overlays
-- aggregation pipelines
-- future inference upgrades
+- review / moderation pipelines
+- future inference upgrades after explicit DS/ADR promotion
 
 ------
 
@@ -30957,6 +31036,7 @@ Evidence accumulates and is validated before influencing the model.
 
 END
 
+
 ---
 
 ## Source File: docs/03-adrs/adr-043-confidence_and_provenance_model.md
@@ -30969,7 +31049,7 @@ END
 
 ## Context
 
-Lanterne’s canonical Safety Score is intentionally narrow:
+Lanterne's canonical Route Safety Score is intentionally narrow:
 
 > **relative expected harm from a bicyclist being struck by a motor vehicle**
 
@@ -31028,7 +31108,7 @@ Lanterne will use a three-part trust model:
 3. **Evidence precedence**  
    Which fact wins when multiple candidate values disagree.
 
-   These signals will be modeled throughout the system, but they will **not** be folded directly into the canonical Safety Score formula.
+   These signals will be modeled throughout the system, but they will **not** be folded directly into the canonical Route Safety Score formula.
 
    The canonical score answers:
 
@@ -31051,7 +31131,7 @@ Every load-bearing scoring input should carry a provenance class.
 ### Required provenance classes
 
 - **observed**  
-  Direct field measurement or equivalent first-hand truth.
+  Administrator-verified field observation or equivalent approved first-hand truth.
 
 - **official_imported**  
   Imported from an authoritative public or agency dataset.
@@ -31158,7 +31238,7 @@ Those are related, but not identical.
 
 ## Canonical score rule
 
-Confidence must **not** be folded directly into canonical Safety Score math.
+Confidence must **not** be folded directly into canonical Route Safety Score math.
 
 ### Why
 
@@ -31232,8 +31312,8 @@ Confidence should influence:
 
 Confidence should not:
 
-- directly rescale the canonical Safety Score
-- silently change grade thresholds
+- directly rescale the canonical Route Safety Score
+- silently change Route Family Rank thresholds or labels
 - hide missingness
 - overwrite stronger provenance with weaker provenance
 - exist only as cosmetic UI garnish
@@ -31342,7 +31422,7 @@ This ADR does **not** require:
 
 - immediate implementation of a full confidence UI
 
-- changing the canonical Safety Score formula
+- changing the canonical Route Safety Score formula
 
 - blocking launch until every input has perfect confidence scoring
 
@@ -31380,7 +31460,6 @@ Provenance answers **why**.
 Those must remain separate.
 
 
-
 ---
 
 ## Source File: docs/03-adrs/adr-044-profile_based_routing_and_alternate_route_policies.md
@@ -31416,7 +31495,7 @@ The existing Route To and draw/edit surfaces already prove that routing is withi
 This fragmentation creates architectural risk:
 
 1. **Score drift**
-   - Safety Score must remain narrow and absolute.
+   - Route Safety Score must remain narrow route-risk truth with road and crossing components independently visible.
    - Routing preferences may not redefine score semantics.
 
 2. **RouteMap bloat**
@@ -31537,11 +31616,11 @@ Alternates that are too similar, too weakly differentiated, or too costly for th
 
 ---
 
-## 5. Safety Score separation rule
+## 5. Route Safety Score separation rule
 
-The headline Safety Score remains:
+The detail-level Route Safety Score remains:
 
-> the absolute risk to the rider from motor-vehicle collision likelihood and resulting severity.
+> motor-vehicle collision likelihood and resulting severity, expressed as independent road-risk and crossing-risk outputs plus a product-calibrated combined route-risk summary.
 
 That meaning is fixed.
 
@@ -31549,16 +31628,17 @@ Routing profiles influence:
 
 - pathfinding preference
 - route selection
+- Route Family Rank comparison context
 
 Routing profiles do **not** influence:
 
-- the semantic meaning of Safety Score
+- the semantic meaning of Route Safety Score
 - canonical risk interpretation
-- the score curve
+- independent road and crossing risk plus combined route risk
 
 Examples:
 
-- a dangerous road does not become “safe” because it is common locally
+- a dangerous road does not become safe because it is common locally
 - a route chosen under `bike_support` still receives the same canonical score logic as any other route
 
 ---
@@ -31699,7 +31779,7 @@ The current repo audit does **not** change the product contract above, but it sh
 
 ### Explicit non-consequence
 
-This ADR does **not** redefine Safety Score semantics.
+This ADR does **not** redefine Route Safety Score semantics.
 
 
 ---
@@ -31756,6 +31836,8 @@ Evidence attaches to the route as either:
 - sampled series keyed by distance, and optionally time
 
 Road ownership is the first major V2 layer, but it is not the only layer. It is the substrate that many downstream layers depend on.
+
+This platform is intentionally broader than launch safety scoring. Under DS-015, only road exposure and crossing exposure drive the Route Safety Score. Surface, weather, wind, sunlight, elevation/grade, remoteness, effort, and non-motor-vehicle hazard layers may attach to the route axis, but they are display, diagnostic, route-reality, effort, or future-model layers unless a versioned safety-model change promotes them.
 
 The target model is:
 
@@ -31833,7 +31915,7 @@ Main-thread code may schedule work, render progress, and display results. It mus
 
 ### 3.5 Adapters, not contamination
 
-Downstream scoring, heatmap, hazards, receipts, inspection panels, and presentation surfaces consume route-indexed layers through adapters.
+Downstream scoring, route paint, viewport overlays, hazards, receipts, inspection panels, and presentation surfaces consume route-indexed layers through adapters.
 
 They may not reach backward into V2 internals, and V2 may not absorb scoring/presentation rules.
 
@@ -31924,7 +32006,6 @@ That makes future ingestion easier because each new domain answers the same ques
 - can it drive score, display, both, or neither?
 
 This gives Lanterne a route evidence substrate instead of a collection of special-case joins.
-
 
 
 ---
