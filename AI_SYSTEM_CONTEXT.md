@@ -18160,6 +18160,314 @@ The V2 topology path solver should therefore reuse proven V1 bike/path interpret
 
 ---
 
+## Source File: docs/02-architecture/design/ds-034-cyclist_mobility_substrate_specification.md
+
+# DS-034 — Cyclist Mobility Substrate Specification
+
+**Status:** Draft for implementation
+**Date:** 2026-05-19
+**Related:** ADR-046, ADR-045, DS-031, DS-032
+
+---
+
+# 1. Purpose
+
+This specification defines the Cyclist Mobility Substrate.
+
+The substrate is a precomputed regional cyclist-oriented network layer used for:
+
+- low-zoom presentation
+- instant first paint
+- hydration continuity
+- runtime prioritization
+- future routing acceleration
+
+The substrate is:
+
+- continuity-aware
+- cyclist-salience-aware
+- multi-zoom simplified
+- globally scalable
+
+---
+
+# 2. Architectural Shape
+
+```text
+raw OSM graph
+    -> cyclist-relevant graph
+    -> corridor continuity solving
+    -> corridor importance scoring
+    -> multi-zoom simplification
+    -> substrate tiles
+    -> runtime viewport presentation
+```
+
+The substrate is generated offline.
+
+Runtime systems consume precomputed substrate tiles.
+
+---
+
+# 3. Cyclist-Relevant Graph
+
+The substrate graph is NOT the full OSM graph.
+
+It includes:
+
+- cycleway
+- separated path with bike designation
+- protected infrastructure
+- secondary roads
+- tertiary roads
+- low-stress residential continuity
+- cyclist-relevant connectors
+- selected primaries
+
+It excludes:
+
+- driveway
+- parking aisle
+- sidewalk-only footways
+- inaccessible trunk/freeway infrastructure
+- construction/proposed
+- local-only noise fragments
+
+---
+
+# 4. Corridor Continuity Solving
+
+Raw OSM ways are insufficient.
+
+The substrate must solve for:
+
+- corridor continuity
+- regional movement structure
+- meaningful long-distance flow
+
+Requirements:
+
+- merge fragmented same-corridor ways
+- preserve continuity through crossings/intersections
+- absorb tiny interruptions where appropriate
+- suppress disconnected micro-fragments
+- preserve separated-path continuity near parallel roads
+
+---
+
+# 5. Corridor Importance Scoring
+
+Each corridor receives:
+
+```ts
+interface CyclistCorridorImportance {
+  continuityScore: number;
+  connectivityScore: number;
+  cyclistUtilityScore: number;
+  separationScore: number;
+  regionalReachScore: number;
+  alternateScarcityScore: number;
+  fragmentationPenalty: number;
+  localNoisePenalty: number;
+  finalImportanceScore: number;
+}
+```
+
+Signals may include:
+
+- connected component length
+- graph centrality
+- bridge scarcity
+- town connectivity
+- route continuity
+- bike designation
+- protected infrastructure
+- path separation
+- corridor reach
+- continuity persistence across simplification
+
+The system must remain globally generalizable.
+
+No US-specific hardcoding.
+
+---
+
+# 6. Multi-Zoom Simplification
+
+The substrate is multi-resolution.
+
+## z10–11
+
+Only highest-salience cyclist corridors survive.
+
+## z12
+
+Expanded cyclist mobility structure.
+
+## z13
+
+Transition into runtime hydration.
+
+## z14+
+
+Full runtime traversable network.
+
+Simplification requirements:
+
+- preserve continuity
+- preserve corridor identity
+- aggressively reduce geometry complexity
+- preserve cyclist narrative structure
+
+---
+
+# 7. Tile Model
+
+Suggested tile shape:
+
+```ts
+interface CyclistSubstrateTile {
+  tileId: string;
+  zoomBand: number;
+  generatedAt: string;
+  corridors: CyclistSubstrateCorridor[];
+}
+```
+
+```ts
+interface CyclistSubstrateCorridor {
+  corridorId: string;
+  geometry: Array<[number, number]>;
+  salienceTier: number;
+  corridorType:
+    | 'safe_path'
+    | 'protected_corridor'
+    | 'secondary'
+    | 'tertiary'
+    | 'resi_continuity'
+    | 'primary';
+  continuityClass: string;
+  simplificationLevel: number;
+  estimatedStressLevel?: string;
+  estimatedBikeSupportLevel?: string;
+}
+```
+
+---
+
+# 8. Runtime Interaction
+
+Runtime viewport behavior:
+
+```text
+skeleton substrate paints first
+    -> runtime viewport hydration progressively enriches
+    -> canonical evidence replaces substrate presentation
+```
+
+Substrate must:
+
+- never block runtime truth
+- never overwrite canonical evidence
+- remain visually subordinate once hydration finalizes
+
+---
+
+# 9. Caching
+
+Substrate tiles should be:
+
+- globally reusable
+- aggressively browser cacheable
+- CDN cacheable
+- low payload
+- simplified
+
+The substrate is intended to reduce:
+
+- viewport fetch pressure
+- runtime topology solving
+- raw geometry churn
+
+---
+
+# 10. Performance Targets
+
+## Warm
+
+```text
+first substrate paint <250–500ms
+```
+
+## Cold
+
+```text
+first substrate paint <1–2s
+```
+
+Payload targets:
+
+```text
+50–300KB compressed preferred
+<1MB compressed soft limit
+```
+
+Telemetry required:
+
+- substratePayloadBytes
+- substrateCompressedBytes
+- substrateFeatureCount
+- substrateMergedCorridorCount
+- substrateFirstPaintMs
+- substrateRenderMs
+
+---
+
+# 11. Global Scalability
+
+The substrate must scale globally.
+
+All importance heuristics must derive from:
+
+- graph structure
+- topology
+- connectivity
+- bike semantics
+- continuity
+
+not:
+
+- manually curated country logic
+- US-only road assumptions
+
+---
+
+# 12. Non-Goals
+
+This system does not:
+
+- replace canonical evidence
+- replace scoring truth
+- replace DS-029 provenance
+- replace viewport hydration
+- replace route ownership
+- require manual regional curation
+
+---
+
+# 13. Design Principle
+
+The substrate should reveal:
+
+> the meaningful cyclist movement structure of a region
+
+not:
+
+> all raw traversable geometry.
+
+
+---
+
 ## Source File: docs/02-architecture/design/ds-035-profile_aware_hydration_cache_and_cyclist_mobility_substrate_runtime_spec.md
 
 # DS-035 - Profile-Aware Hydration Cache and Cyclist Mobility Substrate Runtime Spec
@@ -19214,6 +19522,704 @@ Future directions:
 - object/CDN tile serving
 - profile-aware overlay ecosystem
 - server-owned spatial cache service
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-036-durable_lanterne_route_relations_and_progressive_route_enrichment_spec.md
+
+# DS-036 - Durable Lanterne Route Relations and Progressive Route Enrichment Spec
+
+**Status:** Draft for implementation
+**Date:** 2026-05-20
+**Related:** ADR-048, ADR-047, ADR-045, DS-035, DS-031, DS-030, DS-029, EXEC-030, EXEC-029
+
+---
+
+# 1. Purpose
+
+This design specification defines the future V2 architecture for Lanterne Route Relations.
+
+A Lanterne Route Relation is a durable computed route structure object created from an imported, planned, optimized, or manually drawn route. It stores the ordered mixed-member structure produced by route construction so future loads can avoid reconstructing route ownership from scratch when version gates match.
+
+A relation may accelerate reload only when relation schema version, source version, RouteLine algorithm version, route geometry hash, and invalidation state all match. Even on a relation hit, source evidence must remain hydratable, unresolved gaps must remain explicit, and RouteLine validation must still approve the reused structure.
+
+This spec defines:
+
+- object boundaries
+- mixed member chain architecture
+- progressive enrichment
+- versioning and invalidation
+- reload flow
+- hot/cold storage shape
+- relationship to substrate, route cache, RouteLine, scoring, and provenance
+
+It does not define final database migrations or change RouteLine runtime behavior by itself.
+
+---
+
+# 2. System Model
+
+```text
+Raw Route Artifact
+        |
+        v
+Lanterne Route Relation
+        |
+        +--> evidence hydration
+        +--> scoring/provenance refresh
+        +--> route cache result reuse
+```
+
+Candidate narrowing may use substrate:
+
+```text
+substrate -> candidate hints / prioritization / acceleration
+```
+
+But the route relation remains route-specific computed structure. It does not inherit substrate corridor grouping as route truth.
+
+---
+
+# 3. Object Boundaries
+
+## 3.1 Raw Route Artifact
+
+The raw route artifact is the immutable route input.
+
+Examples:
+
+- uploaded GPX
+- uploaded FIT
+- uploaded TCX
+- RWGPS route
+- free-draw geometry
+- manual route geometry
+- optimized/planned route geometry
+
+Responsibilities:
+
+- preserve source coordinate truth
+- preserve source metadata
+- preserve original route identity where available
+- remain available for reconstruction
+
+Non-responsibilities:
+
+- matched road ownership
+- scoring
+- evidence provenance
+- substrate continuity
+- route cache result reuse
+
+## 3.2 Lanterne Route Relation
+
+The route relation is computed from a raw route artifact.
+
+Responsibilities:
+
+- store ordered route construction structure
+- store mixed member chain
+- store route intervals
+- store way spans
+- store node anchors
+- store coordinate anchors
+- store coordinate spans
+- store blockers/gaps
+- store transitions/handoffs
+- store confidence metadata
+- store source/version metadata
+- support progressive enrichment
+- accelerate reload
+
+Non-responsibilities:
+
+- final route score
+- completed analysis/scoring result reuse
+- DS-029 provenance replacement
+- RouteLine truth replacement
+- substrate corridor identity
+- OSM relation replacement
+
+## 3.3 Route Cache
+
+The route cache stores completed analysis/scoring reuse.
+
+Responsibilities:
+
+- reuse compatible completed analysis results
+- store derived result cache payloads
+- support exact route-result reuse
+
+Non-responsibilities:
+
+- durable route structure
+- ordered mixed-member chains
+- way spans
+- node anchors
+- coordinate spans
+- blockers
+- transitions
+- relation confidence/version gates
+- raw route artifact storage
+- substrate continuity
+- source-of-record road geometry
+
+---
+
+# 4. Route Relation Object Model
+
+The first durable relation should use a structured object payload.
+
+Recommended top-level shape:
+
+```ts
+interface LanterneRouteRelationV1 {
+  relation_schema_version: 'lanterne_route_relation_v1';
+  route_relation_id: string;
+  source_artifact: RawRouteArtifactRef;
+  route_spine: RouteSpineRef;
+  versions: RouteRelationVersions;
+  enrichment: RouteRelationEnrichmentState;
+  ordered_members: RouteRelationMember[];
+  ownership_spans: RouteRelationOwnershipSpan[];
+  transitions: RouteRelationTransition[];
+  blockers: RouteRelationBlocker[];
+  source_member_refs: RouteRelationSourceMemberRef[];
+  confidence: RouteRelationConfidenceSummary;
+  lifecycle: RouteRelationLifecycle;
+}
+```
+
+This is the route construction durability object. It is not the canonical score artifact.
+
+## 4.1 Source Artifact Reference
+
+```ts
+interface RawRouteArtifactRef {
+  source_artifact_id: string;
+  source_type: 'gpx_upload' | 'fit_upload' | 'tcx_upload' | 'rwgps' | 'free_draw' | 'manual' | 'planned' | 'optimized';
+  source_entity_id?: string;
+  file_name?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+```
+
+The source artifact reference identifies where the route came from. The raw artifact remains the fallback for reconstruction.
+
+## 4.2 Route Spine
+
+```ts
+interface RouteSpineRef {
+  route_geometry_hash: string;
+  route_reverse_hash?: string;
+  route_length_m: number;
+  point_count: number;
+  coordinate_precision: number;
+  geometry_source: 'raw_artifact' | 'normalized_route' | 'planned_geometry';
+}
+```
+
+The route spine is the route geometry. It remains valid even when source way ownership is partial.
+
+## 4.3 Versions
+
+```ts
+interface RouteRelationVersions {
+  source_version: string;
+  route_line_algorithm_version: string;
+  relation_schema_version: string;
+  route_spine_normalization_version: string;
+  confidence_policy_version: string;
+}
+```
+
+Lookup and reuse require compatible versions.
+
+---
+
+# 5. Mixed Member Chain
+
+The route relation uses an ordered mixed-member chain.
+
+It may include:
+
+- OSM way references
+- OSM node references
+- owned-source way references
+- owned-source node references
+- coordinate anchors
+- unmatched coordinate spans
+- inferred spans
+- transition markers
+- blocker/gap markers
+
+The system must not force every route point into exact node ownership.
+
+The route geometry is the spine. Ways and nodes annotate spans of that spine. Coordinates remain valid when exact source ownership is unavailable, unnecessary, or intentionally deferred.
+
+## 5.1 Member Types
+
+```ts
+type RouteRelationMemberKind =
+  | 'source_way_span'
+  | 'source_node_anchor'
+  | 'coordinate_anchor'
+  | 'coordinate_span'
+  | 'unmatched_span'
+  | 'inferred_span'
+  | 'transition_marker'
+  | 'blocker_marker';
+```
+
+## 5.2 Source Way Span
+
+```ts
+interface RouteRelationSourceWaySpan {
+  member_id: string;
+  member_index: number;
+  kind: 'source_way_span';
+  route_interval: RouteInterval;
+  source: 'self_hosted_roads' | 'raw_overpass' | 'owned_spatial' | string;
+  osm_way_id?: number;
+  owned_way_id?: string;
+  from_node_id?: number | string;
+  to_node_id?: number | string;
+  direction: 'forward' | 'reverse' | 'unknown';
+  geometry_interval?: SourceGeometryInterval;
+  confidence: RouteRelationConfidence;
+  reason: string;
+}
+```
+
+## 5.3 Coordinate Span
+
+```ts
+interface RouteRelationCoordinateSpan {
+  member_id: string;
+  member_index: number;
+  kind: 'coordinate_span' | 'unmatched_span' | 'inferred_span';
+  route_interval: RouteInterval;
+  coordinate_start: [number, number];
+  coordinate_end: [number, number];
+  confidence: RouteRelationConfidence;
+  reason: string;
+}
+```
+
+Coordinate spans are first-class members. They are not failures by default. They represent route structure that is unresolved, not source-owned, or not worth exact ownership on the initial pass.
+
+## 5.4 Partial Relation Is Valid
+
+A partial relation is a valid relation.
+
+These member states are not failures by themselves:
+
+- coordinate spans
+- unmatched spans
+- inferred spans
+- explicit blocker markers
+- explicit unresolved gap markers
+
+Free-draw routes, imperfect imports, partially matched routes, and non-OSM-perfect geometry can all produce valid partial relations. The relation is valid when it honestly records what is source-owned, what remains coordinate-owned, what is inferred, and what is unresolved.
+
+Progressive enrichment can improve a partial relation later by adding source way spans, node anchors, refined transitions, source-member hashes, and stronger confidence.
+
+## 5.5 Transition and Blocker Markers
+
+Transitions and blockers are explicit.
+
+```ts
+interface RouteRelationTransition {
+  transition_id: string;
+  dist_m: number;
+  lat: number;
+  lon: number;
+  from_member_id?: string;
+  to_member_id?: string;
+  osm_node_id?: number;
+  method: 'shared_osm_node' | 'shared_geometry_point' | 'coordinate_boundary' | 'inferred_boundary' | 'unknown';
+  confidence: RouteRelationConfidence;
+  warnings: string[];
+}
+
+interface RouteRelationBlocker {
+  blocker_id: string;
+  route_interval: RouteInterval;
+  lat?: number;
+  lon?: number;
+  reason:
+    | 'no_candidate_edges'
+    | 'path_discontinuity'
+    | 'missing_shared_osm_node'
+    | 'unmatched_geometry'
+    | 'source_unavailable'
+    | 'algorithm_rejected';
+  candidate_way_ids: Array<number | string>;
+  diagnostics: string[];
+}
+```
+
+No route relation should hide unresolved ownership. If the system does not know, it must represent that explicitly.
+
+---
+
+# 6. Progressive Enrichment
+
+Route relations support revisioned enrichment.
+
+## 6.1 Initial Construction
+
+Initial load should optimize for fast, honest route construction:
+
+- route spine created from raw artifact
+- partial ownership acceptable
+- coordinate and way members may coexist
+- blockers/gaps explicit
+- scoring runs immediately with confidence limits
+- relation revision recorded
+
+Initial construction does not need to fully solve every source way/node membership.
+
+It should not over-enrich first load. First load prioritizes:
+
+- usable route
+- honest confidence
+- fast scoring
+- explicit gaps
+
+Node/way specificity can improve in background enrichment.
+
+## 6.2 Background Enrichment
+
+Background enrichment may:
+
+- replace coordinate spans with source way spans
+- add node anchors
+- add source member hashes
+- refine transition markers
+- resolve blockers
+- attach substrate/corridor candidate hints
+- attach OSM relation hints as non-canonical continuity evidence
+- raise or lower confidence
+- reduce unmatched route distance
+
+## 6.3 Revision Rules
+
+Every enrichment update creates a new relation revision or explicitly updates revision metadata.
+
+Required revision metadata:
+
+- `enrichment_revision`
+- `parent_revision`
+- `enrichment_reason`
+- `enriched_at`
+- `enrichment_algorithm_version`
+- changed member ids
+- whether score-bearing ownership changed
+
+If score-bearing ownership changes, existing completed analysis results must not silently inherit the new relation. Scoring/provenance must refresh or stay pinned to the previous relation revision.
+
+Initial relation revisions and enriched relation revisions must be distinguishable. Completed scoring results must record or resolve the relation revision they were generated from and must remain pinned to that revision unless scoring refreshes.
+
+## 6.4 Relation Quality Metrics
+
+Every persisted or diagnostic relation should expose quality metrics:
+
+- percent distance matched to source ways
+- percent distance represented by coordinates
+- unresolved distance
+- blocker count
+- transition confidence
+- member confidence distribution
+- enrichment revision count
+- score-bearing-change flag count
+
+These metrics are route construction quality signals. They are not final route scores.
+
+---
+
+# 7. Versioning and Invalidation
+
+## 7.1 Required Versions
+
+Every relation must carry:
+
+- relation schema version
+- source version
+- RouteLine algorithm version
+- route spine normalization version
+- confidence policy version
+- enrichment algorithm version
+
+## 7.2 Reuse Gate
+
+A relation can be reused for ownership reload only when:
+
+- route geometry hash matches
+- source version matches
+- RouteLine algorithm version matches
+- relation schema version matches a supported schema
+- invalidation state is clear
+- required source members are hydratable
+
+This reuse gate accelerates construction reload. It does not bypass RouteLine validation, scoring refresh, or DS-029 provenance.
+
+Even on a relation hit:
+
+- exact source evidence must remain hydratable
+- unresolved gaps must remain explicit
+- source-owned spans must remain inspectable
+- RouteLine must be able to reject or downgrade the relation
+
+## 7.3 Rebuild Triggers
+
+Rebuild or invalidate when:
+
+- route geometry changes
+- source artifact changes
+- source snapshot changes
+- source way geometry changes
+- source way id disappears
+- source node sequence changes
+- access/private/bicycle legality tags change
+- RouteLine algorithm changes
+- confidence policy changes
+- relation schema changes
+- enrichment policy changes
+- required source evidence cannot hydrate
+
+The fallback is full route construction from the raw route artifact.
+
+Partial hydrate is allowed only when missing or stale spans remain explicit. A stale source member must not be silently treated as valid route ownership.
+
+---
+
+# 8. Hot Fields and Cold Fields
+
+## 8.1 Hot Fields
+
+Hot fields support fast reload and route interaction:
+
+- `route_relation_id`
+- `route_geometry_hash`
+- `source_artifact_id`
+- `relation_schema_version`
+- `source_version`
+- `route_line_algorithm_version`
+- `enrichment_revision`
+- member order
+- member kind
+- route intervals
+- source way/node refs
+- direction
+- confidence
+- invalidation state
+- blocker/gap summaries
+
+## 8.2 Cold Fields
+
+Cold fields support audit, inspection, scoring refresh, and provenance:
+
+- full source tags
+- exact source geometry
+- full raw artifact payload
+- exact source provenance
+- detailed enrichment diagnostics
+- rejected candidate sets
+- conflict resolution traces
+- source member dictionaries beyond hot refs
+
+Cold fields should be hydratable by source member id, tile, route window, or artifact id. They should not be copied into every hot payload unless a snapshot policy explicitly requires it.
+
+---
+
+# 9. Storage Shape
+
+Use JSONB/object-style structured relation payloads for v1.
+
+Do not use CSV strings, delimited member lists, or untyped arrays as the source of truth.
+
+The v1 relation payload should avoid copying full raw OSM/source blobs into every route relation. Store source references, relation-specific intervals, hashes, confidence, and version gates in the relation payload. Hydrate full tags, exact geometry, and detailed source provenance from the cold source path when needed.
+
+Recommended initial storage shape:
+
+```text
+route_relations
+  id
+  source_artifact_id
+  source_type
+  route_geometry_hash
+  relation_schema_version
+  source_version
+  route_line_algorithm_version
+  enrichment_revision
+  relation_payload jsonb
+  confidence_summary jsonb
+  invalidation_state
+  invalidation_reason
+  created_at
+  updated_at
+  expires_at
+```
+
+Indexes should prioritize:
+
+- route geometry + source version + algorithm version
+- source artifact id
+- invalidation state
+- updated timestamp
+
+---
+
+# 10. Relationship to Existing Systems
+
+## 10.1 Substrate
+
+Substrate provides:
+
+- cyclist geography
+- continuity hints
+- salience
+- prioritization
+- cache planning
+- future route candidate narrowing
+
+Substrate may help RouteLine look in better places first.
+
+Substrate cannot assign route ownership, score, replace provenance, or erase exact source evidence.
+
+## 10.2 Route Relation
+
+Route Relation provides:
+
+- durable route structure
+- reusable ownership mapping
+- mixed member chain
+- reload acceleration
+- progressive enrichment history
+
+It is route-specific.
+
+## 10.3 Route Cache
+
+Route cache provides:
+
+- completed analysis reuse
+- scoring result reuse
+- derived result caching
+
+It does not replace the route relation.
+
+## 10.4 RouteLine, Scoring, and Provenance
+
+RouteLine remains authoritative for route truth.
+
+Scoring remains authoritative for route risk.
+
+DS-029 provenance remains authoritative for why score-driving evidence is allowed to drive confidence and explanation.
+
+Exact source evidence remains hydratable.
+
+---
+
+# 11. Future Reload Flow
+
+Current:
+
+```text
+raw route artifact
+  -> reconstruct route ownership
+  -> hydrate evidence
+  -> score
+```
+
+Future:
+
+```text
+raw route artifact
+  -> route relation lookup
+  -> validate schema/source/algorithm/geometry/invalidation gates
+  -> hydrate source evidence
+  -> RouteLine validation
+  -> hydrate changed volatile evidence
+  -> reuse compatible ownership mapping
+  -> refresh scoring when needed
+```
+
+On relation miss or invalidation:
+
+```text
+raw route artifact
+  -> full RouteLine construction
+  -> serialize relation
+  -> validate relation
+  -> persist relation
+  -> score
+```
+
+Substrate can narrow candidates during full construction or enrichment, but it remains a hint layer.
+
+Reload cannot bypass RouteLine validation. If source members no longer hydrate, route geometry does not match, source/algorithm/schema versions are incompatible, invalidation state is not clear, or unresolved gaps would be hidden, the system must miss, partially hydrate with explicit gaps, or fall back to full reconstruction.
+
+---
+
+# 12. Free Draw and Imperfect Geometry
+
+Lanterne Route Relations must support:
+
+- free draw
+- imperfect imports
+- partially matched routes
+- sparse route points
+- international variability
+- non-OSM-perfect geometry
+- off-network connectors
+- private route segments that cannot be treated as public source truth
+
+The relation model is not OSM-node-hostage.
+
+Coordinates remain valid route members. Source ownership can be added progressively where it is useful and supported.
+
+---
+
+# 13. Validation Rules
+
+Every relation payload must validate:
+
+- ordered members are route ordered
+- route intervals are finite and within route length
+- intervals do not overlap unless explicitly modeled
+- unresolved route distance is represented as coordinate, unmatched, inferred, or blocker members
+- transitions reference valid adjacent members when known
+- source way/node references identify hydratable source members when marked exact
+- confidence values are explicit
+- relation version metadata is present
+- enrichment revision metadata is present
+- score-bearing changes are flagged
+
+Validation failure blocks persistence and forces full reconstruction.
+
+---
+
+# 14. Non-Goals
+
+This spec does not:
+
+- create final database migrations
+- create route relation UI
+- replace RouteLine truth
+- replace DS-029 provenance
+- replace route scoring
+- become a final score cache
+- clone OSM relations
+- turn substrate into route truth
+- become substrate corridor identity
+- turn OSM relations into route ownership
+- require every route point to map to an OSM node
+- require full enrichment before first score
+- fully solve every route on first load
 
 
 ---
@@ -24062,6 +25068,1460 @@ The implementation is on target when:
 Implement through EXEC-039 Phase 17A.
 
 The first implementation step should define the shared route experience path contract and audit current main-app and `/v2-review` outputs against it before moving runtime code.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-045-vault_collection_browser_filter_registry_and_matching_routes_spec.md
+
+# DS-045 - Vault Collection Browser, Filter Registry, and Matching Routes Spec
+
+**Status:** Draft for ADR-050 and EXEC-041 planning
+**Date:** 2026-05-31
+**Related:** ADR-001, ADR-002, ADR-003, ADR-005, ADR-006, ADR-007, ADR-019, ADR-032, ADR-045, ADR-048, ADR-050, DS-031, DS-036, EXEC-041
+
+---
+
+## 1. Purpose
+
+This specification defines the Vault Collection Browser and Matching Routes model.
+
+It covers:
+
+- Vault collection metadata
+- Collection Card presentation contract
+- selected-collection browser behavior
+- shared filter/sort capability registry
+- collection-specific filter profiles
+- route catalog/search facts
+- collection-route membership facts
+- proximity/access facts
+- master filter and sort capability catalog
+- query and URL-state contracts
+- initial RUSA Permanents and RUSA Events profiles
+
+The core product grammar is:
+
+```text
+Vault -> Collection -> Matching Routes
+```
+
+---
+
+## 2. Vocabulary
+
+| Term | Meaning |
+| --- | --- |
+| Vault | Lanterne's curated route library. |
+| Collection | Rider-facing group of curated routes or event-linked routes. |
+| Collection Card | Overview card for one collection. |
+| Collection Browser | Selected-collection surface containing filters, sorts, and matching routes. |
+| Matching Routes | The route results inside a selected collection after filters/sorts are applied. |
+| Filter capability | A reusable filter primitive such as distance range, states touched, or date range. |
+| Sort capability | A reusable ordering primitive such as soonest first, safest first, or closest airport. |
+| Collection profile | A curated selection of filter/sort/route-row capabilities for one kind of collection. |
+| Route family | Internal taxonomy/comparative language only. Not rider-facing Vault copy. |
+| Cohort | Analytics/modeling context only. Not rider-facing Vault copy. |
+
+---
+
+## 3. Data Model Shape
+
+The Vault browser needs queryable facts. It must not derive list filters by loading every route and analyzing it in the browser.
+
+### 3.1 `vault_collections`
+
+Stores rider-facing collection metadata.
+
+Required fields:
+
+- `id`
+- `slug`
+- `title`
+- `subtitle`
+- `description`
+- `collection_kind`
+- `mode_keys`
+- `filter_profile_key`
+- `route_card_profile_key`
+- `default_sort_key`
+- `route_count`
+- `total_distance_mi`
+- `curator_label`
+- `source_label`
+- `icon_key`
+- `graphic_asset_ref`
+- `sort_order`
+- `is_featured`
+- `created_at`
+- `updated_at`
+
+Presentation fields such as `icon_key` and `graphic_asset_ref` do not define route truth.
+
+### 3.2 `vault_collection_routes`
+
+Stores collection membership and collection-specific route facts.
+
+Required fields:
+
+- `collection_id`
+- `route_id` or canonical route reference
+- `membership_kind`
+- `source_record_id`
+- `display_title`
+- `display_subtitle`
+- `event_start_at`
+- `event_end_at`
+- `organizer_label`
+- `permanent_id`
+- `official_distance_km`
+- `curator_note`
+- `sort_order`
+- `metadata`
+- `created_at`
+- `updated_at`
+
+Event dates, registration metadata, permanent IDs, collection display labels, organizer labels, and curation notes belong here unless another source-specific spec promotes them.
+
+### 3.3 `vault_route_catalog_facts`
+
+Stores route-level browse/search facts.
+
+Minimum fields:
+
+- `route_id`
+- `name`
+- `name_search`
+- `distance_mi`
+- `climbing_ft`
+- `start_label`
+- `start_city`
+- `start_state`
+- `start_lat`
+- `start_lon`
+- `end_label`
+- `end_city`
+- `end_state`
+- `end_lat`
+- `end_lon`
+- `shape_type`
+- `shape_confidence`
+- `states_touched`
+- `state_count`
+- `has_unpaved`
+- `unpaved_distance_mi`
+- `unpaved_pct`
+- `safety_score`
+- `safety_rank`
+- `traffic_index`
+- `bike_support_index`
+- `remoteness_index`
+- `surface_quality_index`
+- `fatigue_index`
+- `descent_risk_index`
+- `analysis_coverage_pct`
+- `catalog_freshness`
+- `updated_at`
+
+These are route-level rollups fed by route identity, route analysis, route-indexed evidence, and source metadata.
+
+### 3.4 `vault_route_proximity_facts`
+
+Stores reusable access and logistics facts.
+
+Required fields:
+
+- `route_id`
+- `anchor_type`
+- `target_type`
+- `target_id`
+- `target_label`
+- `target_lat`
+- `target_lon`
+- `distance_mi`
+- `route_point_dist_m`
+- `distance_method`
+- `source_lineage`
+- `confidence`
+- `updated_at`
+
+Initial `anchor_type` values:
+
+- `route_start`
+- `route_end`
+- `closest_route_point`
+
+Deferred `anchor_type` values:
+
+- `control`
+- `most_remote_point`
+- `highest_risk_segment`
+- `overnight_segment`
+
+Initial `target_type` values:
+
+- `address`
+- `airport`
+- `train_station`
+- `bus_terminal`
+
+Deferred `target_type` values:
+
+- `lodging`
+- `parking`
+- `bike_shop`
+- `food`
+- `water`
+- `hospital`
+- `campground`
+- `ferry_terminal`
+- `car_rental`
+
+Straight-line distance is acceptable for v1 if the UI does not imply routable travel time. Routeable distance and travel time are later enhancements.
+
+---
+
+## 4. Collection Card Contract
+
+Collection Cards appear in the Vault overview.
+
+Required display:
+
+- title
+- subtitle
+- route or event count
+- total miles
+- primary badge
+
+Optional display:
+
+- curator/source label
+- updated/freshness label
+- icon
+- cover graphic
+- tiny route-shape or map-trace preview
+
+Rules:
+
+- one Collection Card per Vault Collection
+- cards launch profiles; cards do not own filters
+- icons/graphics are presentation-only
+- avoid showing advanced metrics on the card unless coverage is high and meaning is clear
+
+---
+
+## 5. Browser Interaction Contract
+
+### 5.1 Overview State
+
+The Vault overview shows the collection grid.
+
+Behavior:
+
+- 1-2 collections: height hugs content
+- 3-6 collections: grid expands naturally
+- larger sets: grid caps height and scrolls internally
+- mobile may use a horizontal rail or compact grid to keep route browsing reachable
+
+### 5.2 Selected Collection State
+
+Selecting a card changes the surface to the Collection Browser.
+
+The overview grid collapses into:
+
+- back affordance
+- selected collection title
+- route/event count
+- total miles
+- selected collection badge/source context
+
+The freed space becomes:
+
+- filter/sort controls
+- active filter chips
+- Matching Routes list
+- Matching Routes map, when the active result set has preview geometry
+
+### 5.2.1 Matching Routes Map
+
+The Collection Browser supports two synchronized result views:
+
+- List view for scanning facts, narrowing candidates, and sorting
+- Map view for spatial recognition and route comparison
+
+The map view must render the same filtered and sorted Matching Routes result set as the list. It is not a separate discovery mode with a different query model.
+
+Map behavior:
+
+- draw lightweight route preview polylines from stored geometry
+- do not run route analysis, scoring, enrichment, or the Lanterne route engine just to preview many routes
+- visually preserve result ordering with stable colors, opacity, labels, or numbered markers
+- allow selecting a route from the map to focus the corresponding row or route detail
+- cap or simplify rendered geometry when result sets are large
+- show an unavailable-map state when route preview geometry is not present
+
+Preview geometry source:
+
+- preferred: precomputed route preview geometry or simplified polyline attached to the route catalog/search facts
+- acceptable first pass: stored route points or normalized external route catalog geometry simplified for display
+- not acceptable: recomputing analysis geometry or hydrating scoring artifacts for every route in the result set
+
+The map is a candidate-review surface. Opening a route remains the explicit transition into the full Lanterne route experience.
+
+### 5.3 URL State
+
+Selected collection state must be serializable in the URL.
+
+Required URL state:
+
+- selected collection slug
+- filter values
+- sort key
+- page or cursor
+- result view preference when needed, such as `list` or `map`
+
+Benefits:
+
+- back button works
+- reload works
+- QA links are stable
+- filtered route sets are shareable later
+
+---
+
+## 6. Filter Capability Registry
+
+Every filter capability declares:
+
+- `key`
+- label
+- control type
+- source family
+- target field or resolver
+- supported operators
+- unit
+- default value
+- profile visibility
+- coverage requirement
+- query mapper
+- URL serializer
+
+Control types:
+
+- text
+- number range
+- date range
+- state multi-select
+- single select
+- multi-select
+- boolean
+- location
+- proximity
+
+Source families:
+
+- collection metadata
+- collection membership fact
+- route catalog fact
+- route-indexed evidence rollup
+- proximity fact
+- contextual condition
+- user-personal fact
+- admin/provenance fact
+
+Coverage behavior:
+
+- hide capability if the profile marks it hidden
+- hide or disable capability if required facts are not present
+- show unavailable state only when it helps rider trust
+- never expose a precise-looking control backed by weak coverage
+
+---
+
+## 7. Sort Capability Registry
+
+Every sort capability declares:
+
+- `key`
+- label
+- source family
+- target field or resolver
+- default direction
+- tie-breaker
+- coverage requirement
+- query mapper
+- URL serializer
+
+Sorts must be deterministic. If two routes tie, use profile-specific stable tie-breakers such as title, event date, permanent ID, or collection sort order.
+
+Safety sort should appear as "Safest first" or "Safety score" in rider-facing UI. "Safety rank" can remain internal.
+
+---
+
+## 8. Initial Profiles
+
+### 8.1 `default_route_collection_v1`
+
+Primary filters:
+
+- name includes
+- distance
+- climbing
+- start state
+- states touched
+
+Sorts:
+
+- collection default
+- name
+- distance shortest
+- distance longest
+- climbing least
+- climbing most
+
+Route row metrics:
+
+- start/end
+- distance
+- climbing
+- states touched
+
+### 8.2 `rusa_permanent_v1`
+
+Primary filters:
+
+- starting location
+- ending location
+- distance
+- climbing
+- shape
+- within or through states
+- contains unpaved
+- name includes
+- distance from address
+
+Initial shape values:
+
+- loop
+- out and back
+- point-to-point
+- unknown
+
+Sorts:
+
+- starting location
+- distance shortest
+- distance longest
+- climbing least
+- climbing most
+- safest first, when coverage allows
+- most unpaved
+- most states included
+- distance from major airport
+
+Route row metrics:
+
+- permanent ID
+- start/end
+- distance
+- climbing
+- shape
+- states touched
+- unpaved distance, when present
+- safety score, when coverage allows
+
+State filtering rule:
+
+- "within or through" maps to `states_touched` contains any selected state
+- "all selected states" is deferred but should be supported by the query mapper later
+
+### 8.3 `rusa_event_v1`
+
+Primary filters:
+
+- date range
+- starting location
+- distance
+- states touched
+- event distance class
+- name includes
+- distance from address
+
+Sorts:
+
+- soonest first
+- latest first
+- starting location
+- distance shortest
+- distance longest
+- safest first, when coverage allows
+- distance from major airport
+
+Route row metrics:
+
+- event date
+- event type or distance class
+- start location
+- distance
+- climbing
+- states touched
+- linked/schedule-only state
+
+Event date is a collection membership fact. The same route geometry can appear in multiple event instances.
+
+---
+
+## 9. Master Filter Capability Catalog
+
+This catalog is intentionally larger than v1 UI. It exists so future filters fit the same architecture.
+
+### 9.1 Identity, Text, and Provenance
+
+- name includes
+- official route ID
+- permanent ID
+- organizer or club
+- curator
+- source platform
+- source confidence
+- official source
+- Lanterne curated
+- imported by user
+- route tags
+- mode
+- collection membership
+- featured
+- last updated
+- analysis freshness
+- has full analysis
+- has partial analysis
+- has unresolved sections
+
+### 9.2 Start, Finish, and Geography
+
+- starting location
+- ending location
+- start state
+- end state
+- states touched
+- states entirely within
+- states crossed
+- state count
+- counties touched
+- countries/provinces touched
+- region
+- metro area
+- starts within distance of place
+- ends within distance of place
+- route passes within distance of place
+
+### 9.3 Shape and Topology
+
+- loop
+- out and back
+- point-to-point
+- lollipop
+- figure-eight
+- clover leaf
+- unknown shape
+- start and finish within distance
+- ferry segment
+- unpaved segment
+- separated bike path/trail segment
+- complex urban transitions
+- unresolved topology
+
+### 9.4 Distance, Climbing, and Terrain
+
+- distance range
+- official distance
+- actual route distance
+- distance class
+- climbing range
+- climbing per mile
+- longest climb
+- steepest sustained climb
+- total descent
+- descent density
+- flatness
+- rolling terrain
+- high point
+- low point
+
+### 9.5 Surface
+
+- paved only
+- contains unpaved
+- unpaved distance
+- unpaved percentage
+- gravel/dirt/trail distance
+- surface confidence
+- unknown surface distance
+- rough surface warning
+- road-bike suitable
+- gravel-bike recommended
+- bikepacking suitable
+
+### 9.6 Safety and Traffic
+
+- safety score
+- safety rank within collection
+- risk per mile
+- worst-stretch safety
+- miles below safety threshold
+- high-risk road miles
+- traffic index
+- bike support index
+- shoulder coverage
+- no-shoulder high-speed miles
+- high-AADT miles
+- major road exposure
+- left-turn burden
+- railroad crossing count
+- bridge hazard count
+- hazard density
+- urban stress
+- rural highway exposure
+
+### 9.7 Remoteness and Services
+
+- remoteness index
+- worst remote stretch
+- longest stretch without services
+- longest stretch without food
+- longest stretch without water
+- distance to town
+- distance to medical help
+- bike shop proximity
+- lodging proximity
+- camping proximity
+- restroom proximity
+- service density
+- bailout density
+- 24-hour services, future
+- cell-service confidence, future
+
+### 9.8 Access and Proximity
+
+Use the proximity primitive:
+
+- route anchor: start, end, closest route point, any route point, control, most remote point, highest-risk segment
+- target: address, current location, airport, train, bus, lodging, parking, food, water, bike shop, hospital, campground, ferry, car rental
+- operator: within distance, nearest first, farthest first, has at least one nearby, none within distance
+
+Initial examples:
+
+- start within 25 miles of airport
+- closest route point within 5 miles of train station
+- sort by closest airport to start
+- sort by closest bus/train to route
+
+### 9.9 Event and Calendar
+
+- date range
+- start date
+- start time
+- registration state
+- registration deadline
+- event series
+- organizer
+- club
+- event distance class
+- sanctioned type
+- weekday/weekend
+- likely night riding
+- nearby airport
+- nearby train
+- nearby lodging
+- weather window, future
+- sunrise/sunset overlap, future
+- moonlight overlap, future
+
+### 9.10 Randonneuring-Specific
+
+- permanent ID
+- official distance km
+- owner/organizer
+- RUSA region
+- RBA/club region
+- states touched
+- state count
+- new states for rider, future
+- control count, future
+- start flexibility
+- airport proximity
+- train/bus proximity
+- hotel proximity
+- parking proximity
+- night riding likely
+- unpaved included
+- SR 600K route
+- inactive route inclusion
+
+### 9.11 Gravel and Adventure
+
+- unpaved percentage
+- surface confidence
+- remoteness index
+- service gap
+- water gap
+- food gap
+- bailout access
+- transit bailout proximity
+- parking/trailhead access
+- camping/lodging nearby
+- technicality, future
+- singletrack present, future
+- unknown surface risk
+- climbing density
+- descent risk
+- heat exposure
+- wind exposure
+- commitment level composite, future
+
+### 9.12 Weather, Light, and Ride Time
+
+These are contextual overlays, not stable route facts.
+
+- start time
+- estimated rider pace
+- daylight percentage
+- twilight percentage
+- night percentage
+- moon illumination
+- cloud-adjusted moonlight
+- sun glare risk
+- UV exposure
+- heat exposure
+- cold exposure
+- headwind burden
+- tailwind benefit
+- crosswind exposure
+- precipitation risk
+- storm risk
+- weather confidence
+
+### 9.13 Personal Goals
+
+- ridden before
+- not ridden before
+- saved
+- favorited
+- planned
+- completed
+- new state for me
+- new county for me
+- completes collection
+- near upcoming trip
+- near home
+- near work/family location
+- best weekend fit
+- best after-work fit
+- can finish before flight
+- pairs with nearby route
+
+### 9.14 Quality, Confidence, and Admin
+
+- analysis complete
+- geometry confidence
+- road ownership confidence
+- surface confidence
+- traffic coverage
+- elevation coverage
+- POI/service coverage
+- official metadata present
+- stale source metadata
+- unresolved spans
+- unknown surface
+- missing traffic coverage
+- missing elevation
+- recently refreshed
+
+---
+
+## 10. Master Sort Capability Catalog
+
+### 10.1 Basic
+
+- collection default
+- relevance
+- name
+- newest
+- recently updated
+- distance shortest
+- distance longest
+- climbing least
+- climbing most
+- start location
+- end location
+- official distance
+
+### 10.2 Event
+
+- soonest first
+- latest first
+- registration closing soon
+- closest event to address
+- shortest travel burden, future
+- event distance class
+- organizer/club
+- best weather window, future
+- most daylight, future
+- least night riding, future
+
+### 10.3 Safety and Route Reality
+
+- safest first
+- lowest risk per mile
+- least high-risk mileage
+- best worst-stretch score
+- least traffic exposure
+- most bike support
+- lowest fatigue
+- highest challenge
+- least remote
+- most remote
+- shortest service gap
+- longest service gap
+- best surface quality
+- most unpaved
+- least unpaved
+- lowest descent risk
+- most bailout options
+
+### 10.4 Logistics
+
+- closest start to address
+- closest finish to address
+- closest route point to address
+- closest start to airport
+- closest finish to airport
+- closest route to airport
+- closest start to train
+- closest route to train
+- closest start to bus
+- closest route to bus
+- best loop logistics
+- best fly-in/fly-out fit, future
+- best transit bailout, future
+
+### 10.5 Personal Achievement
+
+- most states included
+- most new states for me
+- most states per mile
+- completes collection
+- closest to completing collection
+- not yet ridden
+- favorite first
+- recently viewed
+- recommended for me
+
+### 10.6 Confidence and Curation
+
+- highest analysis confidence
+- most complete evidence
+- recently refreshed
+- official metadata first
+- Lanterne curated first
+- lowest unknown surface
+- lowest unresolved ownership
+- best POI coverage
+- best traffic coverage
+- best elevation confidence
+
+---
+
+## 11. Query Contract
+
+Vault route browsing must be query-backed.
+
+Required behavior:
+
+- validate filter state against the active profile
+- map filters to route catalog, membership, proximity, contextual, or personal facts
+- apply collection membership before route filters
+- paginate or cursor results
+- return total result count when feasible
+- include enough route-row facts to render the selected profile
+- avoid full collection fetches for large catalogs
+- avoid raw route-indexed evidence reads in the browser hot path
+
+The query layer may use Supabase table queries for early phases, but a stable RPC/query service should own complex filters such as proximity, state overlap, personal goals, and contextual overlays.
+
+---
+
+## 12. Failure and Empty States
+
+Collection overview:
+
+- no collections: "No collections yet."
+- loading collections: skeleton cards or restrained loading state
+- collection load error: retry affordance
+
+Selected collection:
+
+- no matching routes: keep filters visible and show clear reset action
+- unavailable profile: fall back to `default_route_collection_v1`
+- unavailable facts: hide or disable dependent filters
+- schedule-only events: show schedule state and prevent route open until linked
+- partial analysis: show safety/surface/remoteness only when coverage rules allow
+- missing route preview geometry: keep the route in the list and omit or disable it in the Matching Routes map
+
+---
+
+## 13. Non-Goals
+
+This spec does not implement:
+
+- full personal achievement system
+- routable travel-time proximity
+- weather-aware Vault ranking
+- community comments
+- public route pages
+- social collection sharing
+- final database migrations for every future fact table
+- every master filter in v1 UI
+
+---
+
+## 14. Definition of Done
+
+The first production-ready Vault browser is done when:
+
+- the Vault overview shows Collection Cards, not route-file groups
+- selecting a collection collapses the card grid and opens Matching Routes
+- RUSA Permanents has the initial filter/sort profile
+- RUSA Events has the initial date-first profile
+- active filters and sort are URL-serializable
+- Matching Routes can be reviewed as a list and, where preview geometry exists, as lightweight map polylines
+- large collections are paginated or virtualized
+- safety sort appears only when coverage is sufficient
+- source/provenance and collection membership boundaries remain explicit
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-046-route_line_v2_evidence_registry_contract.md
+
+# DS-046 - Route-Line V2 Evidence Registry Contract
+
+**Status:** Draft for route-line-v2 hardening
+**Date:** 2026-05-30
+**Related:** DS-029, DS-031, DS-032, DS-033, DS-043, DS-044, ASS-022
+
+---
+
+## 1. Purpose
+
+This specification defines the Route-Line V2 evidence registry contract.
+
+The registry is the shared vocabulary that keeps V2 extensible as Lanterne adds more:
+
+- builders
+- sources
+- evidence fields
+- display modes
+- inspect rows
+- debug overlays
+- score inputs
+- route-experience refinement paths
+
+The registry must prevent every surface from inventing its own meaning for source, provenance, field, layer, confidence, or display color.
+
+This is not a V3. It is the contract-hardening layer for the current V2 architecture:
+
+```text
+quickBuilder / robustBuilder / review refinement
+  -> routeTruth
+  -> evidenceBuilder
+  -> scoreBuilder
+  -> displayBuilder
+  -> inspect / debug / receipts / map overlays
+```
+
+## 2. Problem
+
+V2 currently has useful pieces, but the pieces can drift:
+
+- route builders can produce different handoff shapes
+- source fetch plans can use different notions of accepted source ways
+- HPMS, OSM, baselines, and inferred evidence can be classified differently by different consumers
+- display overlays can show a field as `unknown` even when inspect or score has selected evidence
+- lane count can exist as a helper for traffic without being registered as first-class evidence
+- future fields such as hazards, wind, grade, elevation, rail, bus, airports, surface quality, and controls could multiply the drift
+
+The evidence registry exists so this stops scaling by copy-paste.
+
+## 3. Architectural Decision
+
+Route-Line V2 must use one registry-backed contract for evidence field identity, DS-029 source classification, route-indexed layer mapping, score eligibility, display eligibility, and diagnostic presentation.
+
+The registry is not allowed to decide route truth. It describes how evidence can attach to route truth.
+
+The route axis remains the GPX-derived route distance axis from DS-031. Builders produce route experience/path truth. Evidence attaches to that truth by route distance.
+
+The registry answers:
+
+- What field is this?
+- What route-indexed layer feeds it?
+- What source types are allowed?
+- Is it score-bearing, display-only, confidence-only, or diagnostic-only?
+- Is predicted or baseline evidence allowed?
+- What trace payload must exist?
+- What visualization group owns it?
+- What operational lineage values are allowed?
+- How should source labels and source-filter rows be classified?
+
+It must not answer:
+
+- Which OSM way is the route?
+- Which HPMS feature overlaps the route?
+- Which value wins for a specific road span?
+- Whether a route segment is safe, risky, or complete
+- Whether substrate should be accepted as truth
+
+Those decisions belong to routeTruth, evidenceBuilder, and scoreBuilder.
+
+## 4. Canonical Registry Shape
+
+Every evidence field must have a registry definition.
+
+Illustrative shape:
+
+```ts
+interface RouteLineV2EvidenceFieldDefinition {
+  registryVersion: string;
+  fieldId: RouteLineV2EvidenceFieldId;
+  label: string;
+  resolvedValueType: RouteLineV2ResolvedValueType;
+  allowedSources: RouteLineV2EvidenceFieldSource[];
+  predictedAllowed: boolean;
+  baselineAllowed: boolean;
+  scoreBearing: boolean;
+  diagnosticOnly: boolean;
+  requiredTraceFields: string[];
+  visualization: RouteLineV2EvidenceVisualizationMetadata;
+  operationalLineage: {
+    allowed: RouteLineV2OperationalSourceLineage[];
+    note: string;
+  };
+}
+```
+
+Every registered source type must map to DS-029 semantics.
+
+Illustrative shape:
+
+```ts
+interface RouteLineV2SourceTypeDefinition {
+  sourceType: RouteLineV2Ds029SourceType;
+  family: RouteLineV2Ds029ProvenanceFamily;
+  precedence: number;
+  confidenceAnchor: number;
+  confidenceBand: RouteLineV2ConfidenceBand;
+  requiredTraceFields: string[];
+  allowedScopes?: Array<'route_indexed' | 'viewport_context'>;
+  scoreBearingAllowed?: boolean;
+}
+```
+
+The registry code currently lives at:
+
+```text
+src/lib/route-line-v2/evidence-registry.ts
+```
+
+## 5. Field Registry
+
+Initial V2 fields are:
+
+| Field id | Layer id | Score bearing | Notes |
+| --- | --- | --- | --- |
+| `speed_mph` | `speed_limit` | yes | Posted, authoritative, inferred, predicted, and baseline speed handling. |
+| `traffic_aadt_total` | `traffic_aadt` | yes | Total traffic volume. |
+| `traffic_aadt_per_lane` | `traffic_aadt` plus `lane_count` | yes | Normalized traffic exposure. |
+| `lane_count` | `lane_count` | yes | First-class evidence because it materially affects traffic normalization. |
+| `bike_facility` | `bike_infra` | yes | Bike lane, separated path, protected path, none, unknown. |
+| `shoulder_class` | `shoulder` | yes | Shoulder presence/quality/width class. |
+| `surface_type` | `surface` | no, diagnostic/display until promoted | Future surface quality route-reality field. |
+| `road_ownership` | `road_class` | no, confidence/context | Identity and attachment context, not itself speed or traffic truth. |
+| `corridor_label` | presentation-only | no, diagnostic/display | Label/display helper, not score truth. |
+
+Future fields must be added here before becoming score, inspect, debug, receipt, or display inputs.
+
+Expected future field families include:
+
+- hazards
+- crossings
+- rail exposure
+- bus/truck/airport proximity
+- elevation
+- grade
+- wind
+- weather
+- sunlight
+- surface quality
+- pavement condition
+- effort/watts
+- cue and control events
+
+## 6. Source-Type Registry
+
+The source-type registry is a V2 implementation of DS-029 source semantics.
+
+Core source types:
+
+| Source type | Family | Expected use |
+| --- | --- | --- |
+| `observed` | observed | Direct validated observation. |
+| `admin_approved` | observed | Audited admin approval. |
+| `authoritative_posted` | official_imported | HPMS, DOT, USDOT, agency-posted data. |
+| `osm_posted` | geometry_derived | Explicit OSM tag evidence. |
+| `observation_inferred` | relationship_inferred | Inferred from observation through documented continuity. |
+| `authoritative_inferred` | relationship_inferred | Inferred from authoritative source through documented continuity. |
+| `osm_inferred` | relationship_inferred | Inferred from OSM source through documented continuity. |
+| `local_area_predicted` | predicted | Local area estimate. |
+| `viewport_area_predicted` | predicted | Viewport-only diagnostic context, not route truth. |
+| `regional_prior` | baseline | Regional fallback prior. |
+| `highway_area_baseline` | baseline | Highway class plus area context fallback. |
+| `highway_baseline` | baseline | Generic highway class fallback. |
+| `unknown` | unknown | Explicit missing or unavailable evidence. |
+
+Presentation must not invent source type names outside the registry.
+
+When legacy source types appear, the registry may normalize them. For example:
+
+```text
+measured -> observed
+user_observation -> observed
+```
+
+The normalization is a compatibility bridge. It is not permission to bypass DS-029.
+
+## 7. Layer-to-Field Mapping
+
+Route-indexed layers and evidence fields are related but not identical.
+
+Examples:
+
+| Layer id | Field id |
+| --- | --- |
+| `speed_limit` | `speed_mph` |
+| `traffic_aadt` | `traffic_aadt_total` |
+| `lane_count` | `lane_count` |
+| `shoulder` | `shoulder_class` |
+| `bike_infra` | `bike_facility` |
+| `surface` | `surface_type` |
+| `road_class` | `road_ownership` |
+
+A single layer can support multiple fields. For example `traffic_aadt` supports total AADT, and total AADT plus lane count supports per-lane traffic.
+
+The layer-to-field mapping must be centralized so source overlays, debug panels, inspect rows, receipts, and display modes do not each maintain private mappings.
+
+## 8. Builder Responsibilities
+
+### 8.1 quickBuilder
+
+quickBuilder may use substrate/cache hints to produce fast initial route experience truth.
+
+It must emit the same evidenceBuilder input shape as robustBuilder where possible:
+
+- route fingerprint
+- route distance axis
+- accepted source way ids when truly accepted
+- route experience segments
+- blockers
+- source candidates
+- provenance-ready route windows
+
+It must not mark substrate hints as canonical evidence truth.
+
+### 8.2 robustBuilder
+
+robustBuilder may use the `/v2-review` topology lineage to produce or refine route experience truth.
+
+It must emit the same evidenceBuilder input shape as quickBuilder:
+
+- no private route display-only contract
+- no separate scoring handoff
+- no bypass around evidenceBuilder
+
+### 8.3 review refinement
+
+Review refinement may take longer and may produce a more complete node/way/coordinate route-experience tape.
+
+It must still converge into the same registry-backed evidenceBuilder contract.
+
+## 9. evidenceBuilder Responsibilities
+
+evidenceBuilder is where source-backed facts attach to route truth.
+
+It must:
+
+- consume one canonical route-experience handoff
+- attach values by route distance
+- preserve source lineage separately from DS-029 source type
+- select values using DS-029 precedence
+- distinguish direct, inferred, predicted, baseline, and unknown values
+- preserve trace payloads
+- emit selected and rejected evidence
+- expose enough diagnostics for source overlay QA
+
+It must not:
+
+- change route identity
+- smear evidence across direct conflicting evidence
+- use operational lineage as provenance
+- invent display-only source labels
+- hide unknowns behind confident-looking fallback values
+
+## 10. scoreBuilder Responsibilities
+
+scoreBuilder consumes only resolved evidence from evidenceBuilder.
+
+It must not fetch, infer, or classify source types independently.
+
+It may:
+
+- compute risk
+- compute confidence effects
+- produce score trace rows
+- produce heatmap/paint inputs
+
+It may not:
+
+- promote unknown to baseline without registry permission
+- promote display-only fields into score-bearing fields
+- reinterpret HPMS or OSM source precedence
+
+## 11. displayBuilder Responsibilities
+
+displayBuilder consumes resolved evidence and registry metadata.
+
+It owns presentation:
+
+- map paint
+- placards
+- cue overlays
+- source overlays
+- inspection summaries
+- debug visibility
+- display mode matrices
+
+It does not own evidence truth.
+
+DisplayBuilder must ask the registry:
+
+- which field this layer belongs to
+- which display group owns the field
+- whether the field is score-bearing or diagnostic-only
+- what source type label to show
+- whether a source-filter row should exist even when count is zero
+
+The same resolved evidence must render the same source/color/risk regardless of whether the route came from quickBuilder, robustBuilder, or review refinement.
+
+## 12. Inspect, Debug, and Receipts
+
+Inspect, debug, and receipts are consumers of the same resolved evidence stream.
+
+They must not each re-resolve source precedence.
+
+Expected contract:
+
+```text
+resolved route evidence
+  -> selected evidence snapshots
+  -> inspect rows
+  -> debug feature detail
+  -> receipts
+  -> evidence overlays
+```
+
+The `/v2-review` evidence overlay panel remains important because it visualizes this contract. Moving similar views into the main dev panel is correct only if they consume the registry-backed route evidence stream rather than a parallel diagnostic blob.
+
+## 13. Display Modes and Visualization Registry
+
+Risk is only one display mode.
+
+The system must support future modes without hardcoding each mode across RouteMap, inspect, debug, receipts, and controls.
+
+Expected display modes include:
+
+- risk
+- traffic
+- speed
+- bike facility
+- shoulder
+- source type
+- confidence
+- provenance family
+- hazards
+- wind
+- grade
+- elevation gain
+- surface
+- route identity
+
+Each mode should define:
+
+- field or fields consumed
+- default color matrix
+- unknown/unavailable color
+- score-bearing status
+- inspector row behavior
+- source overlay behavior
+- whether route truth, evidence truth, or display-only context drives it
+
+The display mode registry may be separate from the evidence registry, but it must reference evidence registry fields rather than invent its own field ids.
+
+## 14. Central Geometry Guards
+
+The registry does not perform geometric matching, but it depends on central geometry guards being applied before evidence becomes selected truth.
+
+For HPMS, OSM, hazards, and future sources, selected evidence should require:
+
+- route-distance overlap
+- field-specific minimum overlap
+- heading or continuity sanity where relevant
+- domain compatibility where relevant
+- no stronger direct conflict on the same route interval
+- explicit direct vs inferred classification
+
+Examples:
+
+- A caddy-corner HPMS span must not attach to Carranza Road only because it is near the route.
+- A track crossing Blue Diamond Road must not steal identity or bike facility truth from the road.
+- A sidepath can be selected as route experience truth, but road speed/traffic should not follow it unless evidence explicitly applies to the sidepath.
+
+These guards belong in routeTruth/evidenceBuilder, not in RouteMap.
+
+## 15. Source Overlay Diagnostics
+
+The evidence overlay panel should be a registry-backed QA surface.
+
+It should answer:
+
+- Which source types are present?
+- Which fields are present?
+- Which selected route intervals use each source type?
+- Which selected route intervals use direct vs inferred evidence?
+- Which route intervals are predicted or baseline?
+- Which route intervals are unknown?
+- Which selected evidence records lack trace payloads?
+- Which builders produced equivalent or divergent evidence input contracts?
+
+The panel should not show a giant repeated list of layer ids as a substitute for source semantics.
+
+Useful display:
+
+```text
+Authoritative Posted: 42 spans
+OSM Posted: 58 spans
+Authoritative Inferred: 12 spans
+Highway Area Baseline: 4 spans
+Unknown: 10 spans
+```
+
+Then selecting a row should highlight the matching route intervals.
+
+## 16. Extensibility Rules
+
+Adding a new evidence field requires:
+
+1. Add a registry field definition.
+2. Map any route-indexed layer ids to the field.
+3. Define allowed DS-029 source types.
+4. Define whether predicted and baseline values are allowed.
+5. Define whether the field is score-bearing, display-only, confidence-only, or diagnostic-only.
+6. Define required trace fields.
+7. Define display visualization group metadata.
+8. Add tests proving the field is included in registry-derived groups.
+9. Add evidenceBuilder tests proving selected/rejected evidence obeys the registry.
+10. Add displayBuilder/inspect tests proving consumers do not bypass the registry.
+
+Adding a new source type requires:
+
+1. Add DS-029 source-type definition.
+2. Map it to a provenance family.
+3. Assign precedence and confidence anchor.
+4. Define trace requirements.
+5. Decide route-indexed vs viewport-context scope.
+6. Add it to allowed field source lists only where valid.
+7. Add source overlay tests.
+
+## 17. Required Tests
+
+Registry-level tests:
+
+- every score-bearing field has at least one allowed source
+- every allowed source maps to a DS-029 family
+- every source has precedence, confidence anchor, and confidence band
+- every score-bearing field includes `unknown`
+- future reserved fields appear in visualization groups without hardcoded UI switches
+- layer ids map to field ids centrally
+
+Handoff tests:
+
+- quickBuilder and robustBuilder produce equivalent evidenceBuilder input shape for the same accepted route interval
+- source overlay rows are derived from selected evidence, not raw provider records
+- HPMS speed, traffic, lane, and shoulder records classify consistently
+- OSM posted fields classify consistently
+- baseline and predicted fields remain explicit and visible
+
+Golden route tests:
+
+- Medford-Tabernacle: OSM 25 mph direct evidence blocks HPMS 45 mph spillover.
+- Carranza: caddy-corner HPMS evidence does not attach without true route overlap.
+- Blue Diamond: crossing tracks/side streets do not steal identity or evidence.
+- Dam Ride: cycleway/path intervals render safe path semantics without road speed/traffic leakage.
+- Batsto: quickBuilder and robustBuilder converge to the same evidenceBuilder handoff where source coverage is available.
+
+## 18. Current Implementation Status
+
+Implemented or partially implemented:
+
+- V2 evidence registry exists.
+- DS-029 source type definitions exist in the V2 registry.
+- Route-indexed fields exist for speed, traffic, shoulder, bike facility, surface, road ownership, and labels.
+- Lane count is now first-class V2 evidence registry field.
+- Source overlay classification has been moved toward registry-backed helpers.
+- Display handoff can consume selected evidence snapshots for source overlay rows.
+
+Still incomplete:
+
+- Not every builder path is proven to emit equivalent evidenceBuilder input.
+- Not every display/debug/inspect surface consumes the same resolved evidence stream.
+- Source overlays still need stronger field-level and source-type visual QA.
+- Hazards, wind, elevation, rail, bus, airport, surface, and future fields are not yet registry-hardened.
+- DS-029 conformance diagnostics still show that operational lineage and provenance can blur.
+
+## 19. Non-Goals
+
+This spec does not:
+
+- replace DS-029
+- replace DS-031
+- invent V3
+- make substrate truth
+- make viewport overlays score-bearing
+- make HPMS route identity
+- require all future fields to be score-bearing
+- require route refinement to finish before first product display
+
+## 20. Next Implementation Direction
+
+The next implementation phase should:
+
+1. Inspect current source request construction paths.
+2. Gate accepted source truth through the route-experience evidence handoff.
+3. Make quickBuilder, robustBuilder, and review refinement produce one evidenceBuilder input contract.
+4. Move source overlay rows onto selected/resolved evidence by registry field and source type.
+5. Add focused quickBuilder vs robustBuilder evidence handoff tests.
+6. Run targeted tests and type check.
+7. Commit narrowly.
+
+The product goal is not more debug UI. The product goal is one evidence contract that makes the debug UI, inspect panel, map paint, score trace, receipts, and future display modes boringly consistent.
 
 
 ---
@@ -30262,206 +32722,6 @@ The current DS-015 contract does not use the 0-100 logistic shell as canonical o
 
 ---
 
-## Source File: docs/03-adrs/adr-039-segment-level-analysis-storage-model.md
-
-# ADR-039 — Segment-Level Analysis Storage Model
-
-Status: Accepted
-Date: 2026-04-03
-
-------
-
-## Context
-
-Lanterne performs detailed route analysis by evaluating many small internal slices of a route.
-
-These slices capture real-world variation in:
-
-- traffic exposure
-- speed environment
-- shoulder presence
-- bike infrastructure
-- hazards
-
-This slice-level computation is essential to avoid smoothing over critical changes along a route.
-
-However, a key architectural question emerged:
-
-> Should segment-level analysis be persisted in the database?
-
-------
-
-## Decision
-
-Lanterne will **NOT persist segment-level analysis in the database**.
-
-Segment-level data is:
-
-- computed client-side
-- stored only in memory during analysis
-- optionally cached inside `route_cache.safety_result` as JSON
-- never stored in structured database tables
-
-------
-
-## Rationale
-
-### 1. Segment data is derived, not canonical
-
-Segment-level risk is:
-
-- computed from inputs
-- dependent on scoring model version
-- subject to change
-
-It is not a stable fact.
-
-Storing it would incorrectly elevate derived data to canonical status.
-
-------
-
-### 2. The system is designed for client-side computation
-
-Lanterne’s architecture is intentionally:
-
-- browser-first
-- compute-on-demand
-- server-light
-
-> All analysis runs in the user's device.
-
-Persisting segment-level data would introduce unnecessary backend coupling.
-
-------
-
-### 3. Storage adds complexity without rider value
-
-Persisting segment-level data would require:
-
-- schema design
-- migrations
-- versioning
-- invalidation logic
-- synchronization
-
-These add engineering cost but do not improve the rider’s experience for the core use case.
-
-------
-
-### 4. Caching already solves performance
-
-The system already uses:
-
-- tile-level caching (OSM roads)
-- route-level caching (analysis results)
-
-These eliminate redundant computation without requiring persistent segment storage.
-
-------
-
-### 5. Product focus is route-level decision support
-
-Lanterne’s core promise is:
-
-> Help riders understand a route before they ride it.
-
-It is not intended to be:
-
-- a global segment analytics platform
-- a shared road intelligence database
-
-------
-
-## Implications
-
-### What is stored
-
-- route geometry
-- route-level analysis results
-- cached tiles
-- user data
-
-------
-
-### What is NOT stored
-
-- segment-level risk
-- segment-level scoring
-- segment-level presentation tokens
-
-------
-
-### Where segment data exists
-
-Segment-level data exists only as:
-
-```txt
-in-memory during analysis
-+
-JSON inside route_cache.safety_result
-```
-
-------
-
-### System behavior
-
-- segment truth is recomputed when needed
-- updates to scoring models automatically apply
-- no backfill or migration is required
-
-------
-
-## Consequences
-
-### Advantages
-
-- simpler architecture
-- faster iteration
-- no schema drift
-- no invalidation complexity
-- lower infrastructure cost
-- consistent with client-side compute model
-
-------
-
-### Tradeoffs
-
-- no cross-route segment querying
-- no persistent segment analytics
-- no server-side reuse of segment outputs
-
-These are acceptable given current product goals.
-
-------
-
-## Future Considerations
-
-This decision may be revisited if:
-
-- server-side compute becomes necessary
-- cross-route analytics becomes a core product feature
-- segment-level community data requires structured storage
-
-Until then, segment-level persistence is explicitly out of scope.
-
-------
-
-## Design Principle
-
-> Segment-level analysis is derived, not stored.
-
-------
-
-## Final Rule
-
-Lanterne computes truth on demand.
-
-It does not store derived segment data.
-
-## 
-
----
-
 ## Source File: docs/03-adrs/adr-040-user-observations-as-overlay-evidence-not-canonical-truth.md
 
 # ADR-040 — User Observations as Overlay Evidence, Not Canonical Truth
@@ -32010,6 +34270,333 @@ This gives Lanterne a route evidence substrate instead of a collection of specia
 
 ---
 
+## Source File: docs/03-adrs/adr-046-cyclist_mobility_substrate_platform.md
+
+# ADR-046 — Cyclist Mobility Substrate Platform
+
+**Status:** Proposed
+**Date:** 2026-05-19
+**Related:** ADR-045, DS-031, DS-032, EXEC-024, EXEC-025
+
+---
+
+# 1. Context
+
+Lanterne's viewport/runtime systems have recently evolved from:
+
+- point-first route truth
+- raw OSM viewport hydration
+- fragment-oriented rendering
+
+Toward:
+
+- route-indexed evidence
+- provenance-aware overlays
+- worker-streamed presentation
+- viewport/runtime separation
+- visible-first rendering
+- merged corridor presentation
+
+Those changes improved correctness and runtime behavior.
+
+However, a new issue emerged:
+
+Low-zoom viewport experiences remain visually empty, fragmented, or psychologically unhelpful.
+
+The current runtime viewport hydration model still begins from:
+
+> raw nearby OSM geometry
+
+rather than:
+
+> cyclist-relevant regional movement structure
+
+This creates several problems:
+
+- fragmented low-zoom rendering
+- weak continuity
+- poor cold-start perception
+- over-fetching low-value roads
+- runtime hydration pressure
+- weak cyclist orientation at regional scale
+- psychologically dead maps during hydration
+
+The issue is architectural.
+
+Lanterne currently hydrates:
+
+> roads that exist
+
+when low zooms actually require:
+
+> corridors that matter to cyclists
+
+---
+
+# 2. Decision
+
+Lanterne will introduce a new platform layer:
+
+```text
+Cyclist Mobility Substrate
+```
+
+The Cyclist Mobility Substrate is:
+
+- precomputed
+- cyclist-oriented
+- continuity-aware
+- multi-zoom simplified
+- aggressively cacheable
+- presentation-first
+- non-score-bearing
+- non-canonical
+
+It represents:
+
+> the meaningful cyclist movement structure of a region
+
+rather than raw road geometry.
+
+The substrate is separate from:
+
+- route truth
+- route-indexed evidence
+- scoring truth
+- ownership spans
+- DS-029 provenance authority
+
+The substrate exists to:
+
+- improve perceived responsiveness
+- improve regional cyclist orientation
+- improve runtime hydration prioritization
+- reduce low-value hydration pressure
+- support future routing and optimization systems
+
+---
+
+# 3. Core Principle
+
+At low zoom:
+
+```text
+continuity matters more than local fragment correctness
+```
+
+At high zoom:
+
+```text
+full traversable truth matters more than abstraction
+```
+
+This creates a dual-mode spatial model:
+
+```text
+low zoom  -> cyclist mobility structure
+high zoom -> full traversable cyclist network
+```
+
+---
+
+# 4. Zoom Philosophy
+
+## z10–11
+
+Regional cyclist mobility structure.
+
+Show:
+
+- major separated bike corridors
+- greenways
+- rail trails
+- protected urban bike corridors
+- high-importance cyclist connectors
+
+Do not show generic residential fabric.
+
+Goal:
+
+> reveal the hidden rideable geography of the region
+
+---
+
+## z12
+
+Cyclist structure plus important connective road hierarchy.
+
+Show:
+
+- bike corridors
+- secondaries
+- tertiaries
+- high-continuity residential corridors
+- selected primaries
+
+Goal:
+
+> allow regional route imagination and corridor understanding
+
+---
+
+## z13
+
+Transition zone.
+
+Skeleton substrate remains visible while viewport hydration progressively enriches the network.
+
+Goal:
+
+> seamless transition from substrate to runtime detail
+
+---
+
+## z14+
+
+Full traversable cyclist-relevant street network.
+
+At this scale:
+
+- local residential fabric matters
+- neighborhood threading matters
+- small connectors matter
+- alternate routing matters
+
+Goal:
+
+> operational navigation and route editing
+
+---
+
+# 5. Cyclist Salience Hierarchy
+
+The substrate does not follow standard DOT hierarchy.
+
+Instead it follows:
+
+```text
+cyclist salience hierarchy
+```
+
+Initial conceptual ordering:
+
+1. separated cycleways / rail trails / greenways
+2. long separated paths
+3. protected urban bike corridors
+4. secondary roads
+5. tertiary roads
+6. residential corridors with strong continuity
+7. selected primaries
+8. local-only residential fragments (suppressed at low zoom)
+
+This hierarchy reflects:
+
+- route desirability
+- movement utility
+- cyclist continuity
+- regional navigability
+
+rather than car infrastructure importance.
+
+---
+
+# 6. Substrate Is Not Canonical Truth
+
+The substrate is:
+
+- presentation-first
+- simplified
+- approximate
+- cacheable
+- continuity-oriented
+
+It must never:
+
+- become score-bearing truth
+- override DS-029 provenance
+- override route ownership
+- become canonical route evidence
+- replace viewport hydration
+
+Canonical route evidence remains owned by:
+
+- route-indexed evidence layers
+- viewport-context evidence providers
+- topology ownership
+- scoring adapters
+
+---
+
+# 7. Runtime Interaction
+
+The substrate becomes:
+
+- immediate first paint
+- hydration prioritization guide
+- routing relevance guide
+- candidate narrowing prior
+- low-zoom continuity layer
+
+Viewport hydration still owns:
+
+- exact truth
+- provenance
+- scoring eligibility
+- inspection detail
+- runtime freshness
+
+---
+
+# 8. Consequences
+
+## Advantages
+
+- dramatically improved perceived responsiveness
+- meaningful low-zoom cyclist orientation
+- lower viewport hydration pressure
+- smaller runtime fetch universes
+- improved future routing graph prioritization
+- scalable global architecture
+- stronger product differentiation
+
+## Tradeoffs
+
+- introduces another spatial abstraction layer
+- requires offline preprocessing
+- requires continuity heuristics
+- increases cache-generation complexity
+- low zoom becomes intentionally non-literal
+
+---
+
+# 9. Non-Goals
+
+This ADR does not:
+
+- replace route truth
+- replace viewport hydration
+- replace DS-029 provenance
+- replace scoring systems
+- define routing algorithms
+- define detour optimization
+- require all geographies to be manually curated
+- require rider popularity telemetry
+
+---
+
+# 10. Design Principle
+
+Lanterne should not first show riders:
+
+> all roads
+
+It should first show:
+
+> the meaningful ways a cyclist can move through the world.
+
+
+---
+
 ## Source File: docs/03-adrs/adr-047-profile_aware_hydration_cache_and_cyclist_mobility_substrate_runtime_architecture.md
 
 # ADR-047 - Profile-Aware Hydration Cache and Cyclist Mobility Substrate Runtime Architecture
@@ -32686,4 +35273,907 @@ Future work should build on this separation:
 - object/CDN tile serving
 - profile-aware overlay ecosystem
 - dedicated spatial/cache service ownership
+
+
+---
+
+## Source File: docs/03-adrs/adr-048-durable_lanterne_route_relations_and_progressive_route_enrichment.md
+
+# ADR-048 - Durable Lanterne Route Relations and Progressive Route Enrichment
+
+**Status:** Proposed
+**Date:** 2026-05-20
+**Related:** ADR-047, ADR-045, DS-036, DS-035, DS-031, DS-030, DS-029, EXEC-030, EXEC-029
+
+---
+
+# 1. Context
+
+RouteLine V2 is moving Lanterne from point-first route matching toward route-line ownership and route-indexed evidence.
+
+Today, an imported or planned route can require expensive reconstruction work on each load:
+
+- build the route axis
+- fetch owned/raw road evidence
+- reconstruct route-aligned inventory
+- solve topology/ownership spans
+- infer transitions and blockers
+- hydrate evidence
+- score and render
+
+The current route cache solves a different problem. It can reuse a completed analysis/scoring result for an exact route/version, but it is not the durable route structure itself.
+
+The cyclist mobility substrate also solves a different problem. It represents regional cyclist geography, corridor continuity, salience, and prioritization. It may help narrow candidates, but it is not route truth and it cannot replace route ownership proof.
+
+Lanterne needs a third route-specific durability object:
+
+```text
+raw route artifact -> computed route relation -> refreshed evidence/scoring
+```
+
+This object must support GPX/FIT/TCX imports, RWGPS routes, free draw, imperfect geometry, partial matches, international data variability, and routes that are not perfectly explainable as an OSM node chain.
+
+---
+
+# 2. Decision
+
+Lanterne will introduce **Lanterne Route Relations** as durable computed route structure objects.
+
+A Lanterne Route Relation stores the ordered mixed-member chain produced by route construction:
+
+- matched OSM/source way spans
+- optional OSM/source node anchors
+- coordinate anchors
+- unmatched spans
+- inferred spans
+- transition markers
+- blocker/gap markers
+- confidence metadata
+- version and invalidation metadata
+
+It is a route construction durability object. It is not a final score cache, not substrate corridor continuity, not an OSM relation replacement, and not RouteLine truth replacement.
+
+The route geometry remains the spine. Source way/node references annotate spans of that spine where ownership is known or useful. Coordinates remain valid where exact source ownership is unavailable, unnecessary, or intentionally deferred.
+
+Lanterne Route Relations are therefore:
+
+```text
+not OSM-node-hostage
+```
+
+A relation may accelerate route construction reload only when all reload gates match:
+
+- relation schema version
+- source version
+- RouteLine algorithm version
+- route geometry hash
+- invalidation state
+
+Even on a relation hit, source evidence must remain hydratable, unresolved gaps must remain explicit, and RouteLine validation must still decide whether the reused structure is acceptable for the current run.
+
+---
+
+# 3. Raw Route Artifact, Route Relation, and Route Cache
+
+These three systems are separate.
+
+## 3.1 Raw Route Artifact
+
+The raw route artifact is the immutable source input.
+
+Examples:
+
+- uploaded GPX
+- uploaded FIT
+- uploaded TCX
+- RWGPS route
+- manual/free-draw geometry
+- optimized/planned route geometry
+
+It owns raw coordinate truth.
+
+It does not own matched road identity, route scoring, or evidence hydration.
+
+## 3.2 Lanterne Route Relation
+
+The Lanterne Route Relation is computed from a raw route artifact.
+
+It owns durable route construction structure:
+
+- ordered mixed-member chain
+- route intervals
+- way spans
+- node anchors
+- coordinate anchors
+- coordinate spans
+- transition/handoff markers
+- blocker/gap markers
+- confidence metadata
+- version gates
+
+It answers:
+
+> What route structure did RouteLine compute for this artifact under this source and algorithm version?
+
+It does not answer:
+
+> What is the final safety score for this route?
+
+## 3.3 Route Cache
+
+The route cache stores completed analysis/scoring reuse.
+
+It is a derived result cache.
+
+It answers:
+
+> Have we already analyzed this exact route under the current analysis/scoring version?
+
+It does not store the durable mixed-member route structure as its primary purpose.
+
+It should not be described as durable route structure. It stores completed analysis/scoring result reuse, not the ordered mixed-member chain, way spans, node anchors, coordinate spans, blockers, transitions, confidence, or version gates that define a route relation.
+
+---
+
+# 4. Mixed Member Chain
+
+A route relation may contain mixed member types:
+
+- OSM way references
+- OSM node references
+- owned-source way references
+- owned-source node references
+- coordinate anchors
+- unmatched coordinate spans
+- inferred spans
+- transition markers
+- blocker/gap markers
+
+The relation must not force every route point into exact node ownership.
+
+The route geometry remains authoritative as the rider/planner spine. Way and node references annotate spans of that spine. They explain known ownership and improve reload, inspection, enrichment, and candidate narrowing, but they do not replace the route geometry.
+
+This matters because real routes include:
+
+- free-drawn geometry
+- imperfect imported files
+- sparse points
+- snapped and unsnapped sections
+- off-network or private connectors
+- international tagging differences
+- source ways split or merged after import
+- routes that intentionally do not align to OSM perfectly
+
+Coordinates remain valid route structure where exact ownership is unavailable, unnecessary, or intentionally deferred.
+
+## 4.1 Partial Relation Is Valid
+
+A partial relation is a valid relation.
+
+The following are not failures by themselves:
+
+- coordinate spans
+- unmatched spans
+- inferred spans
+- explicit blockers
+- explicit unresolved gaps
+
+Free-draw routes and imperfect imports can produce valid partial relations. The relation is honest when it says which spans are source-owned, which spans are coordinate-owned, and which spans remain unresolved.
+
+Progressive enrichment can improve a partial relation later by adding way spans, node anchors, transition confidence, and source-member stability metadata.
+
+---
+
+# 5. Progressive Route Relation Enrichment
+
+Route relations evolve over time.
+
+Initial route load should prioritize fast construction:
+
+- build a usable route spine
+- accept partial ownership
+- mix coordinates and matched way spans
+- mark blockers/gaps explicitly
+- score immediately with available evidence and confidence limits
+
+First load should not over-enrich. It should prioritize:
+
+- usable route
+- honest confidence
+- fast scoring
+- explicit gaps
+
+Background enrichment can later improve node and way specificity.
+
+Background enrichment can then improve the relation:
+
+- replace coordinate spans with matched way spans
+- add node anchors
+- refine transition points
+- improve confidence
+- attach relation/corridor hints
+- reduce unmatched geometry
+- add source member hashes
+- improve reload readiness
+
+Enrichment must be versioned. It cannot silently alter analyzed truth.
+
+If enrichment changes score-bearing route ownership or evidence eligibility, downstream analysis must either:
+
+- remain tied to the previous relation revision, or
+- refresh scoring/provenance under the new revision.
+
+The initial relation revision and enriched relation revisions must be distinguishable. Completed scoring results must stay pinned to the relation revision they were generated from unless scoring refreshes.
+
+---
+
+# 6. Versioning and Invalidation
+
+A route relation is durable computed structure, not immutable truth.
+
+Every relation must carry:
+
+- `relation_schema_version`
+- raw route artifact identity
+- route geometry hash
+- source version
+- RouteLine algorithm version
+- enrichment revision
+- created/updated timestamps
+- invalidation state
+
+Invalidation is required when:
+
+- raw route geometry changes
+- source artifact changes
+- source snapshot changes
+- OSM/source way geometry changes
+- source way id disappears
+- source node sequence changes
+- access or bicycle legality changes
+- relevant source tags or access rules change
+- RouteLine ownership algorithm changes
+- relation schema changes
+- enrichment policy changes
+- confidence policy changes
+
+The safe fallback is always full route reconstruction.
+
+---
+
+# 7. Relationship to Existing Systems
+
+## 7.1 Substrate
+
+Substrate owns cyclist geography:
+
+- regional continuity
+- salience
+- prioritization
+- low-zoom presentation
+- future candidate narrowing
+- future acceleration hints
+
+Substrate may suggest and prioritize candidate corridors.
+
+Substrate is not route truth.
+
+## 7.2 Route Relation
+
+Route Relation owns durable computed route structure:
+
+- route member chain
+- ownership mapping
+- route intervals
+- reload acceleration
+- enrichment history
+
+It can reuse ownership mapping when version gates match.
+
+It cannot score, replace provenance, or override exact source evidence.
+
+## 7.3 Route Cache
+
+Route cache owns completed analysis/scoring reuse.
+
+It is downstream of route construction and evidence selection.
+
+It is not the route relation.
+
+## 7.4 RouteLine, Scoring, and Provenance
+
+RouteLine remains the owner of canonical route truth.
+
+Scoring and DS-029 provenance remain authoritative for score-bearing decisions and explanations.
+
+Exact source evidence must remain hydratable.
+
+---
+
+# 8. Future Reload Flow
+
+Current flow:
+
+```text
+raw route -> reconstruct ownership -> hydrate evidence -> score
+```
+
+Future flow:
+
+```text
+raw route
+  -> route relation lookup
+  -> validate schema/source/algorithm/geometry/invalidation gates
+  -> hydrate source evidence
+  -> RouteLine validation
+  -> hydrate changed evidence
+  -> refresh scoring when needed
+```
+
+Substrate can help narrow route construction candidates, especially when a relation is missing or partially invalid.
+
+The route relation avoids repeating expensive ownership construction only when its relation schema version, source version, RouteLine algorithm version, route geometry hash, and invalidation state all match.
+
+Scoring still refreshes volatile evidence when needed.
+
+Relation reload must not bypass RouteLine validation. If required source members no longer hydrate, unresolved gaps are hidden, or relation validation fails, the reload path must miss, partially hydrate with explicit gaps, or fall back to full reconstruction.
+
+---
+
+# 9. Storage Direction
+
+The first durable storage shape should be JSONB/object-style structured payload, not CSV strings or ad hoc serialized lists.
+
+Required payload concepts:
+
+- ordered members
+- route intervals
+- directionality
+- confidence
+- blockers/gaps
+- transition markers
+- geometry references
+- source member references
+- metadata/versioning
+- enrichment revisioning
+
+The v1 payload should avoid copying full raw OSM/source blobs into every route relation. Store source references, hashes, and relation-specific route intervals in the hot payload. Hydrate full tags, exact geometry, and detailed provenance from the cold source path when needed.
+
+Hot fields support reload and routing decisions quickly:
+
+- relation id
+- route geometry hash
+- schema/source/algorithm versions
+- ordered member ids
+- route intervals
+- source way/node refs
+- confidence and invalidation state
+
+Cold fields support inspection and audit:
+
+- full source tags
+- exact source geometry
+- source provenance details
+- enrichment diagnostics
+- raw artifact payload
+
+Cold source evidence must remain hydratable instead of being copied into every hot relation payload.
+
+---
+
+# 10. Relation Quality Metrics
+
+Relation quality must be measured explicitly.
+
+Track:
+
+- percent distance matched to source ways
+- percent distance represented by coordinates
+- unresolved distance
+- blocker count
+- transition confidence
+- member confidence distribution
+- enrichment revision count
+- score-bearing-change flag count
+
+These metrics describe route construction confidence. They are not route scores.
+
+---
+
+# 11. Consequences
+
+Positive consequences:
+
+- repeated route loads can avoid reconstructing ownership from scratch
+- route construction becomes inspectable as a durable artifact
+- free-draw and partial-match routes can be represented honestly
+- background enrichment can improve routes over time
+- RouteLine V2 can preserve expensive topology work without freezing score truth
+
+Costs:
+
+- new schema/version governance
+- new invalidation rules
+- new reload equivalence tests
+- storage and privacy review
+- careful separation from route cache and substrate
+
+The central invariant remains:
+
+```text
+Route relation structure is reusable only when version gates match.
+Route scoring truth still belongs to RouteLine/scoring/provenance.
+```
+
+---
+
+# 12. Non-Goals
+
+This ADR does not:
+
+- replace RouteLine truth
+- replace DS-029 provenance
+- become a final score cache
+- replace scoring
+- create an OSM relation clone
+- become substrate corridor identity
+- make substrate route truth
+- require every route point to map to an OSM node
+- require first load to produce perfect ownership
+- fully solve every route on first load
+- define final database migrations
+- implement route relation UI
+
+
+---
+
+## Source File: docs/03-adrs/adr-049-segment-level-analysis-storage-model.md
+
+# ADR-049 — Segment-Level Analysis Storage Model
+
+Status: Accepted
+Date: 2026-04-03
+
+------
+
+## Context
+
+Lanterne performs detailed route analysis by evaluating many small internal slices of a route.
+
+These slices capture real-world variation in:
+
+- traffic exposure
+- speed environment
+- shoulder presence
+- bike infrastructure
+- hazards
+
+This slice-level computation is essential to avoid smoothing over critical changes along a route.
+
+However, a key architectural question emerged:
+
+> Should segment-level analysis be persisted in the database?
+
+------
+
+## Decision
+
+Lanterne will **NOT persist segment-level analysis in the database**.
+
+Segment-level data is:
+
+- computed client-side
+- stored only in memory during analysis
+- optionally cached inside `route_cache.safety_result` as JSON
+- never stored in structured database tables
+
+------
+
+## Rationale
+
+### 1. Segment data is derived, not canonical
+
+Segment-level risk is:
+
+- computed from inputs
+- dependent on scoring model version
+- subject to change
+
+It is not a stable fact.
+
+Storing it would incorrectly elevate derived data to canonical status.
+
+------
+
+### 2. The system is designed for client-side computation
+
+Lanterne’s architecture is intentionally:
+
+- browser-first
+- compute-on-demand
+- server-light
+
+> All analysis runs in the user's device.
+
+Persisting segment-level data would introduce unnecessary backend coupling.
+
+------
+
+### 3. Storage adds complexity without rider value
+
+Persisting segment-level data would require:
+
+- schema design
+- migrations
+- versioning
+- invalidation logic
+- synchronization
+
+These add engineering cost but do not improve the rider’s experience for the core use case.
+
+------
+
+### 4. Caching already solves performance
+
+The system already uses:
+
+- tile-level caching (OSM roads)
+- route-level caching (analysis results)
+
+These eliminate redundant computation without requiring persistent segment storage.
+
+------
+
+### 5. Product focus is route-level decision support
+
+Lanterne’s core promise is:
+
+> Help riders understand a route before they ride it.
+
+It is not intended to be:
+
+- a global segment analytics platform
+- a shared road intelligence database
+
+------
+
+## Implications
+
+### What is stored
+
+- route geometry
+- route-level analysis results
+- cached tiles
+- user data
+
+------
+
+### What is NOT stored
+
+- segment-level risk
+- segment-level scoring
+- segment-level presentation tokens
+
+------
+
+### Where segment data exists
+
+Segment-level data exists only as:
+
+```txt
+in-memory during analysis
++
+JSON inside route_cache.safety_result
+```
+
+------
+
+### System behavior
+
+- segment truth is recomputed when needed
+- updates to scoring models automatically apply
+- no backfill or migration is required
+
+------
+
+## Consequences
+
+### Advantages
+
+- simpler architecture
+- faster iteration
+- no schema drift
+- no invalidation complexity
+- lower infrastructure cost
+- consistent with client-side compute model
+
+------
+
+### Tradeoffs
+
+- no cross-route segment querying
+- no persistent segment analytics
+- no server-side reuse of segment outputs
+
+These are acceptable given current product goals.
+
+------
+
+## Future Considerations
+
+This decision may be revisited if:
+
+- server-side compute becomes necessary
+- cross-route analytics becomes a core product feature
+- segment-level community data requires structured storage
+
+Until then, segment-level persistence is explicitly out of scope.
+
+------
+
+## Design Principle
+
+> Segment-level analysis is derived, not stored.
+
+------
+
+## Final Rule
+
+Lanterne computes truth on demand.
+
+It does not store derived segment data.
+
+##
+
+
+---
+
+## Source File: docs/03-adrs/adr-050-vault_collection_profiles_and_matching_route_browsing.md
+
+# ADR-050 - Vault Collection Profiles and Matching Route Browsing
+
+**Status:** Proposed
+**Date:** 2026-05-31
+**Related:** ADR-001, ADR-002, ADR-003, ADR-005, ADR-006, ADR-007, ADR-019, ADR-032, ADR-045, ADR-048, DS-031, DS-045, EXEC-041
+
+---
+
+# 1. Context
+
+The Vault is already defined as Lanterne's curated route collection system. ADR-002 decides that the Vault contains curated collections, not loose files. ADR-003 decides that Vault collections are mode-aware.
+
+The next product problem is route discovery inside those collections.
+
+The current app has a temporary Vault surface in the top drawer with:
+
+- QA route shortcuts
+- a placeholder for RUSA Permanents
+- a RUSA Rides list backed by event rows
+
+That temporary model does not yet capture the intended product shape:
+
+- one rider-facing card per curated collection
+- collection-specific browsing logic
+- matching route lists with useful filters and sorts
+- RUSA Permanents and RUSA Events as different browsing profiles
+- future gravel, bikepacking, logistics, safety, remoteness, and personal-goal filters
+
+The product naming also needs to stay disciplined. "Route family" is useful internal language in comparative/cohort contexts, but it is too taxonomic for rider-facing Vault browsing. Riders should browse collections and matching routes, not families.
+
+---
+
+# 2. Decision
+
+Lanterne will model Vault browsing as:
+
+```text
+Vault -> Collection -> Matching Routes
+```
+
+The rider-facing terms are:
+
+- Vault
+- Collection
+- Collection Card
+- Collection Browser
+- Matching Routes
+
+The implementation will use one shared filter/sort capability registry and many collection-specific profiles.
+
+In other words:
+
+- filters and sorts are reusable capabilities
+- a collection profile decides which capabilities appear
+- the same query engine serves every collection profile
+- profile-specific UI decides which controls are primary, secondary, advanced, or hidden
+
+The Vault must not hardcode separate filter systems per collection, and it must not force every collection into one universal rider-facing filter panel.
+
+---
+
+# 3. Interaction Model
+
+The Vault has two primary states.
+
+## 3.1 Collection Overview
+
+The overview shows one Collection Card per Vault Collection.
+
+Each card must support:
+
+- title
+- short subtitle
+- route or event count
+- total miles
+- primary mode or source badge
+- optional curator/source label
+- future icon key or graphic asset slot
+
+The top collection area should expand to fit a small number of cards, then cap height and scroll internally for larger libraries.
+
+## 3.2 Selected Collection Browser
+
+When a Collection Card is selected, the card grid collapses into a compact selected-collection header and the Matching Routes area expands in its place.
+
+The selected browser contains:
+
+- back affordance to all collections
+- selected collection title and summary metrics
+- filter/sort controls
+- active filter chips
+- paginated or virtualized Matching Routes list
+
+The filters must sit at the top of the Matching Routes area, because the rider is no longer choosing among collections. They are now choosing a route inside one collection.
+
+---
+
+# 4. Collection Profiles
+
+Each Vault Collection has a profile key.
+
+Initial profiles:
+
+- `default_route_collection_v1`
+- `rusa_permanent_v1`
+- `rusa_event_v1`
+
+Deferred profiles:
+
+- `gravel_adventure_v1`
+- `bikepacking_v1`
+- `personal_anthology_v1`
+- `admin_curation_v1`
+
+Profiles control:
+
+- visible filters
+- visible sorts
+- default sort
+- route row metric emphasis
+- empty/loading/error copy
+- coverage gates for low-confidence capabilities
+
+Profiles do not define route truth. They only determine how existing route, collection, proximity, contextual, and personal facts are browsed.
+
+---
+
+# 5. Filter Registry Decision
+
+Lanterne will maintain a master filter/sort capability registry.
+
+The registry is not a master UI.
+
+The registry answers:
+
+> What can Lanterne filter or sort by when the required facts exist?
+
+A collection profile answers:
+
+> Which of those capabilities should this rider see for this collection?
+
+Every capability must declare its data source family:
+
+- collection metadata
+- collection membership fact
+- route catalog/search fact
+- route-indexed evidence rollup
+- proximity/access fact
+- ride-time contextual condition
+- user-personal fact
+- admin/provenance fact
+
+Capabilities with insufficient data coverage must be hidden, disabled, or marked unavailable. Lanterne must prefer honest absence over fake precision.
+
+---
+
+# 6. Fact Boundary Decision
+
+Vault browsing consumes queryable rollups, not raw route-indexed evidence directly.
+
+The fact layers are:
+
+- canonical route identity and raw source provenance
+- route catalog/search facts
+- collection metadata
+- collection-route membership facts
+- route-level evidence rollups
+- proximity/access facts
+- contextual ride-time facts
+- user-personal facts
+- admin/provenance facts
+
+Event date is a collection membership fact, not a canonical route fact.
+
+Permanent ID and official distance are collection membership facts unless they are promoted by a source-specific import spec.
+
+Safety Score remains narrow. Remoteness, surface quality, fatigue, descent risk, weather, moonlight, transit access, airport access, service gaps, and personal achievements are separate capabilities. They may be used in the Vault, but they must not dilute the meaning of the narrow Route Safety Score.
+
+---
+
+# 7. Rationale
+
+The shared registry plus collection-profile model gives Lanterne flexibility without creating one-off filter code.
+
+RUSA Permanents, RUSA Events, gravel adventures, bikepacking classics, and personal anthologies are not browsed the same way:
+
+- Permanents are inventory.
+- Events are calendars.
+- Gravel routes are adventure/logistics decisions.
+- Personal collections are memory and goal surfaces.
+
+But they can still share one capability engine.
+
+This aligns with ADR-003 and ADR-007: index meanings remain stable, while mode and profile change presentation, prominence, and explanatory framing.
+
+It also aligns with ADR-045: detailed route evidence attaches to the route axis, while product browsing consumes rollups and queryable summaries.
+
+---
+
+# 8. Consequences
+
+## 8.1 Advantages
+
+- keeps Vault naming rider-facing and clear
+- supports collection-specific route discovery
+- prevents hardcoded filter systems per collection
+- leaves room for icon/graphic-rich Collection Cards
+- allows safety, remoteness, surface, logistics, and personal filters to mature independently
+- keeps event/permanent facts out of canonical route identity
+- makes filtered Vault URLs shareable and testable
+
+## 8.2 Tradeoffs
+
+- requires a registry and profile layer before the UI feels complete
+- requires route catalog/search facts before large collections can browse well
+- requires coverage metadata before advanced filters can be safely exposed
+- requires query-backed filtering instead of simple client-side arrays
+
+---
+
+# 9. Non-Goals
+
+This ADR does not:
+
+- define final database migrations
+- require all master filters in v1
+- require proximity routing by travel time in v1
+- require personal achievement filters in v1
+- turn the Vault into an import source
+- turn Collection Cards into route truth containers
+- change Safety Score scope
+- replace RouteLine, route relations, route cache, or route-indexed evidence contracts
+
+---
+
+# 10. Design Principle
+
+The Vault should feel like a curated route library with useful judgment, not a file browser and not a data cockpit.
+
+The product hierarchy is:
+
+```text
+Vault -> Collection -> Matching Routes
+```
+
+Everything else - route family, cohort, source provenance, evidence coverage, contextual overlays, and personal achievement - stays behind the product surface until the rider needs it.
 

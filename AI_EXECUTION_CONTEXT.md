@@ -45404,6 +45404,1553 @@ Report the exact files, contracts, runtime trace events, and handoff objects use
 
 ---
 
+## Source File: docs/04-execution/exec-040-mixed-route-topology-way-intelligence-backend.md
+
+# EXEC-040 — Mixed Route Topology And Way Intelligence Backend
+
+## Direct Answer
+
+Build a backend route-topology archive that stores full mixed route artifacts and projects them into queryable way-level intelligence tables.
+
+The backend must preserve:
+
+- ordered route reassembly as `way -> node -> way -> node -> coordinate connector -> way`
+- exact OSM way/node knowledge where available
+- off-OSM, unknown, cut-through, offroad, and source-gap transitions as first-class synthetic segments
+- route-corpus disposition for every considered way: traversed, rerouted through, rerouted around, rejected, nearby context, or unresolved
+- immutable source snapshots so later OSM changes do not rewrite historic route truth
+- fast runtime route reassembly and cache-substrate improvement hints
+
+This plan does not replace RouteLine V2, scoring, heatmap, or source evidence. It creates the durable backend substrate that RouteLine V2 and product evidence can write to and read from.
+
+## Why This Exists
+
+Lanterne currently has enough route-line machinery to produce ordered topology for real route slices, including exact OSM way/node transitions and coordinate-only fallback spans.
+
+What is missing is the backend contract that turns those artifacts into reusable corpus intelligence:
+
+```text
+raw route payload
+-> route axis
+-> route-line topology resolution
+-> mixed topology artifact
+-> relational route path projection
+-> way observation ledger
+-> synthetic connector ledger
+-> way intelligence rollups
+-> cyclist substrate/cache hints
+```
+
+The proprietary mixed topology JSON is the portable route genome. The relational tables are the query engine.
+
+## Non-Goals
+
+- Do not change scoring formulas.
+- Do not change production heatmap semantics.
+- Do not treat substrate hints as canonical route truth.
+- Do not overwrite OSM or canonical source records.
+- Do not require full-route OSM topology before preserving a route.
+- Do not discard coordinate continuity when OSM topology is incomplete.
+- Do not infer low risk, low traffic, shoulder, bike facility, or speed from missing evidence.
+
+## Existing Inputs
+
+The first implementation should use existing local pieces:
+
+- `src/lib/route-line-v2/route-experience-path.ts`
+- `src/lib/route-line-v2/topology-path-builder.ts`
+- `src/lib/route-line-v2/test-loop-topology-fixture.ts`
+- `public/demo/Test Loop 1 - CCW.gpx`
+- `public/demo/fixture-test-loop-1-ccw-short.gpx`
+- `tmp/codex/test-loop-1-ccw-full-mixed-topology.json` as the current exploratory artifact shape
+
+The production implementation should generalize beyond the Test Loop fixture after the schema and projector are stable.
+
+## Target Artifact Shape
+
+The mixed topology artifact must remain serializable JSON and should use a stable schema key:
+
+```json
+{
+  "schema": "lanterne.mixed-route-topology.v0",
+  "route": {
+    "routeId": "test_loop_1_ccw_full_mixed_prefix_known",
+    "routeName": "Test Loop 1 - CCW",
+    "sourceRouteUrl": "https://www.strava.com/routes/3472980309252844126",
+    "routePointCount": 342,
+    "routeDistanceM": 23546.19,
+    "osmSnapshotDate": "2026-05-24T04:15:42Z"
+  },
+  "reassembly": {
+    "sequence": [
+      { "kind": "route_anchor", "routeDistM": 0 },
+      { "kind": "osm_way_run", "osmWayId": 11613459, "nodeIds": [103646919, 103646920] },
+      { "kind": "osm_node_handoff", "osmNodeId": 103380231, "fromWayId": 11613459, "toWayId": 1388406931 },
+      { "kind": "osm_way_run", "osmWayId": 1388406931, "nodeIds": [103380231, 12852097808] },
+      { "kind": "synthetic_connector", "syntheticWayId": "syn:unknown:1572.09-23546.19" },
+      { "kind": "route_anchor", "routeDistM": 23546.19 }
+    ],
+    "blockers": []
+  },
+  "corpusWayLedger": [
+    {
+      "osmWayId": 11613459,
+      "corpusDisposition": "traversed_by_this_route",
+      "routeDistWindowHint": { "startDistM": 0, "endDistM": 310.19 }
+    },
+    {
+      "osmWayId": 11611312,
+      "corpusDisposition": "considered_and_routed_around_or_not_selected",
+      "routeDistWindowHint": { "startDistM": 712.82, "endDistM": 1263.07 }
+    }
+  ]
+}
+```
+
+## Core Backend Model
+
+Use three layers.
+
+### Layer A — Raw Source Archive
+
+Preserve the original route source:
+
+- RWGPS raw JSON in `rwgps-raw`
+- GPX XML or parsed source payload
+- RUSA metadata rows
+- source URL and source route id
+
+Layer A remains immutable source evidence.
+
+### Layer B — Route Topology Revision
+
+Store each mixed topology artifact as an immutable revision. Revisions are never updated in-place except for administrative invalidation fields.
+
+### Layer C — Relational Projection
+
+Project the artifact into tables that are fast to query by:
+
+- route
+- route-distance window
+- OSM way id
+- OSM node id
+- synthetic connector id
+- geographic bounding box
+- OSM snapshot date
+- disposition
+
+## Schema
+
+Create a new migration, preferably:
+
+```text
+supabase/migrations/YYYYMMDD_mixed_route_topology_way_intelligence.sql
+```
+
+### `route_topology_revisions`
+
+```sql
+create table if not exists public.route_topology_revisions (
+  id uuid primary key default gen_random_uuid(),
+  route_id uuid,
+  canonical_route_id uuid references public.canonical_routes(id) on delete set null,
+  external_route_catalog_id uuid references public.external_route_catalog(id) on delete set null,
+  imported_route_id uuid references public.imported_routes(id) on delete set null,
+  source_platform text not null,
+  source_route_id text,
+  source_url text,
+  schema_version text not null,
+  topology_builder_version text not null,
+  route_fingerprint text,
+  route_distance_m numeric,
+  route_point_count integer,
+  osm_snapshot_date timestamptz,
+  source_snapshot_version text,
+  topology_status text not null check (
+    topology_status in ('complete', 'partial', 'coordinate_only', 'blocked', 'failed')
+  ),
+  artifact_hash text not null,
+  artifact_json jsonb not null,
+  summary jsonb not null default '{}'::jsonb,
+  diagnostics jsonb not null default '[]'::jsonb,
+  supersedes_revision_id uuid references public.route_topology_revisions(id) on delete set null,
+  invalidated_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists route_topology_revisions_artifact_hash_idx
+  on public.route_topology_revisions using btree (artifact_hash);
+
+create index if not exists route_topology_revisions_route_idx
+  on public.route_topology_revisions using btree (route_id, created_at desc);
+
+create index if not exists route_topology_revisions_source_idx
+  on public.route_topology_revisions using btree (source_platform, source_route_id, created_at desc);
+```
+
+### `route_path_steps`
+
+```sql
+create table if not exists public.route_path_steps (
+  id uuid primary key default gen_random_uuid(),
+  revision_id uuid not null references public.route_topology_revisions(id) on delete cascade,
+  route_id uuid,
+  step_index integer not null,
+  kind text not null check (
+    kind in ('route_anchor', 'osm_way_run', 'osm_node_handoff', 'synthetic_connector', 'unresolved_blocker')
+  ),
+  start_dist_m numeric,
+  end_dist_m numeric,
+  route_dist_m numeric,
+  osm_way_id bigint,
+  osm_node_id bigint,
+  from_way_id bigint,
+  to_way_id bigint,
+  synthetic_segment_id uuid,
+  display_label text,
+  domain text,
+  highway text,
+  confidence text,
+  geometry geometry(LineString, 4326),
+  point geometry(Point, 4326),
+  raw_step jsonb not null,
+  created_at timestamptz not null default now(),
+  unique (revision_id, step_index)
+);
+
+create index if not exists route_path_steps_revision_idx
+  on public.route_path_steps using btree (revision_id, step_index);
+
+create index if not exists route_path_steps_way_idx
+  on public.route_path_steps using btree (osm_way_id);
+
+create index if not exists route_path_steps_geom_idx
+  on public.route_path_steps using gist (geometry);
+```
+
+### `route_way_observations`
+
+```sql
+create table if not exists public.route_way_observations (
+  id uuid primary key default gen_random_uuid(),
+  revision_id uuid not null references public.route_topology_revisions(id) on delete cascade,
+  route_id uuid,
+  canonical_route_id uuid,
+  source_platform text not null,
+  source_route_id text,
+  osm_way_id bigint not null,
+  osm_snapshot_date timestamptz,
+  geometry_hash text,
+  disposition text not null check (
+    disposition in (
+      'traversed_by_this_route',
+      'rerouted_through',
+      'rerouted_around',
+      'considered_and_routed_around_or_not_selected',
+      'available_source_context_not_selected',
+      'candidate_rejected',
+      'nearby_context',
+      'unresolved'
+    )
+  ),
+  start_dist_m numeric,
+  end_dist_m numeric,
+  route_overlap_m numeric,
+  nearest_route_offset_m numeric,
+  max_offset_m numeric,
+  max_heading_delta_deg numeric,
+  confidence text,
+  source_reason text,
+  node_ids bigint[] not null default '{}',
+  tags_snapshot jsonb not null default '{}'::jsonb,
+  source_lineage jsonb not null default '{}'::jsonb,
+  geometry geometry(LineString, 4326),
+  raw_observation jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists route_way_observations_way_idx
+  on public.route_way_observations using btree (osm_way_id, osm_snapshot_date);
+
+create index if not exists route_way_observations_revision_idx
+  on public.route_way_observations using btree (revision_id);
+
+create index if not exists route_way_observations_disposition_idx
+  on public.route_way_observations using btree (disposition);
+
+create index if not exists route_way_observations_geom_idx
+  on public.route_way_observations using gist (geometry);
+```
+
+### `route_transitions`
+
+```sql
+create table if not exists public.route_transitions (
+  id uuid primary key default gen_random_uuid(),
+  revision_id uuid not null references public.route_topology_revisions(id) on delete cascade,
+  route_id uuid,
+  transition_index integer not null,
+  transition_kind text not null check (
+    transition_kind in ('shared_osm_node', 'synthetic_connector', 'unresolved_gap', 'coordinate_handoff')
+  ),
+  dist_m numeric,
+  from_way_id bigint,
+  to_way_id bigint,
+  osm_node_id bigint,
+  synthetic_segment_id uuid,
+  confidence text,
+  point geometry(Point, 4326),
+  diagnostics jsonb not null default '[]'::jsonb,
+  raw_transition jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (revision_id, transition_index)
+);
+
+create index if not exists route_transitions_node_idx
+  on public.route_transitions using btree (osm_node_id);
+
+create index if not exists route_transitions_way_pair_idx
+  on public.route_transitions using btree (from_way_id, to_way_id);
+```
+
+### `synthetic_route_segments`
+
+```sql
+create table if not exists public.synthetic_route_segments (
+  id uuid primary key default gen_random_uuid(),
+  revision_id uuid not null references public.route_topology_revisions(id) on delete cascade,
+  route_id uuid,
+  synthetic_key text not null,
+  kind text not null check (
+    kind in ('off_osm_cutthrough', 'unknown_connector', 'offroad', 'off_path', 'ferry', 'private_path', 'source_gap', 'coordinate_remainder')
+  ),
+  start_dist_m numeric,
+  end_dist_m numeric,
+  from_way_id bigint,
+  to_way_id bigint,
+  from_node_id bigint,
+  to_node_id bigint,
+  confidence text,
+  reason text,
+  geometry geometry(LineString, 4326),
+  raw_coords jsonb not null default '[]'::jsonb,
+  diagnostics jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (revision_id, synthetic_key)
+);
+
+create index if not exists synthetic_route_segments_revision_idx
+  on public.synthetic_route_segments using btree (revision_id);
+
+create index if not exists synthetic_route_segments_geom_idx
+  on public.synthetic_route_segments using gist (geometry);
+```
+
+### `way_intelligence_rollups`
+
+```sql
+create table if not exists public.way_intelligence_rollups (
+  osm_way_id bigint not null,
+  osm_snapshot_date timestamptz,
+  source_snapshot_version text,
+  route_count integer not null default 0,
+  traversed_count integer not null default 0,
+  rerouted_through_count integer not null default 0,
+  rerouted_around_count integer not null default 0,
+  rejected_candidate_count integer not null default 0,
+  nearby_context_count integer not null default 0,
+  synthetic_connector_nearby_count integer not null default 0,
+  avg_route_offset_m numeric,
+  p95_route_offset_m numeric,
+  avg_heading_delta_deg numeric,
+  confidence text,
+  evidence jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (osm_way_id, source_snapshot_version)
+);
+```
+
+## RLS And Permissions
+
+Initial policy should be conservative:
+
+- service role can write all topology/intelligence tables
+- authenticated admins can read all rows
+- normal product users should not read raw topology tables until a product API shape is defined
+- public route shares should use existing route share surfaces, not direct table reads
+
+Add explicit grants only after deciding product/API exposure.
+
+## TypeScript Contracts
+
+Create:
+
+```text
+src/lib/route-topology/mixed-route-topology-types.ts
+```
+
+It should define:
+
+- `MixedRouteTopologyArtifact`
+- `MixedRouteTopologyStep`
+- `OsmWayRunStep`
+- `OsmNodeHandoffStep`
+- `SyntheticConnectorStep`
+- `UnresolvedBlockerStep`
+- `RouteWayLedgerEntry`
+- `RouteWayDisposition`
+- `RouteTopologyRevisionInsert`
+
+Use a runtime validator:
+
+```text
+src/lib/route-topology/mixed-route-topology-validate.ts
+```
+
+Validation must reject:
+
+- missing `schema`
+- missing route metadata
+- non-monotonic path steps
+- `osm_way_run` without `osmWayId`
+- `osm_node_handoff` without `osmNodeId`
+- `synthetic_connector` without coordinates or route-distance bounds
+- duplicate `step_index`
+- artifact without route distance
+
+Validation must allow:
+
+- partial topology
+- coordinate-only routes
+- synthetic coordinate remainders
+- unresolved blockers
+
+## Builder
+
+Create:
+
+```text
+src/lib/route-topology/build-mixed-route-topology.ts
+```
+
+Inputs:
+
+- route axis
+- `RouteLineV2TopologyPathResult`
+- source route metadata
+- optional source way corpus records
+- optional full original route axis for coordinate remainder
+
+Outputs:
+
+- `MixedRouteTopologyArtifact`
+- artifact hash
+- summary
+
+Rules:
+
+- Preserve exact route coordinates.
+- Preserve exact OSM node ids where available.
+- If adjacent way runs share an OSM node, emit `osm_node_handoff`.
+- If adjacent way runs do not share an OSM node but route continuity exists, emit `synthetic_connector`.
+- If topology is missing for a suffix or internal span, emit `synthetic_connector` with `kind=source_gap` or `coordinate_remainder`.
+- If continuity cannot be proven, emit `unresolved_blocker`.
+- Keep route-corpus ledger entries for selected and unselected source ways.
+
+## Projector
+
+Create:
+
+```text
+src/lib/route-topology/project-mixed-route-topology.ts
+```
+
+Inputs:
+
+- validated artifact
+- revision id
+- route/canonical/source ids
+
+Outputs:
+
+- rows for `route_path_steps`
+- rows for `route_way_observations`
+- rows for `route_transitions`
+- rows for `synthetic_route_segments`
+
+Projector rules:
+
+- It must be pure and deterministic.
+- It must not call Supabase directly.
+- It must convert route slices to PostGIS LineString-compatible coordinate arrays.
+- It must preserve raw step/observation JSON.
+- It must derive transition rows from both explicit `osm_node_handoff` steps and synthetic connectors.
+
+## Repository Writer
+
+Create:
+
+```text
+src/lib/route-topology/persist-mixed-route-topology.ts
+```
+
+Responsibilities:
+
+- compute artifact hash
+- insert `route_topology_revisions`
+- insert projected rows inside a server-authorized boundary
+- delete/reinsert projection rows only for a new revision id, never mutate prior revisions
+- optionally mark previous revision as superseded
+
+For Supabase Edge usage, create:
+
+```text
+supabase/functions/route-topology-writer/index.ts
+```
+
+This function should accept:
+
+```json
+{
+  "artifact": {},
+  "route_context": {
+    "canonical_route_id": "...",
+    "external_route_catalog_id": "...",
+    "source_platform": "rwgps",
+    "source_route_id": "35055303"
+  },
+  "mode": "insert_revision"
+}
+```
+
+The edge function must be admin/service-role gated for initial launch.
+
+## Rollup Job
+
+Create:
+
+```text
+src/lib/route-topology/way-intelligence-rollup.ts
+```
+
+The rollup should aggregate `route_way_observations` into `way_intelligence_rollups`.
+
+Initial aggregation:
+
+- route count by way
+- traversed count
+- rerouted through count
+- rerouted around count
+- rejected candidate count
+- nearby context count
+- synthetic connector nearby count
+- average and p95 route offset
+- average heading delta
+- compact evidence sample
+
+Rollups should be keyed by:
+
+```text
+osm_way_id + source_snapshot_version
+```
+
+Do not key only by `osm_way_id`; OSM ways change over time.
+
+## Source Snapshot Discipline
+
+Every way observation must carry:
+
+- `osm_way_id`
+- `osm_snapshot_date`
+- `source_snapshot_version`
+- `geometry_hash`
+- `node_ids`
+- `tags_snapshot`
+- source lineage
+
+This prevents old route truth from being silently rewritten when OSM changes.
+
+## Synthetic Segment Semantics
+
+Synthetic segments are not errors. They are route truth when a rider path is not represented by normal OSM way logic.
+
+Supported initial kinds:
+
+- `off_osm_cutthrough`
+- `unknown_connector`
+- `offroad`
+- `off_path`
+- `private_path`
+- `ferry`
+- `source_gap`
+- `coordinate_remainder`
+
+Each synthetic segment must include:
+
+- route-distance bounds
+- route coordinate slice
+- optional from/to OSM way ids
+- optional from/to OSM node ids
+- confidence
+- reason
+- diagnostics
+
+## Product Read APIs
+
+Do not expose raw tables directly at first.
+
+Add read helpers:
+
+```text
+src/lib/route-topology/read-route-topology.ts
+```
+
+Functions:
+
+- `loadLatestRouteTopologyRevision(routeLocator)`
+- `loadRoutePathSteps(revisionId)`
+- `loadWayObservationsForRoute(revisionId)`
+- `loadWayIntelligence(osmWayIds, sourceSnapshotVersion)`
+- `reassembleRouteFromPathSteps(revisionId)`
+
+These helpers can later move behind an Edge read function if needed.
+
+## Substrate Improvement Hints
+
+Add a derived view or materialized query for substrate work:
+
+```sql
+create view public.route_topology_substrate_hints as
+select
+  osm_way_id,
+  source_snapshot_version,
+  traversed_count,
+  rerouted_around_count,
+  rejected_candidate_count,
+  synthetic_connector_nearby_count,
+  evidence
+from public.way_intelligence_rollups
+where traversed_count > 0
+   or rerouted_around_count > 0
+   or synthetic_connector_nearby_count > 0;
+```
+
+This view should inform:
+
+- cache warming priority
+- tile/substrate candidate ranking
+- repeated missing connector detection
+- way-level cycling confidence
+- future source acquisition windows
+
+It must not become scoring evidence without passing the Product Evidence Source Gateway.
+
+## Execution Phases
+
+### Phase 1 — Contract And Fixture Lock
+
+Implement:
+
+- `mixed-route-topology-types.ts`
+- `mixed-route-topology-validate.ts`
+- Test Loop fixture artifact builder in a proper test/helper location
+- tests proving exact prefix route sequence:
+
+```text
+route_anchor
+osm_way_run 11613459
+osm_node_handoff 103380231
+osm_way_run 1388406931
+osm_node_handoff 12852097808
+osm_way_run 1388406932
+osm_node_handoff 103380221
+osm_way_run 971362311
+synthetic_connector for unknown remainder
+route_anchor
+```
+
+Acceptance:
+
+- full Test Loop artifact validates
+- topology-proof slice validates with no synthetic remainder
+- malformed artifacts fail validation with useful errors
+
+### Phase 2 — Migration
+
+Add SQL migration for:
+
+- `route_topology_revisions`
+- `route_path_steps`
+- `route_way_observations`
+- `route_transitions`
+- `synthetic_route_segments`
+- `way_intelligence_rollups`
+- indexes
+- grants/RLS policies
+
+Acceptance:
+
+- migration applies cleanly to disposable/local Supabase
+- tables are empty and queryable
+- service role can insert
+- normal unauthenticated user cannot read raw topology tables
+
+### Phase 3 — Projection
+
+Implement:
+
+- pure projector from artifact to rows
+- geometry conversion helpers
+- deterministic step indexes
+- way observation derivation from `corpusWayLedger`
+- transition derivation from handoff/synthetic steps
+
+Acceptance:
+
+- Test Loop full artifact projects expected row counts
+- selected ways produce `traversed_by_this_route`
+- rejected/nearby ways produce non-traversed observations
+- synthetic remainder produces one `synthetic_route_segments` row
+
+### Phase 4 — Writer
+
+Implement server-authorized persistence:
+
+- Edge function or server-only helper
+- admin/service-role gate
+- artifact hash idempotency
+- revision insert
+- projection inserts
+- supersession option
+
+Acceptance:
+
+- same artifact inserted twice does not create duplicate revision
+- new artifact hash creates new revision
+- prior revision can be linked as superseded without deleting it
+- projection rows cascade on revision delete in disposable tests
+
+### Phase 5 — Read And Reassembly
+
+Implement:
+
+- latest revision lookup
+- ordered path step load
+- route reassembly from mixed path steps
+- way observation query by route
+- way intelligence query by way ids
+
+Acceptance:
+
+- full Test Loop route reassembles to same route-distance extent
+- prefix can be rendered from OSM way/node runs
+- synthetic remainder can be rendered from preserved coordinates
+- no table caller needs to parse the full artifact JSON for normal route display
+
+### Phase 6 — Rollups
+
+Implement:
+
+- rollup builder
+- upsert into `way_intelligence_rollups`
+- evidence sample compaction
+- substrate hint view
+
+Acceptance:
+
+- traversed ways show `traversed_count > 0`
+- nearby rejected ways show rejected/around counts but not traversed counts
+- rollups are scoped by source snapshot version
+- repeated rerun is idempotent
+
+### Phase 7 — RWGPS/RUSA Integration
+
+Connect after the storage path is proven:
+
+- for RWGPS archive rows, build mixed topology after raw JSON harvest or hydrator backfill
+- for RUSA event rows, link topology revision to `external_route_catalog_id`
+- keep raw RWGPS JSON as source of truth
+- keep route topology revision as derived immutable artifact
+
+Acceptance:
+
+- one RWGPS/RUSA route can create a topology revision
+- route controls/POIs remain independent from topology path
+- route can still load if topology is partial
+- coordinate-only fallback is preserved instead of failing ingestion
+
+### Phase 8 — Product Evidence Boundary
+
+Expose way intelligence only as input to source acquisition and cache ranking first.
+
+Later, if it becomes scoring-adjacent, it must go through Product Evidence Source Gateway with explicit provenance:
+
+```text
+source_family = route_corpus_way_intelligence
+confidence = derived_corpus_hint
+not_authoritative_for_speed_or_traffic
+```
+
+Acceptance:
+
+- no scoring call reads `way_intelligence_rollups` directly
+- no heatmap output changes merely because topology backend exists
+- debug receipts identify route-corpus intelligence as derived hint, not canonical evidence
+
+## Tests
+
+Add tests for:
+
+```text
+src/lib/route-topology/mixed-route-topology-validate.test.ts
+src/lib/route-topology/build-mixed-route-topology.test.ts
+src/lib/route-topology/project-mixed-route-topology.test.ts
+src/lib/route-topology/way-intelligence-rollup.test.ts
+```
+
+Required cases:
+
+- exact way-node-way chain
+- route with synthetic cut-through between two OSM ways
+- route with source-gap coordinate remainder
+- route with unresolved blocker
+- nearby rejected way is retained in ledger
+- OSM way id collision across snapshot versions does not merge rollups
+- artifact hash idempotency
+- invalid monotonic distance rejected
+
+## Manual Smoke
+
+Use Test Loop:
+
+```bash
+./node_modules/.bin/vite-node tmp/codex/build-test-loop-mixed-topology.ts
+```
+
+Expected:
+
+- full route artifact distance around `23546.19m`
+- topology-proof prefix distance around `1572.09m`
+- accepted OSM ways:
+  - `11613459`
+  - `1388406931`
+  - `1388406932`
+  - `971362311`
+- synthetic coordinate remainder exists for the full route until the broader way corpus is available
+- no blockers in the topology-proof prefix
+
+## Migration Safety
+
+Before production migration:
+
+- run disposable DB migration
+- insert Test Loop artifact
+- project rows
+- roll up ways
+- delete revision and confirm cascade
+- repeat insert and confirm idempotency
+- inspect table sizes and indexes
+
+Do not backfill the full RUSA/RWGPS corpus until:
+
+- the Test Loop artifact is stable
+- one RWGPS route is stable
+- one RUSA linked route is stable
+- rollups are idempotent
+- read APIs do not require raw JSON parsing
+
+## Definition Of Done
+
+This execution is done when:
+
+- mixed topology artifacts have a validated TypeScript contract
+- topology revisions are stored immutably
+- route path steps are queryable and ordered
+- OSM way observations preserve traversed and non-traversed corpus knowledge
+- synthetic route segments preserve off-OSM and unknown transitions
+- way intelligence rollups aggregate corpus behavior by OSM way and snapshot version
+- Test Loop full route can be represented as exact OSM prefix plus coordinate remainder
+- the backend can accelerate route reassembly without losing raw route truth
+- substrate/cache systems can consume derived hints without treating them as scoring truth
+
+
+---
+
+## Source File: docs/04-execution/exec-041-phase-1a-current-vault-surface-inventory.md
+
+# EXEC-041 Phase 1A - Current Vault Surface Inventory
+
+## Purpose
+
+This inventory records the current temporary Vault surface before the Vault domain extraction begins.
+
+Phase 1A is intentionally non-functional. It should not change user-visible behavior. Its job is to separate product behavior from scaffolding so later Vault work can move cleanly.
+
+## Current Surface
+
+The active Vault UI currently lives inside `src/components/TopActionDrawer.tsx`.
+
+The current entry path is:
+
+```text
+TopActionDrawer -> Load -> Vault sub-panel
+```
+
+The current Vault sub-panel contains three groups:
+
+- QA Route Files
+- RUSA Perms
+- RUSA Rides
+
+## Current Behaviors
+
+| Behavior | Current owner | Current state | Phase 1 decision |
+| --- | --- | --- | --- |
+| Vault load sub-panel state | `TopActionDrawer` local state | `loadSubPanel === 'vault'` | Keep temporarily; later route through Vault surface state. |
+| QA route file groups | `TEMPORARY_VAULT_ROUTE_GROUPS` | Debug/mobile shortcuts over local/public GPX files | Isolate as non-product debug/QA behavior. |
+| QA route opening | `handleTemporaryVaultRouteLoad` | Fetches public or bundled GPX, parses, loads route | Keep temporarily behind debug/temporary grouping. |
+| RUSA Perms section | static drawer markup | Placeholder only | Replace with `rusa_permanent_v1` collection and matching routes. |
+| RUSA Rides section | `vaultEvents` state and event list | Loads upcoming RUSA ride/event rows | Keep as seed behavior for `rusa_event_v1`. |
+| Linked event open | `handleVaultEventLoad` and page callback | Opens linked external route catalog route | Keep; bridge through Vault domain view model. |
+| Schedule-only event state | event row without `externalRouteCatalogId` | Disabled row with "schedule only" copy | Keep; represent as non-openable matching route/event row. |
+| Loading/error state | `vaultLoading`, `vaultError`, loading ids | Drawer-local state | Keep temporarily; later move behind query adapter state. |
+
+## Current Data Reads
+
+`TopActionDrawer` imports from `src/domain/canonicalCorpusHydration.ts`:
+
+- `loadVaultEvents`
+- `VaultEventCandidate`
+- `buildRouteFromExternalCatalogId`
+
+`loadVaultEvents` currently queries `events` with:
+
+- `organization_key = 'rusa'`
+- `source_context = 'ride'`
+- order by `event_start_utc`
+- fallback order by `created_at`
+- limit argument defaulting to 50
+
+The selected page route load path also uses `fetchVaultEventById` from `canonicalCorpusHydration.ts` in `src/pages/Index.tsx`.
+
+## Product vs Temporary Classification
+
+### Product Behavior to Preserve
+
+- Vault remains under Load/Open.
+- RUSA Events can list schedule rows.
+- Linked RUSA Events can open the associated route.
+- Schedule-only RUSA Events are visible but disabled for route opening.
+- Loading and failure states are visible to the rider.
+
+### Product Behavior to Replace
+
+- RUSA Perms placeholder should become a real Vault Collection.
+- RUSA Rides list should become a `rusa_event_v1` collection browser.
+- Drawer-local event row rendering should consume Vault domain view models.
+
+### Temporary Behavior to Isolate
+
+- QA Route Files are not Vault Collections.
+- Bundled/public GPX shortcuts are test fixtures, not curated route library content.
+- Temporary route group labels such as Complete Routes and Incomplete Routes should not shape product vocabulary.
+
+### Behavior to Avoid
+
+- Do not infer collection profile from display title.
+- Do not make Collection Cards own filter behavior.
+- Do not fetch every route in a collection and filter in browser memory.
+- Do not put event date or permanent ID into canonical route identity.
+
+## Phase 1A Acceptance Check
+
+- Every current Vault behavior is classified above.
+- QA shortcuts are explicitly non-product.
+- RUSA Events loading is preserved as seed behavior for `rusa_event_v1`.
+- RUSA Perms placeholder is identified as the first real collection replacement.
+- No user-visible behavior changes are required for Phase 1A.
+
+
+---
+
+## Source File: docs/04-execution/exec-041-phase-1g-skeleton-test-gate.md
+
+# EXEC-041 Phase 1G - Skeleton Test Gate
+
+## Purpose
+
+This checkpoint records the Phase 1 Vault domain skeleton test gate.
+
+Phase 1G exists to ensure Phase 2 Collection Card work can build on a stable domain contract instead of inventing product shape inside UI components.
+
+## Covered Files
+
+Domain files:
+
+- `src/domain/vault/types.ts`
+- `src/domain/vault/registries.ts`
+- `src/domain/vault/url-state.ts`
+- `src/domain/vault/fixtures.ts`
+- `src/domain/vault/query-adapter.ts`
+- `src/domain/vault/current-vault.ts`
+- `src/domain/vault/index.ts`
+
+Test files:
+
+- `src/domain/vault/types.test.ts`
+- `src/domain/vault/registries.test.ts`
+- `src/domain/vault/url-state.test.ts`
+- `src/domain/vault/query-adapter.test.ts`
+- `src/domain/vault/current-vault.test.ts`
+
+Read-only integration:
+
+- `src/components/TopActionDrawer.tsx`
+
+## Focused Test Gate
+
+Run:
+
+```text
+npm test -- src/domain/vault/types.test.ts src/domain/vault/registries.test.ts src/domain/vault/url-state.test.ts src/domain/vault/query-adapter.test.ts src/domain/vault/current-vault.test.ts
+```
+
+Expected result:
+
+- 5 test files pass
+- 24 tests pass
+
+## Focused Type Gate
+
+The full app TypeScript check currently reports existing project-wide errors outside the Vault slice.
+
+For Phase 1G, use this filtered check to confirm no reported errors mention touched Vault or drawer files:
+
+```text
+npx tsc --noEmit --project tsconfig.app.json --pretty false 2>&1 | rg "src/components/TopActionDrawer|src/domain/vault"
+```
+
+Expected result:
+
+- no output
+
+This does not mean the full project typecheck is clean. It means the current Vault slice is not adding reported TypeScript errors in touched files.
+
+## Acceptance Mapping
+
+| Phase 1G acceptance | Covered by |
+| --- | --- |
+| Phase 1 can run without Supabase/network dependencies in unit tests | Vault domain tests use fixtures and pure functions. |
+| Safety sort hides/disables below threshold | `registries.test.ts` coverage-gate assertions. |
+| Schedule-only events cannot produce an openable route row | `query-adapter.test.ts` and `current-vault.test.ts`. |
+| `rusa_permanent_v1` and `rusa_event_v1` expose different primary filters | `registries.test.ts`. |
+| Domain layer is ready for Collection Cards | types, registries, URL state, fixture adapter, current drawer bridge. |
+
+## Phase 1 Closeout
+
+Phase 1 is complete when the focused test gate passes and the filtered TypeScript check reports no touched-file errors.
+
+Phase 2 should start with Collection Card rendering against the existing Vault domain contract.
+
+
+---
+
+## Source File: docs/04-execution/exec-041-vault_collection_browser_implementation_program.md
+
+# EXEC-041 - Vault Collection Browser Implementation Program
+
+## Purpose
+
+Build the next Vault surface: Collection Cards, selected-collection browsing, profile-specific filters/sorts, and Matching Routes.
+
+This program implements ADR-050 and DS-045.
+
+The product target is:
+
+```text
+Vault -> Collection -> Matching Routes
+```
+
+## Current State
+
+The current app has a temporary Vault sub-panel in `TopActionDrawer`.
+
+It contains:
+
+- QA route file shortcuts
+- a RUSA Perms placeholder
+- a RUSA Rides list from `events`
+
+That surface is useful scaffolding, but it is not the final Vault model. The implementation must move toward a Vault domain and collection browser rather than continuing to grow temporary drawer-local logic.
+
+## Non-Goals
+
+- Do not turn Vault into an import source.
+- Do not build every master filter in v1.
+- Do not require personal goal filters in the first release.
+- Do not require routable travel-time proximity in the first release.
+- Do not change Safety Score scope.
+- Do not analyze every route client-side just to populate filters.
+- Do not hardcode one-off filter systems per collection.
+
+## Phase 1 - Vault Domain Skeleton
+
+Create a Vault domain layer that can outlive the top drawer.
+
+Phase 1 should not redesign the visible Vault UI yet. Its job is to create the product/domain contract that later phases can render.
+
+### Phase 1A - Current Vault Surface Inventory
+
+Map the existing temporary Vault behavior before extracting it.
+
+Phase artifact: `exec-041-phase-1a-current-vault-surface-inventory.md`
+
+Deliverables:
+
+- inventory current Vault-related code paths in `TopActionDrawer`
+- identify temporary QA route shortcuts
+- identify RUSA Rides event loading/opening flow
+- identify RUSA Perms placeholder behavior
+- document current data reads from `canonicalCorpusHydration`
+- separate real Vault product behavior from debug/QA shortcuts
+
+Acceptance:
+
+- every current Vault behavior is assigned to keep, replace, isolate, or remove later
+- QA route shortcuts are explicitly marked non-product
+- RUSA Events loading path is preserved as a source for `rusa_event_v1`
+- no user-visible behavior changes in this sub-phase
+
+### Phase 1B - Vault Domain Types
+
+Create the shared type contract for the rest of the program.
+
+Deliverables:
+
+- collection model
+- collection route/membership model
+- collection summary metrics
+- collection card view model
+- matching route view model
+- filter state type
+- sort state type
+- pagination/cursor state type
+- profile key enums
+- capability key enums
+
+Acceptance:
+
+- domain types do not import React
+- domain types do not depend on `TopActionDrawer`
+- rider-facing naming uses Collection and Matching Routes
+- internal-only terms such as route family and cohort are absent from UI-facing types
+- event date and permanent ID are modeled as membership/display facts, not canonical route identity
+
+### Phase 1C - Capability and Profile Registries
+
+Add boring, typed registries before adding UI controls.
+
+Deliverables:
+
+- filter capability registry
+- sort capability registry
+- route row metric registry
+- collection profile registry
+- initial `default_route_collection_v1`
+- initial `rusa_permanent_v1`
+- initial `rusa_event_v1`
+- coverage-gate metadata shape
+
+Acceptance:
+
+- profile lookup happens by profile key, not collection title
+- every filter/sort declares its source family
+- every filter/sort declares whether it is primary, secondary, advanced, hidden, or deferred
+- safety sort is coverage-gated
+- proximity capabilities are registered as deferred or unavailable until facts exist
+
+### Phase 1D - URL State Contract
+
+Make selected-collection browsing addressable before deep UI work.
+
+Deliverables:
+
+- URL parse function
+- URL serialize function
+- collection slug/id state
+- filter state serialization
+- sort key serialization
+- page/cursor serialization
+- invalid parameter fallback rules
+
+Acceptance:
+
+- filter/sort state can round-trip through URL params
+- unknown filters are ignored rather than crashing
+- invalid sort keys fall back to the active profile default
+- empty/default state serializes cleanly
+- parser is covered by unit tests
+
+### Phase 1E - Query Adapter Interface and Fixtures
+
+Define how the UI asks for collections and Matching Routes without committing to the final backend shape.
+
+Deliverables:
+
+- `listVaultCollections` interface
+- `getVaultCollection` interface
+- `listMatchingRoutes` interface
+- result count/page metadata shape
+- route fact fixture data
+- RUSA event fixture data from the current event shape
+- RUSA permanent fixture data, even if initially static/mock-backed
+
+Acceptance:
+
+- adapter returns profile-ready view models
+- adapter can represent schedule-only events
+- adapter can represent missing safety coverage
+- adapter can represent empty matching results
+- large-result behavior is modeled as paginated/cursor-based, not full-array filtering
+
+### Phase 1F - Top Drawer Read-Only Integration
+
+Make the existing top drawer consume the new domain layer without redesigning the visible collection browser yet.
+
+Deliverables:
+
+- real Vault collections supplied through the adapter/domain layer
+- current RUSA Rides list bridged through `rusa_event_v1` data shape
+- RUSA Perms placeholder represented as a collection with unavailable route data
+- QA shortcuts isolated behind a debug/temporary group
+- no hardcoded collection-profile branching by title
+
+Acceptance:
+
+- existing Vault drawer still opens and loads linked rides
+- schedule-only ride behavior is preserved
+- QA shortcuts remain usable if currently needed
+- changing a collection profile key changes behavior through registry lookup
+- no broader drawer refactor is required in this phase
+
+### Phase 1G - Skeleton Test Gate
+
+Lock the domain skeleton before Phase 2 UI work starts.
+
+Phase artifact: `exec-041-phase-1g-skeleton-test-gate.md`
+
+Deliverables:
+
+- registry unit tests
+- URL state round-trip tests
+- profile lookup tests
+- adapter fixture tests
+- coverage-gate tests
+- RUSA Events fixture test
+- RUSA Permanents fixture test
+
+Acceptance:
+
+- Phase 1 can run without Supabase/network dependencies in unit tests
+- safety sort hides/disables when coverage is below threshold
+- schedule-only events cannot produce an openable route row
+- `rusa_permanent_v1` and `rusa_event_v1` expose different primary filters
+- the domain layer is ready for Collection Cards in Phase 2
+
+### Phase 1 Overall Acceptance
+
+- `TopActionDrawer` can consume Vault data through the domain layer
+- temporary QA route shortcuts are isolated from real Vault collections
+- profile lookup does not branch on collection title
+- filter/sort state can round-trip through URL params
+- Phase 2 can focus on Collection Card UI instead of inventing domain shape
+
+## Phase 2 - Collection Overview
+
+Replace the placeholder Vault view with Collection Cards.
+
+Deliverables:
+
+- one card per Vault Collection
+- title, subtitle, route/event count, total miles, primary badge
+- optional source/curator label
+- reserved icon/graphic slot
+- responsive grid/rail behavior
+- capped collection area for larger libraries
+
+Acceptance:
+
+- RUSA Permanents and RUSA Events appear as separate Collection Cards
+- cards are selected through collection ID/slug, not hardcoded labels
+- card visuals do not define filter behavior
+- mobile does not force a long vertical card wall before routes are reachable
+
+## Phase 3 - Selected Collection Browser
+
+Implement the selected-collection state.
+
+Deliverables:
+
+- collapse collection grid into selected collection header
+- back affordance to all collections
+- filter/sort bar
+- active filter chips
+- Matching Routes list
+- Matching Routes map toggle or paired map panel
+- loading, empty, and error states
+- paginated or virtualized results
+
+Acceptance:
+
+- selecting a card expands Matching Routes in the freed space
+- filters sit at the top of the Matching Routes area
+- list and map views represent the same filtered/sorted result set
+- map view uses lightweight preview geometry only, not full route analysis
+- back/reload behavior preserves or resets state intentionally
+- URL state captures selected collection, filters, sort, and page/cursor
+
+## Phase 4 - RUSA Permanents Profile
+
+Implement `rusa_permanent_v1`.
+
+Primary filters:
+
+- starting location
+- ending location
+- distance
+- climbing
+- shape
+- within or through states
+- contains unpaved
+- name includes
+
+Sorts:
+
+- starting location
+- distance shortest
+- distance longest
+- climbing least
+- climbing most
+- safest first, coverage-gated
+- most unpaved
+- most states included
+
+Route row metrics:
+
+- permanent ID
+- start/end
+- distance
+- climbing
+- shape
+- states touched
+- unpaved distance, when present
+- safety score, coverage-gated
+
+Acceptance:
+
+- "within or through" filters `states_touched`
+- shape supports loop, out and back, point-to-point, and unknown
+- safety sort is hidden or disabled when analysis coverage is insufficient
+- inactive route and SR 600K filters are allowed as secondary/admin controls if data exists
+
+## Phase 5 - RUSA Events Profile
+
+Implement `rusa_event_v1`.
+
+Primary filters:
+
+- date range
+- starting location
+- distance
+- states touched
+- event distance class
+- name includes
+
+Sorts:
+
+- soonest first
+- latest first
+- starting location
+- distance shortest
+- distance longest
+- safest first, coverage-gated
+
+Route row metrics:
+
+- event date
+- event type/distance class
+- start location
+- distance
+- climbing
+- states touched
+- linked route state
+
+Acceptance:
+
+- event date comes from collection membership/event rows, not canonical route identity
+- schedule-only events are visible but cannot open as routes until linked
+- default sort is soonest first
+- date range is the first-class control for this profile
+
+## Phase 6 - Query-Backed Route Facts
+
+Harden the route browsing query surface.
+
+Deliverables:
+
+- route catalog/search facts read path
+- collection membership facts read path
+- basic text, numeric, state, shape, date, boolean filters
+- deterministic sort mapping
+- result count and pagination/cursor behavior
+- coverage metadata for safety/surface/remoteness filters
+
+Acceptance:
+
+- large collections are not fully fetched into the browser for filtering
+- route rows receive all facts needed by the active profile
+- missing coverage hides or disables dependent controls
+- filters and sorts can be tested without rendering the whole app
+
+## Phase 6A - Matching Routes Map Preview
+
+Add spatial review for any filtered/sorted route result set that has preview geometry.
+
+Deliverables:
+
+- route preview geometry contract
+- map/list view state, URL-addressable when useful
+- simple polyline rendering for Matching Routes
+- result-order styling or labels
+- map selection -> row/detail focus
+- unavailable geometry state
+- render cap or simplification rule for large result sets
+
+Acceptance:
+
+- map and list use the same query result set
+- route previews do not trigger route analysis, scoring, or enrichment
+- routes without preview geometry remain visible in the list
+- selecting a map line does not automatically open the full route
+- RUSA Permanents can be reviewed spatially before opening a route
+
+## Phase 7 - Safety Sort and Coverage Gates
+
+Add safety-aware browsing without broadening Safety Score.
+
+Deliverables:
+
+- safety score/rank fact mapping
+- coverage threshold for showing safety sort
+- row-level unavailable state when needed
+- copy that keeps Safety Score narrow
+
+Acceptance:
+
+- "Safest first" means narrow traffic/collision safety
+- remoteness, surface, weather, and logistics do not change Safety Score
+- safety sort is absent or clearly unavailable when route analysis coverage is too low
+
+## Phase 8 - Proximity Primitive
+
+Add the reusable proximity/access model.
+
+Initial targets:
+
+- address
+- airport
+- train station
+- bus terminal
+
+Initial anchors:
+
+- route start
+- route end
+- closest route point
+
+Initial operators:
+
+- within distance
+- nearest first
+- farthest first
+
+Acceptance:
+
+- RUSA Permanents can sort/filter by airport/train/bus access when facts exist
+- gravel/adventure can later reuse the same primitive for bailout access
+- straight-line distance is labeled/handled honestly
+- routeable distance/travel time remains deferred
+
+## Phase 9 - Deferred Profiles
+
+Implement only after supporting facts are reliable.
+
+Deferred profiles:
+
+- `gravel_adventure_v1`
+- `bikepacking_v1`
+- `personal_anthology_v1`
+- `admin_curation_v1`
+
+Unlocking facts:
+
+- remoteness index
+- surface confidence
+- service gaps
+- bailout density
+- personal ride history
+- saved/favorited/planned state
+- achievement/state-bagging history
+- contextual weather/light overlays
+
+Acceptance:
+
+- no deferred profile exposes fake precision
+- controls appear only when their fact coverage is trustworthy
+
+## Test Plan
+
+Unit tests:
+
+- filter profile lookup
+- capability visibility and coverage gates
+- URL state parse/serialize
+- RUSA Permanents filter mapping
+- RUSA Events date filter mapping
+- deterministic sort tie-breakers
+
+Integration tests:
+
+- query adapter applies collection membership before route filters
+- pagination/cursor behavior
+- schedule-only event handling
+- safety sort hidden below coverage threshold
+- state multi-select maps to `states_touched`
+
+UI/manual tests:
+
+- desktop collection overview with 1, 3, 6, and 12 collections
+- mobile collection overview and selected collection browser
+- select card -> collapse grid -> Matching Routes expands
+- filters remain visible at top of Matching Routes
+- map view shows simple route lines for matching routes with preview geometry
+- no matching routes empty state and reset behavior
+- browser back/reload/share URL behavior
+
+## Definition of Done
+
+This program is complete when:
+
+- Vault is collection-first instead of file-list-first
+- Collection Cards launch profile-backed browsers
+- RUSA Permanents and RUSA Events use different profiles
+- Matching Routes are query-backed and URL-addressable
+- safety, proximity, surface, remoteness, and personal filters have clear extension points
+- `TopActionDrawer` no longer owns Vault product semantics directly
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
