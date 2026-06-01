@@ -27141,6 +27141,8 @@ create table way_intelligence_rollups (
 
 This rollup can later feed routing, recommendations, substrate ranking, QA, and priors.
 
+Phase 8 v0 keeps this rollup bounded to RouteX-affected ways. The RouteX writer refreshes only the OSM ways touched by the written topology revision, plus adjacent ways referenced by synthetic segments. The rollup includes traversed, rerouted, rejected-candidate, nearby-not-selected, blocked-unresolved, and synthetic-connector-nearby counts. Synthetic connector evidence is preserved as first-class aggregate context, not discarded as bad route data.
+
 ### 5.6 `cyclist_substrate_feedback_signals`
 
 This is the direct bridge from route experience projection into the cyclist substrate cache.
@@ -27221,6 +27223,8 @@ This write plan is pure and deterministic. It does not call Supabase, write brow
 The backend writer accepts the write plan through the `routex-topology-writer` Edge Function. That function validates the caller and shape, allows either admins or the owner of the saved `route_history` row, then calls `insert_routex_topology_archive_write_plan(...)` with the service role so the route topology revision and projection rows are inserted transactionally. Way rollups remain asynchronous substrate work.
 
 The app dispatches RouteX Archive promotion best-effort after the base `route_history` save succeeds. If the robustBuilder canonical artifact arrives after the base save, the active saved route id and artifact id trigger the same idempotent promotion path later.
+
+After the RouteX Archive write succeeds, DS-050 RouteX substrate signals are built from the canonical `RouteExperienceArtifact` itself. The artifact is revalidated as canonical before route-derived substrate inputs are emitted, so provisional quickBuilder substrate hints cannot become route-derived substrate signals.
 
 ```text
 RouteX Cache artifact
@@ -27868,7 +27872,37 @@ attachment keys
 
 The read request must include bounded attachment keys. Unbounded rollup reads are rejected. The v0 read family is `route_behavior` only. Clients do not scan `substrate_signals` or `substrate_signal_attachments` for runtime use.
 
-The first viewport heatmap consumer derives a bounded set of visible OSM way attachment keys from the already-hydrated viewport road overlay, reads only route-behavior rollups, and renders RouteX aggregate signal accents without changing the core road-stress/risk color policy. Unscoped aggregate reads remain server-gated while public privacy and product policy settle.
+The first viewport heatmap consumer derives a bounded set of visible OSM way attachment keys from the already-hydrated viewport road overlay, reads only route-behavior rollups, and renders RouteX aggregate signal accents without changing the core road-stress/risk color policy.
+
+Public aggregate read policy v0:
+
+- Admin/owner reads use `readScope=admin_or_owner` and keep the existing owner-or-admin server boundary.
+- Non-admin viewport heatmap reads may use `readScope=public_aggregate` only for bounded `osm_way` attachment keys.
+- Public aggregate reads are authenticated, capped at 250 attachment keys, must not be saved-route scoped, and expose only rollups with `privacy_floor in ('public', 'anonymized_aggregate')` and at least 3 unique sources.
+- Public aggregate responses strip raw rollup evidence such as signal ids and return policy metadata instead.
+- Runtime consumers still read `substrate_signal_rollups` only; no raw signal or attachment scans are allowed in the hot path.
+
+## 6.8 Corpus Backfill And Rollup Version Contracts
+
+Phase 8.1 treats substrate as the durable signal ledger plus rollup cache, not the map runtime itself. Corpus imports for permanents, events, USBRS, golden harness routes, RouteX archive, and later institutional corpora must enter through explicit contracts:
+
+- `SubstrateBackfillRun`: resumable job envelope with source family, route ids, status, counts, errors, retry state, write caps, and cursor.
+- source policy matrix: source visibility, DS-050 signal visibility, public aggregate eligibility, minimum public aggregate source count, and raw-signal-id exposure policy.
+- corpus adapter dry run: bounded, idempotent plan summary with stable source route keys, affected OSM way ids, synthetic connector keys, expected signal counts, and no direct DB writes.
+- backfill execution planner: pure route work-item and rollup-key planner with retry ledger, per-job write caps, per-job rollup caps, and no raw signal runtime reads.
+- rollup version metadata: `rollup_schema_version`, `algorithm_version`, `source_family`, `source_window`, and `generated_at`.
+
+Every corpus path should follow:
+
+```text
+corpus route
+  -> canonical RouteExperienceArtifact
+  -> DS-050 signals
+  -> affected-key rollup refresh
+  -> bounded consumer
+```
+
+Synthetic connectors remain first-class affected keys and diagnostics. They must not be flattened into bad-route noise during adapter dry runs, backfills, rollup generation, or heatmap hydration.
 
 ## 7. Cost And Scalability Rules
 
@@ -27879,8 +27913,13 @@ The first viewport heatmap consumer derives a bounded set of visible OSM way att
 - Keep viewport summaries tile-friendly.
 - Keep route-line cache summaries way/corridor-friendly.
 - Keep routing priors profile-aware.
+- Keep RouteX-derived way intelligence in `way_intelligence_rollups`, including traversed, rejected, nearby-not-selected, blocked-unresolved, and synthetic-connector-nearby counts.
+- Let route-line cache and routing-prior consumers use aggregate-only hints, never score-bearing source truth.
 - Make rollups recomputable from the registry so product policy can change without losing source data.
 - Avoid global recomputation on every note or external record.
+- Cap corpus jobs and viewport requests before DB writes or reads.
+- Dedupe corpus routes by stable source route key before write planning.
+- Never hydrate all routes into the client.
 
 ## 8. Evidence Guardrails
 
@@ -28459,7 +28498,27 @@ Recommended future phases:
 8. Add privacy-safe aggregate and achievement-only public views.
 9. Add Vault overlays that compare collection routes against user coverage.
 
-## 13. Acceptance Criteria
+## 13. Phase 7B TypeScript Scaffold Status
+
+Status: Implemented as a pure TypeScript model scaffold on 2026-06-01.
+
+Implemented under `src/lib/personal-coverage/`:
+
+- typed contracts for `ActivitySource`, `UserActivity`, `ActivityWayMatch`, `UserWayCoverage`, `CoverageRange`, `SourcePolicyClass`, and `CoverageVisibilityTier`
+- deterministic covered-range merge helpers
+- privacy policy evaluator for private user view, shareable aggregate, achievement-only public, and admin support requests
+- write-plan style ingestion contract that prepares rows without remote writes
+- focused tests for range merging, Strava archive provenance, raw evidence-only payload boundaries, public-detail gating, and runtime isolation
+
+Guardrails preserved:
+
+- no DB migrations
+- no Supabase writes or client coupling
+- no `Index.tsx` or `RouteMap.tsx` edits
+- no raw GPX/FIT/Strava/RWGPS history overlays
+- no RouteX runtime/table coupling
+
+## 14. Acceptance Criteria
 
 Phase 7B is complete when:
 
