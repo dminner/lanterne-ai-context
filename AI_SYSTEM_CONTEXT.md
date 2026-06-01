@@ -26606,7 +26606,9 @@ quickBuilder or robustBuilder
   -> score/display/inspect
 ```
 
-`RouteExperiencePath` is the ordered route experience: segments, members, ways, nodes, fallback coordinates, controls, POIs, hazards, handoffs, blockers, and route-distance spans.
+`RouteExperiencePath` is the ordered route experience: segments, members, ways, nodes, fallback coordinates, route-owned controls, handoffs, blockers, route-distance spans, and associated observations.
+
+Controls are route-owned because brevet/permanent/event instructions can define the route experience itself. POIs, hazards, services, rider field notes, media, and detour reasons are associated observations. They travel with RXON for context and audit, but they are not canonical route-path truth and should be revalidated against owned OSM, source snapshots, or observation policy before being promoted into display, cue, substrate, or score-bearing surfaces.
 
 `RouteExperienceArtifact` is the storage and reuse envelope around that path.
 
@@ -26654,7 +26656,7 @@ Storage scope is not proof of trust. A cached artifact must still pass schema, f
 | Field | Meaning |
 | --- | --- |
 | `artifactKind` | Constant discriminator. Must be `route_experience_artifact`. |
-| `schemaVersion` | Artifact schema version. Current value is `route-experience-artifact.v1`. |
+| `schemaVersion` | Artifact schema version. Current value is `route-experience-artifact.v2`. |
 | `artifactId` | Stable human/debug identifier derived from route fingerprint, builder, stage, and path ID. |
 | `cacheKey` | Storage key derived from schema version, route fingerprint, builder, stage, and path ID. |
 | `routeFingerprint` | Identity of the imported route axis this artifact belongs to. |
@@ -26691,14 +26693,14 @@ isUsableRouteExperienceArtifact(...)
 
 ## 7. Example Artifact
 
-This is a shortened JSON-like example. Real artifacts may include many more segments, members, handoffs, controls, POIs, hazards, and diagnostics.
+This is a shortened JSON-like example. Real artifacts may include many more segments, members, handoffs, controls, associated observations, and diagnostics.
 
 ```json
 {
   "artifactKind": "route_experience_artifact",
-  "schemaVersion": "route-experience-artifact.v1",
+  "schemaVersion": "route-experience-artifact.v2",
   "artifactId": "route-experience:_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410:robustBuilder:review_refinement:rex-9f3a",
-  "cacheKey": "route-experience-artifact.v1:_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410:robustBuilder:review_refinement:rex-9f3a",
+  "cacheKey": "route-experience-artifact.v2:_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410:robustBuilder:review_refinement:rex-9f3a",
   "routeFingerprint": "_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410",
   "routeExperiencePathId": "rex-9f3a",
   "routeExperienceStage": "review_refinement",
@@ -26718,8 +26720,9 @@ This is a shortened JSON-like example. Real artifacts may include many more segm
     "blockerCount": 2,
     "handoffCount": 24,
     "controlCount": 0,
-    "poiCount": 0,
-    "hazardCount": 0,
+    "associatedObservationCount": 2,
+    "poiObservationCount": 1,
+    "hazardObservationCount": 1,
     "canDriveRouteTruth": true,
     "canDriveScore": true
   },
@@ -26790,8 +26793,39 @@ This is a shortened JSON-like example. Real artifacts may include many more segm
     ],
     "handoffs": [],
     "controls": [],
-    "pois": [],
-    "hazards": [],
+    "associatedObservations": [
+      {
+        "observationId": "poi:rwgps-53626932-water-1",
+        "kind": "poi",
+        "label": "Water",
+        "category": "water",
+        "routeDistM": 45122,
+        "lat": 39.7551,
+        "lon": -74.6214,
+        "sourceLineage": "rwgps_route_import",
+        "provenance": "source_route_poi",
+        "validationStatus": "unvalidated",
+        "matchedFeatureRef": {
+          "source": "unknown",
+          "featureType": "poi"
+        }
+      },
+      {
+        "observationId": "hazard:rail-1",
+        "kind": "hazard",
+        "label": "Rail crossing",
+        "category": "rail_crossing",
+        "startDistM": 78110,
+        "endDistM": 78110,
+        "sourceLineage": "hazard_detector",
+        "provenance": "route_indexed_hazard",
+        "validationStatus": "unvalidated",
+        "matchedFeatureRef": {
+          "source": "unknown",
+          "featureType": "hazard"
+        }
+      }
+    ],
     "continuityStatus": "continuous_with_blockers",
     "sourceBudgetPolicy": {
       "class": "refinement_expanded",
@@ -26899,7 +26933,7 @@ Saved artifacts should be invalidated or demoted when:
 
 - Should `artifactId` eventually use a short hash rather than the full route fingerprint?
 - Should the browser cache retain multiple canonical artifacts per route or only the latest?
-- Should controls, hazards, and POIs have independent revision IDs inside the artifact?
+- Should route-owned controls and mutable associated observations have independent revision IDs inside the artifact?
 - Should server persistence store the full artifact JSON, a compressed artifact, or a normalized table set plus artifact manifest?
 - When robustBuilder runs as a slow background drip, should partial improvements produce intermediate artifacts or only final canonical artifacts?
 
@@ -27533,7 +27567,7 @@ interface RouteExperienceArtifactWorkerEvent {
   type: 'route_experience_artifact';
   requestId: string;
   routeFingerprint: string;
-  artifactSchemaVersion: 'route-experience-artifact.v1';
+  artifactSchemaVersion: 'route-experience-artifact.v2';
   readiness: 'canonical_refinement' | 'provisional_first_paint' | 'blocked';
   artifact: RouteExperienceArtifact;
 }
@@ -27639,7 +27673,6 @@ DS-049 narrows the implementation boundary for the current route-load problem:
 - Which fields belong in `fieldMask` for the first version?
 - Should artifact channel stream partial artifacts or emit only complete canonical artifacts?
 - How much normalized evidence, if any, should be returned to the main thread before debug panels request it?
-
 
 
 ---
@@ -27925,7 +27958,7 @@ Public aggregate read policy v0:
 
 - Admin/owner reads use `readScope=admin_or_owner` and keep the existing owner-or-admin server boundary.
 - Non-admin viewport heatmap reads may use `readScope=public_aggregate` only for bounded `osm_way` attachment keys.
-- Public aggregate reads are authenticated, capped at 250 attachment keys, must not be saved-route scoped, and expose only rollups with `privacy_floor in ('public', 'anonymized_aggregate')` and at least 3 unique sources.
+- Public aggregate reads are authenticated, capped at 250 attachment keys in the app read model, Edge Function, and SQL reader, must not be saved-route scoped, and expose only rollups with `privacy_floor in ('public', 'anonymized_aggregate')` and at least 3 unique sources.
 - Public aggregate responses strip raw rollup evidence such as signal ids and return policy metadata instead.
 - Runtime consumers still read `substrate_signal_rollups` only; no raw signal or attachment scans are allowed in the hot path.
 
@@ -27938,6 +27971,7 @@ Phase 8.1 treats substrate as the durable signal ledger plus rollup cache, not t
 - corpus adapter dry run: bounded, idempotent plan summary with stable source route keys, affected OSM way ids, synthetic connector keys, expected signal counts, and no direct DB writes.
 - backfill execution planner: pure route work-item and rollup-key planner with retry ledger, per-job write caps, per-job rollup caps, and no raw signal runtime reads.
 - write/rollup bridge: pure intent planner that requires separately materialized DS-050 signals before write planning and emits affected-key rollup refresh intent only.
+- job safety policy: corpus manifests are server-paged, client-side all-route hydration is disallowed, write intents require stable dedupe keys, retry ledgers travel with work items, and write/rollup caps are checked again before writer boundaries.
 - rollup version metadata: `rollup_schema_version`, `algorithm_version`, `source_family`, `source_window`, and `generated_at`.
 
 Every corpus path should follow:
@@ -28028,6 +28062,12 @@ Public viewport provider frames must keep rollup requests OSM-way-only, unscoped
 
 The frame may summarize aggregate counts by family and way, but it must not expose raw signal ids or consume raw rollup evidence payloads. Visual output is semantic state only; actual colors must resolve through `src/lib/presentation/semantic-tokens.ts`.
 
+The RouteMap subscriber consumes the provider frame's bounded `rollupsByWayId` output when a frame is available. Compatibility rollup maps may remain at hook boundaries during migration, but provider frames must filter any returned aggregate rows to the requested way-family set before runtime rendering can see them.
+
+Hydrated viewport road records may feed the provider frame as identity-only way-family candidates. This adapter may use OSM way id, name/ref aliases, highway/domain, one-way metadata, and bounded endpoint-continuity hints from the already-hydrated road set. It must not fetch raw source payloads, scan raw substrate signals, or create a separate source resolver. Endpoint-derived synthetic connector evidence is first-class identity evidence, remains capped to the viewport attachment limit, and carries `score_bearing=false`.
+
+Admin/dev viewport debug surfaces may subscribe to a count-only provider-frame receipt published by the viewport hook. This receipt is observability, not a data source: it can expose status, gate/load decision, requested/capped/dropped attachment counts, returned rollup counts, canonical family merge counts, synthetic connector counts, privacy/no-data counts, and explicit policy booleans. It must not expose raw signal ids, raw rollup evidence payloads, raw source records, alternate display state, or score-bearing inputs. RouteMap may publish and clear this receipt, but RouteMap must not own retained windows, hydration queues, raw signal reads, or aggregate recomputation.
+
 ## 6.11 Viewport Load Policy
 
 Phase 8.1C adds a pure viewport load policy contract for substrate-backed regional hydration. This policy does not read substrate signals, source records, or rollups. It decides only whether the viewport should load, reuse a retained window, suppress bearing spin, or purge old retained windows before loading.
@@ -28055,6 +28095,27 @@ purge_before_merge_required=true
 
 This policy is intentionally upstream of the viewport provider frame. It decides the bounded area and retained-window lifecycle; the provider frame then builds bounded rollup requests and aggregate-only display summaries for the active area.
 
+The focused viewport heatmap hook must pass through a request gate before calling `substrate-rollup-reader`. The gate preserves legacy bounded reads when no load policy is supplied, but can return `reuse_retained` or `suppress_bearing_spin` without building a rollup read request. It must derive stable request keys from normalized OSM way ids and load-policy retained-window keys so recreated React arrays do not trigger repeat reads by identity alone.
+
+The viewport frame store owns retained windows, recent bearing-load events, and previous/current motion samples outside RouteMap. It exposes a subscribe/getSnapshot boundary suitable for `useSyncExternalStore` or an equivalent hook. RouteMap must not own retained road arrays, hydration queues, or bearing-spin counters.
+
+The viewport store hook is layer-neutral. A subscriber declares a `subscriberKey`, semantic domains, and bounded read kinds such as `provider_frame`, `rollup`, or `tile`. Today that subscriber may be a route-behavior heatmap; later it may be shoulder, wind, watts, surface, services, or another macro overlay. The contract is the same:
+
+```text
+central_evidence_builder_required=true
+central_display_builder_required=true
+central_score_builder_required=true
+viewport_subscriber_only=true
+raw_signal_runtime_reads=false
+raw_source_runtime_reads=false
+route_map_owns_working_set=false
+score_bearing=false
+```
+
+New viewport domains must not create alternate evidence, display, color, or scoring paths. They enter through source adapters or substrate signals, flow through the central builder/display/score contracts, and surface as bounded provider frames, rollups, or tiles.
+
+RouteMap may pass raw viewport inputs into the frame-store hook: current bounds, viewport center, movement-derived center changes, GPS/compass heading when available, reset key, and subscriber identity. RouteMap must not retain substrate windows, recent bearing events, raw rollup evidence, or source payloads. The hook returns the precomputed load-policy plan that bounded rollup/tile subscribers consume.
+
 ## 7. Cost And Scalability Rules
 
 - Keep raw signal rows append-friendly and audit-friendly.
@@ -28065,7 +28126,8 @@ This policy is intentionally upstream of the viewport provider frame. It decides
 - Keep route-line cache summaries way/corridor-friendly.
 - Keep routing priors profile-aware.
 - Keep RouteX-derived way intelligence in `way_intelligence_rollups`, including traversed, rejected, nearby-not-selected, blocked-unresolved, and synthetic-connector-nearby counts.
-- Let route-line cache and routing-prior consumers use aggregate-only hints, never score-bearing source truth.
+- Let route-line cache and routing-prior consumers use aggregate-only hints, never score-bearing source truth. Route-line cache hints derived from aggregate way intelligence are identity-only and must not trigger source reads.
+- Keep viewport heatmap rollup objects sanitized for rendering: aggregate counts, dominant signal, privacy/confidence metadata, and summary rows only. Raw signal ids, raw rollup evidence payloads, and source records must not survive into render-facing rollup objects.
 - Make rollups recomputable from the registry so product policy can change without losing source data.
 - Avoid global recomputation on every note or external record.
 - Cap corpus jobs and viewport requests before DB writes or reads.
