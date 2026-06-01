@@ -11043,6 +11043,30 @@ Ride mode must assume:
 - map rotation exposes corners
 - an undersized coverage window will be visually obvious
 
+### 9.2.1 Forward and bearing-adaptive loading
+
+Ride-mode loading must distinguish movement from bearing churn.
+
+Required behavior:
+- forward-bearing load may bias the retained window ahead of the rider
+- directional movement load should derive heading from actual position/viewport movement when available
+- bearing-adaptive mode must not create unbounded hydration work when the rider or map rotates in place
+- if retained coverage already contains the current viewport and movement is below threshold, repeated bearing changes should reuse the retained window instead of issuing new loads
+
+This is the missing hard boundary after the original v1 overlay work: bearing can reshape the next retained window, but bearing alone must not let the client spin forever.
+
+### 9.2.2 RouteMap ownership boundary
+
+RouteMap should not own the overlay working set.
+
+RouteMap should receive a stable, already-bounded frame from the viewport policy/provider layer. Request keys, retained windows, purge decisions, caps, and debug counters belong outside the rendering component, preferably behind a small external store or equivalent boundary. React should render snapshots; it should not become the hydration cache.
+
+### 9.2.3 Purge before merge
+
+When leaving an area, the controller must purge stale or distant retained windows before merging newly hydrated roads into the active frame.
+
+This is stricter than simple eviction-after-render. The runtime should avoid growing large arrays of old roads and then asking React to reconcile them away later.
+
 ### 9.3 Route creation mode
 
 Route creation must be allowed to suspend background overlay hydration when necessary.
@@ -27196,6 +27220,27 @@ Every way observation should preserve:
 
 This prevents future OSM way splits, merges, retagging, or geometry edits from corrupting old route truth.
 
+### 6.1 Canonical Way-Family Identity
+
+Phase 8.1 promotes the v2-review road-family merge behavior into shared substrate identity code. The helper is pure and bounded: it accepts already-known OSM way candidates plus explicit connector/continuity evidence and returns canonical way-family identities. It does not read raw substrate signals, query Supabase, or infer traversal from nearby geometry.
+
+The family identity result carries:
+
+- canonical family key;
+- canonical representative way id;
+- constituent OSM way ids;
+- source feature ids;
+- route fingerprints;
+- synthetic connector keys;
+- merge reasons;
+- blockers and diagnostics;
+- `sourceVisibility=identity_only`;
+- `scoreBearing=false`.
+
+Merge evidence may include same normalized name/ref, source aliases, shared OSM nodes, adjacent way ids, route-span vicinity, and synthetic connector continuity. Non-merge blockers include different named roads, domain conflicts, ramp/service boundaries, ambiguous opposite one-way carriageways, parallel roads without topology evidence, large gaps without connector evidence, and unnamed fragments without strong source evidence.
+
+Synthetic connectors are first-class identity context. A synthetic connector may join same-family fragments when other identity evidence agrees, and orphaned connector evidence remains diagnostic instead of being discarded as bad data.
+
 ## 7. Projection From `RouteExperienceArtifact`
 
 Projection rules:
@@ -27874,6 +27919,8 @@ The read request must include bounded attachment keys. Unbounded rollup reads ar
 
 The first viewport heatmap consumer derives a bounded set of visible OSM way attachment keys from the already-hydrated viewport road overlay, reads only route-behavior rollups, and renders RouteX aggregate signal accents without changing the core road-stress/risk color policy.
 
+Phase 8.1C adds a pure regional heatmap hydration plan. Region manifests define the first test regions, source families, route profiles, public aggregate enablement, attachment caps, and cache TTL. The planner emits bounded viewport rollup requests, cache keys, and debug receipts for requested ways, capped/dropped attachments, returned rollup rows, stale cache state, and dominant signal mix. The focused hook around this planner honors cache hits and reads only through `substrate-rollup-reader`; it does not read raw substrate signal history.
+
 Public aggregate read policy v0:
 
 - Admin/owner reads use `readScope=admin_or_owner` and keep the existing owner-or-admin server boundary.
@@ -27904,6 +27951,109 @@ corpus route
 ```
 
 Synthetic connectors remain first-class affected keys and diagnostics. They must not be flattened into bad-route noise during adapter dry runs, backfills, rollup generation, or heatmap hydration.
+
+Phase 8.1 also defines shared canonical way-family identity for aggregate consumers. The helper takes bounded candidate way identities plus explicit topology evidence and emits identity-only, non-score-bearing family summaries. It may merge split OSM ways when name/ref/source aliases and continuity evidence agree, including continuity through a synthetic connector. It must not merge across hard blockers such as different named roads, domain conflicts, ramp/service boundaries, ambiguous opposite one-way carriageways, or parallel same-name roads without topology evidence. Unnamed fragments require strong adjacency plus source evidence before they can merge.
+
+These family summaries are serving identities for rollups, heatmap hydration, cache hints, QA, and future macro intelligence. They are not DS-029 evidence facts and must not expose raw signal ids or score-bearing source truth.
+
+## 6.9 External Hint Feeds And Overlay Context
+
+Future overlay context sources such as trail-network maps, ArcGIS web maps, ArcGIS feature services, state DOT bike-facility layers, regional planning overlays, and municipal open data must enter substrate through the existing RouteLine V2 source registry/resolver vocabulary before any runtime surface consumes them. Substrate must not create a parallel source resolver.
+
+The initial contract is `SubstrateHintSourceAdapterDryRun`:
+
+- `sourceFamily`: `trail_network`, `dot_bike_facility`, `regional_planning_overlay`, `municipal_open_data`, or `institutional_status`.
+- `provenance`: an existing V2S+S `EvidenceSourceRegistryEntry`, optional `EvidenceSourceVersion`, region key, ArcGIS item/layer/service identifiers when applicable, and retrieved timestamp.
+- feature summary: stable source feature key, source record id, layer id, feature kind, geometry kind, lifecycle status, confidence, bounded attachment keys, affected OSM way ids, affected synthetic segment keys, and expected signal count.
+- caps: maximum features per run, maximum attachment keys per feature, and maximum geometry vertices per feature.
+- policy fields: public read mode, source visibility, default DS-050 signal family/visibility, public aggregate eligibility, public aggregate minimum source count, raw-signal-id exposure, source-attribution requirement, license-review requirement, and runtime raw-source-read allowance.
+
+All hint-feed dry runs must declare:
+
+```text
+direct_db_writes=false
+runtime_raw_source_reads_allowed=false
+raw_signal_ids_publicly_exposed=false
+score_bearing=false
+pipeline_role=source_adapter_only
+central_evidence_builder_required=true
+central_display_builder_required=true
+central_score_builder_required=true
+viewport_subscriber_only=true
+central_semantic_tokens_required=true
+raw_colors_allowed=false
+```
+
+Matched source features may write DS-050 `institutional_status` signals only through a server-side adapter after dry-run review, attachment-key capping, V2S+S source registry checks, provenance checks, and license/source-attribution policy checks. Unmatched features remain `needs_matching` and cannot hydrate rider runtime views directly.
+
+Hint feeds are source-adapter inputs, not display or scoring pipelines. Accepted signals and rollups must feed the central `evidenceBuilder -> displayBuilder -> scoreBuilder` contract. Viewport heatmaps and overlays are subscribers to bounded builder/rollup output and must not own an alternate evidence/display/scoring lane.
+
+Hint-feed plans may expose semantic state only. Any visual rendering must resolve through the central semantic presentation token registry (`src/lib/presentation/semantic-tokens.ts`). Risk colors remain reserved for rider-operational risk, not source availability or institutional-overlay confidence.
+
+Public institutional/open-data overlays are distinct from anonymized rider-derived aggregates. A public source-attributed rollup may have `public_aggregate_min_unique_sources=1` only when the source itself is public, attribution is required in policy metadata, license review passes, and raw signal ids remain hidden. Anonymized or private-derived aggregate rollups keep the stricter privacy threshold used by the public aggregate rollup reader.
+
+Synthetic connectors remain first-class hint attachments. They may participate in matching, QA, regional hydration, and synthetic-segment rollups, but public viewport rollup reads stay bounded by the read policy that is active for that consumer.
+
+## 6.10 Viewport Provider Frames
+
+Viewport substrate consumers must use a provider frame instead of assembling ad hoc evidence, display, or score state inside the map. The provider frame is a pure contract that joins:
+
+- bounded visible OSM way candidates
+- canonical way-family identity summaries
+- synthetic connector continuity evidence
+- region manifest policy
+- bounded substrate rollup read requests
+- aggregate rollup response summaries
+- debug receipts
+
+The provider frame must declare:
+
+```text
+central_evidence_builder_required=true
+central_display_builder_required=true
+central_score_builder_required=true
+viewport_subscriber_only=true
+runtime_consumers=bounded_rollups_only
+raw_signal_runtime_reads=false
+raw_signal_ids_publicly_exposed=false
+raw_rollup_evidence_payload_consumed=false
+central_semantic_tokens_required=true
+raw_colors_allowed=false
+score_bearing=false
+```
+
+Canonical way-family identity runs before rollup request construction. This lets split OSM ways, semi-fragmented chains, and synthetic-connector continuity collapse into stable family summaries for debug and rendering while the actual rollup request remains bounded by attachment-key policy.
+
+Public viewport provider frames must keep rollup requests OSM-way-only, unscoped to saved routes, capped by public aggregate limits, and privacy-filtered by the server-side rollup reader. Synthetic connectors remain visible in identity/debug receipts but are not public aggregate attachment keys unless a future public policy explicitly allows synthetic-segment aggregate reads.
+
+The frame may summarize aggregate counts by family and way, but it must not expose raw signal ids or consume raw rollup evidence payloads. Visual output is semantic state only; actual colors must resolve through `src/lib/presentation/semantic-tokens.ts`.
+
+## 6.11 Viewport Load Policy
+
+Phase 8.1C adds a pure viewport load policy contract for substrate-backed regional hydration. This policy does not read substrate signals, source records, or rollups. It decides only whether the viewport should load, reuse a retained window, suppress bearing spin, or purge old retained windows before loading.
+
+The policy covers:
+
+- ride-mode forward-bearing load
+- directional movement load derived from actual position/viewport movement
+- bearing-adaptive anti-spin gating when heading changes but movement stays below threshold
+- retained-window TTL, distance purge, and max retained window caps
+- stable request keys for unchanged retained coverage
+- a RouteMap ownership boundary where RouteMap receives bounded frames instead of owning the overlay working set
+
+The contract must declare:
+
+```text
+raw_signal_runtime_reads=false
+runtime_consumers=bounded_rollups_only
+viewport_subscriber_only=true
+score_bearing=false
+route_map_owns_working_set=false
+react_cumulative_raw_road_arrays_allowed=false
+purge_before_merge_required=true
+```
+
+This policy is intentionally upstream of the viewport provider frame. It decides the bounded area and retained-window lifecycle; the provider frame then builds bounded rollup requests and aggregate-only display summaries for the active area.
 
 ## 7. Cost And Scalability Rules
 
