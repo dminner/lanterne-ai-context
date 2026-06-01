@@ -3453,6 +3453,7 @@ Route Safety Score must remain:
 | DS-047 | Route Experience Artifact | DS-029, DS-031, DS-032, DS-044, DS-046 | Draft |
 | DS-048 | Route Topology Archive and Way Intelligence Projection | DS-029, DS-031, DS-035, DS-044, DS-046, DS-047 | Draft |
 | DS-049 | First-Paint Worker Handoff and Route Experience Artifact Boundary | DS-029, DS-031, DS-032, DS-044, DS-046, DS-047, DS-048 | Draft |
+| DS-050 | Substrate Signal Registry | DS-028, DS-029, DS-034, DS-035, DS-046, DS-047, DS-048, DS-049 | Draft |
 
 ---
 
@@ -26886,7 +26887,7 @@ Saved artifacts should be invalidated or demoted when:
 
 **Status:** Draft for substrate and route-experience backend planning
 **Date:** 2026-06-01
-**Related:** DS-029, DS-031, DS-035, DS-044, DS-046, DS-047
+**Related:** DS-029, DS-031, DS-035, DS-044, DS-046, DS-047, DS-050
 
 ---
 
@@ -26905,6 +26906,12 @@ many imported/ridden routes
 ```
 
 `RouteExperienceArtifact` remains the portable route genome. The backend must also explode that artifact into relational/PostGIS projections so the system can ask way-level questions without scanning proprietary JSON blobs.
+
+The product/backend-facing name for this route topology archive path is **RouteX**:
+
+- **RouteX Cache**: browser-side canonical `RouteExperienceArtifact` cache.
+- **RouteX Archive**: backend immutable route topology revision plus projection rows.
+- **RouteX projection/write plan**: pure app-side payload prepared for a server-authorized writer.
 
 ## 2. Core Decision
 
@@ -27199,6 +27206,34 @@ Projection rules:
 - Candidate/rejected/nearby ways may become `route_way_observations` when the artifact or worker diagnostics explicitly preserve them.
 
 The projection must not infer a way was traversed just because it was near the GPX. Traversal requires routeExperience identity acceptance.
+
+## 7.1 RouteX Saved-Route Promotion Flow
+
+Saved-route promotion is a three-step boundary:
+
+1. The browser/in-app path reads a canonical RouteX Cache artifact.
+2. `buildSavedRouteExperienceArtifactPromotionDraft(...)` validates the artifact against the route fingerprint and saved-route id, then creates a durable saved-route payload plus way-intelligence projection.
+3. `buildRouteXTopologyArchiveWritePlan(...)` converts that payload into RouteX Archive table rows for the server-authorized writer.
+
+This write plan is pure and deterministic. It does not call Supabase, write browser cache, mutate route history, or save route records by itself.
+
+The backend writer accepts the write plan through the `routex-topology-writer` Edge Function. That function validates the caller and shape, allows either admins or the owner of the saved `route_history` row, then calls `insert_routex_topology_archive_write_plan(...)` with the service role so the route topology revision and projection rows are inserted transactionally. Way rollups remain asynchronous substrate work.
+
+The app dispatches RouteX Archive promotion best-effort after the base `route_history` save succeeds. If the robustBuilder canonical artifact arrives after the base save, the active saved route id and artifact id trigger the same idempotent promotion path later.
+
+```text
+RouteX Cache artifact
+  -> saved-route promotion draft
+  -> RouteX topology archive write plan
+  -> best-effort save-route dispatch
+  -> server-authorized writer
+  -> route_topology_revisions + projection rows
+  -> way_intelligence_rollups
+```
+
+Guardrail: RouteX Archive rows are route-derived intelligence. They may improve route-line cache, viewport heatmap context, routing priors, and substrate QA. They must not bypass DS-029 evidence admission for speed, traffic, shoulder, bike, surface, or other score-bearing source facts.
+
+RouteX Archive substrate feedback is also one producer for the broader DS-050 Substrate Signal Registry. RouteX owns route topology truth; DS-050 owns generalized multi-source substrate learning from field notes, personal experiences, external safety records, media, detour intent, and institutional status records.
 
 ## 8. Way Intelligence Semantics
 
@@ -27555,6 +27590,321 @@ DS-049 narrows the implementation boundary for the current route-load problem:
 - Should artifact channel stream partial artifacts or emit only complete canonical artifacts?
 - How much normalized evidence, if any, should be returned to the main thread before debug panels request it?
 
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-050-substrate_signal_registry_spec.md
+
+# DS-050 - Substrate Signal Registry Spec
+
+**Status:** Draft for substrate, RouteX, field-note, media, and external-record planning
+**Date:** 2026-06-01
+**Related:** DS-028, DS-029, DS-034, DS-035, DS-046, DS-047, DS-048, DS-049
+
+---
+
+## 1. Purpose
+
+This specification defines the generalized substrate signal registry.
+
+RouteX Archive is the route-topology archive. It tells Lanterne which ways, connectors, handoffs, blockers, and route spans a canonical `RouteExperienceArtifact` produced.
+
+The substrate signal registry is broader. It stores normalized signals that may later affect the cyclist substrate, viewport heatmaps, routing priors, route recommendations, QA queues, and rider-facing notes.
+
+The registry must support signals from:
+
+- RouteX route topology projection.
+- Rider field notes.
+- Personal ride experiences.
+- External safety records from hospitals, police, DOTs, nonprofit groups, or advocacy groups.
+- External media and linked documents.
+- Detour reasons and destination POIs.
+- Institutional status records like closures, construction, and event detours.
+
+The registry is intentionally extensible. The substrate will get richer over time, and the schema cannot assume that today's speed, traffic, shoulder, bike, surface, hazard, and way-traversal fields are the only future inputs.
+
+## 2. Core Decision
+
+Use a three-layer model:
+
+```text
+raw source payload
+  -> substrate signal registry
+      -> substrate signal attachments
+      -> substrate signal media
+  -> bounded rollups by way/intersection/tile/corridor/profile/time
+  -> route-line cache, viewport heatmap, routing prior, QA, and rider-note consumers
+```
+
+Raw signals are preserved as event-like records. Rollups are recomputable serving summaries, not the source of truth.
+
+RouteX is one producer of registry signals. It is not the whole registry.
+
+## 3. Signal Families
+
+The first registry families are:
+
+- `route_behavior`
+  - Traversed ways, avoided/rejected candidates, synthetic connectors, blocked gaps, repeated route detours, abandoned route spans.
+- `field_note`
+  - Rider-entered notes such as pothole, oil slick, loose gravel, porta potty, water, cafe, hotel, construction note, hostile dog, or useful landmark.
+- `personal_experience`
+  - Rider outcomes such as flatted, crash, close call, bonk, mechanical, abandoned, wrong turn, railroad-track crash, or unsafe pass.
+- `external_safety_record`
+  - Hospital, police, DOT, nonprofit, advocacy, insurance, or public-record incidents tied to a coordinate, intersection, corridor, or way.
+- `media_evidence`
+  - Photo, video, audio, article, document, or external link tied to a signal, POI, route span, or substrate attachment.
+- `detour_intent`
+  - Destination or reason for leaving a route: hotel, cafe, store, water, restroom, scenic bypass, construction bypass, safety avoidance.
+- `institutional_status`
+  - Closure, construction, official detour, event route, seasonal gate, ferry status, access change.
+
+Families are coarse. Specific signal kinds remain open strings, for example:
+
+- `field_note.oil_slick`
+- `field_note.porta_potty`
+- `personal.crash_railroad_tracks`
+- `external_safety.police_crash_report`
+- `detour.destination_cafe`
+- `routex.synthetic_connector`
+
+## 4. Geometry And Attachment Model
+
+Signals may be observed at different spatial scales. The registry supports these geometry kinds:
+
+- `point`
+- `route_span`
+- `way`
+- `intersection`
+- `corridor`
+- `polygon`
+- `tile`
+- `poi`
+
+Signals are then attached to queryable substrate objects:
+
+- OSM way
+- OSM node
+- Intersection key
+- Route span
+- Route topology revision
+- Synthetic segment
+- POI
+- Tile
+- Corridor
+
+This two-step shape is important. A police crash record may arrive as a coordinate, attach to an intersection and two nearby ways, and later roll up into a corridor risk summary. A rider note may arrive on a route span, attach to one way today, and reattach after an OSM split tomorrow.
+
+## 5. Privacy And Visibility
+
+The registry must support privacy before aggregate intelligence grows.
+
+Visibility values:
+
+- `private`
+- `route_owner`
+- `anonymized_aggregate`
+- `public`
+
+Defaults:
+
+- `personal_experience` defaults to `private`.
+- `route_behavior` defaults to `anonymized_aggregate`.
+- `external_safety_record` defaults to `anonymized_aggregate`.
+- `field_note`, `media_evidence`, and `detour_intent` default to `route_owner`.
+- `institutional_status` defaults to `public`.
+
+Rollups may use private or route-owner records only through privacy-safe aggregation rules. Raw personal experience should not become public simply because it is useful.
+
+## 6. Suggested Tables
+
+### 6.1 `substrate_signals`
+
+```sql
+create table substrate_signals (
+  id uuid primary key,
+  schema_version text not null,
+  family text not null,
+  kind text not null,
+  source_actor_type text not null,
+  source_org text,
+  source_record_id text,
+  route_id uuid,
+  route_fingerprint text,
+  geometry_kind text not null,
+  point geometry(Point, 4326),
+  geometry geometry(Geometry, 4326),
+  start_dist_m numeric,
+  end_dist_m numeric,
+  severity text,
+  utility text,
+  confidence text not null,
+  visibility text not null,
+  observed_at timestamptz,
+  happened_at timestamptz,
+  valid_from timestamptz,
+  valid_to timestamptz,
+  normalized_tags jsonb not null default '{}',
+  raw_payload jsonb,
+  consumers text[] not null,
+  created_at timestamptz default now()
+);
+```
+
+### 6.2 `substrate_signal_attachments`
+
+```sql
+create table substrate_signal_attachments (
+  id uuid primary key,
+  signal_id uuid references substrate_signals(id),
+  attachment_kind text not null,
+  osm_way_id bigint,
+  osm_node_id bigint,
+  intersection_key text,
+  route_id uuid,
+  revision_id uuid,
+  synthetic_key text,
+  poi_id text,
+  tile_key text,
+  corridor_id text,
+  start_dist_m numeric,
+  end_dist_m numeric,
+  distance_m numeric,
+  confidence text,
+  reason text,
+  created_at timestamptz default now()
+);
+```
+
+### 6.3 `substrate_signal_media`
+
+```sql
+create table substrate_signal_media (
+  id uuid primary key,
+  signal_id uuid references substrate_signals(id),
+  media_kind text not null,
+  storage_path text,
+  external_url text,
+  content_hash text,
+  captured_at timestamptz,
+  visibility text not null,
+  metadata jsonb,
+  created_at timestamptz default now()
+);
+```
+
+### 6.4 `substrate_signal_rollups`
+
+```sql
+create table substrate_signal_rollups (
+  id uuid primary key,
+  attachment_kind text not null,
+  attachment_key text not null,
+  route_profile text,
+  time_bucket text,
+  family text not null,
+  kind text,
+  signal_count int not null,
+  unique_source_count int,
+  severity_counts jsonb,
+  utility_counts jsonb,
+  confidence text,
+  privacy_floor text,
+  evidence jsonb,
+  updated_at timestamptz default now()
+);
+```
+
+Rollups should be compact and bounded. The hot runtime path should read rollups or tiles, not scan raw signal history.
+
+## 6.5 Write Boundary
+
+The app builds a pure `substrate_signal_write_plan` before any remote write.
+
+```text
+SubstrateSignal[]
+  -> substrate signal write plan
+  -> substrate-signal-writer
+  -> insert_substrate_signal_write_plan(...)
+  -> substrate_signals + attachments + media
+```
+
+The write plan is deterministic and side-effect free. It must not call Supabase, route persistence, browser cache, or local storage.
+
+The deployed writer is responsible for authorization:
+
+- route-scoped writes require route owner or admin;
+- unscoped writes require admin;
+- table inserts happen through the service-role RPC;
+- RLS grants read access to admins and owning route users.
+
+RouteX promotion currently emits DS-050 `route_behavior` signals only after RouteX Archive promotion succeeds. This keeps route-derived substrate learning downstream of canonical route topology, rather than letting raw candidates become substrate truth.
+
+## 6.6 Route-Behavior Rollup V0
+
+The first rollup is intentionally narrow:
+
+- family: `route_behavior`
+- affected attachments only: `osm_way`, `synthetic_segment`, and `route_span`
+- grouping: attachment key, route profile, family, and signal kind
+- counts: signal count, unique source count, severity counts, utility counts
+- policy: recompute only keys present in the current write plan
+
+The writer refreshes these rollups after the raw signal upsert. If refresh fails, the raw signal write can still succeed and report the rollup failure in the response. Field notes, personal experiences, media, external safety records, and institutional status are deliberately excluded from this first rollup.
+
+## 7. Cost And Scalability Rules
+
+- Keep raw signal rows append-friendly and audit-friendly.
+- Store media assets separately from hot rollups.
+- Update only affected attachment keys when new signals arrive.
+- Roll up by profile, region, tile, way, intersection, and corridor only where there is consumer value.
+- Keep viewport summaries tile-friendly.
+- Keep route-line cache summaries way/corridor-friendly.
+- Keep routing priors profile-aware.
+- Make rollups recomputable from the registry so product policy can change without losing source data.
+- Avoid global recomputation on every note or external record.
+
+## 8. Evidence Guardrails
+
+Substrate signals are not DS-029 selected source truth by default.
+
+They may guide:
+
+- route-line candidate selection
+- viewport context
+- heatmap overlays
+- routing priors
+- QA queues
+- rider notes
+- recommendation ranking
+
+They must not directly set score-bearing road facts such as speed limit, traffic AADT, shoulder, bike facility, surface, or lane count unless those facts pass through the proper evidence registry, source resolver, provenance, and confidence gates.
+
+Risk and utility also remain separate. A porta potty, cafe, or hotel detour is valuable substrate intelligence, but it is not the same kind of signal as a crash, close call, or oil slick.
+
+## 9. RouteX Relationship
+
+RouteX Archive emits route-derived `route_behavior` signals such as:
+
+- `routex.traversed_way`
+- `routex.synthetic_connector`
+- `routex.blocked_gap`
+- `routex.candidate_rejected`
+- `routex.nearby_not_selected`
+
+Those signals can feed route-line cache, viewport heatmap, routing prior, and substrate QA consumers.
+
+RouteX remains responsible for route topology truth. The substrate signal registry is responsible for generalized multi-source substrate learning.
+
+## 10. Open Questions
+
+- What minimum aggregation threshold is required before private/personal signals affect public routing priors?
+- Which source organizations are trusted enough for higher-confidence external safety records?
+- Should some field-note kinds expire automatically?
+- How should temporary institutional status override stale route-derived signals?
+- Should rollups be per directed way segment, whole OSM way, corridor, or all three?
+- When should repeated detour intent become an amenity recommendation rather than a route deviation penalty?
 
 
 ---
