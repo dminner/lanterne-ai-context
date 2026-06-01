@@ -3447,6 +3447,12 @@ Route Safety Score must remain:
 | DS-031 | Route-Indexed Evidence Layer Spec | ADR-045, DS-029, DS-030 | Draft |
 | DS-032 | Worker-Streamed Route Construction and Presentation | ADR-045, DS-031, DS-030 | Draft |
 | DS-033 | Route-Line V2 OSM Domain Policy | ADR-045, DS-031, DS-032 | Draft |
+| DS-044 | Staged Route Experience Truth and Refinement | DS-029, DS-031, DS-032, DS-033, DS-035, DS-043 | Draft |
+| DS-045 | Vault Collection Browser Filter Registry and Matching Routes | ADR-002, ADR-003 | Draft |
+| DS-046 | Route-Line V2 Evidence Registry Contract | DS-029, DS-031, DS-032, DS-033, DS-043, DS-044 | Draft |
+| DS-047 | Route Experience Artifact | DS-029, DS-031, DS-032, DS-044, DS-046 | Draft |
+| DS-048 | Route Topology Archive and Way Intelligence Projection | DS-029, DS-031, DS-035, DS-044, DS-046, DS-047 | Draft |
+| DS-049 | First-Paint Worker Handoff and Route Experience Artifact Boundary | DS-029, DS-031, DS-032, DS-044, DS-046, DS-047, DS-048 | Draft |
 
 ---
 
@@ -26522,6 +26528,1033 @@ The next implementation phase should:
 7. Commit narrowly.
 
 The product goal is not more debug UI. The product goal is one evidence contract that makes the debug UI, inspect panel, map paint, score trace, receipts, and future display modes boringly consistent.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-047-route_experience_artifact_spec.md
+
+# DS-047 - Route Experience Artifact Spec
+
+**Status:** Draft for Route-Line V2 canonical artifact hardening
+**Date:** 2026-06-01
+**Related:** DS-029, DS-031, DS-032, DS-044, DS-046, EXEC-039
+**Code:** `src/lib/route-line-v2/route-experience-artifact.ts`
+
+---
+
+## 1. Purpose
+
+`RouteExperienceArtifact` is the durable wrapper around a `RouteExperiencePath`.
+
+It exists so the app can treat route construction as a stable artifact instead of a transient UI side effect. The route can be loaded quickly, refined in the background, cached in the browser, and later written to a saved route record without inventing a new shape each time.
+
+The artifact answers:
+
+- Which route fingerprint does this route experience belong to?
+- Which builder produced it?
+- Is it provisional, canonical, or blocked?
+- Which `RouteExperiencePath` is inside?
+- Can this artifact drive route truth and score handoff?
+- Is it safe to reuse from browser cache or a saved route record?
+
+It does not answer:
+
+- Which evidence value wins for speed, traffic, shoulder, bike, or surface.
+- Whether HPMS, OSM, observed, predicted, or baseline evidence is selected.
+- How route risk is scored.
+- Whether debug/audit artifacts are complete.
+
+Those decisions belong to the evidence resolver, DS-029/DS-046 evidence registry, and score/display builders.
+
+## 2. Pipeline Position
+
+The intended V2 flow is:
+
+```text
+quickBuilder or robustBuilder
+  -> RouteExperiencePath
+  -> RouteExperienceArtifact
+  -> evidence handoff
+  -> evidence resolver
+  -> score/display/inspect
+```
+
+`RouteExperiencePath` is the ordered route experience: segments, members, ways, nodes, fallback coordinates, controls, POIs, hazards, handoffs, blockers, and route-distance spans.
+
+`RouteExperienceArtifact` is the storage and reuse envelope around that path.
+
+## 3. Readiness States
+
+The artifact has one of three readiness values.
+
+| Readiness | Meaning | Can drive reload? | Can drive score directly? |
+| --- | --- | --- | --- |
+| `provisional_first_paint` | Fast quickBuilder output. Useful for first visual route, but not canonical. | No, unless a caller explicitly accepts provisional output. | No. Evidence must still pass admission and resolver gates. |
+| `canonical_refinement` | robustBuilder output that can drive route truth and evidence handoff. | Yes, after route fingerprint and schema checks. | It can provide the route-experience path, but evidence still resolves separately. |
+| `blocked` | Builder did not produce a usable handoff. | No. | No. |
+
+Current code marks a path as `canonical_refinement` only when:
+
+```text
+builderRole == robustBuilder
+canDriveRouteTruth == true
+evidenceHandoffReady == true
+```
+
+Current code marks a path as `provisional_first_paint` when:
+
+```text
+builderRole == quickBuilder
+segments.length > 0
+```
+
+Everything else is `blocked`.
+
+## 4. Storage Scopes
+
+`storageScopes` describes where the artifact is intended to live.
+
+| Scope | Meaning |
+| --- | --- |
+| `browser_local_cache` | In-app/browser-side cache for quick reload and continuity across a session. |
+| `saved_route_record` | Durable saved route storage, written only after the user saves or updates a route. |
+| `diagnostic_export` | Debug/export payload for QA, review, or fixture work. |
+
+Storage scope is not proof of trust. A cached artifact must still pass schema, fingerprint, path ID, builder, stage, and readiness checks before use.
+
+## 5. Field Glossary
+
+| Field | Meaning |
+| --- | --- |
+| `artifactKind` | Constant discriminator. Must be `route_experience_artifact`. |
+| `schemaVersion` | Artifact schema version. Current value is `route-experience-artifact.v1`. |
+| `artifactId` | Stable human/debug identifier derived from route fingerprint, builder, stage, and path ID. |
+| `cacheKey` | Storage key derived from schema version, route fingerprint, builder, stage, and path ID. |
+| `routeFingerprint` | Identity of the imported route axis this artifact belongs to. |
+| `routeExperiencePathId` | ID of the wrapped `RouteExperiencePath`. Must match `routeExperience.pathId`. |
+| `routeExperienceStage` | Stage from the wrapped path, such as `full_substrate_initial` or `review_refinement`. |
+| `builderRole` | `quickBuilder` or `robustBuilder`. Must match `routeExperience.builderRole`. |
+| `readiness` | Reuse/readiness state. See section 3. |
+| `storageScopes` | Intended storage destinations. See section 4. |
+| `createdAt` | ISO timestamp for artifact creation. |
+| `sourceLineage` | Builder and app/system steps that produced the artifact. Operational lineage, not evidence provenance. |
+| `routeExperience` | The complete wrapped `RouteExperiencePath`. |
+| `summary` | Count and capability summary for quick inspection. |
+| `diagnostics` | Artifact-level diagnostics, not full evidence audit output. |
+
+## 6. Validity Rules
+
+An artifact is usable only if all required checks pass:
+
+- `artifactKind` is `route_experience_artifact`.
+- `schemaVersion` matches the expected schema version.
+- `routeFingerprint` matches the current route fingerprint.
+- `routeExperience` exists.
+- `routeExperiencePathId` matches `routeExperience.pathId`.
+- `routeExperience.routeFingerprint`, when present, matches the artifact route fingerprint.
+- `builderRole` matches `routeExperience.builderRole`.
+- `routeExperienceStage` matches `routeExperience.stage`.
+- If the caller requires canonical output, `readiness` must be `canonical_refinement`.
+
+These checks are implemented by:
+
+```text
+isUsableRouteExperienceArtifact(...)
+```
+
+## 7. Example Artifact
+
+This is a shortened JSON-like example. Real artifacts may include many more segments, members, handoffs, controls, POIs, hazards, and diagnostics.
+
+```json
+{
+  "artifactKind": "route_experience_artifact",
+  "schemaVersion": "route-experience-artifact.v1",
+  "artifactId": "route-experience:_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410:robustBuilder:review_refinement:rex-9f3a",
+  "cacheKey": "route-experience-artifact.v1:_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410:robustBuilder:review_refinement:rex-9f3a",
+  "routeFingerprint": "_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410",
+  "routeExperiencePathId": "rex-9f3a",
+  "routeExperienceStage": "review_refinement",
+  "builderRole": "robustBuilder",
+  "readiness": "canonical_refinement",
+  "storageScopes": ["browser_local_cache"],
+  "createdAt": "2026-06-01T12:00:00.000Z",
+  "sourceLineage": [
+    "robustBuilder",
+    "review_refinement",
+    "main_app_v2",
+    "browser_artifact_cache"
+  ],
+  "summary": {
+    "segmentCount": 34,
+    "memberCount": 71,
+    "blockerCount": 2,
+    "handoffCount": 24,
+    "controlCount": 0,
+    "poiCount": 0,
+    "hazardCount": 0,
+    "canDriveRouteTruth": true,
+    "canDriveScore": true
+  },
+  "routeExperience": {
+    "pathId": "rex-9f3a",
+    "stage": "review_refinement",
+    "builderRole": "robustBuilder",
+    "routeFingerprint": "_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410",
+    "routeDistanceM": 102473,
+    "segments": [
+      {
+        "segmentId": "rex-seg-000",
+        "kind": "osm_way",
+        "startDistM": 0,
+        "endDistM": 585,
+        "displayLabel": "Tuckerton Road",
+        "domain": "motor_road",
+        "sourceWayIds": [1388406931, 1388406932],
+        "sourceNodeIds": [101, 102, 103],
+        "confidence": "high",
+        "reason": "topology_path",
+        "metadata": {
+          "ref": "CR 620"
+        }
+      },
+      {
+        "segmentId": "rex-seg-001",
+        "kind": "experience_connector",
+        "startDistM": 585,
+        "endDistM": 612,
+        "displayLabel": "route connector",
+        "domain": "connector",
+        "sourceWayIds": [],
+        "fallbackCoordinates": [
+          { "lat": 39.87011, "lon": -74.84441 },
+          { "lat": 39.87032, "lon": -74.84472 }
+        ],
+        "confidence": "medium",
+        "reason": "off_osm_experience_connector"
+      }
+    ],
+    "members": [
+      {
+        "memberId": "member-segment-rex-seg-000",
+        "kind": "segment",
+        "startDistM": 0,
+        "endDistM": 585,
+        "routeExperienceSegmentId": "rex-seg-000"
+      },
+      {
+        "memberId": "member-handoff-000",
+        "kind": "handoff",
+        "startDistM": 585,
+        "endDistM": 612,
+        "metadata": {
+          "from": "Tuckerton Road",
+          "to": "Heath Road"
+        }
+      }
+    ],
+    "blockers": [
+      {
+        "blockerId": "blocker-000",
+        "startDistM": 87120,
+        "endDistM": 87240,
+        "reason": "topology_continuity_not_proven"
+      }
+    ],
+    "handoffs": [],
+    "controls": [],
+    "pois": [],
+    "hazards": [],
+    "continuityStatus": "continuous_with_blockers",
+    "sourceBudgetPolicy": {
+      "class": "refinement_expanded",
+      "allowWholeRouteWindowFanout": true,
+      "reason": "robustBuilder refinement may expand source hydration after initial experience is available"
+    },
+    "evidenceHandoffReady": true,
+    "scoringHandoffReady": true,
+    "canDriveRouteTruth": true,
+    "canDriveScore": true,
+    "diagnostics": [
+      "topology_edges=3102",
+      "topology_handoffs=24",
+      "topology_blockers=2"
+    ],
+    "summary": {
+      "segmentCount": 34,
+      "memberCount": 71,
+      "blockerCount": 2,
+      "handoffCount": 24,
+      "resolvedSegmentCount": 32,
+      "unresolvedSegmentCount": 2,
+      "sourceWayIdCount": 88,
+      "sourceNodeIdCount": 740
+    }
+  },
+  "diagnostics": [
+    "artifact_readiness=canonical_refinement",
+    "route_experience_path=rex-9f3a",
+    "candidate_overlay_status=ready",
+    "substrate_cache_status=ready"
+  ]
+}
+```
+
+## 8. Relationship to Evidence
+
+The artifact can say:
+
+```text
+The rider traversed this ordered route experience.
+```
+
+It cannot say:
+
+```text
+The speed limit is 50 mph because this artifact says so.
+```
+
+Evidence values still attach through route-indexed evidence records and pass through the central resolver. This protects the system from letting a cached route artifact become a shortcut around provenance, precedence, confidence, or source admissibility.
+
+## 9. Browser Cache Policy
+
+The browser-side canonical RouteExperience artifact cache is the **RouteX Cache**. It may store canonical robustBuilder artifacts for faster reload and continuity.
+
+Initial cache policy:
+
+- Write only `canonical_refinement` artifacts.
+- Skip `provisional_first_paint` artifacts.
+- Read only when route fingerprint and schema match.
+- Require canonical readiness before using the artifact as a reload source.
+- Do not let browser cache bypass evidence resolver admission.
+
+The helper code currently lives at:
+
+```text
+src/lib/route-line-v2/route-experience-artifact-browser-cache.ts
+```
+
+## 10. Future Promotion Policy
+
+Saved-route promotion is intentionally separate from the browser cache. The local cache can speed reloads, but it is not a durable writer and must not write route records, topology revisions, or way-intelligence projections.
+
+The code boundary for preparing a future saved-route write is:
+
+```text
+src/lib/route-line-v2/route-experience-artifact-saved-route-promotion.ts
+```
+
+That helper only builds a promotion draft. It requires a saved route ID, validates the canonical artifact contract, adds the `saved_route_record` storage scope to the draft copy, and prepares the way-intelligence projection payload. It does not call `saveRoute()`, Supabase, browser cache helpers, or any DB writer.
+
+Before an artifact can be written into durable saved route storage, the app should record:
+
+- route fingerprint
+- artifact schema version
+- route experience path ID
+- builder role and stage
+- readiness
+- source lineage
+- evidence handoff readiness
+- blocker count
+- unresolved segment count
+- user/save action or server-side authorization event
+
+Saved artifacts should be invalidated or demoted when:
+
+- route geometry changes
+- schema version changes
+- substrate/provider version changes in a way that invalidates identity
+- robustBuilder emits a better canonical refinement
+- a user edits the route
+- a saved route relation is superseded
+
+## 11. Open Questions
+
+- Should `artifactId` eventually use a short hash rather than the full route fingerprint?
+- Should the browser cache retain multiple canonical artifacts per route or only the latest?
+- Should controls, hazards, and POIs have independent revision IDs inside the artifact?
+- Should server persistence store the full artifact JSON, a compressed artifact, or a normalized table set plus artifact manifest?
+- When robustBuilder runs as a slow background drip, should partial improvements produce intermediate artifacts or only final canonical artifacts?
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-048-route_topology_archive_and_way_intelligence_projection_spec.md
+
+# DS-048 - Route Topology Archive and Way Intelligence Projection Spec
+
+**Status:** Draft for substrate and route-experience backend planning
+**Date:** 2026-06-01
+**Related:** DS-029, DS-031, DS-035, DS-044, DS-046, DS-047
+
+---
+
+## 1. Purpose
+
+This specification defines how Lanterne turns route-level experience artifacts into queryable way-first intelligence.
+
+The product goal is:
+
+```text
+many imported/ridden routes
+  -> canonical route experience artifacts
+  -> projected way observations
+  -> aggregate way intelligence
+  -> better substrate, routing, recommendations, QA, and priors
+```
+
+`RouteExperienceArtifact` remains the portable route genome. The backend must also explode that artifact into relational/PostGIS projections so the system can ask way-level questions without scanning proprietary JSON blobs.
+
+## 2. Core Decision
+
+Store both shapes:
+
+1. **Immutable route topology archive**
+   - Full artifact JSON.
+   - Schema version, route fingerprint, source platform, OSM snapshot, artifact hash.
+   - Optimized for reassembly, audit, forward compatibility, and exact route history.
+
+2. **Queryable way intelligence projection**
+   - Ordered route path steps.
+   - Per-way route observations.
+   - Transitions and handoffs.
+   - Synthetic connectors.
+   - Aggregate way rollups by OSM snapshot/profile/region.
+
+The artifact is not the query engine. The projection is.
+
+## 3. Conceptual Flow
+
+```text
+raw source archive
+  -> route topology revision
+      -> route path steps
+      -> route way observations
+  -> route transitions
+  -> synthetic segments
+  -> cyclist substrate feedback signals
+  -> way intelligence rollups
+  -> substrate and routing improvements
+```
+
+## 4. Archive Tables
+
+### 4.1 `route_topology_revisions`
+
+One immutable best-known route topology artifact for a route/source/snapshot.
+
+```sql
+create table route_topology_revisions (
+  id uuid primary key,
+  route_id uuid,
+  source_platform text not null,
+  source_route_id text,
+  route_fingerprint text not null,
+  schema_version text not null,
+  route_experience_path_id text,
+  builder_role text,
+  readiness text,
+  osm_snapshot_date timestamptz,
+  route_distance_m numeric,
+  topology_status text,
+  artifact_json jsonb not null,
+  artifact_hash text not null,
+  created_at timestamptz default now()
+);
+```
+
+Expected `topology_status` values:
+
+- `complete`
+- `complete_with_connectors`
+- `partial`
+- `coordinate_only`
+- `blocked`
+
+## 5. Projection Tables
+
+### 5.1 `route_path_steps`
+
+Ordered route-experience tape, suitable for route reconstruction and display.
+
+```sql
+create table route_path_steps (
+  id uuid primary key,
+  revision_id uuid references route_topology_revisions(id),
+  step_index int not null,
+  kind text not null,
+  start_dist_m numeric,
+  end_dist_m numeric,
+  osm_way_id bigint,
+  osm_node_id bigint,
+  synthetic_segment_id uuid,
+  display_label text,
+  domain text,
+  confidence text,
+  geometry geometry(LineString, 4326),
+  raw_step jsonb not null
+);
+```
+
+Expected `kind` values:
+
+- `route_anchor`
+- `osm_way_run`
+- `osm_node_handoff`
+- `coordinate_run`
+- `synthetic_connector`
+- `unresolved_blocker`
+- `control`
+- `poi`
+- `hazard`
+
+### 5.2 `route_way_observations`
+
+Per-route observation that a way was traversed, rejected, avoided, or otherwise related to the route.
+
+```sql
+create table route_way_observations (
+  id uuid primary key,
+  revision_id uuid references route_topology_revisions(id),
+  route_id uuid,
+  osm_way_id bigint not null,
+  osm_snapshot_date timestamptz,
+  disposition text not null,
+  start_dist_m numeric,
+  end_dist_m numeric,
+  offset_m numeric,
+  heading_delta_deg numeric,
+  confidence text,
+  source_reason text,
+  route_profile text,
+  tags_snapshot jsonb,
+  node_ids bigint[],
+  geometry_hash text,
+  geometry geometry(LineString, 4326)
+);
+```
+
+Expected `disposition` values:
+
+- `traversed`
+- `rerouted_through`
+- `rerouted_around`
+- `nearby_not_selected`
+- `candidate_rejected`
+- `parallel_ambiguous`
+- `blocked_unresolved`
+
+Disposition is route-intelligence metadata. It is not DS-029 evidence provenance.
+
+### 5.3 `route_transitions`
+
+Handoffs between route path steps, especially way-to-way transitions.
+
+```sql
+create table route_transitions (
+  id uuid primary key,
+  revision_id uuid references route_topology_revisions(id),
+  from_way_id bigint,
+  to_way_id bigint,
+  osm_node_id bigint,
+  transition_kind text not null,
+  dist_m numeric,
+  confidence text,
+  geometry geometry(Point, 4326),
+  diagnostics jsonb
+);
+```
+
+Expected `transition_kind` values:
+
+- `shared_osm_node`
+- `same_way_continuation`
+- `synthetic_connector`
+- `coordinate_handoff`
+- `unresolved_gap`
+
+### 5.4 `synthetic_segments`
+
+Synthetic route experience segments are first-class route citizens. They preserve real route experience that is not cleanly represented as one OSM way.
+
+```sql
+create table synthetic_segments (
+  id uuid primary key,
+  revision_id uuid references route_topology_revisions(id),
+  synthetic_key text not null,
+  kind text not null,
+  start_dist_m numeric,
+  end_dist_m numeric,
+  from_way_id bigint,
+  to_way_id bigint,
+  confidence text,
+  geometry geometry(LineString, 4326),
+  reason text,
+  raw_coords jsonb
+);
+```
+
+Expected `kind` values:
+
+- `off_osm_cutthrough`
+- `unknown_connector`
+- `offroad`
+- `ferry`
+- `private_path`
+- `parking_lot_connector`
+- `source_gap`
+- `map_missing_path`
+
+Synthetic segments are not bad data. Repeated synthetic segments are substrate improvement signals.
+
+### 5.5 `way_intelligence_rollups`
+
+Corpus-level aggregate intelligence for an OSM way at a snapshot.
+
+```sql
+create table way_intelligence_rollups (
+  osm_way_id bigint,
+  osm_snapshot_date timestamptz,
+  route_profile text,
+  route_count int,
+  traversed_count int,
+  rerouted_through_count int,
+  rerouted_around_count int,
+  rejected_candidate_count int,
+  synthetic_connector_nearby_count int,
+  avg_route_offset_m numeric,
+  confidence text,
+  evidence jsonb,
+  updated_at timestamptz,
+  primary key (osm_way_id, osm_snapshot_date, route_profile)
+);
+```
+
+This rollup can later feed routing, recommendations, substrate ranking, QA, and priors.
+
+### 5.6 `cyclist_substrate_feedback_signals`
+
+This is the direct bridge from route experience projection into the cyclist substrate cache.
+
+```sql
+create table cyclist_substrate_feedback_signals (
+  id uuid primary key,
+  revision_id uuid references route_topology_revisions(id),
+  signal_kind text not null,
+  osm_way_id bigint,
+  synthetic_segment_id uuid,
+  start_dist_m numeric,
+  end_dist_m numeric,
+  confidence text,
+  consumers text[] not null,
+  reason text,
+  diagnostics jsonb,
+  created_at timestamptz default now()
+);
+```
+
+Expected `signal_kind` values:
+
+- `traversed_way`
+- `synthetic_connector`
+- `blocked_gap`
+- `candidate_rejected`
+- `nearby_not_selected`
+
+Expected `consumers` values:
+
+- `route_line_cache`
+- `viewport_heatmap`
+- `routing_prior`
+- `substrate_qa`
+
+These signals let the same route artifact improve route-line matching, viewport heatmap context, and future routing/recommendation priors without treating aggregate intelligence as raw evidence truth.
+
+## 6. OSM Snapshot Policy
+
+OSM IDs are not enough.
+
+Every way observation should preserve:
+
+- `osm_way_id`
+- `osm_snapshot_date`
+- `node_ids`
+- `geometry_hash`
+- `tags_snapshot`
+- source/version metadata
+
+This prevents future OSM way splits, merges, retagging, or geometry edits from corrupting old route truth.
+
+## 7. Projection From `RouteExperienceArtifact`
+
+Projection rules:
+
+- Every route-experience segment becomes one or more `route_path_steps`.
+- Every accepted OSM way segment becomes a `route_way_observation` with `disposition=traversed`.
+- Every handoff becomes a `route_transition`.
+- Every connector or coordinate-only route segment becomes a `synthetic_segments` row and a `route_path_steps` row.
+- Every blocker becomes a `route_path_steps` row with `kind=unresolved_blocker`.
+- Every traversed way, synthetic connector, and blocker emits a cyclist substrate feedback signal.
+- Candidate/rejected/nearby ways may become `route_way_observations` when the artifact or worker diagnostics explicitly preserve them.
+
+The projection must not infer a way was traversed just because it was near the GPX. Traversal requires routeExperience identity acceptance.
+
+## 8. Way Intelligence Semantics
+
+Way intelligence is aggregate network learning. It can answer:
+
+- Do cyclists actually use this way?
+- Is this way frequently nearby but avoided?
+- Is this way repeatedly rejected by topology solve?
+- Do many routes require a synthetic connector near this way?
+- Does this way behave differently by route profile?
+- Is this region missing mapped infrastructure?
+
+Way intelligence is not direct source evidence for speed, traffic, shoulder, bike facility, or surface. Those values still require DS-029/DS-046 evidence admission.
+
+## 9. Routing and Recommendation Uses
+
+Future consumers:
+
+- route recommendation ranking
+- profile-aware route generation
+- substrate cache warming
+- missing-map QA
+- preferred cycling corridor detection
+- avoided-road detection
+- synthetic connector clustering
+- baseline/prior improvement
+- manual review queues
+
+Rollups should be profile-aware once profiles exist:
+
+- road/rando
+- gravel
+- commuter
+- family/low-stress
+- event route
+- unknown/imported
+
+## 10. Guardrails
+
+- Do not use route cache as evidence truth.
+- Do not treat a candidate way as traversed unless routeExperience accepted it.
+- Do not overwrite immutable topology revisions.
+- Do not mutate old OSM snapshot observations when OSM changes.
+- Do not delete synthetic connectors because they look like gaps.
+- Do not let aggregate way intelligence bypass DS-029 source/provenance gates.
+- Do not let cyclist substrate feedback directly become score-bearing road evidence.
+- Do allow cyclist substrate feedback to improve route-line candidate selection, viewport heatmap context, routing priors, and QA queues.
+
+## 11. Open Questions
+
+- Should `route_profile` be nullable, `unknown`, or a separate join table?
+- Should rollups be per OSM way, per directed way, or per way segment between nodes?
+- How should old OSM snapshot rollups be bridged to newer OSM snapshots?
+- Which route sources are eligible for aggregate way intelligence by default?
+- When does repeated synthetic connector evidence become a substrate candidate?
+- When should repeated way traversal become a routing prior versus merely route-line cache guidance?
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-049-first_paint_worker_handoff_and_route_experience_artifact_boundary_spec.md
+
+# DS-049 - First-Paint Worker Handoff and Route Experience Artifact Boundary Spec
+
+**Status:** Draft for route-load worker isolation planning
+**Date:** 2026-06-01
+**Related:** DS-029, DS-031, DS-032, DS-044, DS-046, DS-047, DS-048
+
+---
+
+## 1. Purpose
+
+This specification defines the boundary between first-paint route loading, background route-experience refinement, and debug/audit artifacts.
+
+The product problem is:
+
+```text
+The map must keep animating and render a useful route quickly,
+but route construction must still produce durable route experience truth.
+```
+
+The key decision is to split worker outputs into three channels:
+
+1. **First-paint contract**
+   - Small, fast, map-ready.
+   - Must not include full debug artifacts or large source payloads.
+
+2. **Route experience artifact**
+   - Rich, durable route genome.
+   - Can arrive after first paint.
+   - Can be cached and later saved.
+
+3. **Debug/audit payloads**
+   - Heavy QA artifacts.
+   - Lazy, dev-triggered, or idle-built.
+
+## 2. Architectural Rule
+
+Do not move the entire current V2 production result across the worker boundary.
+
+The first-paint worker result must be a compact paint contract, not a cloned object graph containing:
+
+- raw HPMS rows
+- full OSM responses
+- full resolved evidence maps
+- DS-029 audits
+- HPMS consistency audits
+- HPMS overlay debug models
+- selected-evidence alignment audits
+- kernel-binding audit payloads
+- routeExperience artifact JSON
+
+Those may be requested later through separate channels.
+
+## 3. Runtime Flow
+
+```text
+main thread
+  -> worker: route input + source plan + compact settings
+
+worker
+  -> normalize/admit/resolve enough for first paint
+
+main thread
+  <- firstPaintRouteContract
+
+map renders
+
+worker/background
+  <- optional source/debug requests
+  -> robustBuilder refinement
+  <- routeExperienceArtifact
+
+dev panel/debug
+  -> audit request
+  <- debugAuditPayload
+```
+
+## 4. First-Paint Input
+
+Main thread sends only what the worker needs to build the first visible route state.
+
+Illustrative shape:
+
+```ts
+interface FirstPaintWorkerInput {
+  requestId: string;
+  routeFingerprint: string;
+  schemaVersion: string;
+  route: {
+    pointCount: number;
+    coords: Float64Array | Float32Array;
+  };
+  routeLabel?: string;
+  sourcePlan: {
+    planId: string;
+    candidateWayIds?: Int32Array;
+    sourceBudget: 'initial_load_bounded' | 'refinement_expanded';
+    allowWholeRouteFanout: boolean;
+  };
+  flags: {
+    includeDebugArtifacts: false;
+    reducedMotion: boolean;
+  };
+}
+```
+
+The route coordinate buffer should be transferable when possible.
+
+## 5. First-Paint Contract
+
+The first-paint contract is the smallest output needed to draw the route and inspect basic readiness.
+
+Illustrative shape:
+
+```ts
+interface FirstPaintRouteContract {
+  contractKind: 'first_paint_route_contract';
+  schemaVersion: 'first-paint-route-contract.v1';
+  requestId: string;
+  routeFingerprint: string;
+  readiness: 'ready' | 'partial' | 'blocked' | 'failed';
+  routeDistanceM: number;
+  timing: {
+    workerMs: number;
+    sourceFetchMs?: number;
+    normalizeMs?: number;
+    resolveMs?: number;
+  };
+  display: {
+    routeLine: RouteLinePaintBuffer;
+    segments: RoutePaintSegmentBuffer;
+    hitboxes?: RouteHitboxBuffer;
+  };
+  scoreSummary?: {
+    score?: number;
+    confidence: 'high' | 'medium' | 'low' | 'unavailable';
+    blockerCount: number;
+    unknownCount: number;
+  };
+  acceptedIdentity?: {
+    acceptedWayIds: Int32Array;
+    ownershipSpanCount: number;
+  };
+  trace: string[];
+}
+```
+
+The contract can use typed arrays or compact records. The main thread should not need to rehydrate large source objects to draw first paint.
+
+## 6. Compact Paint Buffers
+
+Preferred first-paint output:
+
+```ts
+interface RouteLinePaintBuffer {
+  coords: Float32Array;
+}
+
+interface RoutePaintSegmentBuffer {
+  startDistM: Float32Array;
+  endDistM: Float32Array;
+  colorIndex: Uint8Array;
+  confidenceIndex: Uint8Array;
+  fieldMask: Uint32Array;
+}
+
+interface RouteHitboxBuffer {
+  startDistM: Float32Array;
+  endDistM: Float32Array;
+  segmentIndex: Int32Array;
+}
+```
+
+`colorIndex`, `confidenceIndex`, and `fieldMask` are presentation indexes. They are not source provenance.
+
+The central color policy maps `colorIndex` to actual colors on the main thread.
+
+## 7. Route Experience Artifact Channel
+
+The rich route artifact arrives separately.
+
+Illustrative event:
+
+```ts
+interface RouteExperienceArtifactWorkerEvent {
+  type: 'route_experience_artifact';
+  requestId: string;
+  routeFingerprint: string;
+  artifactSchemaVersion: 'route-experience-artifact.v1';
+  readiness: 'canonical_refinement' | 'provisional_first_paint' | 'blocked';
+  artifact: RouteExperienceArtifact;
+}
+```
+
+Rules:
+
+- First paint must not wait for this event.
+- `canonical_refinement` artifacts may be cached after validity checks.
+- `provisional_first_paint` artifacts may be inspected but should not become reload truth.
+- The artifact must remain projectable into DS-048 backend tables.
+- A cached artifact must never bypass evidence admission or resolver gates.
+
+## 8. Debug/Audit Channel
+
+Debug artifacts are request/response, not first-paint payload.
+
+Illustrative request:
+
+```ts
+interface DebugAuditWorkerRequest {
+  type: 'debug_audit_request';
+  requestId: string;
+  routeFingerprint: string;
+  auditIds: Array<
+    | 'ds029_conformance'
+    | 'hpms_consistency'
+    | 'hpms_kernel_binding'
+    | 'selected_evidence_alignment'
+    | 'artifact_label_contamination'
+    | 'hpms_overlay_model'
+  >;
+}
+```
+
+Debug artifacts can be built:
+
+- after first paint
+- during idle time
+- when the dev/debug panel opens
+- when a URL/debug flag requests eager audits
+- inside tests and diagnostic runners
+
+## 9. Request Identity and Cancellation
+
+Every worker event must include:
+
+- `requestId`
+- `routeFingerprint`
+- `schemaVersion` or event-specific version
+
+Main thread must ignore events when:
+
+- request ID is stale
+- route fingerprint does not match current route
+- schema version is unsupported
+- the route was cleared or replaced
+
+Cancellation is required. A cancelled route load must not keep streaming paint, artifacts, or debug payloads into the next route.
+
+## 10. What Stays on the Main Thread
+
+Main thread owns:
+
+- React state
+- map layers
+- animation lifecycle
+- central color policy
+- dev panel visibility
+- URL/debug flags
+- storage/cache authorization
+- deciding whether a worker result is current
+
+The worker owns heavy compute. It does not own the app.
+
+## 11. Worker Boundary Performance Rules
+
+- Prefer typed arrays for coordinates, segment bounds, indexes, masks, and accepted IDs.
+- Transfer buffers when possible.
+- Do not structured-clone large nested route/source/debug objects for first paint.
+- Keep worker warm when possible.
+- Stream progress sparingly.
+- Do not emit high-volume progress events directly into React state.
+- Defer audits and overlay models.
+- Return artifact JSON only on the artifact channel, not the first-paint channel.
+
+## 12. Relationship to DS-032
+
+DS-032 defines the broader worker-streamed route construction and presentation concept.
+
+DS-049 narrows the implementation boundary for the current route-load problem:
+
+- first-paint payload must be compact
+- routeExperience artifact is a separate later channel
+- debug/audit payloads are lazy
+- typed arrays/transferables are preferred
+- main thread remains the presentation and storage authority
+
+## 13. Open Questions
+
+- Should first-paint scoring return full score spans or only paint buckets?
+- Should cue presentation be first-paint or artifact/refinement channel?
+- Which fields belong in `fieldMask` for the first version?
+- Should artifact channel stream partial artifacts or emit only complete canonical artifacts?
+- How much normalized evidence, if any, should be returned to the main thread before debug panels request it?
+
 
 
 ---
