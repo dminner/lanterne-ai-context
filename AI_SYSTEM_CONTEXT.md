@@ -3454,6 +3454,7 @@ Route Safety Score must remain:
 | DS-048 | Route Topology Archive and Way Intelligence Projection | DS-029, DS-031, DS-035, DS-044, DS-046, DS-047 | Draft |
 | DS-049 | First-Paint Worker Handoff and Route Experience Artifact Boundary | DS-029, DS-031, DS-032, DS-044, DS-046, DS-047, DS-048 | Draft |
 | DS-050 | Substrate Signal Registry | DS-028, DS-029, DS-034, DS-035, DS-046, DS-047, DS-048, DS-049 | Draft |
+| DS-051 | Personal Coverage Ledger and History Heatmap | DS-029, DS-031, DS-045, DS-048, DS-050 | Draft |
 
 ---
 
@@ -27853,6 +27854,22 @@ The first rollup is intentionally narrow:
 
 The writer refreshes these rollups after the raw signal upsert. If refresh fails, the raw signal write can still succeed and report the rollup failure in the response. Field notes, personal experiences, media, external safety records, and institutional status are deliberately excluded from this first rollup.
 
+## 6.7 Rollup Read Boundary
+
+Runtime consumers read compact rollups through `substrate-rollup-reader`.
+
+```text
+attachment keys
+  -> substrate signal rollup read request
+  -> substrate-rollup-reader
+  -> read_substrate_signal_rollups(...)
+  -> substrate_signal_rollups rows only
+```
+
+The read request must include bounded attachment keys. Unbounded rollup reads are rejected. The v0 read family is `route_behavior` only. Clients do not scan `substrate_signals` or `substrate_signal_attachments` for runtime use.
+
+The first viewport heatmap consumer derives a bounded set of visible OSM way attachment keys from the already-hydrated viewport road overlay, reads only route-behavior rollups, and renders RouteX aggregate signal accents without changing the core road-stress/risk color policy. Unscoped aggregate reads remain server-gated while public privacy and product policy settle.
+
 ## 7. Cost And Scalability Rules
 
 - Keep raw signal rows append-friendly and audit-friendly.
@@ -27905,6 +27922,555 @@ RouteX remains responsible for route topology truth. The substrate signal regist
 - How should temporary institutional status override stale route-derived signals?
 - Should rollups be per directed way segment, whole OSM way, corridor, or all three?
 - When should repeated detour intent become an amenity recommendation rather than a route deviation penalty?
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-051-personal_coverage_ledger_and_history_heatmap_spec.md
+
+# DS-051 - Personal Coverage Ledger and History Heatmap Spec
+
+**Status:** Draft for Phase 7B architecture scaffold
+**Date:** 2026-06-01
+**Related:** DS-029, DS-031, DS-045, DS-048, DS-050
+
+---
+
+## 1. Purpose
+
+This specification defines the Personal Coverage Ledger: Lanterne's future user-level riding-history model for whole-history heatmaps, exploration progress, ridden/unridden road intelligence, and private personal route memory.
+
+The product goal is:
+
+```text
+user activity archives and device syncs
+  -> activity normalization
+  -> way/edge map matching
+  -> per-activity way coverage evidence
+  -> per-user merged way/edge coverage ledger
+  -> privacy-safe vector tiles, aggregates, achievements, and Vault overlays
+```
+
+This is not a raw GPX overlay system. Raw GPX/FIT/Strava/RWGPS blobs are archive and evidence payloads only. The map-serving shape is way/edge coverage ranges and future vector tiles.
+
+## 2. Core Decision
+
+Store user riding history as coverage over canonical ways or edges, not as thousands of raw activity polylines.
+
+The ledger must answer:
+
+- Which canonical ways or edges has this user ridden?
+- What ranges of each way or edge were covered?
+- Which activities and sources support that claim?
+- What OSM snapshot, geometry hash, and source lineage were used?
+- What confidence does the match have?
+- When was the way first and last seen by the user?
+- How many activities have traversed it?
+- What privacy rules govern raw evidence, detailed private display, aggregate sharing, and public achievements?
+
+This keeps the future history heatmap scalable. Large user histories and national route collections should be served as vector tiles or tile-like metadata, not as a single browser payload.
+
+## 3. Boundary With RouteX
+
+RouteX and the Personal Coverage Ledger are separate systems that may share canonical way identity.
+
+| System | Owns | Does not own |
+| --- | --- | --- |
+| RouteX | Route artifact topology, intended path, route revisions, traversed route ways, synthetic route connectors, route-derived substrate signals. | Private user history, activity archives, personal achievements, personal heatmaps. |
+| Personal Coverage Ledger | Private user activity history, actually ridden way/edge coverage, source/device lineage, per-user coverage rollups, privacy-safe history tiles. | Canonical route artifact truth, saved-route topology revisions, intended path topology. |
+
+RouteX may say: "This saved route intends to traverse these ways."
+
+Coverage Ledger may say: "This user actually rode these ranges of these ways on these activities."
+
+Do not mix these into one table. RouteX projection rows can be used as matching hints or QA evidence, but coverage rows remain user-private activity-derived facts.
+
+## 4. Vocabulary
+
+| Term | Meaning |
+| --- | --- |
+| Activity | A ride, run, route recording, race, commute, or imported historical track associated with one user. |
+| Activity source | The platform, device, archive, or upload path that supplied activity evidence. |
+| Raw activity blob | FIT, GPX, TCX, JSON, Strava export record, RWGPS export, or device payload stored as evidence only. |
+| Canonical way | Stable way-level identity in Lanterne's way-centric database, usually derived from OSM with snapshot lineage. |
+| Canonical edge | Routable/directional or split edge identity derived from one or more way geometries. |
+| Covered range | One or more intervals along a canonical way or edge that an activity or user has covered. |
+| Activity way match | Per-activity evidence that a track covered a range of a canonical way or edge. |
+| User way coverage | Merged per-user coverage over a canonical way or edge across activities and sources. |
+| Coverage tile | Generated or cached serving artifact for private heatmap, aggregate heatmap, or achievement views. |
+
+## 5. Source And Privacy Model
+
+### 5.1 Ingest methods
+
+Expected ingest methods:
+
+- `archive_upload`
+- `api_sync`
+- `file_upload`
+- `device_sync`
+- `manual_import`
+- `first_party_recording`
+
+Expected source platforms:
+
+- `strava`
+- `garmin`
+- `wahoo`
+- `coros`
+- `karoo`
+- `rwgps`
+- `fit_file`
+- `gpx_file`
+- `tcx_file`
+- `manual`
+- `lanterne`
+
+### 5.2 Policy classes
+
+Expected source policy classes:
+
+- `api_restricted`
+- `user_archive`
+- `open_file`
+- `device_export`
+- `first_party`
+- `unknown`
+
+Important rule: a user-uploaded Strava archive is `source_platform = 'strava'` and `ingest_method = 'archive_upload'`. It should not be laundered into generic GPX. Lanterne can treat the user archive differently from API-fetched Strava data, but the provenance still matters for privacy, retention, support, and shareability.
+
+### 5.3 Visibility tiers
+
+The ledger must support four visibility tiers:
+
+- `private_user_view`
+  - Detailed user-specific road coverage, activity links, timestamps, and private heatmap.
+- `shareable_aggregate`
+  - Privacy-safe aggregate rollups with thresholds, no raw user track reconstruction, and no single-user detailed disclosure.
+- `achievement_only_public`
+  - Public badges, totals, state/county completion, year summaries, or collection progress without street-level source disclosure.
+- `admin_support`
+  - Restricted operational visibility for debugging ingestion or match failures.
+
+### 5.4 Default privacy rules
+
+| Source | Default detailed view | Aggregate eligibility | Public eligibility |
+| --- | --- | --- | --- |
+| Strava API sync | Private user view only. | Only through policy-checked aggregate thresholds. | Achievement-only unless policy permits more. |
+| Strava user archive upload | Private user view by default. | Eligible for privacy-safe aggregate after policy review. | Achievement-only by default. |
+| Garmin API/device export | Private user view by default. | Eligible for privacy-safe aggregate if user grants permission. | Achievement-only by default. |
+| Wahoo/COROS/Karoo sync | Private user view by default. | Eligible for privacy-safe aggregate if user grants permission. | Achievement-only by default. |
+| RWGPS import/export | Private user view by default unless route is explicitly public/owned. | Eligible for aggregate if user grants permission. | Achievement-only by default. |
+| GPX/FIT/TCX file upload | Private user view by default. | Eligible for aggregate if user grants permission. | Achievement-only by default. |
+| Lanterne first-party recording | Private user view by default. | Eligible for aggregate according to Lanterne consent. | Achievement-only unless user opts into public detail. |
+
+No raw personal activity blob becomes public because a derived rollup is useful.
+
+## 6. Proposed Tables
+
+These are proposed schema contracts only. Do not implement migrations from this DS until a separate execution phase is approved.
+
+### 6.1 `activity_sources`
+
+Stores the user/platform/source relationship and policy classification.
+
+```sql
+create table activity_sources (
+  id uuid primary key,
+  user_id uuid not null,
+  source_platform text not null,
+  ingest_method text not null,
+  source_policy_class text not null,
+  provider_account_id text,
+  provider_display_name text,
+  auth_connection_id uuid,
+  archive_upload_id uuid,
+  default_visibility text not null,
+  aggregate_consent boolean not null default false,
+  public_achievement_consent boolean not null default false,
+  raw_retention_policy text not null,
+  raw_retention_until timestamptz,
+  last_sync_at timestamptz,
+  revoked_at timestamptz,
+  metadata jsonb not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+Required indexes:
+
+- `(user_id, source_platform, ingest_method)`
+- `(user_id, revoked_at)`
+- `(source_policy_class)`
+
+### 6.2 `user_activities`
+
+Stores one normalized activity row and references raw archive/evidence payloads.
+
+Raw blobs are archive/evidence only. They are not map-render payloads.
+
+```sql
+create table user_activities (
+  id uuid primary key,
+  user_id uuid not null,
+  activity_source_id uuid not null references activity_sources(id),
+  provider_activity_id text,
+  title text,
+  activity_type text,
+  started_at timestamptz,
+  timezone text,
+  duration_s numeric,
+  moving_duration_s numeric,
+  distance_m numeric,
+  elevation_gain_m numeric,
+  start_point geometry(Point, 4326),
+  end_point geometry(Point, 4326),
+  raw_blob_storage_path text,
+  raw_blob_content_hash text,
+  normalized_track_storage_path text,
+  normalized_track_hash text,
+  source_lineage jsonb not null default '[]',
+  source_policy_class text not null,
+  visibility text not null,
+  match_status text not null default 'pending',
+  match_version text,
+  match_error text,
+  privacy_redactions jsonb not null default '{}',
+  metadata jsonb not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+Expected `match_status` values:
+
+- `pending`
+- `matched`
+- `partial`
+- `failed`
+- `skipped_private`
+- `superseded`
+
+Required indexes:
+
+- `(user_id, started_at desc)`
+- `(activity_source_id, provider_activity_id)`
+- `(user_id, match_status)`
+- `(raw_blob_content_hash)`
+- `gist(start_point)`
+
+### 6.3 `activity_way_matches`
+
+Stores per-activity evidence that a track covered specific ranges of a canonical way or edge.
+
+This is evidence, not the merged user ledger.
+
+```sql
+create table activity_way_matches (
+  id uuid primary key,
+  user_id uuid not null,
+  activity_id uuid not null references user_activities(id),
+  canonical_way_id uuid,
+  canonical_edge_id uuid,
+  osm_way_id bigint,
+  osm_snapshot_id text not null,
+  osm_snapshot_date timestamptz,
+  geometry_hash text not null,
+  covered_ranges jsonb not null,
+  range_basis text not null,
+  direction text,
+  matched_distance_m numeric,
+  activity_start_dist_m numeric,
+  activity_end_dist_m numeric,
+  confidence text not null,
+  confidence_score numeric,
+  matcher_version text not null,
+  source_lineage jsonb not null default '[]',
+  source_policy_class text not null,
+  visibility text not null,
+  evidence jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+```
+
+Constraints:
+
+- At least one of `canonical_way_id` or `canonical_edge_id` must be present.
+- `covered_ranges` must be expressed against the stated `osm_snapshot_id` and `geometry_hash`.
+- Ranges must not be reused across geometry versions without remapping.
+
+Expected `range_basis` values:
+
+- `measure_m`
+- `normalized_fraction`
+
+Expected `direction` values:
+
+- `forward`
+- `reverse`
+- `bidirectional`
+- `unknown`
+
+Example `covered_ranges` shape:
+
+```json
+[
+  {
+    "start_m": 0,
+    "end_m": 148.2,
+    "direction": "forward",
+    "confidence": "high"
+  }
+]
+```
+
+Required indexes:
+
+- `(user_id, canonical_way_id)`
+- `(user_id, canonical_edge_id)`
+- `(activity_id)`
+- `(osm_way_id, osm_snapshot_id)`
+- `(geometry_hash)`
+- `(confidence)`
+
+### 6.4 `user_way_coverage`
+
+Stores the merged per-user coverage ledger across activities and sources.
+
+This is the primary query source for history heatmaps, road completion, repeated roads, and personal exploration features.
+
+```sql
+create table user_way_coverage (
+  id uuid primary key,
+  user_id uuid not null,
+  canonical_way_id uuid,
+  canonical_edge_id uuid,
+  osm_way_id bigint,
+  osm_snapshot_id text not null,
+  osm_snapshot_date timestamptz,
+  geometry_hash text not null,
+  merged_covered_ranges jsonb not null,
+  range_basis text not null,
+  coverage_distance_m numeric not null,
+  coverage_pct numeric,
+  activity_count int not null default 0,
+  source_count int not null default 0,
+  source_platforms text[] not null default '{}',
+  source_policy_classes text[] not null default '{}',
+  first_seen_at timestamptz,
+  last_seen_at timestamptz,
+  last_activity_id uuid,
+  confidence text not null,
+  confidence_score numeric,
+  privacy_floor text not null,
+  aggregate_eligible boolean not null default false,
+  public_achievement_eligible boolean not null default false,
+  source_lineage jsonb not null default '[]',
+  evidence_activity_match_ids uuid[] not null default '{}',
+  coverage_version text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+Constraints:
+
+- At least one of `canonical_way_id` or `canonical_edge_id` must be present.
+- `merged_covered_ranges` must be merged by canonical identity, snapshot, geometry hash, user, and privacy policy.
+- Coverage from different geometry hashes must not be merged until remapped.
+
+Required indexes:
+
+- `(user_id, canonical_way_id)`
+- `(user_id, canonical_edge_id)`
+- `(user_id, last_seen_at desc)`
+- `(user_id, coverage_pct)`
+- `(osm_way_id, osm_snapshot_id)`
+- `(aggregate_eligible)`
+- `(public_achievement_eligible)`
+
+### 6.5 `user_coverage_tiles`
+
+Stores generated tile metadata or cached tile references for private, aggregate, and achievement views.
+
+The tile payload may live in object storage, an edge cache, or a future tile service. This table tracks invalidation, versioning, and policy.
+
+```sql
+create table user_coverage_tiles (
+  id uuid primary key,
+  user_id uuid,
+  tile_scope text not null,
+  tile_z int not null,
+  tile_x int not null,
+  tile_y int not null,
+  tile_key text not null,
+  profile text,
+  mode text,
+  source_policy_class text,
+  osm_snapshot_id text not null,
+  coverage_version text not null,
+  privacy_tier text not null,
+  payload_format text not null,
+  storage_path text,
+  content_hash text,
+  feature_count int,
+  min_seen_at timestamptz,
+  max_seen_at timestamptz,
+  expires_at timestamptz,
+  invalidated_at timestamptz,
+  metadata jsonb not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+```
+
+Expected `tile_scope` values:
+
+- `private_user_coverage`
+- `private_user_heatmap`
+- `shareable_aggregate`
+- `achievement_summary`
+- `admin_debug`
+
+Expected `payload_format` values:
+
+- `mvt`
+- `geojson`
+- `pmtiles`
+- `json_metadata`
+
+Required indexes:
+
+- `(user_id, tile_z, tile_x, tile_y, tile_scope)`
+- `(tile_scope, tile_z, tile_x, tile_y)`
+- `(coverage_version)`
+- `(invalidated_at, expires_at)`
+- `(privacy_tier)`
+
+## 7. Derived Products
+
+The ledger should support these products without new raw-activity rendering paths:
+
+- private personal history heatmap
+- ridden roads
+- unridden nearby roads
+- ridden this year
+- ridden by source/platform
+- ridden by mode
+- repeated/favorite roads
+- state/county/region progress
+- new-to-me miles
+- Vault overlays showing which collection routes include already-ridden or new roads
+- personal safety exposure history
+- personal route recommendations based on known/unknown roads
+
+Each product consumes `user_way_coverage`, derived rollups, or generated tiles. None should scan raw GPX/FIT/Strava/RWGPS blobs at render time.
+
+## 8. Matching And Remapping Requirements
+
+The matcher must record:
+
+- canonical way or edge identity
+- OSM way ID when available
+- OSM snapshot ID/date
+- geometry hash
+- source lineage
+- matcher version
+- confidence and confidence score
+- covered ranges
+- activity distance ranges
+- direction
+- privacy policy class
+
+OSM changes must be handled explicitly:
+
+- If geometry hash changes, existing coverage is stale for that geometry.
+- Remapping may project old coverage ranges onto new canonical ways/edges.
+- Until remapped, old coverage remains evidence but should not be silently merged into current geometry.
+- Tile generation must include coverage version and OSM snapshot to avoid displaying mixed-snapshot coverage as exact truth.
+
+## 9. Vector Tile Strategy
+
+History maps should be served as tiles, not as one giant user history payload.
+
+Initial tile strategy:
+
+- Generate private user coverage tiles from `user_way_coverage`.
+- Include simplified line features by zoom.
+- Include feature properties needed for styling only, such as coverage class, last seen bucket, activity count bucket, and confidence.
+- Do not include raw activity IDs, exact timestamps, or raw source payload paths in public or aggregate tiles.
+- Cache private tiles per user and invalidate by `coverage_version`.
+- Generate aggregate tiles only when privacy thresholds are met.
+
+The Vault can later use the same tile family for:
+
+- large collection previews
+- personal "new roads on this route" overlays
+- state/county exploration overlays
+- private "I have ridden this" route matching
+
+## 10. Privacy Gates
+
+Before any detailed coverage leaves private user view:
+
+1. Check source policy class.
+2. Check user consent.
+3. Check privacy tier requested by the caller.
+4. Apply minimum aggregation thresholds for aggregate tiles.
+5. Strip raw activity evidence and precise timestamps.
+6. Prefer achievement totals over street-level public detail by default.
+7. Retain source lineage internally for audit and deletion.
+
+Deletion and revocation requirements:
+
+- Removing an activity source must mark future sync disabled.
+- User-requested deletion must delete or tombstone raw blobs according to retention policy.
+- Coverage derived only from deleted activities must be removed or recomputed.
+- Coverage derived from mixed sources must be recomputed from remaining eligible evidence.
+- Tiles must be invalidated after deletion, revocation, or remap.
+
+## 11. Non-Goals For Phase 7B
+
+This phase does not:
+
+- create migrations
+- write edge functions
+- modify RouteX runtime paths
+- modify Phase 8 substrate runtime paths
+- modify `Index.tsx`
+- modify `RouteMap.tsx`
+- render history heatmaps
+- implement Strava, Garmin, Wahoo, COROS, Karoo, or RWGPS sync
+- implement GPX/FIT ZIP parsing
+- replace Vault route preview behavior
+
+## 12. Implementation Sequence
+
+Recommended future phases:
+
+1. Approve this DS and align with the way-centric database architecture.
+2. Add migrations for source, activity, match, coverage, and tile metadata tables.
+3. Build an offline parser for user archive uploads.
+4. Build a map-matching worker that emits `activity_way_matches`.
+5. Build a deterministic coverage merge worker that emits `user_way_coverage`.
+6. Build private vector tile generation from coverage rows.
+7. Add a private user history map surface.
+8. Add privacy-safe aggregate and achievement-only public views.
+9. Add Vault overlays that compare collection routes against user coverage.
+
+## 13. Acceptance Criteria
+
+Phase 7B is complete when:
+
+- DS-051 exists and documents the Personal Coverage Ledger.
+- Proposed tables cover activity sources, user activities, activity-way matches, user way coverage, and coverage tile metadata.
+- Raw activity blobs are explicitly archive/evidence only.
+- The model uses canonical way/edge identity, OSM snapshot/version, geometry hash, covered ranges, confidence, source lineage, first/last seen, activity count, and privacy policy.
+- RouteX separation is explicit.
+- Strava/Garmin/RWGPS/GPX privacy tiers are explicit.
+- Checklist entries exist.
+- No migrations or runtime code paths are changed.
 
 
 ---
