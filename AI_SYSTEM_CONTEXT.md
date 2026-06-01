@@ -27890,6 +27890,7 @@ Phase 8.1 treats substrate as the durable signal ledger plus rollup cache, not t
 - source policy matrix: source visibility, DS-050 signal visibility, public aggregate eligibility, minimum public aggregate source count, and raw-signal-id exposure policy.
 - corpus adapter dry run: bounded, idempotent plan summary with stable source route keys, affected OSM way ids, synthetic connector keys, expected signal counts, and no direct DB writes.
 - backfill execution planner: pure route work-item and rollup-key planner with retry ledger, per-job write caps, per-job rollup caps, and no raw signal runtime reads.
+- write/rollup bridge: pure intent planner that requires separately materialized DS-050 signals before write planning and emits affected-key rollup refresh intent only.
 - rollup version metadata: `rollup_schema_version`, `algorithm_version`, `source_family`, `source_window`, and `generated_at`.
 
 Every corpus path should follow:
