@@ -19251,6 +19251,8 @@ Recommended compact `viewport_speed` payload:
 
 Do not store full raw source tags in `viewport_speed`. Exact raw/owned source evidence remains required for scoring provenance, legal/source inspection, conflict resolution, and high-confidence scoring.
 
+Runtime substrate surfaces may expose a bounded candidate-grid speed fallback for first paint or QA, but that fallback must be labeled as grid/source fallback and must not be presented as central evidence resolver truth. HPMS/DOT/OSM precedence decisions belong upstream in the bounded `viewport_speed` profile payload or route evidence profile payload. A viewport subscriber may join materialized `viewport_speed` rows by OSM way/source-way reference; it must not perform raw HPMS/OSM/source scans to resolve provenance at hover time.
+
 ## 8.4 Batching And Round Trips
 
 Separate logical profiles do not require one network round trip per field.
