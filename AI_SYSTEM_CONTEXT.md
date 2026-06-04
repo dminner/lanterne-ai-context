@@ -3454,7 +3454,6 @@ Route Safety Score must remain:
 | DS-048 | Route Topology Archive and Way Intelligence Projection | DS-029, DS-031, DS-035, DS-044, DS-046, DS-047 | Draft |
 | DS-049 | First-Paint Worker Handoff and Route Experience Artifact Boundary | DS-029, DS-031, DS-032, DS-044, DS-046, DS-047, DS-048 | Draft |
 | DS-050 | Substrate Signal Registry | DS-028, DS-029, DS-034, DS-035, DS-046, DS-047, DS-048, DS-049 | Draft |
-| DS-051 | Personal Coverage Ledger and History Heatmap | DS-029, DS-031, DS-045, DS-048, DS-050 | Draft |
 
 ---
 
@@ -11043,30 +11042,6 @@ Ride mode must assume:
 - map rotation exposes corners
 - an undersized coverage window will be visually obvious
 
-### 9.2.1 Forward and bearing-adaptive loading
-
-Ride-mode loading must distinguish movement from bearing churn.
-
-Required behavior:
-- forward-bearing load may bias the retained window ahead of the rider
-- directional movement load should derive heading from actual position/viewport movement when available
-- bearing-adaptive mode must not create unbounded hydration work when the rider or map rotates in place
-- if retained coverage already contains the current viewport and movement is below threshold, repeated bearing changes should reuse the retained window instead of issuing new loads
-
-This is the missing hard boundary after the original v1 overlay work: bearing can reshape the next retained window, but bearing alone must not let the client spin forever.
-
-### 9.2.2 RouteMap ownership boundary
-
-RouteMap should not own the overlay working set.
-
-RouteMap should receive a stable, already-bounded frame from the viewport policy/provider layer. Request keys, retained windows, purge decisions, caps, and debug counters belong outside the rendering component, preferably behind a small external store or equivalent boundary. React should render snapshots; it should not become the hydration cache.
-
-### 9.2.3 Purge before merge
-
-When leaving an area, the controller must purge stale or distant retained windows before merging newly hydrated roads into the active frame.
-
-This is stricter than simple eviction-after-render. The runtime should avoid growing large arrays of old roads and then asking React to reconcile them away later.
-
 ### 9.3 Route creation mode
 
 Route creation must be allowed to suspend background overlay hydration when necessary.
@@ -15604,7 +15579,7 @@ This spec moves hazards toward the same model already used for speed and traffic
 
 ## 2. Hazard Families
 
-Current detector-backed hazards:
+Current supported families:
 
 - railroad crossings
 - controlled crossings
@@ -15617,8 +15592,6 @@ Current detector-backed hazards:
   - covered bridge
   - no-shoulder bridge
   - narrow underpass
-- weather / water hazards
-  - ford / low-water crossing
 - node hazards
   - cattle grid
 
@@ -15626,170 +15599,49 @@ Future hazard families may include rider reports, agency feeds, and surface inci
 
 ### 2.1 Clear Taxonomy
 
-Hazards should be organized by the rider action they imply, not by the OSM
-object class that happened to reveal them.
+For implementation and debugging purposes, hazards should be understood in four groups:
 
-| Category | Role |
-|----------|------|
-| Road Surface | General pavement and surface conditions, usually recurring or common features such as potholes, cracks, cobbles, loose sand, or shoulder debris. |
-| Metal Surface | Metal, track, grate, plate, or cattle-grid surfaces where traction and wheel angle matter. |
-| Wheel Grabbers | Specific acute features that can trap, deflect, or stop a bicycle wheel. These are individual severe cases, not broad surface families. |
-| Dynamic Hazards | Moving or unpredictable threats such as loose dogs, pedestrians, wildlife, or parked door swing. |
-| Conflict Points | Interaction-heavy locations with other traffic or infrastructure. |
-| Pinch Points | Physical narrowing, restricted escape room, or places where the rider feels squeezed. |
-| Surroundings | Environmental, edge, and sightline exposures around the roadway. |
+1. traffic hazards
+2. structural hazards
+3. weather / water hazards
+4. surface hazards
 
 The important distinction is:
 
-- God Filter answers whether a raw object or report exists
-- rider-facing hazards answer whether that object or report affects the route
-- hazard toggles are display/reporting controls, not score controls
+- God Filter answers whether a raw OSM object exists
+- rider-facing hazards answer whether that object affects the route
 
-The same raw source may feed both scoring-adjacent crossing facts and
-rider-facing hazard display, but hazard toggles must not change scoring math.
-Rider-facing hazards still pass route-association and presentation policy.
+The same raw source may feed both, but rider-facing hazards still pass route-association and presentation policy.
 
-### 2.2 Rider-Facing Hazard Categories
+### 2.2 Current Implemented Hazard Tags
 
-Hazards should follow the same two-level control model as POIs / Stops:
+The table below reflects the current code, not a wish list.
 
-- top-level categories are what riders switch on/off quickly
-- exact hazard kinds are the durable source of truth
-- expanding a category reveals the exact hazard toggles inside it
-- category gate state and child hazard-kind state are stored separately; effective visibility is derived from both
+| Family | Hazard | Current coded tags / rules | Current source path |
+|------|-------|-----------------------------|---------------------|
+| Traffic | Railroad crossing | `railway=level_crossing` or `railway=crossing` explicit node; geometric fallback from `railway=rail` intersecting a `highway=*` road | self-hosted roads corridor payload |
+| Traffic | Signal crossing | `highway=traffic_signals`, excluding pedestrian-only / crosswalk-signal patterns such as `crossing=traffic_signals`, `crossing:signals=yes`, `traffic_signals:sound=yes`, `button_operated=yes`, `highway=crossing`, `crossing:island=yes`, `foot=designated`, `bicycle=dismount` | self-hosted roads corridor payload |
+| Traffic | Stop-controlled crossing | `highway=stop` | self-hosted roads corridor payload |
+| Structural | Cattle grid | `barrier=cattle_grid` | self-hosted roads first, supplemented by raw Overpass-compatible source for freshness |
+| Structural | Metal grate bridge | `bridge=yes|movable` plus `surface` in `{grate, grid, metal_grid, steel_grid, grating, steel_grate, metal_grating, steel_grating, open_grid, metal_grid_deck}` | self-hosted roads corridor payload |
+| Structural | Metal plate bridge | `bridge=yes|movable` plus `surface` in `{metal, steel, metal_plate, steel_plate}` | self-hosted roads corridor payload |
+| Structural | Dismount bridge | `bridge=yes|movable` plus `bicycle=dismount` | self-hosted roads corridor payload |
+| Structural | Covered bridge | `bridge=yes|movable` plus `bridge:structure=covered` | self-hosted roads corridor payload |
+| Structural | No-shoulder bridge | `bridge=yes|movable` plus explicit `shoulder=no|none` and explicit narrowness evidence: bidirectional `lanes=1`, or `width<6`, or `maxwidth<3` | self-hosted roads corridor payload |
+| Structural | Narrow underpass | `tunnel=yes` plus explicit narrowness evidence: bidirectional `lanes=1`, or `width<3`, or `maxwidth<3`; excluded on `highway` in `{service, parking_aisle, driveway, alley}` | self-hosted roads corridor payload |
 
-Launch category gates:
+### 2.3 Candidate Hazard Tags Not Yet Canonical
 
-| Category ID | Rider label | Purpose | Implemented child toggles | Planned / reportable child toggles |
-|-------------|-------------|---------|---------------------------|------------------------------------|
-| `road_surface` | Road Surface | General pavement and surface conditions, usually recurring or common. | none | `loose_sand_gravel`, `shoulder_debris`, `asphalt_cracks`, `cobbles`, `potholes`, `concrete_gaps` |
-| `metal_surface` | Metal Surface | Metal, track, plate, bridge, or cattle-grid surfaces where traction and wheel angle matter. | `metal_bridge`, `steel_plates`, `railroad_tracks`, `cattle_guard` | none |
-| `wheel_grabbers` | Wheel Grabbers | Specific acute features that can trap, deflect, or stop a bicycle wheel. | none | `bad_angle_railroad_tracks`, `gapped_storm_grate`, `deep_pothole`, `deep_concrete_gap` |
-| `dynamic_hazards` | Dynamic Hazards | Moving or unpredictable threats. | none | `wildlife_crossing`, `loose_dog`, `pedestrians`, `parked_door_swing` |
-| `conflict_points` | Conflict Points | Interaction-heavy locations with other traffic or infrastructure. | `left_turn`, `signed_crossing`, `signaled_crossing` | none |
-| `pinch_points` | Pinch Points | Physical narrowing, restricted escape room, or places where the rider feels squeezed. | `narrow_bridge`, `covered_bridge`, `one_lane_bridge_underpass` | `tight_guardrail`, `shoulder_ends` |
-| `surroundings` | Surroundings | Environmental, edge, and sightline exposures around the roadway. | `ford_crossing` | `cliff_edge`, `falling_rocks`, `blind_turn`, `large_wildlife_advisory`, `weather_exposure_zone`, `flood_prone_low_road` |
+These are plausible next additions, but they are not yet part of the canonical rider-facing hazard contract unless implemented and tested.
 
-Category toggle behavior mirrors the POI subcategory model:
+| Family | Candidate | Likely tags / source hints | Notes |
+|------|-----------|----------------------------|-------|
+| Weather / water | Ford / stream crossing | `ford=yes`, `highway=ford`, possibly `ford=*` on nodes or ways | Particularly relevant in places like Maui; should likely be weather-conditional rather than always severe |
+| Surface | Pothole / pavement distress | no stable universal OSM tag today; possible rider reports or agency feeds | Better handled as reports/feed-backed hazards than assumed from generic OSM tags |
+| Surface | Cracked / failed pavement | agency pavement feeds, rider reports, or future normalized surface distress feed | Not currently canonical from OSM corridor fetch |
+| Structural / control | Gate / bollard | `barrier=gate`, `barrier=bollard` | Likely useful for debug and raw inspection first; rider-facing policy should be narrow |
 
-- category state is a parent visibility gate, not merely a batch edit over child toggles
-- effective visibility is `category_enabled && hazard_kind_enabled`
-- category OFF suppresses all child hazard kinds for the active mode/profile without deleting their saved child-toggle state
-- a child hazard kind may remain ON underneath a category that is OFF; it still does not render until the parent category is ON
-- category ON restores the rider's previous child choices when possible; if no child state exists yet, it enables the category defaults
-- child hazard toggles persist independently by hazard kind
-- subscribers must filter by the resolved hazard-kind set, not by ad hoc category logic
-
-Effective toggle resolution:
-
-| Category gate | Child hazard toggle | Effective result |
-|---------------|---------------------|------------------|
-| ON | ON | Hazard kind is visible, subject to route qualification and surface context. |
-| ON | OFF | Hazard kind is hidden. |
-| OFF | ON | Hazard kind is hidden, but the saved child preference remains ON. |
-| OFF | OFF | Hazard kind is hidden. |
-
-Planned / reportable toggle behavior:
-
-- a planned toggle may appear in the UI before Lanterne has automated data for it
-- planned toggles must be visually distinct from implemented detector-backed toggles
-- planned toggles may drive "report this hazard" or "watch for reports" affordances
-- planned toggles must not create fake map markers, cue-sheet rows, analysis counts, or score inputs
-- when a rider reports a planned hazard, the report stores the category ID, toggle ID, route distance, location, confidence, timestamp, reporter provenance, and confirmation state
-- once a planned toggle gets a trusted feed or detector, it can move to implemented without changing the rider-facing toggle ID
-
-### 2.3 Canonical Hazard Registry
-
-The table below is the canonical toggle registry. Implemented rows map directly
-to current `HazardKind` values and may emit V2 `hazard_events`. Planned rows are
-product-visible / reportable toggle IDs, but they do not emit detector-backed
-hazards until a trusted user-report, feed, or detector source exists.
-
-| Category | Toggle ID | Rider label | Data today | Expected source | Qualification / evidence | Route qualification | Score treatment |
-|----------|-----------|-------------|------------|-----------------|--------------------------|---------------------|-----------------|
-| Road Surface | `loose_sand_gravel` | Loose sand / gravel | No - planned | Rider reports first; later road surface feeds and OSM surface hints | Report or feed identifies loose sand, gravel, chip, or drifted material on an otherwise rideable route surface. | Time-sensitive point or interval; should expire or require reconfirmation. | Non-scoring display/report toggle. |
-| Road Surface | `shoulder_debris` | Shoulder debris | No - planned | Rider reports; municipal service requests where available | Report identifies debris, glass, branches, trash, or obstacles in the rideable shoulder or bike operating space. | Time-sensitive point or interval; should expire quickly unless confirmed. | Non-scoring display/report toggle. |
-| Road Surface | `asphalt_cracks` | Asphalt cracks | No - planned | Rider reports; agency pavement condition feeds | Report or feed identifies repeated cracks, heaves, or longitudinal seams that affect line choice. | Usually interval-based; requires freshness or persistent-condition confidence. | Non-scoring display/report toggle. |
-| Road Surface | `cobbles` | Cobbles | No - planned | OSM surface tags, rider reports, route-source notes | `surface=cobblestone|sett|paving_stones` or report-backed cobbled section when it materially affects bicycle handling. | Interval-based route attachment. | Non-scoring display/report toggle. |
-| Road Surface | `potholes` | Potholes | No - planned | Rider reports first; later municipal pavement feeds | Recurring or common pothole presence that affects comfort or line choice, but is not necessarily a single wheel-trapping hole. | Point cluster or interval; needs freshness / confirmation. | Non-scoring display/report toggle. |
-| Road Surface | `concrete_gaps` | Concrete gaps | No - planned | Rider reports; agency pavement / bridge maintenance feeds | Repeated concrete seams, expansion gaps, slab separation, or utility cuts that affect ride line. | Point or interval; should preserve orientation where known. | Non-scoring display/report toggle. |
-| Metal Surface | `steel_plates` | Steel plates | Yes - limited detector | Current `metal_plate_bridge`; future rider reports and work-zone feeds | Current detector catches road ways with `bridge=yes|movable`, rider road class, and normalized `surface=metal`; future reports should capture temporary road plates. | Accepted if the current bridge projects within normal route snap, or if `osmWayId` is an accepted matched route way. Future reports attach as point or interval. | Non-scoring display/report toggle. |
-| Metal Surface | `metal_bridge` | Metal bridge | Yes - detector | Current `metal_grate_bridge`; owned OSM road corridor | Road way with `bridge=yes|movable`, rider road class, and normalized `surface=metal_grid`. | Accepted if the bridge projects within normal route snap, or if `osmWayId` is an accepted matched route way. | Non-scoring display/report toggle. |
-| Metal Surface | `railroad_tracks` | Railroad tracks | Yes - detector | Current `rail_crossing`; owned OSM road corridor | Explicit node with `railway=level_crossing|crossing`, or geometric fallback where `railway=rail` intersects a road way. | Accepted if the crossing projects within normal route snap, or if `sourceRoadWayId` is an accepted matched route way. Popups must report measured rail/road angle when available. | Non-scoring display/report toggle. |
-| Metal Surface | `cattle_guard` | Cattle guard | Yes - detector | Current `cattle_guard`; owned OSM road corridor plus raw owned OSM supplement | `barrier=cattle_grid` on an OSM node or way. | Uses strict route gate: accepted only within 8 m of the route polyline or accepted matched route way. Nearby unmatched objects are rejected. | Non-scoring display/report toggle. |
-| Wheel Grabbers | `bad_angle_railroad_tracks` | Bad-angle railroad tracks | Yes - derived from detector | Current `rail_crossing` angle metadata; rider reports for missing/incorrect cases | Railroad crossing with measured relative rail/road angle sharp enough to create wheel-trap concern. | Must be route-attached railroad-track evidence with measured angle or confirmed report. | Non-scoring display/report toggle. |
-| Wheel Grabbers | `gapped_storm_grate` | Gapped storm grate | No - planned | Rider reports first; municipal stormwater / asset feeds later | Report or feed identifies a grate slot orientation or gap large enough to trap a bicycle wheel. | Point-located and route-proximate; requires confirmation or high-confidence report. | Non-scoring display/report toggle. |
-| Wheel Grabbers | `deep_pothole` | Deep pothole | No - planned | Rider reports; municipal pavement feeds | Individual pothole severe enough to stop, deflect, or trap a wheel. Distinct from general `potholes`. | Point-located, recent, route-proximate, and preferably confirmed. | Non-scoring display/report toggle. |
-| Wheel Grabbers | `deep_concrete_gap` | Deep concrete gap | No - planned | Rider reports; agency pavement / bridge maintenance feeds | Individual concrete gap or slab separation severe enough to catch a wheel. Distinct from general `concrete_gaps`. | Point-located or short interval; preserve gap orientation where known. | Non-scoring display/report toggle. |
-| Dynamic Hazards | `wildlife_crossing` | Wildlife crossing | No - planned | Rider reports; agency wildlife crossing feeds where available | Repeated or known wildlife crossing location, not a one-off animal sighting unless recently reported. | Point or short interval with freshness and recurrence confidence. | Non-scoring display/report toggle. |
-| Dynamic Hazards | `loose_dog` | Loose dog | No - planned | Rider reports | Reported loose dog or recurring dog chase location. | Time-sensitive unless repeatedly confirmed; must attach to route point/segment. | Non-scoring display/report toggle. |
-| Dynamic Hazards | `pedestrians` | Pedestrians | No - planned | Rider reports; future land-use / trail conflict feeds | Known pedestrian conflict area that affects cycling line choice or speed. | Bounded interval or point cluster; should avoid flagging ordinary pedestrian presence. | Non-scoring display/report toggle. |
-| Dynamic Hazards | `parked_door_swing` | Parked door swing | No - planned | Rider reports; parking lane / curbside activity feeds where available | Report or feed identifies repeated door-zone exposure on the route. | Interval-based; needs persistence or repeated confirmation. | Non-scoring display/report toggle. |
-| Conflict Points | `left_turn` | Left-turn conflict | Yes - crossing model | Canonical crossing/conflict evidence | Route event where the rider turns left across or through conflicting traffic. | Route-owned crossing or turn event. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. |
-| Conflict Points | `signed_crossing` | Signed crossing | Yes - detector/crossing evidence | Current `stop_crossing`; owned OSM road corridor | Explicit hazard node with `highway=stop`, represented as a displayable signed crossing/control. | Accepted if the node projects within normal route snap. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. |
-| Conflict Points | `signaled_crossing` | Signaled crossing | Yes - detector/crossing evidence | Current `signal_crossing`; owned OSM road corridor | Explicit hazard node with `highway=traffic_signals`, excluding pedestrian-only / crosswalk-signal patterns. | Accepted if the node projects within normal route snap. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. |
-| Pinch Points | `tight_guardrail` | Tight guardrail | No - planned | Rider reports; future roadway edge/barrier feeds | Report identifies a guardrail pinch with little escape room or poor passing margin. | Point or interval; must attach to route and carry confirmation/freshness. | Non-scoring display/report toggle. |
-| Pinch Points | `narrow_bridge` | Narrow bridge | Yes - detector | Current `no_shoulder_bridge`; owned OSM road corridor | Bridge with no cycleway/designated bicycle infrastructure, explicit no-shoulder evidence, and explicit narrowness evidence. | Accepted if the bridge projects within normal route snap, or if `osmWayId` is an accepted matched route way. | Non-scoring display/report toggle. |
-| Pinch Points | `shoulder_ends` | Shoulder ends | No - planned | Rider reports; future shoulder continuity model | Report or model identifies abrupt loss of shoulder or bike operating space. | Point or short interval tied to route direction where possible. | Non-scoring display/report toggle. |
-| Pinch Points | `covered_bridge` | Covered bridge | Yes - detector | Current `covered_bridge`; owned OSM road corridor | Road way with `bridge=yes|movable` plus explicit `bridge:structure=covered`. Generic `covered=yes` does not qualify. | Accepted if the bridge projects within normal route snap, or if `osmWayId` is an accepted matched route way. | Non-scoring display/report toggle. |
-| Pinch Points | `one_lane_bridge_underpass` | One-lane bridge / underpass | Yes - partial detector | Current `single_lane_underpass`; future bridge lane detector and rider reports | Current detector catches narrow underpasses with `tunnel=yes` and explicit single-lane/width evidence. Future detector should include one-lane bridges. | Accepted if the feature projects within normal route snap, or if `osmWayId` is an accepted matched route way. | Non-scoring display/report toggle. |
-| Surroundings | `ford_crossing` | Ford / low-water crossing | Yes - detector | Current `ford_crossing`; owned OSM road corridor plus raw owned OSM supplement | `highway=ford`, or any `ford=*` value except `ford=no`, on an OSM node or way. | Uses strict route gate: accepted only within 8 m of route polyline or accepted matched route way. Nearby unmatched objects are rejected. | Non-scoring display/report toggle. |
-| Surroundings | `cliff_edge` | Cliff edge | No - planned | Rider reports; future terrain/edge exposure model | Report or model identifies exposed edge, drop-off, or route-adjacent cliff that changes rider margin. | Interval-based; should include side-of-road when known. | Non-scoring display/report toggle. |
-| Surroundings | `falling_rocks` | Falling rocks | No - planned | Rider reports; agency rockfall warning feeds | Report or feed identifies rockfall exposure, active falling rocks, or signed rockfall zone. | Point or interval; needs freshness or persistent-sign/source confidence. | Non-scoring display/report toggle. |
-| Surroundings | `blind_turn` | Blind turn | No - planned | Rider reports first; later curvature + sightline model | Turn or bend with materially poor sightline around the route edge or traffic approach. | Point or interval; should attach to route direction where possible. | Non-scoring display/report toggle. |
-| Surroundings | `large_wildlife_advisory` | Large wildlife advisory | No - planned | Official wildlife advisories, park/agency notices, event organizer notes, repeated rider reports | Advisory for recurring large-wildlife activity that may affect rider attention or stopping behavior. Do not model broad predator habitat as a hazard. | Area or interval-based; must carry source, effective dates when known, and confidence. | Non-scoring display/report toggle. |
-| Surroundings | `weather_exposure_zone` | Weather exposure zone | No - planned | Route terrain/exposure model, rider reports, event organizer notes | Persistent route feature that amplifies weather exposure, such as exposed ridge, desert exposure, high-wind bridge, or long shade gap. This is not live weather. | Interval-based; route feature may persist while live condition comes from weather layer. | Non-scoring display/report toggle. |
-| Surroundings | `flood_prone_low_road` | Flood-prone low road | No - planned | Floodplain/road elevation data, agency flood-prone road lists, rider reports | Road section known to flood or hold water after rain, distinct from current active flooding. | Point or interval; should carry recurrence evidence and optionally link to live/weather status. | Non-scoring display/report toggle. |
-
-### 2.4 Route Qualification Policy
-
-Hazard existence and route applicability are separate decisions.
-
-| Policy | Rule |
-|-------|------|
-| Normal route snap | Most hazards must project within the configured V2 hazard snap threshold, currently 60 m, before they become `hazard_events`. |
-| Strict object gate | `cattle_guard` and `ford_crossing` use a stricter 8 m gate against either the route polyline or accepted matched route ways. This prevents a nearby but unrelated ford/cattle-grid node from showing on the route. |
-| Accepted matched-way escape hatch | Way-anchored hazards are accepted when their `osmWayId` or `sourceRoadWayId` belongs to an accepted matched route way, even if the GPX polyline is offset beyond the normal snap threshold. This is required for source-backed bridge and railroad parity on imperfect GPX traces. |
-| Report-backed planned hazards | A planned toggle becomes rider-facing only after a user report, feed row, or detector candidate attaches to a route point or interval and passes the toggle-specific freshness / confidence policy. |
-| Empty planned toggles | Planned toggles with no data may appear as reportable controls, but they must not create map markers, cue rows, analysis counts, or false "0 hazards found" claims. |
-| Central evidence registry | V2 publishes rider-facing hazards as route-indexed `hazard_events` with `distM`, `routeMile`, `startDistM`, `endDistM`, source IDs, provenance, semantic presentation token, and `scoreBearing=false`. |
-| Subscriber rule | Map, cue sheet, analysis drawer, overlays, and review surfaces subscribe to `hazard_events` and shared presentation helpers. They may filter or group hazards for visibility, but they may not reinterpret hazard category, toggle, kind, label, route distance, or source meaning. |
-
-### 2.5 Registry Admission Rule
-
-The toggle registry may include hazards before Lanterne has automated data for
-them, but only when the item is reportable and actionable.
-
-To add a planned toggle:
-
-- the rider-facing label must describe a concrete thing a rider can recognize
-- the hazard must plausibly change line choice, speed choice, route choice, or rider attention
-- the source path must be named, even if it is initially only user reports
-- the route attachment policy must be explicit
-- freshness / expiry must be defined for temporary hazards
-- the toggle ID must be stable enough to preserve user preferences and reports
-
-Do not add vague toggle IDs for generic dislike, ordinary hills, ordinary turns,
-ordinary roughness, or unverified reputation. Those may belong in notes or route
-reviews, but not in the canonical hazard toggle registry.
-
-### 2.6 Adjacent Future Layers
-
-Some rider-important risks are intentionally not hazard toggles.
-
-| Future layer | Belongs there | Do not add to hazards |
-|--------------|---------------|-----------------------|
-| Remote / Rescue Context | remote area, poor cell coverage, long bailout distance, low traffic, difficult evacuation, service gaps | `remote_area` |
-| Live Weather Conditions | current or forecast extreme heat, cold, wind, lightning, precipitation, ice risk, flood alerts | `extreme_weather` |
-
-Hazards may reference those layers when a route feature amplifies the condition.
-For example, `weather_exposure_zone` belongs in Surroundings because it is a
-persistent place characteristic; live wind, heat, storm, or flood state belongs
-in the weather layer. Likewise, `large_wildlife_advisory` is allowed when it is
-source-backed and actionable, while broad predator habitat is not a hazard
-toggle.
-
-### 2.7 What “Exact Tag” Means Here
+### 2.4 What “Exact Tag” Means Here
 
 When this spec says “exact tag,” it means:
 
@@ -15814,19 +15666,15 @@ Hazard-relevant OSM elements may arrive from:
 
 - corridor tile fetch
 - legacy overpass fetch
-- user-submitted hazard reports
 - future observation/feed systems
 
 All live fetch paths must request the same minimum hazard-supporting elements:
 
 - `railway=level_crossing|crossing`
 - `barrier=cattle_grid`
-- `ford=*`
-- `highway=ford`
 - `highway=traffic_signals`
 - `highway=stop`
 - `railway=rail`
-- `bridge=yes|movable`
 - `man_made=bridge`
 - road ways carrying hazard-relevant bridge/tunnel/surface tags
 
@@ -15845,15 +15693,13 @@ Every raw hazard candidate must normalize into one canonical object:
 ```ts
 interface CanonicalHazard {
   id: string;
-  categoryId: string;
-  toggleId: string;
-  kind?: HazardKind;
+  kind: HazardKind;
   severity: 1 | 2 | 3;
   lat: number;
   lon: number;
   spanEntry?: [number, number];
   spanExit?: [number, number];
-  sourceType: 'osm_node' | 'osm_way' | 'bridge_outline' | 'user_report' | 'agency_feed' | 'feed';
+  sourceType: 'osm_node' | 'osm_way' | 'bridge_outline' | 'feed';
   osmWayId?: number;
   osmNodeId?: number;
   routeSnap?: {
@@ -15864,10 +15710,6 @@ interface CanonicalHazard {
     rawTags?: Record<string, string>;
     inheritedFromOutline?: boolean;
     detectionMode?: 'explicit_node' | 'line_intersection' | 'way_tags';
-    reportId?: string;
-    reporterConfidence?: 'low' | 'medium' | 'high';
-    observedAt?: string;
-    expiresAt?: string;
   };
 }
 ```
@@ -15875,9 +15717,7 @@ interface CanonicalHazard {
 Rules:
 
 - ingestion and normalization own hazard truth
-- implemented detector-backed hazards set `kind` to a current `HazardKind`
-- planned report-backed hazards may use `toggleId` before they have a detector-backed `HazardKind`
-- downstream consumers may project or filter hazards, but may not reinterpret category, toggle, kind, or label semantics
+- downstream consumers may project or filter hazards, but may not reinterpret kind or label semantics
 
 ### 3.3 Route Attachment Layer
 
@@ -15920,7 +15760,7 @@ These failures are architectural, not just bug-level.
 ## 5. Non-Negotiable Invariants
 
 1. All analysis fetch paths must ingest the same hazard-supporting OSM primitives.
-2. Hazard category, toggle, and detector-kind normalization happens once.
+2. Hazard kind normalization happens once.
 3. Presentation labels happen once.
 4. Subscribers may choose visibility policy, but not invent new hazard meaning.
 5. Route snapping thresholds must be explicit and auditable.
@@ -15950,7 +15790,7 @@ Current intended source routing:
 
 - self-hosted roads server is primary for road-shaped hazards and road-context tags
 - raw Overpass-compatible fetch is supplement/fallback for raw object hazards and fresh edits
-- cattle grids and fords use this split explicitly today
+- cattle grids are the first narrow hazard family using this split explicitly
 
 This means:
 
@@ -15974,8 +15814,7 @@ This means:
 The hazard subsystem is considered healthy when:
 
 - the same route yields the same hazard families regardless of fetch path
-- Road Surface, Metal Surface, Wheel Grabbers, Dynamic Hazards, Conflict Points, Pinch Points, and Surroundings use the same toggle registry shape
-- implemented detector-backed hazards and planned report-backed hazards remain distinguishable in UI and analysis surfaces
+- controlled crossings, railroad crossings, and bridge hazards all survive corridor ingestion
 - map and overlay surfaces agree on labels and marker meaning
 - hazard regressions are diagnosable at the canonical object layer, not by chasing duplicated UI logic
 
@@ -18669,7 +18508,7 @@ The descriptor guidance is based on `.tmp/road-descriptor-audit/` and current co
 
 ## Design Decision
 
-Base substrate remains structural and compact. Viewport overlays are profile-hydrated and configurable. Speed is nationally prehydrated as the compact `viewport_speed` common profile, not baked into base substrate. Route scoring uses route evidence profile hydration over owned canonical source evidence. HPMS/DOT/AADT are owned-source hydration in production, not normal external hydration. External calls are fallback/import paths. Traffic is a first-class common overlay candidate.
+Base substrate remains structural and compact. Viewport overlays are profile-hydrated and configurable. Speed is nationally prehydrated as the compact `viewport_speed_v1` common profile, not baked into base substrate. Route scoring uses route evidence profile hydration over owned canonical source evidence. HPMS/DOT/AADT are owned-source hydration in production, not normal external hydration. External calls are fallback/import paths. Traffic is a first-class common overlay candidate.
 
 ---
 
@@ -18956,7 +18795,7 @@ Current and intended profile taxonomy:
 
 Viewport profiles:
 
-- `viewport_speed`
+- `viewport_speed_v1`
 - `viewport_traffic_v1`
 - `viewport_bike_infra_v1`
 - `viewport_shoulder_v1`
@@ -19032,7 +18871,7 @@ The profile describes the consumer-specific payload.
 
 Examples:
 
-- `viewport_speed`: staged road/speed hydration for viewport overlays
+- `viewport_speed_v1`: staged road/speed hydration for viewport overlays
 - `viewport_traffic_v1`: staged owned traffic/AADT hydration for viewport overlays
 - `viewport_bike_infra_v1`: bike-infrastructure overlay payload
 - `viewport_shoulder_v1`: shoulder overlay payload
@@ -19075,7 +18914,7 @@ Bump it when:
 - source authority changes
 - a backfill should not reuse old rows
 
-Current `viewport_speed` source version:
+Current `viewport_speed_v1` source version:
 
 ```text
 owned_roads_v1
@@ -19096,7 +18935,7 @@ Every cached or normalized field must have:
 - risk if wrong
 - hot/cold placement decision
 
-The read-only audit recommends a minimal hot descriptor for `viewport_speed`.
+The read-only audit recommends a minimal hot descriptor for `viewport_speed_v1`.
 
 Required hot fields:
 
@@ -19214,7 +19053,7 @@ Raw owned source evidence:
 | Field | base_substrate_descriptor | viewport_profile_hydration | route_evidence_profile_hydration | owned_canonical_source_hydration | model_inference_policy | derived_scoring_output | external_fallback_only | default map overlay eligible | route scoring eligible | nationally prehydrated | lazy hydrated | freshness sensitivity | payload risk |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `highway` / `road_class` | yes | yes | yes | yes | no | no | no | yes | yes | yes | yes | low | low |
-| `maxspeed` / `speed_limit` | no | yes | yes | yes | yes | no | yes | yes | yes | yes - nationally as compact `viewport_speed`, not base substrate | yes | medium | low/medium |
+| `maxspeed` / `speed_limit` | no | yes | yes | yes | yes | no | yes | yes | yes | yes - nationally as compact `viewport_speed_v1`, not base substrate | yes | medium | low/medium |
 | `speed_class` / inferred speed environment | no | yes | yes | no | yes | no | no | yes | yes | regionally | yes | low | low |
 | `traffic_aadt` | no | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | medium/high | medium |
 | `shoulder` | no | yes | yes | yes | yes | no | yes | yes | yes | regionally | yes | medium | medium |
@@ -19227,7 +19066,7 @@ Raw owned source evidence:
 
 Notes:
 
-- Speed is nationally prehydrated as `viewport_speed` because it is the best single-field approximation of road risk and its compact payload is small. It is not baked into base substrate.
+- Speed is nationally prehydrated as `viewport_speed_v1` because it is the best single-field approximation of road risk and its compact payload is small. It is not baked into base substrate.
 - Traffic/AADT is a common overlay candidate because owned HPMS/DOT/AADT source control makes it viable.
 - Heatmap risk fields are derived scoring/display output, not source evidence, not RouteLine truth, and not base substrate.
 - Hazard flags can come from source facts or detected route-indexed events; lineage must distinguish those cases.
@@ -19239,7 +19078,7 @@ Speed may be the initial default viewport overlay. The architecture must allow t
 
 The default overlay is a product/user setting, not a substrate schema assumption. The base substrate should not become speed-shaped.
 
-Recommended compact `viewport_speed` payload:
+Recommended compact `viewport_speed_v1` payload:
 
 - `substrateSpanId` or source way ref
 - `speedMph` or `speedKph` when known
@@ -19249,44 +19088,7 @@ Recommended compact `viewport_speed` payload:
 - `sourceVersion`
 - `schemaVersion`
 
-Do not store full raw source tags in `viewport_speed`. Exact raw/owned source evidence remains required for scoring provenance, legal/source inspection, conflict resolution, and high-confidence scoring.
-
-Runtime substrate surfaces may expose a bounded candidate-grid speed fallback for first paint or QA, but that fallback must be labeled as grid/source fallback and must not be presented as central evidence resolver truth. HPMS/DOT/OSM precedence decisions belong upstream in the bounded `viewport_speed` profile payload or route evidence profile payload. A viewport subscriber may join materialized `viewport_speed` rows by OSM way/source-way reference; it must not perform raw HPMS/OSM/source scans to resolve provenance at hover time.
-
-The `viewport_speed` profile write boundary is a pure server/backfill contract over already-resolved evidence. It accepts compact road geometry plus the winning resolved speed/provenance fact, emits bounded `osm_road_profile_tile_cache` rows, and records `scoreBearing=false`, `rawSignalRead=false`, and `rawSourceRead=false` in the write-plan receipt. It must not decide HPMS-vs-OSM precedence itself.
-
-`osm_road_profile_tile_cache.source_version` identifies the cache bundle/read version requested by bounded clients. Per-road evidence provenance such as an OSM snapshot, HPMS source table, or DOT feed version is stored inside the compact road record, for example `_viewport_profile_source_version=HPMS_FULL_NJ_2024`. This keeps cache lookup stable while preserving hover/inspector provenance.
-
-Profile tile writes are service-role/server-authorized only. The upsert boundary must reject browser-like callers, oversized row sets, non-`viewport_speed` rows, raw source payload tags, raw signal reads, raw source reads, and any `scoreBearing=true` payload. Dry-run must be available for generated write plans before any Supabase write.
-
-The `viewport_speed` hydration planner is dry-run first and source-neutral. It reads owned road geometry plus already-resolved speed/provenance facts, joins by OSM/source-way id, and emits the bounded write-plan JSON consumed by the guarded upsert boundary. It may defensively pick the strongest duplicate resolved fact for a way, but it must not fetch raw HPMS/OSM/source records or decide source-family precedence from unresolved inputs. Roads without a resolved speed fact are skipped instead of promoted from candidate-grid `maxspeed` fallback tags.
-
-V2S+S diagnostic/scoring artifacts may be converted into planner-ready resolved speed facts only through selected evidence output. The export bridge reads `segmentInputPreview.selectedEvidenceByField.speed_limit` plus `productEvidenceRequest.ownershipSpans` / `sourceWayContributions`, emits source-way-scoped `resolvedSpeedFacts`, and records `rawSignalRead=false`, `rawSourceRead=false`, and `scoreBearing=false`. By default it exports source-backed speed selections only; baseline/fallback selections require an explicit option for broader first-paint hydration.
-
-The owned-road extraction bridge can derive planner geometry from bounded candidate-grid cells for requested resolved OSM/source-way ids. This is a build/backfill utility, not a runtime source scan. Candidate-grid cell arrays are GeoJSON-style lon/lat and must be normalized into the profile writer's lat/lon `SpeedRoad.coords` before any `viewport_speed` plan is accepted.
-
-Operator path:
-
-```bash
-npx tsx scripts/route-line-v2/write-v2ss-diagnostic-scoring-lane.ts \
-  --mode medford_speed_diagnostic_route \
-  --out .tmp/v2ss-diagnostic-lane.json
-npx tsx scripts/substrate/export-viewport-speed-facts-from-scoring-preview.ts \
-  --artifact .tmp/v2ss-diagnostic-lane.json \
-  --out .tmp/resolved-speed-facts.json
-npx tsx scripts/substrate/extract-candidate-grid-owned-roads.ts \
-  --grid-dir public/substrate/south-jersey/candidate-grid \
-  --speed-facts .tmp/resolved-speed-facts.json \
-  --out .tmp/owned-roads.json
-npx tsx scripts/substrate/plan-viewport-speed-profile-tiles.ts \
-  --roads .tmp/owned-roads.json \
-  --speed-facts .tmp/resolved-speed-facts.json \
-  --out .tmp/viewport-speed-plan-report.json \
-  --plan-out .tmp/viewport-speed-plan.json
-node scripts/substrate/upsert-viewport-speed-profile-tiles.mjs --plan .tmp/viewport-speed-plan.json
-```
-
-These commands perform no Supabase writes unless the final upsert command is rerun with explicit `--write` plus service-role credentials. The report path is for inspection; `--plan-out` is the raw guarded write-plan consumed by the upsert boundary.
+Do not store full raw source tags in `viewport_speed_v1`. Exact raw/owned source evidence remains required for scoring provenance, legal/source inspection, conflict resolution, and high-confidence scoring.
 
 ## 8.4 Batching And Round Trips
 
@@ -19349,9 +19151,9 @@ It is not timeless architecture doctrine.
 
 Source and tests remain authoritative when stage names, priority groups, z-band membership, track placement, or category examples change.
 
-## 9.1 Exact Hydration: `viewport_speed`
+## 9.1 Exact Hydration: `viewport_speed_v1`
 
-Current `viewport_speed` stage order:
+Current `viewport_speed_v1` stage order:
 
 1. `z10_substrate_references`
 2. `z11_secondary`
@@ -26779,9 +26581,7 @@ quickBuilder or robustBuilder
   -> score/display/inspect
 ```
 
-`RouteExperiencePath` is the ordered route experience: segments, members, ways, nodes, fallback coordinates, route-owned controls, handoffs, blockers, route-distance spans, and associated observations.
-
-Controls are route-owned because brevet/permanent/event instructions can define the route experience itself. POIs, hazards, services, rider field notes, media, and detour reasons are associated observations. They travel with RXON for context and audit, but they are not canonical route-path truth and should be revalidated against owned OSM, source snapshots, or observation policy before being promoted into display, cue, substrate, or score-bearing surfaces.
+`RouteExperiencePath` is the ordered route experience: segments, members, ways, nodes, fallback coordinates, controls, POIs, hazards, handoffs, blockers, and route-distance spans.
 
 `RouteExperienceArtifact` is the storage and reuse envelope around that path.
 
@@ -26829,7 +26629,7 @@ Storage scope is not proof of trust. A cached artifact must still pass schema, f
 | Field | Meaning |
 | --- | --- |
 | `artifactKind` | Constant discriminator. Must be `route_experience_artifact`. |
-| `schemaVersion` | Artifact schema version. Current value is `route-experience-artifact.v2`. |
+| `schemaVersion` | Artifact schema version. Current value is `route-experience-artifact.v1`. |
 | `artifactId` | Stable human/debug identifier derived from route fingerprint, builder, stage, and path ID. |
 | `cacheKey` | Storage key derived from schema version, route fingerprint, builder, stage, and path ID. |
 | `routeFingerprint` | Identity of the imported route axis this artifact belongs to. |
@@ -26866,14 +26666,14 @@ isUsableRouteExperienceArtifact(...)
 
 ## 7. Example Artifact
 
-This is a shortened JSON-like example. Real artifacts may include many more segments, members, handoffs, controls, associated observations, and diagnostics.
+This is a shortened JSON-like example. Real artifacts may include many more segments, members, handoffs, controls, POIs, hazards, and diagnostics.
 
 ```json
 {
   "artifactKind": "route_experience_artifact",
-  "schemaVersion": "route-experience-artifact.v2",
+  "schemaVersion": "route-experience-artifact.v1",
   "artifactId": "route-experience:_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410:robustBuilder:review_refinement:rex-9f3a",
-  "cacheKey": "route-experience-artifact.v2:_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410:robustBuilder:review_refinement:rex-9f3a",
+  "cacheKey": "route-experience-artifact.v1:_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410:robustBuilder:review_refinement:rex-9f3a",
   "routeFingerprint": "_04880_-_Medford_Batsto.gpx:1445:39.86934:-74.84410:39.86934:-74.84410",
   "routeExperiencePathId": "rex-9f3a",
   "routeExperienceStage": "review_refinement",
@@ -26893,9 +26693,8 @@ This is a shortened JSON-like example. Real artifacts may include many more segm
     "blockerCount": 2,
     "handoffCount": 24,
     "controlCount": 0,
-    "associatedObservationCount": 2,
-    "poiObservationCount": 1,
-    "hazardObservationCount": 1,
+    "poiCount": 0,
+    "hazardCount": 0,
     "canDriveRouteTruth": true,
     "canDriveScore": true
   },
@@ -26966,39 +26765,8 @@ This is a shortened JSON-like example. Real artifacts may include many more segm
     ],
     "handoffs": [],
     "controls": [],
-    "associatedObservations": [
-      {
-        "observationId": "poi:rwgps-53626932-water-1",
-        "kind": "poi",
-        "label": "Water",
-        "category": "water",
-        "routeDistM": 45122,
-        "lat": 39.7551,
-        "lon": -74.6214,
-        "sourceLineage": "rwgps_route_import",
-        "provenance": "source_route_poi",
-        "validationStatus": "unvalidated",
-        "matchedFeatureRef": {
-          "source": "unknown",
-          "featureType": "poi"
-        }
-      },
-      {
-        "observationId": "hazard:rail-1",
-        "kind": "hazard",
-        "label": "Rail crossing",
-        "category": "rail_crossing",
-        "startDistM": 78110,
-        "endDistM": 78110,
-        "sourceLineage": "hazard_detector",
-        "provenance": "route_indexed_hazard",
-        "validationStatus": "unvalidated",
-        "matchedFeatureRef": {
-          "source": "unknown",
-          "featureType": "hazard"
-        }
-      }
-    ],
+    "pois": [],
+    "hazards": [],
     "continuityStatus": "continuous_with_blockers",
     "sourceBudgetPolicy": {
       "class": "refinement_expanded",
@@ -27106,7 +26874,7 @@ Saved artifacts should be invalidated or demoted when:
 
 - Should `artifactId` eventually use a short hash rather than the full route fingerprint?
 - Should the browser cache retain multiple canonical artifacts per route or only the latest?
-- Should route-owned controls and mutable associated observations have independent revision IDs inside the artifact?
+- Should controls, hazards, and POIs have independent revision IDs inside the artifact?
 - Should server persistence store the full artifact JSON, a compressed artifact, or a normalized table set plus artifact manifest?
 - When robustBuilder runs as a slow background drip, should partial improvements produce intermediate artifacts or only final canonical artifacts?
 
@@ -27372,8 +27140,6 @@ create table way_intelligence_rollups (
 
 This rollup can later feed routing, recommendations, substrate ranking, QA, and priors.
 
-Phase 8 v0 keeps this rollup bounded to RouteX-affected ways. The RouteX writer refreshes only the OSM ways touched by the written topology revision, plus adjacent ways referenced by synthetic segments. The rollup includes traversed, rerouted, rejected-candidate, nearby-not-selected, blocked-unresolved, and synthetic-connector-nearby counts. Synthetic connector evidence is preserved as first-class aggregate context, not discarded as bad route data.
-
 ### 5.6 `cyclist_substrate_feedback_signals`
 
 This is the direct bridge from route experience projection into the cyclist substrate cache.
@@ -27427,27 +27193,6 @@ Every way observation should preserve:
 
 This prevents future OSM way splits, merges, retagging, or geometry edits from corrupting old route truth.
 
-### 6.1 Canonical Way-Family Identity
-
-Phase 8.1 promotes the v2-review road-family merge behavior into shared substrate identity code. The helper is pure and bounded: it accepts already-known OSM way candidates plus explicit connector/continuity evidence and returns canonical way-family identities. It does not read raw substrate signals, query Supabase, or infer traversal from nearby geometry.
-
-The family identity result carries:
-
-- canonical family key;
-- canonical representative way id;
-- constituent OSM way ids;
-- source feature ids;
-- route fingerprints;
-- synthetic connector keys;
-- merge reasons;
-- blockers and diagnostics;
-- `sourceVisibility=identity_only`;
-- `scoreBearing=false`.
-
-Merge evidence may include same normalized name/ref, source aliases, shared OSM nodes, adjacent way ids, route-span vicinity, and synthetic connector continuity. Non-merge blockers include different named roads, domain conflicts, ramp/service boundaries, ambiguous opposite one-way carriageways, parallel roads without topology evidence, large gaps without connector evidence, and unnamed fragments without strong source evidence.
-
-Synthetic connectors are first-class identity context. A synthetic connector may join same-family fragments when other identity evidence agrees, and orphaned connector evidence remains diagnostic instead of being discarded as bad data.
-
 ## 7. Projection From `RouteExperienceArtifact`
 
 Projection rules:
@@ -27475,8 +27220,6 @@ This write plan is pure and deterministic. It does not call Supabase, write brow
 The backend writer accepts the write plan through the `routex-topology-writer` Edge Function. That function validates the caller and shape, allows either admins or the owner of the saved `route_history` row, then calls `insert_routex_topology_archive_write_plan(...)` with the service role so the route topology revision and projection rows are inserted transactionally. Way rollups remain asynchronous substrate work.
 
 The app dispatches RouteX Archive promotion best-effort after the base `route_history` save succeeds. If the robustBuilder canonical artifact arrives after the base save, the active saved route id and artifact id trigger the same idempotent promotion path later.
-
-After the RouteX Archive write succeeds, DS-050 RouteX substrate signals are built from the canonical `RouteExperienceArtifact` itself. The artifact is revalidated as canonical before route-derived substrate inputs are emitted, so provisional quickBuilder substrate hints cannot become route-derived substrate signals.
 
 ```text
 RouteX Cache artifact
@@ -27518,8 +27261,6 @@ Future consumers:
 - synthetic connector clustering
 - baseline/prior improvement
 - manual review queues
-
-Golden harness substrate cache warming uses route-buffered region planning before any broad regional import. The planner can derive a cache area from explicit bounds, source-projection bounds/geometry, or canonical RouteExperience geometry, then emit bounded source-build commands for those regions. A Vault-domain adapter maps the actual golden harness route descriptors into that planner without making Vault a substrate dependency. This does not make source projections route truth: source projections can help choose where to warm OSM/source cache, while RouteX/DS-050 signal emission still requires canonical RouteExperience artifacts.
 
 Rollups should be profile-aware once profiles exist:
 
@@ -27742,7 +27483,7 @@ interface RouteExperienceArtifactWorkerEvent {
   type: 'route_experience_artifact';
   requestId: string;
   routeFingerprint: string;
-  artifactSchemaVersion: 'route-experience-artifact.v2';
+  artifactSchemaVersion: 'route-experience-artifact.v1';
   readiness: 'canonical_refinement' | 'provisional_first_paint' | 'blocked';
   artifact: RouteExperienceArtifact;
 }
@@ -27848,6 +27589,7 @@ DS-049 narrows the implementation boundary for the current route-load problem:
 - Which fields belong in `fieldMask` for the first version?
 - Should artifact channel stream partial artifacts or emit only complete canonical artifacts?
 - How much normalized evidence, if any, should be returned to the main thread before debug panels request it?
+
 
 
 ---
@@ -28111,196 +27853,6 @@ The first rollup is intentionally narrow:
 
 The writer refreshes these rollups after the raw signal upsert. If refresh fails, the raw signal write can still succeed and report the rollup failure in the response. Field notes, personal experiences, media, external safety records, and institutional status are deliberately excluded from this first rollup.
 
-## 6.7 Rollup Read Boundary
-
-Runtime consumers read compact rollups through `substrate-rollup-reader`.
-
-```text
-attachment keys
-  -> substrate signal rollup read request
-  -> substrate-rollup-reader
-  -> read_substrate_signal_rollups(...)
-  -> substrate_signal_rollups rows only
-```
-
-The read request must include bounded attachment keys. Unbounded rollup reads are rejected. The v0 read family is `route_behavior` only. Clients do not scan `substrate_signals` or `substrate_signal_attachments` for runtime use.
-
-The first viewport heatmap consumer derives a bounded set of visible OSM way attachment keys from the already-hydrated viewport road overlay, reads only route-behavior rollups, and renders RouteX aggregate signal accents without changing the core road-stress/risk color policy.
-
-Phase 8.1C adds a pure regional heatmap hydration plan. Region manifests define the first test regions, source families, route profiles, public aggregate enablement, attachment caps, and cache TTL. The planner emits bounded viewport rollup requests, cache keys, and debug receipts for requested ways, capped/dropped attachments, returned rollup rows, stale cache state, and dominant signal mix. The focused hook around this planner honors cache hits and reads only through `substrate-rollup-reader`; it does not read raw substrate signal history.
-
-Golden harness route-buffered regional hydration manifests are also pure plans. They take bounded route envelopes, apply a route-area buffer, cluster overlapping envelopes into regional manifests, and keep public aggregate reads disabled by default because golden harness source visibility is `vault_internal`. These manifests feed regional source-cache building and admin/owner rollup hydration around harness routes; they do not fetch OSM, write DS-050 signals, scan raw signal history, or hydrate all routes into a client.
-
-The golden harness region hydration runner wraps those manifests in an executable command packet. It derives route envelopes from explicit bounds, source-projection route bounds, source-projection geometry, or canonical `RouteExperienceArtifact` geometry, then emits bounded `scripts/substrate/build-region-substrate.ts --bounds south,west,north,east` commands per region. Source projections may define cache areas only; they remain `canonicalTruth=false` and `substrateSignalEligible=false` until promoted through robust RouteExperience artifacts. Dynamic source-build regions must use explicit bounds and an explicit source path or Overpass opt-in, so they cannot silently fall back to unrelated fixture geometry.
-
-The Vault golden harness adapter sits outside substrate internals. It maps Vault route descriptors to the region hydration runner and may attach source-projection artifacts for cache-area planning or canonical RouteExperience artifacts for geometry. Attached RouteExperience artifacts are rechecked with canonical usability rules before use. This keeps Vault inventory, source projection, and RXON attachment concerns out of the generic substrate planner.
-
-The operational command report script writes these plans to `.tmp` for review. It may load explicit source-projection/RXON artifact directories and can derive local demo harness cache envelopes from bundled GPX files, but it does not run source builds unless `--run-first-region` is supplied. The report is an ops artifact: it contains counts, skipped-route diagnostics, and bounded command lines, not raw substrate signal history.
-
-Public aggregate read policy v0:
-
-- Admin/owner reads use `readScope=admin_or_owner` and keep the existing owner-or-admin server boundary.
-- Non-admin viewport heatmap reads may use `readScope=public_aggregate` only for bounded `osm_way` attachment keys.
-- Public aggregate reads are authenticated, capped at 250 attachment keys in the app read model, Edge Function, and SQL reader, must not be saved-route scoped, and expose only rollups with `privacy_floor in ('public', 'anonymized_aggregate')` and at least 3 unique sources.
-- Public aggregate responses strip raw rollup evidence such as signal ids and return policy metadata instead.
-- Runtime consumers still read `substrate_signal_rollups` only; no raw signal or attachment scans are allowed in the hot path.
-
-## 6.8 Corpus Backfill And Rollup Version Contracts
-
-Phase 8.1 treats substrate as the durable signal ledger plus rollup cache, not the map runtime itself. Corpus imports for permanents, events, USBRS, golden harness routes, RouteX archive, and later institutional corpora must enter through explicit contracts:
-
-- `SubstrateBackfillRun`: resumable job envelope with source family, route ids, status, counts, errors, retry state, write caps, and cursor.
-- source policy matrix: source visibility, DS-050 signal visibility, public aggregate eligibility, minimum public aggregate source count, and raw-signal-id exposure policy.
-- corpus adapter dry run: bounded, idempotent plan summary with stable source route keys, affected OSM way ids, synthetic connector keys, expected signal counts, and no direct DB writes.
-- backfill execution planner: pure route work-item and rollup-key planner with retry ledger, per-job write caps, per-job rollup caps, and no raw signal runtime reads.
-- write/rollup bridge: pure intent planner that requires separately materialized DS-050 signals before write planning and emits affected-key rollup refresh intent only.
-- job safety policy: corpus manifests are server-paged, client-side all-route hydration is disallowed, write intents require stable dedupe keys, retry ledgers travel with work items, and write/rollup caps are checked again before writer boundaries.
-- rollup version metadata: `rollup_schema_version`, `algorithm_version`, `source_family`, `source_window`, and `generated_at`.
-
-Every corpus path should follow:
-
-```text
-corpus route
-  -> canonical RouteExperienceArtifact
-  -> DS-050 signals
-  -> affected-key rollup refresh
-  -> bounded consumer
-```
-
-Synthetic connectors remain first-class affected keys and diagnostics. They must not be flattened into bad-route noise during adapter dry runs, backfills, rollup generation, or heatmap hydration.
-
-Phase 8.1 operational observability is count-only. Backfill/write receipts may report routes parsed/queued/skipped, provisional artifacts skipped, rows planned/written, rollup keys planned/refreshed, write/rollup intent counts, runtime duration, and slow-runtime flags. Public aggregate read observations may report region, read scope, request status, rejection reason, attachment count, returned rollup rows, returned OSM-way count, duration, and slow-read flags. Summaries may aggregate rejection reasons and slow reads by region and attachment count. These receipts must not expose raw signal ids, raw rollup evidence payloads, raw source records, or score-bearing source truth.
-
-Phase 8.1 also defines shared canonical way-family identity for aggregate consumers. The helper takes bounded candidate way identities plus explicit topology evidence and emits identity-only, non-score-bearing family summaries. It may merge split OSM ways when name/ref/source aliases and continuity evidence agree, including continuity through a synthetic connector. It must not merge across hard blockers such as different named roads, domain conflicts, ramp/service boundaries, ambiguous opposite one-way carriageways, or parallel same-name roads without topology evidence. Unnamed fragments require strong adjacency plus source evidence before they can merge.
-
-These family summaries are serving identities for rollups, heatmap hydration, cache hints, QA, and future macro intelligence. They are not DS-029 evidence facts and must not expose raw signal ids or score-bearing source truth.
-
-## 6.9 External Hint Feeds And Overlay Context
-
-Future overlay context sources such as trail-network maps, ArcGIS web maps, ArcGIS feature services, state DOT bike-facility layers, regional planning overlays, and municipal open data must enter substrate through the existing RouteLine V2 source registry/resolver vocabulary before any runtime surface consumes them. Substrate must not create a parallel source resolver.
-
-The initial contract is `SubstrateHintSourceAdapterDryRun`:
-
-- `sourceFamily`: `trail_network`, `dot_bike_facility`, `regional_planning_overlay`, `municipal_open_data`, or `institutional_status`.
-- `provenance`: an existing V2S+S `EvidenceSourceRegistryEntry`, optional `EvidenceSourceVersion`, region key, ArcGIS item/layer/service identifiers when applicable, and retrieved timestamp.
-- feature summary: stable source feature key, source record id, layer id, feature kind, geometry kind, lifecycle status, confidence, bounded attachment keys, affected OSM way ids, affected synthetic segment keys, and expected signal count.
-- caps: maximum features per run, maximum attachment keys per feature, and maximum geometry vertices per feature.
-- policy fields: public read mode, source visibility, default DS-050 signal family/visibility, public aggregate eligibility, public aggregate minimum source count, raw-signal-id exposure, source-attribution requirement, license-review requirement, and runtime raw-source-read allowance.
-
-All hint-feed dry runs must declare:
-
-```text
-direct_db_writes=false
-runtime_raw_source_reads_allowed=false
-raw_signal_ids_publicly_exposed=false
-score_bearing=false
-pipeline_role=source_adapter_only
-central_evidence_builder_required=true
-central_display_builder_required=true
-central_score_builder_required=true
-viewport_subscriber_only=true
-central_semantic_tokens_required=true
-raw_colors_allowed=false
-```
-
-Matched source features may write DS-050 `institutional_status` signals only through a server-side adapter after dry-run review, attachment-key capping, V2S+S source registry checks, provenance checks, and license/source-attribution policy checks. Unmatched features remain `needs_matching` and cannot hydrate rider runtime views directly.
-
-Hint feeds are source-adapter inputs, not display or scoring pipelines. Accepted signals and rollups must feed the central `evidenceBuilder -> displayBuilder -> scoreBuilder` contract. Viewport heatmaps and overlays are subscribers to bounded builder/rollup output and must not own an alternate evidence/display/scoring lane.
-
-Hint-feed plans may expose semantic state only. Any visual rendering must resolve through the central semantic presentation token registry (`src/lib/presentation/semantic-tokens.ts`). Risk colors remain reserved for rider-operational risk, not source availability or institutional-overlay confidence.
-
-Public institutional/open-data overlays are distinct from anonymized rider-derived aggregates. A public source-attributed rollup may have `public_aggregate_min_unique_sources=1` only when the source itself is public, attribution is required in policy metadata, license review passes, and raw signal ids remain hidden. Anonymized or private-derived aggregate rollups keep the stricter privacy threshold used by the public aggregate rollup reader.
-
-Synthetic connectors remain first-class hint attachments. They may participate in matching, QA, regional hydration, and synthetic-segment rollups, but public viewport rollup reads stay bounded by the read policy that is active for that consumer.
-
-## 6.10 Viewport Provider Frames
-
-Viewport substrate consumers must use a provider frame instead of assembling ad hoc evidence, display, or score state inside the map. The provider frame is a pure contract that joins:
-
-- bounded visible OSM way candidates
-- canonical way-family identity summaries
-- synthetic connector continuity evidence
-- region manifest policy
-- bounded substrate rollup read requests
-- aggregate rollup response summaries
-- debug receipts
-
-The provider frame must declare:
-
-```text
-central_evidence_builder_required=true
-central_display_builder_required=true
-central_score_builder_required=true
-viewport_subscriber_only=true
-runtime_consumers=bounded_rollups_only
-raw_signal_runtime_reads=false
-raw_signal_ids_publicly_exposed=false
-raw_rollup_evidence_payload_consumed=false
-central_semantic_tokens_required=true
-raw_colors_allowed=false
-score_bearing=false
-```
-
-Canonical way-family identity runs before rollup request construction. This lets split OSM ways, semi-fragmented chains, and synthetic-connector continuity collapse into stable family summaries for debug and rendering while the actual rollup request remains bounded by attachment-key policy.
-
-Public viewport provider frames must keep rollup requests OSM-way-only, unscoped to saved routes, capped by public aggregate limits, and privacy-filtered by the server-side rollup reader. Synthetic connectors remain visible in identity/debug receipts but are not public aggregate attachment keys unless a future public policy explicitly allows synthetic-segment aggregate reads.
-
-The frame may summarize aggregate counts by family and way, but it must not expose raw signal ids or consume raw rollup evidence payloads. Visual output is semantic state only; actual colors must resolve through `src/lib/presentation/semantic-tokens.ts`.
-
-The RouteMap subscriber consumes the provider frame's bounded `rollupsByWayId` output when a frame is available. Compatibility rollup maps may remain at hook boundaries during migration, but provider frames must filter any returned aggregate rows to the requested way-family set before runtime rendering can see them.
-
-Hydrated viewport road records may feed the provider frame as identity-only way-family candidates. This adapter may use OSM way id, name/ref aliases, highway/domain, one-way metadata, and bounded endpoint-continuity hints from the already-hydrated road set. It must not fetch raw source payloads, scan raw substrate signals, or create a separate source resolver. Endpoint-derived synthetic connector evidence is first-class identity evidence, remains capped to the viewport attachment limit, and carries `score_bearing=false`.
-
-Admin/dev viewport debug surfaces may subscribe to a count-only provider-frame receipt published by the viewport hook. This receipt is observability, not a data source: it can expose status, gate/load decision, requested/capped/dropped attachment counts, returned rollup counts, canonical family merge counts, synthetic connector counts, privacy/no-data counts, and explicit policy booleans. It must not expose raw signal ids, raw rollup evidence payloads, raw source records, alternate display state, or score-bearing inputs. RouteMap may publish and clear this receipt, but RouteMap must not own retained windows, hydration queues, raw signal reads, or aggregate recomputation.
-
-## 6.11 Viewport Load Policy
-
-Phase 8.1C adds a pure viewport load policy contract for substrate-backed regional hydration. This policy does not read substrate signals, source records, or rollups. It decides only whether the viewport should load, reuse a retained window, suppress bearing spin, or purge old retained windows before loading.
-
-The policy covers:
-
-- ride-mode forward-bearing load
-- directional movement load derived from actual position/viewport movement
-- bearing-adaptive anti-spin gating when heading changes but movement stays below threshold
-- retained-window TTL, distance purge, and max retained window caps
-- stable request keys for unchanged retained coverage
-- a RouteMap ownership boundary where RouteMap receives bounded frames instead of owning the overlay working set
-
-The contract must declare:
-
-```text
-raw_signal_runtime_reads=false
-runtime_consumers=bounded_rollups_only
-viewport_subscriber_only=true
-score_bearing=false
-route_map_owns_working_set=false
-react_cumulative_raw_road_arrays_allowed=false
-purge_before_merge_required=true
-```
-
-This policy is intentionally upstream of the viewport provider frame. It decides the bounded area and retained-window lifecycle; the provider frame then builds bounded rollup requests and aggregate-only display summaries for the active area.
-
-The focused viewport heatmap hook must pass through a request gate before calling `substrate-rollup-reader`. The gate preserves legacy bounded reads when no load policy is supplied, but can return `reuse_retained` or `suppress_bearing_spin` without building a rollup read request. It must derive stable request keys from normalized OSM way ids and load-policy retained-window keys so recreated React arrays do not trigger repeat reads by identity alone.
-
-The viewport frame store owns retained windows, recent bearing-load events, and previous/current motion samples outside RouteMap. It exposes a subscribe/getSnapshot boundary suitable for `useSyncExternalStore` or an equivalent hook. RouteMap must not own retained road arrays, hydration queues, or bearing-spin counters.
-
-The viewport store hook is layer-neutral. A subscriber declares a `subscriberKey`, semantic domains, and bounded read kinds such as `provider_frame`, `rollup`, or `tile`. Today that subscriber may be a route-behavior heatmap; later it may be shoulder, wind, watts, surface, services, or another macro overlay. The contract is the same:
-
-```text
-central_evidence_builder_required=true
-central_display_builder_required=true
-central_score_builder_required=true
-viewport_subscriber_only=true
-raw_signal_runtime_reads=false
-raw_source_runtime_reads=false
-route_map_owns_working_set=false
-score_bearing=false
-```
-
-New viewport domains must not create alternate evidence, display, color, or scoring paths. They enter through source adapters or substrate signals, flow through the central builder/display/score contracts, and surface as bounded provider frames, rollups, or tiles.
-
-RouteMap may pass raw viewport inputs into the frame-store hook: current bounds, viewport center, movement-derived center changes, GPS/compass heading when available, reset key, and subscriber identity. RouteMap must not retain substrate windows, recent bearing events, raw rollup evidence, or source payloads. The hook returns the precomputed load-policy plan that bounded rollup/tile subscribers consume.
-
 ## 7. Cost And Scalability Rules
 
 - Keep raw signal rows append-friendly and audit-friendly.
@@ -28310,14 +27862,8 @@ RouteMap may pass raw viewport inputs into the frame-store hook: current bounds,
 - Keep viewport summaries tile-friendly.
 - Keep route-line cache summaries way/corridor-friendly.
 - Keep routing priors profile-aware.
-- Keep RouteX-derived way intelligence in `way_intelligence_rollups`, including traversed, rejected, nearby-not-selected, blocked-unresolved, and synthetic-connector-nearby counts.
-- Let route-line cache and routing-prior consumers use aggregate-only hints, never score-bearing source truth. Route-line cache hints derived from aggregate way intelligence are identity-only and must not trigger source reads.
-- Keep viewport heatmap rollup objects sanitized for rendering: aggregate counts, dominant signal, privacy/confidence metadata, and summary rows only. Raw signal ids, raw rollup evidence payloads, and source records must not survive into render-facing rollup objects.
 - Make rollups recomputable from the registry so product policy can change without losing source data.
 - Avoid global recomputation on every note or external record.
-- Cap corpus jobs and viewport requests before DB writes or reads.
-- Dedupe corpus routes by stable source route key before write planning.
-- Never hydrate all routes into the client.
 
 ## 8. Evidence Guardrails
 
@@ -28359,575 +27905,6 @@ RouteX remains responsible for route topology truth. The substrate signal regist
 - How should temporary institutional status override stale route-derived signals?
 - Should rollups be per directed way segment, whole OSM way, corridor, or all three?
 - When should repeated detour intent become an amenity recommendation rather than a route deviation penalty?
-
-
----
-
-## Source File: docs/02-architecture/design/ds-051-personal_coverage_ledger_and_history_heatmap_spec.md
-
-# DS-051 - Personal Coverage Ledger and History Heatmap Spec
-
-**Status:** Draft for Phase 7B architecture scaffold
-**Date:** 2026-06-01
-**Related:** DS-029, DS-031, DS-045, DS-048, DS-050
-
----
-
-## 1. Purpose
-
-This specification defines the Personal Coverage Ledger: Lanterne's future user-level riding-history model for whole-history heatmaps, exploration progress, ridden/unridden road intelligence, and private personal route memory.
-
-The product goal is:
-
-```text
-user activity archives and device syncs
-  -> activity normalization
-  -> way/edge map matching
-  -> per-activity way coverage evidence
-  -> per-user merged way/edge coverage ledger
-  -> privacy-safe vector tiles, aggregates, achievements, and Vault overlays
-```
-
-This is not a raw GPX overlay system. Raw GPX/FIT/Strava/RWGPS blobs are archive and evidence payloads only. The map-serving shape is way/edge coverage ranges and future vector tiles.
-
-## 2. Core Decision
-
-Store user riding history as coverage over canonical ways or edges, not as thousands of raw activity polylines.
-
-The ledger must answer:
-
-- Which canonical ways or edges has this user ridden?
-- What ranges of each way or edge were covered?
-- Which activities and sources support that claim?
-- What OSM snapshot, geometry hash, and source lineage were used?
-- What confidence does the match have?
-- When was the way first and last seen by the user?
-- How many activities have traversed it?
-- What privacy rules govern raw evidence, detailed private display, aggregate sharing, and public achievements?
-
-This keeps the future history heatmap scalable. Large user histories and national route collections should be served as vector tiles or tile-like metadata, not as a single browser payload.
-
-## 3. Boundary With RouteX
-
-RouteX and the Personal Coverage Ledger are separate systems that may share canonical way identity.
-
-| System | Owns | Does not own |
-| --- | --- | --- |
-| RouteX | Route artifact topology, intended path, route revisions, traversed route ways, synthetic route connectors, route-derived substrate signals. | Private user history, activity archives, personal achievements, personal heatmaps. |
-| Personal Coverage Ledger | Private user activity history, actually ridden way/edge coverage, source/device lineage, per-user coverage rollups, privacy-safe history tiles. | Canonical route artifact truth, saved-route topology revisions, intended path topology. |
-
-RouteX may say: "This saved route intends to traverse these ways."
-
-Coverage Ledger may say: "This user actually rode these ranges of these ways on these activities."
-
-Do not mix these into one table. RouteX projection rows can be used as matching hints or QA evidence, but coverage rows remain user-private activity-derived facts.
-
-## 4. Vocabulary
-
-| Term | Meaning |
-| --- | --- |
-| Activity | A ride, run, route recording, race, commute, or imported historical track associated with one user. |
-| Activity source | The platform, device, archive, or upload path that supplied activity evidence. |
-| Raw activity blob | FIT, GPX, TCX, JSON, Strava export record, RWGPS export, or device payload stored as evidence only. |
-| Canonical way | Stable way-level identity in Lanterne's way-centric database, usually derived from OSM with snapshot lineage. |
-| Canonical edge | Routable/directional or split edge identity derived from one or more way geometries. |
-| Covered range | One or more intervals along a canonical way or edge that an activity or user has covered. |
-| Activity way match | Per-activity evidence that a track covered a range of a canonical way or edge. |
-| User way coverage | Merged per-user coverage over a canonical way or edge across activities and sources. |
-| Coverage tile | Generated or cached serving artifact for private heatmap, aggregate heatmap, or achievement views. |
-
-## 5. Source And Privacy Model
-
-### 5.1 Ingest methods
-
-Expected ingest methods:
-
-- `archive_upload`
-- `api_sync`
-- `file_upload`
-- `device_sync`
-- `manual_import`
-- `first_party_recording`
-
-Expected source platforms:
-
-- `strava`
-- `garmin`
-- `wahoo`
-- `coros`
-- `karoo`
-- `rwgps`
-- `fit_file`
-- `gpx_file`
-- `tcx_file`
-- `manual`
-- `lanterne`
-
-### 5.2 Policy classes
-
-Expected source policy classes:
-
-- `api_restricted`
-- `user_archive`
-- `open_file`
-- `device_export`
-- `first_party`
-- `unknown`
-
-Important rule: a user-uploaded Strava archive is `source_platform = 'strava'` and `ingest_method = 'archive_upload'`. It should not be laundered into generic GPX. Lanterne can treat the user archive differently from API-fetched Strava data, but the provenance still matters for privacy, retention, support, and shareability.
-
-### 5.3 Visibility tiers
-
-The ledger must support four visibility tiers:
-
-- `private_user_view`
-  - Detailed user-specific road coverage, activity links, timestamps, and private heatmap.
-- `shareable_aggregate`
-  - Privacy-safe aggregate rollups with thresholds, no raw user track reconstruction, and no single-user detailed disclosure.
-- `achievement_only_public`
-  - Public badges, totals, state/county completion, year summaries, or collection progress without street-level source disclosure.
-- `admin_support`
-  - Restricted operational visibility for debugging ingestion or match failures.
-
-### 5.4 Default privacy rules
-
-| Source | Default detailed view | Aggregate eligibility | Public eligibility |
-| --- | --- | --- | --- |
-| Strava API sync | Private user view only. | Only through policy-checked aggregate thresholds. | Achievement-only unless policy permits more. |
-| Strava user archive upload | Private user view by default. | Eligible for privacy-safe aggregate after policy review. | Achievement-only by default. |
-| Garmin API/device export | Private user view by default. | Eligible for privacy-safe aggregate if user grants permission. | Achievement-only by default. |
-| Wahoo/COROS/Karoo sync | Private user view by default. | Eligible for privacy-safe aggregate if user grants permission. | Achievement-only by default. |
-| RWGPS import/export | Private user view by default unless route is explicitly public/owned. | Eligible for aggregate if user grants permission. | Achievement-only by default. |
-| GPX/FIT/TCX file upload | Private user view by default. | Eligible for aggregate if user grants permission. | Achievement-only by default. |
-| Lanterne first-party recording | Private user view by default. | Eligible for aggregate according to Lanterne consent. | Achievement-only unless user opts into public detail. |
-
-No raw personal activity blob becomes public because a derived rollup is useful.
-
-## 6. Proposed Tables
-
-These are proposed schema contracts only. Do not implement migrations from this DS until a separate execution phase is approved.
-
-### 6.1 `activity_sources`
-
-Stores the user/platform/source relationship and policy classification.
-
-```sql
-create table activity_sources (
-  id uuid primary key,
-  user_id uuid not null,
-  source_platform text not null,
-  ingest_method text not null,
-  source_policy_class text not null,
-  provider_account_id text,
-  provider_display_name text,
-  auth_connection_id uuid,
-  archive_upload_id uuid,
-  default_visibility text not null,
-  aggregate_consent boolean not null default false,
-  public_achievement_consent boolean not null default false,
-  raw_retention_policy text not null,
-  raw_retention_until timestamptz,
-  last_sync_at timestamptz,
-  revoked_at timestamptz,
-  metadata jsonb not null default '{}',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-```
-
-Required indexes:
-
-- `(user_id, source_platform, ingest_method)`
-- `(user_id, revoked_at)`
-- `(source_policy_class)`
-
-### 6.2 `user_activities`
-
-Stores one normalized activity row and references raw archive/evidence payloads.
-
-Raw blobs are archive/evidence only. They are not map-render payloads.
-
-```sql
-create table user_activities (
-  id uuid primary key,
-  user_id uuid not null,
-  activity_source_id uuid not null references activity_sources(id),
-  provider_activity_id text,
-  title text,
-  activity_type text,
-  started_at timestamptz,
-  timezone text,
-  duration_s numeric,
-  moving_duration_s numeric,
-  distance_m numeric,
-  elevation_gain_m numeric,
-  start_point geometry(Point, 4326),
-  end_point geometry(Point, 4326),
-  raw_blob_storage_path text,
-  raw_blob_content_hash text,
-  normalized_track_storage_path text,
-  normalized_track_hash text,
-  source_lineage jsonb not null default '[]',
-  source_policy_class text not null,
-  visibility text not null,
-  match_status text not null default 'pending',
-  match_version text,
-  match_error text,
-  privacy_redactions jsonb not null default '{}',
-  metadata jsonb not null default '{}',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-```
-
-Expected `match_status` values:
-
-- `pending`
-- `matched`
-- `partial`
-- `failed`
-- `skipped_private`
-- `superseded`
-
-Required indexes:
-
-- `(user_id, started_at desc)`
-- `(activity_source_id, provider_activity_id)`
-- `(user_id, match_status)`
-- `(raw_blob_content_hash)`
-- `gist(start_point)`
-
-### 6.3 `activity_way_matches`
-
-Stores per-activity evidence that a track covered specific ranges of a canonical way or edge.
-
-This is evidence, not the merged user ledger.
-
-```sql
-create table activity_way_matches (
-  id uuid primary key,
-  user_id uuid not null,
-  activity_id uuid not null references user_activities(id),
-  canonical_way_id uuid,
-  canonical_edge_id uuid,
-  osm_way_id bigint,
-  osm_snapshot_id text not null,
-  osm_snapshot_date timestamptz,
-  geometry_hash text not null,
-  covered_ranges jsonb not null,
-  range_basis text not null,
-  direction text,
-  matched_distance_m numeric,
-  activity_start_dist_m numeric,
-  activity_end_dist_m numeric,
-  confidence text not null,
-  confidence_score numeric,
-  matcher_version text not null,
-  source_lineage jsonb not null default '[]',
-  source_policy_class text not null,
-  visibility text not null,
-  evidence jsonb not null default '{}',
-  created_at timestamptz not null default now()
-);
-```
-
-Constraints:
-
-- At least one of `canonical_way_id` or `canonical_edge_id` must be present.
-- `covered_ranges` must be expressed against the stated `osm_snapshot_id` and `geometry_hash`.
-- Ranges must not be reused across geometry versions without remapping.
-
-Expected `range_basis` values:
-
-- `measure_m`
-- `normalized_fraction`
-
-Expected `direction` values:
-
-- `forward`
-- `reverse`
-- `bidirectional`
-- `unknown`
-
-Example `covered_ranges` shape:
-
-```json
-[
-  {
-    "start_m": 0,
-    "end_m": 148.2,
-    "direction": "forward",
-    "confidence": "high"
-  }
-]
-```
-
-Required indexes:
-
-- `(user_id, canonical_way_id)`
-- `(user_id, canonical_edge_id)`
-- `(activity_id)`
-- `(osm_way_id, osm_snapshot_id)`
-- `(geometry_hash)`
-- `(confidence)`
-
-### 6.4 `user_way_coverage`
-
-Stores the merged per-user coverage ledger across activities and sources.
-
-This is the primary query source for history heatmaps, road completion, repeated roads, and personal exploration features.
-
-```sql
-create table user_way_coverage (
-  id uuid primary key,
-  user_id uuid not null,
-  canonical_way_id uuid,
-  canonical_edge_id uuid,
-  osm_way_id bigint,
-  osm_snapshot_id text not null,
-  osm_snapshot_date timestamptz,
-  geometry_hash text not null,
-  merged_covered_ranges jsonb not null,
-  range_basis text not null,
-  coverage_distance_m numeric not null,
-  coverage_pct numeric,
-  activity_count int not null default 0,
-  source_count int not null default 0,
-  source_platforms text[] not null default '{}',
-  source_policy_classes text[] not null default '{}',
-  first_seen_at timestamptz,
-  last_seen_at timestamptz,
-  last_activity_id uuid,
-  confidence text not null,
-  confidence_score numeric,
-  privacy_floor text not null,
-  aggregate_eligible boolean not null default false,
-  public_achievement_eligible boolean not null default false,
-  source_lineage jsonb not null default '[]',
-  evidence_activity_match_ids uuid[] not null default '{}',
-  coverage_version text not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-```
-
-Constraints:
-
-- At least one of `canonical_way_id` or `canonical_edge_id` must be present.
-- `merged_covered_ranges` must be merged by canonical identity, snapshot, geometry hash, user, and privacy policy.
-- Coverage from different geometry hashes must not be merged until remapped.
-
-Required indexes:
-
-- `(user_id, canonical_way_id)`
-- `(user_id, canonical_edge_id)`
-- `(user_id, last_seen_at desc)`
-- `(user_id, coverage_pct)`
-- `(osm_way_id, osm_snapshot_id)`
-- `(aggregate_eligible)`
-- `(public_achievement_eligible)`
-
-### 6.5 `user_coverage_tiles`
-
-Stores generated tile metadata or cached tile references for private, aggregate, and achievement views.
-
-The tile payload may live in object storage, an edge cache, or a future tile service. This table tracks invalidation, versioning, and policy.
-
-```sql
-create table user_coverage_tiles (
-  id uuid primary key,
-  user_id uuid,
-  tile_scope text not null,
-  tile_z int not null,
-  tile_x int not null,
-  tile_y int not null,
-  tile_key text not null,
-  profile text,
-  mode text,
-  source_policy_class text,
-  osm_snapshot_id text not null,
-  coverage_version text not null,
-  privacy_tier text not null,
-  payload_format text not null,
-  storage_path text,
-  content_hash text,
-  feature_count int,
-  min_seen_at timestamptz,
-  max_seen_at timestamptz,
-  expires_at timestamptz,
-  invalidated_at timestamptz,
-  metadata jsonb not null default '{}',
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-```
-
-Expected `tile_scope` values:
-
-- `private_user_coverage`
-- `private_user_heatmap`
-- `shareable_aggregate`
-- `achievement_summary`
-- `admin_debug`
-
-Expected `payload_format` values:
-
-- `mvt`
-- `geojson`
-- `pmtiles`
-- `json_metadata`
-
-Required indexes:
-
-- `(user_id, tile_z, tile_x, tile_y, tile_scope)`
-- `(tile_scope, tile_z, tile_x, tile_y)`
-- `(coverage_version)`
-- `(invalidated_at, expires_at)`
-- `(privacy_tier)`
-
-## 7. Derived Products
-
-The ledger should support these products without new raw-activity rendering paths:
-
-- private personal history heatmap
-- ridden roads
-- unridden nearby roads
-- ridden this year
-- ridden by source/platform
-- ridden by mode
-- repeated/favorite roads
-- state/county/region progress
-- new-to-me miles
-- Vault overlays showing which collection routes include already-ridden or new roads
-- personal safety exposure history
-- personal route recommendations based on known/unknown roads
-
-Each product consumes `user_way_coverage`, derived rollups, or generated tiles. None should scan raw GPX/FIT/Strava/RWGPS blobs at render time.
-
-## 8. Matching And Remapping Requirements
-
-The matcher must record:
-
-- canonical way or edge identity
-- OSM way ID when available
-- OSM snapshot ID/date
-- geometry hash
-- source lineage
-- matcher version
-- confidence and confidence score
-- covered ranges
-- activity distance ranges
-- direction
-- privacy policy class
-
-OSM changes must be handled explicitly:
-
-- If geometry hash changes, existing coverage is stale for that geometry.
-- Remapping may project old coverage ranges onto new canonical ways/edges.
-- Until remapped, old coverage remains evidence but should not be silently merged into current geometry.
-- Tile generation must include coverage version and OSM snapshot to avoid displaying mixed-snapshot coverage as exact truth.
-
-## 9. Vector Tile Strategy
-
-History maps should be served as tiles, not as one giant user history payload.
-
-Initial tile strategy:
-
-- Generate private user coverage tiles from `user_way_coverage`.
-- Include simplified line features by zoom.
-- Include feature properties needed for styling only, such as coverage class, last seen bucket, activity count bucket, and confidence.
-- Do not include raw activity IDs, exact timestamps, or raw source payload paths in public or aggregate tiles.
-- Cache private tiles per user and invalidate by `coverage_version`.
-- Generate aggregate tiles only when privacy thresholds are met.
-
-The Vault can later use the same tile family for:
-
-- large collection previews
-- personal "new roads on this route" overlays
-- state/county exploration overlays
-- private "I have ridden this" route matching
-
-## 10. Privacy Gates
-
-Before any detailed coverage leaves private user view:
-
-1. Check source policy class.
-2. Check user consent.
-3. Check privacy tier requested by the caller.
-4. Apply minimum aggregation thresholds for aggregate tiles.
-5. Strip raw activity evidence and precise timestamps.
-6. Prefer achievement totals over street-level public detail by default.
-7. Retain source lineage internally for audit and deletion.
-
-Deletion and revocation requirements:
-
-- Removing an activity source must mark future sync disabled.
-- User-requested deletion must delete or tombstone raw blobs according to retention policy.
-- Coverage derived only from deleted activities must be removed or recomputed.
-- Coverage derived from mixed sources must be recomputed from remaining eligible evidence.
-- Tiles must be invalidated after deletion, revocation, or remap.
-
-## 11. Non-Goals For Phase 7B
-
-This phase does not:
-
-- create migrations
-- write edge functions
-- modify RouteX runtime paths
-- modify Phase 8 substrate runtime paths
-- modify `Index.tsx`
-- modify `RouteMap.tsx`
-- render history heatmaps
-- implement Strava, Garmin, Wahoo, COROS, Karoo, or RWGPS sync
-- implement GPX/FIT ZIP parsing
-- replace Vault route preview behavior
-
-## 12. Implementation Sequence
-
-Recommended future phases:
-
-1. Approve this DS and align with the way-centric database architecture.
-2. Add migrations for source, activity, match, coverage, and tile metadata tables.
-3. Build an offline parser for user archive uploads.
-4. Build a map-matching worker that emits `activity_way_matches`.
-5. Build a deterministic coverage merge worker that emits `user_way_coverage`.
-6. Build private vector tile generation from coverage rows.
-7. Add a private user history map surface.
-8. Add privacy-safe aggregate and achievement-only public views.
-9. Add Vault overlays that compare collection routes against user coverage.
-
-## 13. Phase 7B TypeScript Scaffold Status
-
-Status: Implemented as a pure TypeScript model scaffold on 2026-06-01.
-
-Implemented under `src/lib/personal-coverage/`:
-
-- typed contracts for `ActivitySource`, `UserActivity`, `ActivityWayMatch`, `UserWayCoverage`, `CoverageRange`, `SourcePolicyClass`, and `CoverageVisibilityTier`
-- deterministic covered-range merge helpers
-- privacy policy evaluator for private user view, shareable aggregate, achievement-only public, and admin support requests
-- write-plan style ingestion contract that prepares rows without remote writes
-- focused tests for range merging, Strava archive provenance, raw evidence-only payload boundaries, public-detail gating, and runtime isolation
-
-Guardrails preserved:
-
-- no DB migrations
-- no Supabase writes or client coupling
-- no `Index.tsx` or `RouteMap.tsx` edits
-- no raw GPX/FIT/Strava/RWGPS history overlays
-- no RouteX runtime/table coupling
-
-## 14. Acceptance Criteria
-
-Phase 7B is complete when:
-
-- DS-051 exists and documents the Personal Coverage Ledger.
-- Proposed tables cover activity sources, user activities, activity-way matches, user way coverage, and coverage tile metadata.
-- Raw activity blobs are explicitly archive/evidence only.
-- The model uses canonical way/edge identity, OSM snapshot/version, geometry hash, covered ranges, confidence, source lineage, first/last seen, activity count, and privacy policy.
-- RouteX separation is explicit.
-- Strava/Garmin/RWGPS/GPX privacy tiers are explicit.
-- Checklist entries exist.
-- No migrations or runtime code paths are changed.
 
 
 ---
@@ -37208,7 +36185,7 @@ Key shape:
 
 Example profile keys:
 
-- `viewport_speed`
+- `viewport_speed_v1`
 - `bike_infra_v1`
 - `hazard_control_v1`
 - `admin_broad_debug_v1`
@@ -37389,7 +36366,7 @@ It is not timeless product doctrine.
 
 Source and tests remain authoritative when stage names, priority groups, z-band membership, or track placement changes.
 
-## 10.1 Exact Hydration: `viewport_speed`
+## 10.1 Exact Hydration: `viewport_speed_v1`
 
 Current stages:
 
