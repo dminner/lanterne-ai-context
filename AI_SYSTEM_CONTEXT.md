@@ -19253,6 +19253,41 @@ Do not store full raw source tags in `viewport_speed`. Exact raw/owned source ev
 
 Runtime substrate surfaces may expose a bounded candidate-grid speed fallback for first paint or QA, but that fallback must be labeled as grid/source fallback and must not be presented as central evidence resolver truth. HPMS/DOT/OSM precedence decisions belong upstream in the bounded `viewport_speed` profile payload or route evidence profile payload. A viewport subscriber may join materialized `viewport_speed` rows by OSM way/source-way reference; it must not perform raw HPMS/OSM/source scans to resolve provenance at hover time.
 
+The `viewport_speed` profile write boundary is a pure server/backfill contract over already-resolved evidence. It accepts compact road geometry plus the winning resolved speed/provenance fact, emits bounded `osm_road_profile_tile_cache` rows, and records `scoreBearing=false`, `rawSignalRead=false`, and `rawSourceRead=false` in the write-plan receipt. It must not decide HPMS-vs-OSM precedence itself.
+
+`osm_road_profile_tile_cache.source_version` identifies the cache bundle/read version requested by bounded clients. Per-road evidence provenance such as an OSM snapshot, HPMS source table, or DOT feed version is stored inside the compact road record, for example `_viewport_profile_source_version=HPMS_FULL_NJ_2024`. This keeps cache lookup stable while preserving hover/inspector provenance.
+
+Profile tile writes are service-role/server-authorized only. The upsert boundary must reject browser-like callers, oversized row sets, non-`viewport_speed` rows, raw source payload tags, raw signal reads, raw source reads, and any `scoreBearing=true` payload. Dry-run must be available for generated write plans before any Supabase write.
+
+The `viewport_speed` hydration planner is dry-run first and source-neutral. It reads owned road geometry plus already-resolved speed/provenance facts, joins by OSM/source-way id, and emits the bounded write-plan JSON consumed by the guarded upsert boundary. It may defensively pick the strongest duplicate resolved fact for a way, but it must not fetch raw HPMS/OSM/source records or decide source-family precedence from unresolved inputs. Roads without a resolved speed fact are skipped instead of promoted from candidate-grid `maxspeed` fallback tags.
+
+V2S+S diagnostic/scoring artifacts may be converted into planner-ready resolved speed facts only through selected evidence output. The export bridge reads `segmentInputPreview.selectedEvidenceByField.speed_limit` plus `productEvidenceRequest.ownershipSpans` / `sourceWayContributions`, emits source-way-scoped `resolvedSpeedFacts`, and records `rawSignalRead=false`, `rawSourceRead=false`, and `scoreBearing=false`. By default it exports source-backed speed selections only; baseline/fallback selections require an explicit option for broader first-paint hydration.
+
+The owned-road extraction bridge can derive planner geometry from bounded candidate-grid cells for requested resolved OSM/source-way ids. This is a build/backfill utility, not a runtime source scan. Candidate-grid cell arrays are GeoJSON-style lon/lat and must be normalized into the profile writer's lat/lon `SpeedRoad.coords` before any `viewport_speed` plan is accepted.
+
+Operator path:
+
+```bash
+npx tsx scripts/route-line-v2/write-v2ss-diagnostic-scoring-lane.ts \
+  --mode medford_speed_diagnostic_route \
+  --out .tmp/v2ss-diagnostic-lane.json
+npx tsx scripts/substrate/export-viewport-speed-facts-from-scoring-preview.ts \
+  --artifact .tmp/v2ss-diagnostic-lane.json \
+  --out .tmp/resolved-speed-facts.json
+npx tsx scripts/substrate/extract-candidate-grid-owned-roads.ts \
+  --grid-dir public/substrate/south-jersey/candidate-grid \
+  --speed-facts .tmp/resolved-speed-facts.json \
+  --out .tmp/owned-roads.json
+npx tsx scripts/substrate/plan-viewport-speed-profile-tiles.ts \
+  --roads .tmp/owned-roads.json \
+  --speed-facts .tmp/resolved-speed-facts.json \
+  --out .tmp/viewport-speed-plan-report.json \
+  --plan-out .tmp/viewport-speed-plan.json
+node scripts/substrate/upsert-viewport-speed-profile-tiles.mjs --plan .tmp/viewport-speed-plan.json
+```
+
+These commands perform no Supabase writes unless the final upsert command is rerun with explicit `--write` plus service-role credentials. The report path is for inspection; `--plan-out` is the raw guarded write-plan consumed by the upsert boundary.
+
 ## 8.4 Batching And Round Trips
 
 Separate logical profiles do not require one network round trip per field.
