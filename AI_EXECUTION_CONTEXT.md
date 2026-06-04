@@ -47337,6 +47337,8 @@ Current cache scope:
 
 - The public candidate-grid cells are compact structural substrate inputs: OSM way id/fid, highway, selected tags, bounds, and geometry.
 - The V2Review fallback derives corridor identity, member grouping, salience, continuity, zoom eligibility, and inspection metadata from those bounded cells.
+- The candidate-grid fallback now attempts a bounded, stage-aware `viewport_speed` profile-cache join by OSM way id before emitting DS-035 display payloads. It reads only materialized profile tiles for the active z-band stage set, never raw signal/source history.
+- When a matching profile row exists, the inspector can show `profile_joined` speed/source facts such as HPMS/official posted values. When no profile row exists, OSM `maxspeed` from the candidate-grid remains an explicit `OSM posted (grid fallback)` display hint, not central evidence resolver truth.
 - `viewport_speed`, AADT/traffic, shoulder, bike-infra overlay, elevation/grade, and future wind/watts facts are not currently persisted in the base candidate-grid cell payload.
 - That is aligned with DS-035: base substrate is regional cyclist structure and continuity; profile overlays remain profile hydration, rollup, or tile payloads.
 
@@ -47352,7 +47354,7 @@ Country-wide promotion checklist:
 - Keep cell reads bounded by viewport/route corridor and reject oversized viewports before fetch.
 - Shard cell payloads by DS-035 priority lane or equivalent so trunk/primary/path/track first paint does not wait on local-road parsing.
 - Preserve structural payload minimalism: id/fid/highway/selected tags/bounds/geometry/source version, with corridor metadata derived or precomputed separately when payload cost justifies it.
-- Add a bounded `viewport_speed` profile join for initial paint color/speed-band inspection.
+- Keep the bounded `viewport_speed` profile join for initial paint color/speed-band inspection, and hydrate those profile rows from the central evidence/resolver/profile pipeline so HPMS/DOT/OSM precedence is decided before runtime display.
 - Add optional bounded profile joins for shoulder, bike-infra, traffic/AADT, surface, elevation/grade, wind, watts, or future domains through the same adapter contract.
 - Inspector must show source/version, structural substrate fields, profile fields when hydrated, exact-hydration availability, and source/cell/profile receipt counts.
 - Main app dev mode must consume the same DS-035 adapter and existing semantic color path; `/v2-review` remains the QA oracle.
@@ -47374,10 +47376,10 @@ Country-wide promotion checklist:
 - [ ] Phase 0 closeout: Define generated artifact storage/size policy for country-wide substrate.
 - [x] Phase 1: Add shared DS-035 substrate/profile display adapter and wire `/v2-review` candidate-grid QA through the adapter receipt.
 - [x] Phase 1: Expose bounded `viewport_speed` profile facts in `/v2-review` inspector without baking speed into base substrate.
-- [ ] Phase 1: Add shared DS-035 substrate/profile-to-heatmap adapter.
+- [x] Phase 1: Add shared DS-035 substrate/profile-to-heatmap adapter.
+- [x] Phase 1: Join bounded `viewport_speed` profile metadata for speed-band/initial-paint inspection when profile-cache rows exist, and label candidate-grid OSM speed as grid fallback when no profile row exists.
 - [ ] Phase 1: Confirm adapter uses `viewportSpeedProfile` admission and semantic speed colors.
 - [ ] Phase 1: Confirm adapter hot payloads stay bounded and do not carry RouteLine truth.
-- [ ] Phase 1: Join bounded `viewport_speed` profile metadata for speed-band/initial-paint inspection without baking speed into base substrate.
 - [ ] Phase 2: Add dev/admin `Substrate foundation heatmap only` toggle as a source switch.
 - [ ] Phase 2: Confirm production heatmap behavior is unchanged when toggle is OFF.
 - [ ] Phase 3: Add Golden Harness route-area manifest contract.
