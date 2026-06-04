@@ -46951,6 +46951,443 @@ This program is complete when:
 
 ---
 
+## Source File: docs/04-execution/exec-042-ds-035-substrate-runtime-review-path.md
+
+# EXEC-042 - DS-035 Substrate Runtime Review Path
+
+## Mission
+
+Implement the DS-035-governed substrate runtime review path by reconnecting existing substrate QA, viewport profile hydration, and heatmap presentation pieces.
+
+This is assembly work. Do not invent a new renderer, new colors, new road identity model, or new cache architecture.
+
+Primary outcomes:
+
+1. Restore `/v2-review` substrate QA so it renders real substrate/corridor/member geometry instead of the fake fallback three horizontal lines.
+2. Expose the same substrate/profile runtime foundation in the main app behind a dev/admin source switch: `Substrate foundation heatmap only`.
+
+## Governing Boundaries
+
+DS-035 governs this implementation.
+
+Use existing:
+
+- Cyclist mobility substrate for regional cyclist structure, corridor continuity, salience, zoom eligibility, and presentation grouping.
+- Profile-aware exact hydration for viewport overlays.
+- `viewport_speed` speed profile where available.
+- `viewportSpeedProfile` admission, hysteresis, and caps.
+- Semantic speed/risk color registry and existing RouteMap heatmap paint contract.
+- `/v2-review` QA surface and existing V2 corridor/member preview behavior.
+- Main app heatmap renderer.
+
+Do not:
+
+- Bake speed into base substrate.
+- Treat substrate as route truth.
+- Treat viewport profile hydration as RouteLine truth.
+- Create route ownership from substrate corridor grouping.
+- Add literal color values or new diagnostic speed palettes.
+- Create another heatmap/substrate renderer.
+- Change production V1 scoring, HPMS, hazards, route save/history, or Supabase writes.
+
+Supporting specs:
+
+- ADR-045 governs adapter boundaries.
+- DS-031 governs route-indexed evidence where route-distance layers are exposed.
+- DS-032 governs worker-streamed RouteLine identity only where route truth/identity is being built.
+- EXEC-024/025 govern `/v2-review` RouteLine ownership diagnostics.
+- DS-036 through DS-042 are future durable relation/reload specs and must not hijack this task.
+
+## Current Findings To Audit First
+
+The worktree currently contains dirty implementation attempts that must be audited before additional feature work:
+
+- `src/components/V2ReviewMap.tsx`
+- `src/components/RouteMap.tsx`
+- `src/components/DevTuningPanel.tsx`
+- `src/lib/debug-registry.ts`
+- `src/lib/route-line-v2/south-jersey-substrate-candidate-cache.ts`
+- `src/lib/route-line-v2/south-jersey-substrate-candidate-cache.test.ts`
+- Large public substrate candidate-grid expansion/deletion churn.
+- `scripts/substrate/expand-golden-harness-candidate-grid.ts`
+
+Known red flags from the dirty attempt:
+
+- `V2ReviewMap` has a candidate-grid fallback path mixed into the artifact loader. This may be useful as a bounded source fallback, but it must not replace real `/v2-review` artifact QA.
+- `RouteMap` currently contains custom substrate inspection colors with literal hex values. That violates the semantic-token/color-registry rule and must be removed or rewired through existing presentation controllers.
+- The Dam-only public grid was removed and South Jersey appears to be expanding into a shared Golden Harness candidate-grid surface. That may be the right cache direction, but it must remain bounded and not become a client-side mega-blob.
+
+Do not revert unrelated user or other-Codex work. Rework only the DS-035 runtime-review pieces that violate this plan.
+
+## Dirty Diff Assessment - 2026-06-02
+
+This section classifies the current dirty worktree after diff inspection. It is an implementation guide, not permission to stage everything.
+
+### Keep Or Keep As Seed
+
+- `scripts/substrate/expand-golden-harness-candidate-grid.ts`: keep the concept and likely the script. It uses owned OSM, route-buffered Golden Harness cells, recursive dense-cell splitting, and atomic writes. That matches the "no parallel Dam cache" direction. Before committing, it needs focused tests or at least dry-run/smoke receipts and clear output-size policy.
+- `public/substrate/dam-ride/candidate-grid/*` deletions: keep only if the shared Golden Harness/South Jersey candidate-grid replacement is committed in the same checkpoint. The direction is right: no long-lived parallel Dam-only runtime cache.
+- `src/lib/route-line-v2/south-jersey-substrate-candidate-cache.ts`: keep the route-corridor cell selection and route-fair candidate selection. These fix the Dam Ride problem where a dense local cluster can consume the candidate cap before later route sections get hints. Rename/reframe away from "south-jersey" when the shared Golden/USA surface lands.
+- `src/lib/route-line-v2/south-jersey-substrate-candidate-cache.test.ts`: keep the route-fair selection test. Keep the viewport candidate-grid reader test only if the reader becomes part of the shared DS-035 adapter boundary.
+- `src/components/DevTuningPanel.tsx`, `src/lib/debug-registry.ts`, `src/pages/Index.tsx`: keep the dev-toggle wiring idea, but rename/route it through the DS-035 adapter and label it exactly `Substrate foundation heatmap only`.
+- `src/components/RoadInfoPanel.tsx`: keep the inspection intent, but prefer a structured adapter inspection payload over blindly dumping every `_substrate_` tag.
+
+### Rework Or Discard As-Is
+
+- `public/substrate/south-jersey/candidate-grid/*`: do not commit the generated grid as-is. Current worktree summary is about 2,797 files and 276 MB, with the manifest expanded from 86,239 records / 427 cells to 509,819 records / 2,796 cells. The direction is useful, but this is too large for a casual public repo/runtime artifact. Rework into one of:
+  - a narrow South Jersey compatibility grid plus one Golden Harness validation area;
+  - an external/object-store tile cache with manifest pointers;
+  - or a compressed/chunked public artifact policy approved explicitly before staging.
+- `src/components/V2ReviewMap.tsx`: rework. The candidate-grid fallback idea is useful, but the file currently mixes live candidate-grid conversion into the artifact loader. Phase 0 must restore `.tmp/substrate/<region>/corridor-members-z*.geojson` and related artifacts as the primary QA source. Candidate-grid fallback can remain only as explicit secondary source with visible status and should use the shared DS-035 adapter.
+- `src/components/RouteMap.tsx`: rework. The source-switch idea is useful, but direct component fetches from the candidate cache and custom paint branches violate the plan. Remove `substrateCacheInspectionColor` and all literal hex substrate inspection colors. RouteMap should receive adapter-produced roads/segments and render through the existing heatmap/semantic color path.
+- `src/components/RouteMap.tsx` fragment merge changes: keep only if moved into shared substrate/corridor identity logic. Do not create route ownership or corridor truth in RouteMap.
+- `src/components/RoadInfoPanel.tsx`: rework if it stays. Inspector should show DS-035 fields: substrate source/version, member way ids, profile fields, exact hydration availability, and source/cell receipt. It should not become a raw tag viewer for runtime payload internals.
+- `checklist.md`: keep the EXEC-042 section and audit completion marker, but review the pre-existing checked Golden Harness expansion lines before committing. They currently imply the large generated grid expansion is completed; that should only remain checked if the generated artifact strategy is accepted and committed.
+
+### Unrelated Or Leave Aside For This EXEC
+
+- `src/lib/route-line-v2/v2ss-current-route-production-engine.ts` and test changes: route scoring/crossing-risk work. Useful-looking, but it belongs to DS-032/DS-015 scoring and RouteLine identity, not DS-035 viewport runtime review.
+- `src/lib/route-line-v2/v2ss-existing-scoring-adapter-runner.ts` and `v2ss-supabase-edge-live-read-smoke.ts`: crossing-conflict/scoring adapter work. Leave aside for this checkpoint.
+- `src/lib/route-line-v2/v2ss-hazard-events.ts` and tests: route-indexed hazard anchoring/scoring support. Leave aside unless a separate hazard/RouteLine commit owns it.
+- `src/domain/adminScoreAudit.ts`, `src/domain/analyze/score-output-readiness.test.ts`, and `src/lib/__tests__/admin-score-audit.test.ts`: score-output/admin audit work. Not part of DS-035.
+- `src/lib/state-lookup.ts`: HPMS/source-state selection support. Not part of DS-035 runtime review.
+- `supabase/functions/overpass-proxy/index.ts`: way-id filtering may support exact hydration later, but it is a Supabase Edge boundary change. Do not include in the DS-035 visual/adapter checkpoint unless the adapter explicitly depends on it and no deployment is performed.
+- `scripts/lib/rwgps_local_ingest.mjs`, `src/lib/route-load/source-projection-artifact.ts`, `src/lib/route-load/source-projection-artifact.test.ts`, `src/lib/rwgpsLoader.ts`, and `supabase/functions/_shared/rwgps-normalize.ts`: RWGPS/control-dedup/source-projection work. Leave aside.
+- `supabase/.temp/cli-latest`: local Supabase CLI temp metadata. Do not stage with this work.
+
+### Recommended Immediate Checkpoint Order
+
+1. Document and commit only this EXEC/checklist update if desired.
+2. Stabilize candidate-grid scope: keep script/route-fair logic; do not stage the 276 MB generated public grid as-is.
+3. Restore `/v2-review` artifact-primary behavior before main-app work.
+4. Extract the DS-035 adapter and have both V2Review fallback and main app dev mode consume it.
+5. Rewire the main app toggle through existing heatmap renderer and semantic color controllers.
+
+## Making Phase 8 Hardening Useful
+
+The next phase must turn the hardening work into runtime value through bounded consumers, not by exposing the raw ledger or raw corpus blobs.
+
+### Hardening To Runtime Map
+
+- **DS-050 signal registry and RouteX substrate signals** become aggregate route-behavior context only after rollup. Runtime may consume way/synthetic/route-span rollups, never raw signal rows.
+- **Rollup metadata and public aggregate policy** become the guardrails for viewport reads: bounded request, OSM-way-only public scope, minimum source count, no raw signal ids, no saved-route scope.
+- **Canonical RouteExperience substrate inputs** become the only eligible source for route-derived substrate signals. Stored source projections remain noncanonical audit/load inputs and do not emit substrate signals directly.
+- **Backfill planner, retry ledger, write caps, and rollup refresh intents** become the corpus deployment path for permanents, events, USBRS, Golden Harness, and later user saves. They should drive corpus hydration jobs, not client runtime hydration.
+- **Road-family/canonical-way identity helpers** become the shared identity layer for viewport provider frames, candidate-grid cells, route-line cache hints, and V2Review corridor/member inspection.
+- **Synthetic connector treatment** becomes a first-class adapter invariant: synthetic segment rollups and connector evidence are preserved in provider frames and inspection payloads, not rejected as bad/missing OSM data.
+- **Route-fair candidate selection and bounded candidate cells** become the route-line cache acceleration path. The runtime should fetch route-corridor cells, distribute capped hints across route distance, and leave final route truth to RouteLine.
+- **Viewport load policy, frame store, request gate, and subscriber contract** become the main app control plane for DS-035 substrate mode: ride-forward load, movement-derived load, bearing-spin suppression, retained-window purge, and no RouteMap working-set ownership.
+- **Viewport provider frame and rollup receipt** become the shared debug/admin receipt: requested cells/ways, fetched cells, raw compact records read, records admitted, cap hits, rollup counts, dropped reasons, parse/filter timing, and first-paint timing.
+- **Hint-source/source policy contracts** become future extensibility rules for TrailLink, ArcGIS, DOT overlays, HPMS, wind, watts, shoulder, traffic, and other macro sources: source adapter -> central evidence/display/score pipeline -> bounded provider frame -> subscriber.
+- **Semantic-token-only visual policy** becomes the enforcement point for main app and V2Review rendering. Substrate can select source/display payloads; color still comes from central speed/risk presentation contracts.
+- **No raw runtime scan tests** become acceptance tests for the DS-035 adapter and toggle. Any new consumer must prove it uses bounded cells, provider frames, rollups, or profile tiles.
+
+### What Gets Used In EXEC-042
+
+Phase 0 uses:
+
+- `.tmp` substrate artifacts as `/v2-review` QA truth for restored corridor/member rendering.
+- Existing substrate/corridor/member metadata for click inspection.
+- Candidate-grid fallback only as explicit bounded secondary source when artifacts are missing.
+
+Phase 1 uses:
+
+- shared road-family identity helpers;
+- `viewportSpeedProfile` admission and caps;
+- DS-035 profile fields from `viewport_speed` where available;
+- substrate/corridor/member payloads from artifacts or compact candidate-grid cells;
+- semantic presentation contracts for color decisions.
+
+Phase 2 uses:
+
+- viewport frame-store/load-policy/request-gate machinery as the substrate-mode control plane;
+- existing RouteMap heatmap renderer as the only renderer;
+- bounded provider-frame/candidate-grid/profile payloads as the source switch;
+- admin/debug receipts for load and performance visibility.
+
+Phase 3 uses:
+
+- corpus/region manifest contracts;
+- owned-OSM Golden Harness source planning;
+- bounded per-area/cell hydration;
+- count and coverage ranges to catch malformed or overgrown cache outputs.
+
+### What Stays Cold-Path
+
+- Raw DS-050 substrate signals.
+- Raw source blobs and full OSM tags.
+- RouteX Archive write payloads.
+- Source projection artifacts except as noncanonical input/audit material.
+- Supabase writes and migrations.
+- RouteLine ownership, topology proof, scoring migration, and DS-032 identity work.
+
+### Success Condition
+
+The hardening is useful only when a viewport or route-load surface can answer:
+
+```text
+What bounded substrate/profile/rollup source did I read?
+What did I admit or drop?
+What did I render first?
+What exact/cold source can I hydrate later?
+What proof confirms this did not become route truth?
+```
+
+If a runtime surface cannot answer those five questions from its receipt, it is not yet using the Phase 8 hardening correctly.
+
+## Phase 0 - Restore `/v2-review`
+
+Goal: make `/v2-review` the QA/comparison bench again.
+
+### Checkpoint Notes - 2026-06-02
+
+- `/v2-review` should treat `.tmp` preview artifacts as primary QA input.
+- When `.tmp` artifacts are unavailable, the bounded candidate-grid fallback must run through `buildCyclistSubstrateCacheCandidatePreview` and the DS-035 substrate preview z-band output, not through viewport-speed heatmap admission.
+- This matters at z10: DS-035 admits primary connectors, safe paths, protected cycling corridors, and useful gravel tracks there. Applying the viewport-speed policy first can make tracks/paths disappear and make same-class roads look partially drawn.
+- The fallback remains bounded by viewport, candidate-grid cells, and source artifacts, and reports source/cell/candidate/corridor counts. It is a QA fallback, not route truth and not a raw substrate signal read.
+- Keep unpaved/track QA visibility enabled by default in `/v2-review`; otherwise accepted z10 gravel tracks are hidden by presentation toggles after correct admission.
+- DS-035 9.1 visible groups are complete within the bounded viewport: z10 returns all loaded trunks, primaries, paths/cycleways, and tracks; z11 adds all secondaries and tertiaries; z12 adds all continuity-qualified local groups; z13 adds remaining local detail. Source-way caps apply only to optional overflow after those required groups are complete.
+- Zoom qualification may use effective merged length from substrate corridor metadata or bounded viewport profile-family continuity. This is presentation/cache admission only: fragmented OSM ways can qualify by merged road length without becoming route truth or durable ownership.
+- Presentation corridor identity should be sticky for touching same-road fragments, including `Road`/`Rd` and similar suffix variants, but less sticky for road-like slash aliases. A secondary slash name is inspectable metadata, not merge authority unless the primary road identity also matches.
+- Presentation road identity must not let route refs or broad name prefixes absorb separately named side roads into a major corridor. Directional variants such as `East Black Horse Pike` can stay merged with the true pike, but named tributaries such as `Chews Road`, `East Malaga Road`, `Cedar Brook Road`, `New Brooklyn Road`, `Pump Branch Road`, and `Pennington Avenue` remain independent display corridors.
+- Presentation road identity may bridge compatible same-ref compound-name transitions when the primary names share a meaningful token, such as `Chatsworth Road` -> `Tabernacle Chatsworth Road` -> `Chatsworth Barnegat Road`. This stays bounded to compatible road classes and does not re-enable pure ref-only grouping.
+- Same-name bike paths may bridge modest presentation gaps, such as separated north/south `Barnegat Branch Trail` sections, because named bikeway continuity is part of cyclist substrate salience. Keep this path/cycleway-only; do not use it as a road-ref or tributary merge shortcut.
+- Named trail corridors may emit dashed, display-only gap connector features when accepted path/cycleway member geometry leaves a mid-trail break. These connectors are noncanonical, substrate-signal-ineligible, and exist only as a visual affordance for the shared corridor; they do not create OSM way ownership or durable route truth.
+- Candidate-grid fallback must read bounded cells but paint in road-type priority lanes: trunk, primary, track, path/cycleway, secondary, tertiary, then residential/local. `/v2-review` should render each priority lane through the same DS-035 preview/admission pipeline, then replace it with the final combined preview so cross-lane corridor merging remains the final display truth. Do not leak cell-grid order into the visual loading experience. If first paint still stalls after priority-lane rendering, move the candidate-grid artifact format toward bounded lane-sharded files so trunk/primary records can be fetched without parsing every local-road record first.
+
+Tasks:
+
+- Confirm `/v2-review` defaults to South Jersey as the compatibility oracle.
+- Restore loading of real artifacts from `.tmp/substrate/<region>/`:
+  - `corridor-members-z*.geojson`
+  - `cache-candidates-z*.geojson`
+  - `substrate-z*.geojson`
+  - `cache-preview-audit.json`
+  - `audit.json`
+- Ensure `FALLBACK_SUBSTRATE_FEATURES` is only an explicit fixture/error fallback with a visible status message.
+- Preserve existing V2Review artifact renderer behavior; do not replace it with a new renderer.
+- Preserve corridor/member click inspection.
+- If `.tmp` artifacts are missing, surface a clear "artifact missing" state and optionally use bounded candidate-grid fallback as a secondary source, not as the primary QA path.
+
+Acceptance:
+
+- `/v2-review?substrate=1` renders real merged South Jersey roadway corridors.
+- It no longer shows only the three fake fallback lines as the normal result.
+- Click/hover inspection exposes substrate, corridor, member, and source-way metadata.
+- South Jersey remains the compatibility oracle.
+
+## Phase 1 - Shared DS-035 Substrate/Profile Adapter
+
+Goal: one adapter emits existing heatmap-compatible display payloads from substrate/profile runtime inputs.
+
+Input families:
+
+- Substrate candidate ways.
+- Logical corridors and member geometries.
+- Simplified zoom-band corridor artifacts.
+- Corridor/member cache preview artifacts.
+- `viewport_speed` profile records when available.
+
+Output payload:
+
+- Renderable corridor/display geometry.
+- Source way ids and member way ids.
+- Member geometries or compact member references for inspection.
+- Display label/name/ref.
+- Speed mph, speed class, and speed source when present.
+- Stage key, priority group, `startZoom`, and `minVisibleZoom`.
+- Substrate source/provenance/debug metadata.
+- Click inspection payload.
+
+Rules:
+
+- Reuse `src/lib/route-load/viewportSpeedProfile.ts` for zoom admission, hysteresis, and caps.
+- Reuse `src/lib/presentation/semantic-tokens.ts`, `speed-presentation-controller.ts`, and `route-paint-controller.ts` for color semantics.
+- Use existing substrate identity/merge helpers where needed:
+  - `cache-candidate-preview.ts`
+  - `substrate-simplification.ts`
+  - `corridor-continuity.ts`
+  - `canonical-way-family-identity.ts`
+  - `substrate-viewport-provider-frame.ts`
+- Do not put full raw OSM/source blobs in hot payloads.
+- Do not add route ownership spans, route-indexed truth runs, or score truth to the hot viewport payload.
+
+Acceptance:
+
+- `/v2-review` and main app dev mode consume the same adapter.
+- Adapter output is bounded, profile-aware, and heatmap-compatible.
+- No raw substrate signal scans or raw source mega-blobs enter runtime consumers.
+
+## Phase 2 - Main App Dev/Admin Toggle
+
+Goal: expose DS-035 substrate/profile runtime in the main app without changing production behavior.
+
+Toggle:
+
+```text
+Substrate foundation heatmap only
+```
+
+When ON:
+
+- Enabled only for dev/admin.
+- Suppress normal live viewport heatmap feeds.
+- Feed substrate/profile-backed roads into the existing heatmap renderer.
+- Respect DS-035 zoom hysteresis and `viewportSpeedProfile` caps.
+- Use existing semantic speed/risk colors.
+- Allow road/corridor click inspection.
+- Inspector shows substrate payload, member way ids, profile fields, source/version, and exact hydration availability.
+
+When OFF:
+
+- Current production behavior is unchanged.
+- Existing heatmap renderer, route display, V1 scoring, HPMS, hazards, route save/history, and Supabase behavior remain unchanged.
+
+Acceptance:
+
+- No third visualization path.
+- No literal substrate/debug color branch.
+- Existing RouteMap heatmap paint contract remains the renderer.
+- Runtime source switch is bounded by viewport, zoom, and cell/profile caps.
+
+## Phase 3 - Golden Harness Route-Area Manifest
+
+Goal: make Golden Harness expansion manifest-driven, not bespoke.
+
+Create a route-area manifest for 20 Golden Harness regions.
+
+Each area declares:
+
+- `areaId`
+- `displayName`
+- bbox and/or cell keys
+- substrate artifact source
+- schema version
+- source version
+- expected z-band coverage
+- expected substrate/corridor count range
+- fixture routes
+- known review notes
+
+Validation order:
+
+1. South Jersey restored.
+2. South Jersey through the shared DS-035 adapter.
+3. One Golden Harness area through the manifest.
+4. Remaining 19 areas through the same manifest contract.
+
+Rules:
+
+- Do not hardcode bespoke area logic.
+- Do not load all 20 areas first.
+- Do not turn public candidate-grid data into a client-side all-regions blob.
+
+## Performance And Boundedness Rules
+
+If the app stalls at `fetching candidate roads`, measure:
+
+- substrate cell count
+- profile tile count
+- raw records read
+- payload bytes
+- JSON parse ms
+- dedupe ms
+- filter/admission ms
+- z-band cap count
+- render-ready segment count
+- first substrate paint ms
+- first high-priority paint ms
+
+If the app stalls at `identifying transitions`, stop treating it as DS-035 viewport mode. That is DS-032 / RouteLine identity territory. Measure:
+
+- topology fetch ms
+- graph construction ms
+- candidate generation ms
+- path solve ms
+- handoff extraction ms
+- ownership span ms
+
+Hard runtime constraints:
+
+- Bounded viewport/profile/candidate-grid reads only.
+- No raw substrate signal scans.
+- No all-route/all-region hydration in the client.
+- No raw source mega-blobs in hot payloads.
+- No Supabase writes for this task.
+
+## Verification
+
+Minimum checks before committing implementation phases:
+
+- Visual check `/v2-review?substrate=1`: real South Jersey corridors render.
+- Visual check `/v2-review` inspector: corridor/member/source-way metadata appears.
+- Visual check main app dev toggle: substrate-only mode lights up bounded viewport substrate roads.
+- Focused tests for artifact loader, shared adapter, viewport candidate policy, and semantic color/no-new-renderer constraints if touched.
+- `npx tsc --noEmit --pretty false`
+- `git diff --check`
+
+## Review Closeout State - 2026-06-03
+
+Verified:
+
+- Candidate-grid canvas click selection reliably opens the cyclist substrate inspector with source-way metadata.
+- `/v2-review` inspector exposes structural substrate/corridor/member/source-way metadata: merged corridor family, member road, road type, OSM way id, road family, salience tier, importance score, zoom/cache eligibility, merged distance, member count, source way ids, variants, merge reasons, diagnostics, and noncanonical status.
+
+Current cache scope:
+
+- The public candidate-grid cells are compact structural substrate inputs: OSM way id/fid, highway, selected tags, bounds, and geometry.
+- The V2Review fallback derives corridor identity, member grouping, salience, continuity, zoom eligibility, and inspection metadata from those bounded cells.
+- `viewport_speed`, AADT/traffic, shoulder, bike-infra overlay, elevation/grade, and future wind/watts facts are not currently persisted in the base candidate-grid cell payload.
+- That is aligned with DS-035: base substrate is regional cyclist structure and continuity; profile overlays remain profile hydration, rollup, or tile payloads.
+
+Closeout interpretation:
+
+- Phase 0 structural QA is effectively closed for promotion if we accept the remaining trail-gap affordance as nonblocking.
+- Phase 1 must not bake speed/AADT/shoulder/elevation into base substrate. It should join bounded substrate cells/corridors with bounded profile/rollup tiles and expose the joined receipt in the inspector.
+- The first country-wide substrate promotion target is therefore a bounded, lane-sharded structural candidate-grid surface plus separate bounded profile/rollup hydration, not one all-purpose mega-cache.
+
+Country-wide promotion checklist:
+
+- Define a neutral candidate-grid namespace instead of continuing to name the shared runtime surface `south-jersey`.
+- Keep cell reads bounded by viewport/route corridor and reject oversized viewports before fetch.
+- Shard cell payloads by DS-035 priority lane or equivalent so trunk/primary/path/track first paint does not wait on local-road parsing.
+- Preserve structural payload minimalism: id/fid/highway/selected tags/bounds/geometry/source version, with corridor metadata derived or precomputed separately when payload cost justifies it.
+- Add a bounded `viewport_speed` profile join for initial paint color/speed-band inspection.
+- Add optional bounded profile joins for shoulder, bike-infra, traffic/AADT, surface, elevation/grade, wind, watts, or future domains through the same adapter contract.
+- Inspector must show source/version, structural substrate fields, profile fields when hydrated, exact-hydration availability, and source/cell/profile receipt counts.
+- Main app dev mode must consume the same DS-035 adapter and existing semantic color path; `/v2-review` remains the QA oracle.
+- Do not commit generated nationwide grid blobs to the app repo without a size/storage policy. Prefer artifact storage, CDN/object storage, or generated release bundles with manifest checks.
+
+## Phased Checklist
+
+- [x] Pre-Phase 0: Audit dirty DS-035 substrate runtime edits and isolate unrelated candidate-grid churn.
+- [x] Pre-Phase 0: Remove or rework custom renderer/literal color logic from aborted substrate viewport attempt.
+- [x] Phase 0: Restore `/v2-review` artifact loading for real corridor/member substrate QA.
+- [x] Phase 0: Keep fallback substrate lines explicit and non-primary.
+- [x] Phase 0: Stream bounded candidate-grid fallback by road-type priority lanes before final combined preview completion.
+- [x] Phase 0: Preserve same-name bike-path continuity across modest candidate-grid gaps without broadening road merge rules.
+- [x] Phase 0: Add display-only named-trail gap connectors for mid-trail visual affordance without creating route/source truth.
+- [x] Phase 0: Verify candidate-grid canvas click selection exposes source-way metadata.
+- [x] Phase 0: Confirm `/v2-review` inspector exposes corridor/member/source-way metadata.
+- [ ] Phase 0 closeout: Decide whether the remaining Barnegat Branch Trail visual gap is nonblocking for promotion.
+- [ ] Phase 0 closeout: Rename/reframe shared candidate-grid runtime surface away from South Jersey before country-wide promotion.
+- [ ] Phase 0 closeout: Define generated artifact storage/size policy for country-wide substrate.
+- [x] Phase 1: Add shared DS-035 substrate/profile display adapter and wire `/v2-review` candidate-grid QA through the adapter receipt.
+- [x] Phase 1: Expose bounded `viewport_speed` profile facts in `/v2-review` inspector without baking speed into base substrate.
+- [ ] Phase 1: Add shared DS-035 substrate/profile-to-heatmap adapter.
+- [ ] Phase 1: Confirm adapter uses `viewportSpeedProfile` admission and semantic speed colors.
+- [ ] Phase 1: Confirm adapter hot payloads stay bounded and do not carry RouteLine truth.
+- [ ] Phase 1: Join bounded `viewport_speed` profile metadata for speed-band/initial-paint inspection without baking speed into base substrate.
+- [ ] Phase 2: Add dev/admin `Substrate foundation heatmap only` toggle as a source switch.
+- [ ] Phase 2: Confirm production heatmap behavior is unchanged when toggle is OFF.
+- [ ] Phase 3: Add Golden Harness route-area manifest contract.
+- [ ] Phase 3: Validate South Jersey, one Golden Harness region, then remaining regions by manifest.
+- [ ] Phase 4: Promote bounded, lane-sharded candidate-grid generation/storage for country-wide substrate coverage.
+- [ ] Run focused tests, typecheck, and `git diff --check`.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
