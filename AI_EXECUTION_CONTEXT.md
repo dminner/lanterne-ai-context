@@ -15609,9 +15609,9 @@ This is a program plan, not an immutable snapshot of current runtime behavior. C
 
 Already present in source:
 
-- `viewport_speed_v1` profile cache type and database table
+- `viewport_speed` profile cache type and database table
 - stage/profile/schema/source cache key
-- priority-drip `viewport_speed_v1` hydration
+- priority-drip `viewport_speed` hydration
 - profile cache read path
 - browser profile-cache write rejection without write authority
 - server-authorized profile cache write path proven
@@ -15737,7 +15737,7 @@ Tasks:
 
 - Publish ADR-047, DS-035, and this execution plan.
 - Keep field/source audit artifacts under `.tmp/road-descriptor-audit/`.
-- Document current `viewport_speed_v1` stages and priority groups from source/tests as a snapshot.
+- Document current `viewport_speed` stages and priority groups from source/tests as a snapshot.
 - Document N-minus-one zoom hysteresis.
 - Document substrate z-band policy separately from exact hydration stages.
 - Document cache sizing findings and central-vs-on-demand split.
@@ -15771,7 +15771,7 @@ Responsibilities:
 
 Initial scope:
 
-- `viewport_speed_v1`
+- `viewport_speed`
 - `schema_version = 1`
 - `source_version = owned_roads_v1`
 - current source/test snapshot stages:
@@ -15803,7 +15803,7 @@ Rollback:
 
 # 7. Phase 3 - Profile Backfill and Migration
 
-Backfill `viewport_speed_v1` profile rows from owned source.
+Backfill `viewport_speed` profile rows from owned source.
 
 Initial order, subject to source/test refresh:
 
@@ -16137,7 +16137,7 @@ Track these before retiring legacy broad behavior:
 
 Runtime rollback:
 
-- switch `viewport_speed_v1` hydration to legacy broad cache adapter
+- switch `viewport_speed` hydration to legacy broad cache adapter
 - disable substrate overlay rendering
 - keep RouteLine and route cache behavior unchanged
 
@@ -28593,9 +28593,9 @@ Direct answer:
 
 B. `profile_model_directionally_right_but_needs_route_evidence_profiles_and_owned_source_language`
 
-DS-034 and DS-035 are directionally right: the base Cyclist Mobility Substrate should stay compact, structural, noncanonical, and separate from exact/profile hydration and raw source evidence. The correction is that DS-035 is still too `viewport_speed_v1`-centered and does not yet name the V2S+S route evidence profiles or owned-source hydration modes clearly enough.
+DS-034 and DS-035 are directionally right: the base Cyclist Mobility Substrate should stay compact, structural, noncanonical, and separate from exact/profile hydration and raw source evidence. The correction is that DS-035 is still too `viewport_speed`-centered and does not yet name the V2S+S route evidence profiles or owned-source hydration modes clearly enough.
 
-Do not expand the base substrate just because speed was the first heatmap profile. Speed should be nationally prehydrated as the compact `viewport_speed_v1` profile, not baked into base substrate. Speed, traffic, bike infrastructure, shoulder, and surface are all candidate viewport profiles. Any one of them may become the default auto-loaded profile later.
+Do not expand the base substrate just because speed was the first heatmap profile. Speed should be nationally prehydrated as the compact `viewport_speed` profile, not baked into base substrate. Speed, traffic, bike infrastructure, shoulder, and surface are all candidate viewport profiles. Any one of them may become the default auto-loaded profile later.
 
 Production source authority should be named as owned-source first:
 
@@ -28621,7 +28621,7 @@ External hydration is fallback-only when the owned Nuremberg source is missing, 
 | Field | Intended owner | Default map overlay eligible | Route scoring eligible | Prehydrate nationally | Lazy hydrate | Batch with other fields | Source-of-record required before scoring | Payload risk | Freshness sensitivity | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `highway` / `road_class` | `base_substrate_descriptor`, `route_evidence_profile_hydration`, `owned_canonical_source_hydration` | Yes | Yes | Yes, structurally | Yes | Yes | Yes | Low | Low | Core structural field. Can live in substrate because it helps graph/domain classification, but raw source remains authority. |
-| `maxspeed` / `speed_limit` | `viewport_profile_hydration`, `route_evidence_profile_hydration`, `owned_canonical_source_hydration`, `model_inference_policy`, `external_fallback_only` | Yes | Yes | Yes - nationally prehydrated as `viewport_speed_v1` common profile, not base substrate | Yes | Yes | Yes | Low to medium | Medium | Do not make speed permanent base substrate. Use compact `viewport_speed_v1` nationally and route evidence scoring profiles. Inference requires explicit fallback/confidence policy. External fallback only when owned source is unavailable/stale/missing. |
+| `maxspeed` / `speed_limit` | `viewport_profile_hydration`, `route_evidence_profile_hydration`, `owned_canonical_source_hydration`, `model_inference_policy`, `external_fallback_only` | Yes | Yes | Yes - nationally prehydrated as `viewport_speed` common profile, not base substrate | Yes | Yes | Yes | Low to medium | Medium | Do not make speed permanent base substrate. Use compact `viewport_speed` nationally and route evidence scoring profiles. Inference requires explicit fallback/confidence policy. External fallback only when owned source is unavailable/stale/missing. |
 | `speed_class` / inferred speed environment | `model_inference_policy`, `viewport_profile_hydration`, `route_evidence_profile_hydration` | Yes | Yes, only when policy-approved | Regionally | Yes | Yes | Yes, if source value absent | Low | Low | Derived from highway/context only under an explicit fallback policy with confidence loss. |
 | `traffic_aadt` | `owned_canonical_source_hydration`, `viewport_profile_hydration`, `route_evidence_profile_hydration` | Yes | Yes | Regionally where owned data is available | Yes | Yes | Yes | Medium | High | Treat traffic as a common overlay candidate. Owned HPMS/DOT/AADT is normal production source, not normal external hydration. |
 | `shoulder` | `owned_canonical_source_hydration`, `viewport_profile_hydration`, `route_evidence_profile_hydration`, `model_inference_policy` | Yes | Yes | Regionally | Yes | Yes | Yes | Medium | Medium | Often sparse. Fallback policy must be explicit; no silent no-shoulder assumption. |
@@ -28638,7 +28638,7 @@ Full-map exploration should load substrate first, then a configurable viewport p
 
 Candidate viewport profiles:
 
-- `viewport_speed_v1`
+- `viewport_speed`
 - `viewport_traffic_v1`
 - `viewport_bike_infra_v1`
 - `viewport_shoulder_v1`
@@ -28646,7 +28646,7 @@ Candidate viewport profiles:
 
 The default auto-loaded profile should be configuration, not doctrine. Speed may be the initial default viewport overlay because it is the best single-field approximation of road risk and its compact payload is small. Traffic is also a strong default candidate because HPMS/DOT/AADT is owned on the Nuremberg source side, but traffic has higher freshness/provenance complexity than speed.
 
-Recommended compact `viewport_speed_v1` payload:
+Recommended compact `viewport_speed` payload:
 
 - `substrateSpanId` or source way ref
 - `speedMph` or `speedKph` when known
@@ -28656,7 +28656,7 @@ Recommended compact `viewport_speed_v1` payload:
 - `sourceVersion`
 - `schemaVersion`
 
-Do not store full raw source tags in `viewport_speed_v1`. Exact raw/owned source evidence remains required for scoring provenance, legal/source inspection, conflict resolution, and high-confidence scoring.
+Do not store full raw source tags in `viewport_speed`. Exact raw/owned source evidence remains required for scoring provenance, legal/source inspection, conflict resolution, and high-confidence scoring.
 
 Heat tile/display payloads are adapters. They may carry span ids, constituent refs, and profile values for rendering, but they must not feed RouteLine topology or route truth.
 
@@ -28726,7 +28726,7 @@ National substrate cache:
 National/owned source profile caches:
 
 - prehydrate high-value regional/national fields where payload and freshness are acceptable
-- nationally prehydrate compact `viewport_speed_v1`
+- nationally prehydrate compact `viewport_speed`
 - regionally prehydrate traffic/AADT where owned data coverage is strong
 - lazily hydrate sparse/volatile fields by viewport or route evidence request
 - keep source version and profile schema version explicit
@@ -28734,7 +28734,7 @@ National/owned source profile caches:
 Suggested prehydration posture:
 
 - `highway` / `road_class`: national structural/base plus route evidence.
-- `maxspeed`: national `viewport_speed_v1` compact profile where owned source/tags are available; lazy route evidence fill and explicit missing elsewhere.
+- `maxspeed`: national `viewport_speed` compact profile where owned source/tags are available; lazy route evidence fill and explicit missing elsewhere.
 - `traffic_aadt`: regional where owned HPMS/DOT coverage is available; lazy by route/viewport elsewhere.
 - `bike_infra`: regional/national where OSM tags are cheap; enrich later with local sources.
 - `shoulder`: regional where owned DOT fields exist; lazy and explicit missing otherwise.
@@ -28874,21 +28874,21 @@ Every profile descriptor should carry, where available:
 - `inferred_model`
 - `external_fallback_only`
 
-## 5. `viewport_speed_v1` Examples
+## 5. `viewport_speed` Examples
 
-Fresh `viewport_speed_v1`:
+Fresh `viewport_speed`:
 
 - can render viewport immediately
 - can be treated as authoritative for display
 - may drive scoring only when source/profile/model versions match and raw owned source hydration remains available
 
-Stale-but-usable `viewport_speed_v1`:
+Stale-but-usable `viewport_speed`:
 
 - can render first paint
 - must schedule background refresh
 - cannot drive scoring
 
-Stale-blocking or source-superseded `viewport_speed_v1`:
+Stale-blocking or source-superseded `viewport_speed`:
 
 - cannot drive scoring
 - must hydrate owned source before scoring
@@ -29121,7 +29121,7 @@ Base substrate remains structural and compact. It can provide acceleration, sour
 
 ## 10. Why This Is Not A Viewport Heatmap Profile
 
-Viewport profiles such as `viewport_speed_v1` serve map exploration without a route loaded. `route_evidence_scoring_v1` is keyed by accepted V2S+S route ownership spans and source-way contributions. It attaches route-indexed evidence by distance for scoring/inspection.
+Viewport profiles such as `viewport_speed` serve map exploration without a route loaded. `route_evidence_scoring_v1` is keyed by accepted V2S+S route ownership spans and source-way contributions. It attaches route-indexed evidence by distance for scoring/inspection.
 
 ## 11. Recommended Next Phase
 
@@ -31388,7 +31388,7 @@ This only means the attached layers are authoritative enough as source evidence.
 
 ## Next Field Family
 
-The next useful Phase 14 step is to attach the first real score-driving field family from owned source/profile data. Speed is the best candidate because DS-035 now treats `viewport_speed_v1` as a nationally prehydrated common profile and `speed_limit` is required by the scoring readiness gate.
+The next useful Phase 14 step is to attach the first real score-driving field family from owned source/profile data. Speed is the best candidate because DS-035 now treats `viewport_speed` as a nationally prehydrated common profile and `speed_limit` is required by the scoring readiness gate.
 
 If the Test Loop owned source fixture does not have `maxspeed`, the next phase should add a node-ref-bearing owned source/profile fixture that includes speed evidence for accepted ways, or explicitly prove that speed must come from an owned profile descriptor rather than source-way tags.
 
@@ -31868,7 +31868,7 @@ No speed value was inferred, defaulted, or fabricated.
 | Test Loop node-ref fixture | `src/lib/route-line-v2/fixtures/test-loop-1-ccw-owned-node-ref-source-ways.json` | 4 accepted ways found; no speed fields |
 | South Jersey source artifact | `.tmp/substrate/south-jersey/source-overpass-ways.json` | 304,509 records; 4 accepted ways found; no speed fields |
 | Existing 14B owned-source audit | `docs/04-execution/exec-030-phase-14b-test-loop-owned-source-field-availability-audit.md` | `maxspeed / speed_limit` classified absent in current sources |
-| Profile/cache docs | DS-035 / 13BP docs | Defines `viewport_speed_v1` and route evidence strategy, but no Test Loop speed descriptor fixture is present |
+| Profile/cache docs | DS-035 / 13BP docs | Defines `viewport_speed` and route evidence strategy, but no Test Loop speed descriptor fixture is present |
 
 ## Speed Availability By Accepted Way
 
@@ -31912,7 +31912,7 @@ Rejected/non-used options:
 - Highway-class inferred speed: not used; this requires an explicit inference policy.
 - Residential/default speed: not used.
 - V1-derived speed: not used because no source/provenance-backed V1 speed evidence was exposed for these accepted ways.
-- Viewport display speed: not used because no `viewport_speed_v1` Test Loop descriptor fixture exists, and display-only profile speed would not be enough to drive scoring if stale or not scoring-authoritative.
+- Viewport display speed: not used because no `viewport_speed` Test Loop descriptor fixture exists, and display-only profile speed would not be enough to drive scoring if stale or not scoring-authoritative.
 
 ## Scoring Readiness After 14E
 
@@ -31951,7 +31951,7 @@ Heatmap remains deferred. No scoring worker was called. No heatmap risk fields w
 The next phase should add a source-backed Test Loop speed evidence fixture before any scoring smoke:
 
 1. Prefer owned canonical source hydration for the accepted way IDs.
-2. If posted speed is not in OSM tags, add a `route_evidence_scoring_v1` or `viewport_speed_v1` fixture descriptor with source authority, freshness metadata, units, and provenance.
+2. If posted speed is not in OSM tags, add a `route_evidence_scoring_v1` or `viewport_speed` fixture descriptor with source authority, freshness metadata, units, and provenance.
 3. Keep inferred highway-class speed as a later explicit policy phase, not a silent fallback.
 
 Recommended next phase:
@@ -31969,7 +31969,7 @@ Recommended next phase:
 
 A. `yes_speed_profile_descriptor_contract_ready`
 
-One compact speed profile descriptor can support both `viewport_speed_v1` full-map speed rendering and V2S+S route `speed_limit` evidence, without making speed part of base substrate truth.
+One compact speed profile descriptor can support both `viewport_speed` full-map speed rendering and V2S+S route `speed_limit` evidence, without making speed part of base substrate truth.
 
 The key boundary is authority and use permission:
 
@@ -31999,7 +31999,7 @@ Core fields:
 
 | Field group | Fields |
 | --- | --- |
-| profile identity | `profileKey: viewport_speed_v1`, `schemaVersion`, `profileVersion`, `sourceVersion`, `sourceSnapshotId` |
+| profile identity | `profileKey: viewport_speed`, `schemaVersion`, `profileVersion`, `sourceVersion`, `sourceSnapshotId` |
 | freshness | `generatedAt`, `staleAfter`, `authoritativeUntil` |
 | map/source key | `substrateSpanId`, `sourceWayRef`, `geometryRef` |
 | speed value | `speedMph`, `speedKph`, `speedBucket`, `speedClass` |
@@ -32085,7 +32085,7 @@ Diagnostic result:
 
 ## Future National Viewport Speed Hydration
 
-The national `viewport_speed_v1` cache should store compact speed descriptors, not full raw tags:
+The national `viewport_speed` cache should store compact speed descriptors, not full raw tags:
 
 - source way or substrate span reference
 - compact speed value/bucket/class
@@ -32108,7 +32108,7 @@ V2S+S identity supplies accepted ownership spans and source-way contributions. T
 
 Preferred path:
 
-1. Build a tiny owned `viewport_speed_v1` or `route_evidence_scoring_v1` fixture for the accepted source ways.
+1. Build a tiny owned `viewport_speed` or `route_evidence_scoring_v1` fixture for the accepted source ways.
 2. Include units, provenance, confidence, source version, and raw source hydration refs.
 3. Convert it into route speed evidence through this contract.
 4. Keep scoring blocked until traffic, shoulder, bike infra, and other required fields are handled.
@@ -32135,7 +32135,7 @@ No speed was inferred, defaulted, or fabricated.
 | Test Loop committed node-ref fixture | `src/lib/route-line-v2/fixtures/test-loop-1-ccw-owned-node-ref-source-ways.json` | Accepted ways present; no speed tags |
 | Test Loop topology records | `src/lib/route-line-v2/test-loop-topology-fixture.ts` | Accepted ways present; no speed tags |
 | South Jersey local source artifact | `.tmp/substrate/south-jersey/source-overpass-ways.json` | 304,509 records; accepted ways present; no speed tags |
-| Speed profile descriptors | `viewport_speed_v1` / `route_evidence_scoring_v1` | Contract exists; no Test Loop speed descriptor fixture exists |
+| Speed profile descriptors | `viewport_speed` / `route_evidence_scoring_v1` | Contract exists; no Test Loop speed descriptor fixture exists |
 
 ## Speed Availability By Accepted Way
 
@@ -32153,7 +32153,7 @@ No real Test Loop speed descriptor was emitted.
 The diagnostic fixture provider added in this phase defines the intended source-backed path:
 
 1. Read accepted Test Loop source records.
-2. Build `viewport_speed_v1` descriptors only when source-backed speed exists.
+2. Build `viewport_speed` descriptors only when source-backed speed exists.
 3. Convert valid descriptors through the 14F conversion helper.
 4. Emit route-indexed `speed_limit` normalized evidence records.
 5. Resolve them into `route_evidence_scoring_v1`.
@@ -32544,7 +32544,7 @@ Current product posture:
 | --- | --- |
 | base substrate stays structural and compact | yes |
 | viewport profiles are modular and configurable | yes |
-| `viewport_speed_v1` is national/common-profile eligible | yes |
+| `viewport_speed` is national/common-profile eligible | yes |
 | speed is not base substrate truth | yes |
 | traffic/AADT is owned-source-backed common overlay candidate | yes |
 | route evidence attaches by route distance | yes |
@@ -32558,7 +32558,7 @@ Current product posture:
 | Component | Status | Notes |
 | --- | --- | --- |
 | base cyclist substrate cache | partial | DS-034/DS-035 define the compact structural substrate. Test/queryable providers exist, but production cache warming/read APIs are not enterprise-complete. |
-| viewport profile hydration cache | partial | DS-035 defines viewport profiles including `viewport_speed_v1`, `viewport_traffic_v1`, `viewport_bike_infra_v1`, `viewport_shoulder_v1`, `viewport_surface_v1`. `v2ss-profile-cache-authority` and speed descriptor contracts exist. Durable product read/write provider is missing. |
+| viewport profile hydration cache | partial | DS-035 defines viewport profiles including `viewport_speed`, `viewport_traffic_v1`, `viewport_bike_infra_v1`, `viewport_shoulder_v1`, `viewport_surface_v1`. `v2ss-profile-cache-authority` and speed descriptor contracts exist. Durable product read/write provider is missing. |
 | route evidence profile hydration cache | partial | `route_evidence_scoring_v1` request/response contract exists and consumes ownership spans/source-way contributions. Product provider/cache backing is missing. |
 | raw owned source evidence | partial | Source registry/version and raw feature ref contracts exist. Local owned artifacts exist for proofs. Production source preservation/import/query contracts are not fully wired to route evidence provider. |
 | route cache | implemented but separate | `route_cache` stores completed route analysis reuse. It is not substrate, not raw evidence, and not profile hydration. It must not be used for route evidence/profile warming. |
@@ -32571,7 +32571,7 @@ Current product posture:
 | Cache/layer | Primary purpose | Read key | Write authority | Version metadata | Freshness metadata | Allowed consumers | Forbidden consumers | Route truth allowed | Scoring truth allowed | Golden harness allowed | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | base cyclist substrate cache | structural cyclist mobility, low-zoom first paint, candidate narrowing, route identity acceleration | tile, z-band, region, corridor/source refs | server/import pipeline only | source/version metadata required | low/medium freshness by source snapshot | viewport substrate renderer, V2S+S candidate helper | scoring engine as truth, heatmap risk truth, route relation truth | no | no | read-only exercise only | Stores corridor/salience/continuity/constituent refs, not every evidence field. |
-| viewport profile hydration cache | full-map overlays before route load | profile key + viewport/tile/zoom + source/schema/profile version | server-authorized profile hydration | schemaVersion, profileVersion, sourceVersion, sourceSnapshotId, modelVersion when derived | staleAfter, authoritativeUntil, authority state | map overlays, exploration UI, planning display | RouteLine topology truth, scoring without route evidence validation | no | only after stricter route evidence conversion, not directly | read-only assert miss/hit only | `viewport_speed_v1` may be nationally prehydrated but is not base substrate truth. |
+| viewport profile hydration cache | full-map overlays before route load | profile key + viewport/tile/zoom + source/schema/profile version | server-authorized profile hydration | schemaVersion, profileVersion, sourceVersion, sourceSnapshotId, modelVersion when derived | staleAfter, authoritativeUntil, authority state | map overlays, exploration UI, planning display | RouteLine topology truth, scoring without route evidence validation | no | only after stricter route evidence conversion, not directly | read-only assert miss/hit only | `viewport_speed` may be nationally prehydrated but is not base substrate truth. |
 | route evidence profile hydration cache | route/span/source-way evidence for V2S+S | route fingerprint/window, accepted source way IDs, route-distance spans, profile key | server-authorized route evidence hydration | schemaVersion, profileVersion/sourceVersion, sourceSnapshotId | strict scoring authority/freshness states | V2S+S evidence worker, scoring readiness gate, future scoring worker | viewport display as route truth, V1 truth-run/sample-index internals | no | yes, only after authority/freshness/resolution | read-only unless using product authorized warming mode | Outputs route-indexed evidence layers. |
 | raw owned source evidence | source of record | source id/version/feature id, way id, tile, bbox, route window | owned import/source pipeline | sourceVersionId, checksum/contentHash, importerVersion, schemaVersion | sourceUpdatedAt, fetchedAt, status | evidence provider, inspector, resolver, conflict handling | direct scoring without resolver policy | yes, as source fact only; RouteLine still validates route traversal | yes, via resolved evidence | fixture only if source/provenance-backed | Includes OSM, HPMS, DOT, AADT, exact geometry, full tags, provenance. |
 | route cache | completed route analysis reuse | route hash / completed analysis key | production route analysis cache policy | data version/current route cache version | cache TTL/version policy | production route result reuse | substrate/profile/evidence hydration, raw source, V2S+S evidence provider | no | no | no | Boundary must stay separate. |
@@ -32924,7 +32924,7 @@ Profile caches store descriptors and route/viewport evidence payloads with autho
 
 Viewport profile examples:
 
-- `viewport_speed_v1`
+- `viewport_speed`
 - `viewport_traffic_v1`
 - `viewport_bike_infra_v1`
 - `viewport_shoulder_v1`
@@ -33192,7 +33192,7 @@ Do not implement national hydration in 14M.
 
 **B. partial_direct_osm_source_path_remains**
 
-The route evidence path already used normalized/resolved evidence for Medford and Test Loop response building, but the Test Loop speed profile fixture provider still created `viewport_speed_v1` descriptors directly from source tags before normalization/resolution. That made the fixture path too easy to read as:
+The route evidence path already used normalized/resolved evidence for Medford and Test Loop response building, but the Test Loop speed profile fixture provider still created `viewport_speed` descriptors directly from source tags before normalization/resolution. That made the fixture path too easy to read as:
 
 ```text
 OSM maxspeed tag -> speed profile descriptor truth
@@ -33209,7 +33209,7 @@ raw source facts
 -> NormalizedEvidenceRecord candidates
 -> resolver policy
 -> ResolvedRouteEvidence
--> viewport_speed_v1 descriptor and/or route_evidence_scoring_v1 speed_limit layer
+-> viewport_speed descriptor and/or route_evidence_scoring_v1 speed_limit layer
 ```
 
 OSM `maxspeed` remains a candidate source. It is not final speed truth.
@@ -33387,7 +33387,7 @@ The Product Evidence Provider continues to reject `readMode: route_cache` as evi
 
 Test Loop still has no source-backed speed on accepted ways.
 
-For `viewport_speed_v1` / `speed_limit` warming:
+For `viewport_speed` / `speed_limit` warming:
 
 - no speed descriptor payload is produced,
 - mock writer is not called,
@@ -33463,7 +33463,7 @@ This remains a pure diagnostic/mock lifecycle. It does not write SQL, Supabase, 
 Input:
 
 - Fixture: Medford source-backed speed evidence fixture
-- Profile: `viewport_speed_v1`
+- Profile: `viewport_speed`
 - Requested layer: `speed_limit`
 - Mode: `product_authorized_warming`
 - Caller: `product_route_load`
@@ -33525,7 +33525,7 @@ The warm-hit response preserves the resolved evidence semantics from the warmed 
 
 ## Stale Descriptor Flow
 
-For a stale `viewport_speed_v1` descriptor:
+For a stale `viewport_speed` descriptor:
 
 - viewport rendering can remain allowed under `stale_usable`
 - scoring is blocked
@@ -33629,7 +33629,7 @@ Minimum logical columns:
 | --- | --- |
 | `descriptorId` | stable descriptor identity |
 | `descriptorKind` | `viewport_profile` or `route_evidence_profile` |
-| `profileKey` | `viewport_speed_v1`, `route_evidence_scoring_v1`, etc. |
+| `profileKey` | `viewport_speed`, `route_evidence_scoring_v1`, etc. |
 | `storageKey` | read key for lookup |
 | `idempotencyKey` | stable write de-dupe key |
 | `schemaVersion` | payload schema gate |
@@ -33672,13 +33672,13 @@ Required key dimensions:
 
 Example profile keys:
 
-- `viewport_speed_v1`
+- `viewport_speed`
 - `viewport_traffic_v1`
 - `viewport_bike_infra_v1`
 - `viewport_shoulder_v1`
 - `viewport_surface_v1`
 
-`viewport_speed_v1` can be nationally prehydrated as a compact profile. It is still not base substrate truth.
+`viewport_speed` can be nationally prehydrated as a compact profile. It is still not base substrate truth.
 
 ## Route Evidence Profile Key Design
 
@@ -33818,7 +33818,7 @@ Diagnostics must distinguish display-usable stale data from scoring-blocking sta
 3. Next: draft final profile descriptor schema and server-side adapter types.
 4. Then: implement a local server-authorized adapter mock behind the final schema.
 5. Then: wire product route-load warming to the server adapter in disabled/debug mode.
-6. Then: national `viewport_speed_v1` prehydration planning.
+6. Then: national `viewport_speed` prehydration planning.
 7. Then: route-load warming for `route_evidence_scoring_v1`.
 
 ## Remaining Open Decisions
@@ -33928,7 +33928,7 @@ The adapter preserves descriptor authority/freshness metadata.
 
 Observed behavior:
 
-- stale `viewport_speed_v1` can remain renderable when policy says `stale_usable`
+- stale `viewport_speed` can remain renderable when policy says `stale_usable`
 - stale speed cannot drive scoring
 - source-version mismatch becomes `superseded_by_source`
 - conflicted descriptor forces owned-source hydration
@@ -34024,7 +34024,7 @@ Draft logical table: `profile_descriptor_cache`
 | --- | --- | --- |
 | `id` | text/uuid | stable row identity |
 | `descriptor_kind` | text enum | `viewport_profile` or `route_evidence_profile` |
-| `profile_key` | text | `viewport_speed_v1`, `route_evidence_scoring_v1`, etc. |
+| `profile_key` | text | `viewport_speed`, `route_evidence_scoring_v1`, etc. |
 | `storage_key` | text | canonical adapter lookup key |
 | `route_fingerprint` | text nullable | route evidence only |
 | `tile_key` | text nullable | viewport only |
@@ -34209,7 +34209,7 @@ Phase plan:
 - 14S — draft non-executed SQL/schema file or schema doc
 - 14T — server adapter stub behind feature flag / mock service role
 - 14U — local dev-only write/read integration
-- 14V — `viewport_speed_v1` pilot over tiny owned region
+- 14V — `viewport_speed` pilot over tiny owned region
 - 14W — `route_evidence_scoring_v1` pilot over Medford/Test Loop fixtures
 - later — national prehydration
 
@@ -34383,7 +34383,7 @@ Route evidence lookup:
 
 Allowed first-pass `profile_key` values:
 
-- `viewport_speed_v1`
+- `viewport_speed`
 - `viewport_traffic_v1`
 - `viewport_bike_infra_v1`
 - `viewport_shoulder_v1`
@@ -34758,7 +34758,7 @@ Known risk areas:
 - `descriptor_records` JSONB could grow for dense route evidence profiles
 - selected/candidate evidence IDs can grow when many source candidates overlap
 - provenance and source lineage can become verbose
-- national `viewport_speed_v1` footprint depends on descriptor granularity and tile coverage
+- national `viewport_speed` footprint depends on descriptor granularity and tile coverage
 - route-specific `route_evidence_scoring_v1` footprint depends on route volume and retention
 
 Current controls:
@@ -35298,7 +35298,7 @@ No fake rows were inserted.
 
 The following remain untested against a non-production Supabase target:
 
-- valid `viewport_speed_v1` descriptor accepted
+- valid `viewport_speed` descriptor accepted
 - valid `route_evidence_scoring_v1` descriptor accepted
 - invalid descriptor kind rejected
 - viewport descriptor without `tile_key` rejected
@@ -46947,6 +46947,882 @@ This program is complete when:
 - Matching Routes are query-backed and URL-addressable
 - safety, proximity, surface, remoteness, and personal filters have clear extension points
 - `TopActionDrawer` no longer owns Vault product semantics directly
+
+
+---
+
+## Source File: docs/04-execution/exec-042-ds-035-substrate-runtime-review-path.md
+
+# EXEC-042 - DS-035 Substrate Runtime Review Path
+
+## Mission
+
+Implement the DS-035-governed substrate runtime review path by reconnecting existing substrate QA, viewport profile hydration, and heatmap presentation pieces.
+
+This is assembly work. Do not invent a new renderer, new colors, new road identity model, or new cache architecture.
+
+Primary outcomes:
+
+1. Restore `/v2-review` substrate QA so it renders real substrate/corridor/member geometry instead of the fake fallback three horizontal lines.
+2. Expose the same substrate/profile runtime foundation in the main app behind a dev/admin source switch: `Substrate foundation heatmap only`.
+
+## Governing Boundaries
+
+DS-035 governs this implementation.
+
+Use existing:
+
+- Cyclist mobility substrate for regional cyclist structure, corridor continuity, salience, zoom eligibility, and presentation grouping.
+- Profile-aware exact hydration for viewport overlays.
+- `viewport_speed` speed profile where available.
+- `viewportSpeedProfile` admission, hysteresis, and caps.
+- Semantic speed/risk color registry and existing RouteMap heatmap paint contract.
+- `/v2-review` QA surface and existing V2 corridor/member preview behavior.
+- Main app heatmap renderer.
+
+Do not:
+
+- Bake speed into base substrate.
+- Treat substrate as route truth.
+- Treat viewport profile hydration as RouteLine truth.
+- Create route ownership from substrate corridor grouping.
+- Add literal color values or new diagnostic speed palettes.
+- Create another heatmap/substrate renderer.
+- Change production V1 scoring, HPMS, hazards, route save/history, or Supabase writes.
+
+Supporting specs:
+
+- ADR-045 governs adapter boundaries.
+- DS-031 governs route-indexed evidence where route-distance layers are exposed.
+- DS-032 governs worker-streamed RouteLine identity only where route truth/identity is being built.
+- EXEC-024/025 govern `/v2-review` RouteLine ownership diagnostics.
+- DS-036 through DS-042 are future durable relation/reload specs and must not hijack this task.
+
+## Current Findings To Audit First
+
+The worktree currently contains dirty implementation attempts that must be audited before additional feature work:
+
+- `src/components/V2ReviewMap.tsx`
+- `src/components/RouteMap.tsx`
+- `src/components/DevTuningPanel.tsx`
+- `src/lib/debug-registry.ts`
+- `src/lib/route-line-v2/south-jersey-substrate-candidate-cache.ts`
+- `src/lib/route-line-v2/south-jersey-substrate-candidate-cache.test.ts`
+- Large public substrate candidate-grid expansion/deletion churn.
+- `scripts/substrate/expand-golden-harness-candidate-grid.ts`
+
+Known red flags from the dirty attempt:
+
+- `V2ReviewMap` has a candidate-grid fallback path mixed into the artifact loader. This may be useful as a bounded source fallback, but it must not replace real `/v2-review` artifact QA.
+- `RouteMap` currently contains custom substrate inspection colors with literal hex values. That violates the semantic-token/color-registry rule and must be removed or rewired through existing presentation controllers.
+- The Dam-only public grid was removed and South Jersey appears to be expanding into a shared Golden Harness candidate-grid surface. That may be the right cache direction, but it must remain bounded and not become a client-side mega-blob.
+
+Do not revert unrelated user or other-Codex work. Rework only the DS-035 runtime-review pieces that violate this plan.
+
+## Dirty Diff Assessment - 2026-06-02
+
+This section classifies the current dirty worktree after diff inspection. It is an implementation guide, not permission to stage everything.
+
+### Keep Or Keep As Seed
+
+- `scripts/substrate/expand-golden-harness-candidate-grid.ts`: keep the concept and likely the script. It uses owned OSM, route-buffered Golden Harness cells, recursive dense-cell splitting, and atomic writes. That matches the "no parallel Dam cache" direction. Before committing, it needs focused tests or at least dry-run/smoke receipts and clear output-size policy.
+- `public/substrate/dam-ride/candidate-grid/*` deletions: keep only if the shared Golden Harness/South Jersey candidate-grid replacement is committed in the same checkpoint. The direction is right: no long-lived parallel Dam-only runtime cache.
+- `src/lib/route-line-v2/south-jersey-substrate-candidate-cache.ts`: keep the route-corridor cell selection and route-fair candidate selection. These fix the Dam Ride problem where a dense local cluster can consume the candidate cap before later route sections get hints. Rename/reframe away from "south-jersey" when the shared Golden/USA surface lands.
+- `src/lib/route-line-v2/south-jersey-substrate-candidate-cache.test.ts`: keep the route-fair selection test. Keep the viewport candidate-grid reader test only if the reader becomes part of the shared DS-035 adapter boundary.
+- `src/components/DevTuningPanel.tsx`, `src/lib/debug-registry.ts`, `src/pages/Index.tsx`: keep the dev-toggle wiring idea, but rename/route it through the DS-035 adapter and label it exactly `Substrate foundation heatmap only`.
+- `src/components/RoadInfoPanel.tsx`: keep the inspection intent, but prefer a structured adapter inspection payload over blindly dumping every `_substrate_` tag.
+
+### Rework Or Discard As-Is
+
+- `public/substrate/south-jersey/candidate-grid/*`: do not commit the generated grid as-is. Current worktree summary is about 2,797 files and 276 MB, with the manifest expanded from 86,239 records / 427 cells to 509,819 records / 2,796 cells. The direction is useful, but this is too large for a casual public repo/runtime artifact. Rework into one of:
+  - a narrow South Jersey compatibility grid plus one Golden Harness validation area;
+  - an external/object-store tile cache with manifest pointers;
+  - or a compressed/chunked public artifact policy approved explicitly before staging.
+- `src/components/V2ReviewMap.tsx`: rework. The candidate-grid fallback idea is useful, but the file currently mixes live candidate-grid conversion into the artifact loader. Phase 0 must restore `.tmp/substrate/<region>/corridor-members-z*.geojson` and related artifacts as the primary QA source. Candidate-grid fallback can remain only as explicit secondary source with visible status and should use the shared DS-035 adapter.
+- `src/components/RouteMap.tsx`: rework. The source-switch idea is useful, but direct component fetches from the candidate cache and custom paint branches violate the plan. Remove `substrateCacheInspectionColor` and all literal hex substrate inspection colors. RouteMap should receive adapter-produced roads/segments and render through the existing heatmap/semantic color path.
+- `src/components/RouteMap.tsx` fragment merge changes: keep only if moved into shared substrate/corridor identity logic. Do not create route ownership or corridor truth in RouteMap.
+- `src/components/RoadInfoPanel.tsx`: rework if it stays. Inspector should show DS-035 fields: substrate source/version, member way ids, profile fields, exact hydration availability, and source/cell receipt. It should not become a raw tag viewer for runtime payload internals.
+- `checklist.md`: keep the EXEC-042 section and audit completion marker, but review the pre-existing checked Golden Harness expansion lines before committing. They currently imply the large generated grid expansion is completed; that should only remain checked if the generated artifact strategy is accepted and committed.
+
+### Unrelated Or Leave Aside For This EXEC
+
+- `src/lib/route-line-v2/v2ss-current-route-production-engine.ts` and test changes: route scoring/crossing-risk work. Useful-looking, but it belongs to DS-032/DS-015 scoring and RouteLine identity, not DS-035 viewport runtime review.
+- `src/lib/route-line-v2/v2ss-existing-scoring-adapter-runner.ts` and `v2ss-supabase-edge-live-read-smoke.ts`: crossing-conflict/scoring adapter work. Leave aside for this checkpoint.
+- `src/lib/route-line-v2/v2ss-hazard-events.ts` and tests: route-indexed hazard anchoring/scoring support. Leave aside unless a separate hazard/RouteLine commit owns it.
+- `src/domain/adminScoreAudit.ts`, `src/domain/analyze/score-output-readiness.test.ts`, and `src/lib/__tests__/admin-score-audit.test.ts`: score-output/admin audit work. Not part of DS-035.
+- `src/lib/state-lookup.ts`: HPMS/source-state selection support. Not part of DS-035 runtime review.
+- `supabase/functions/overpass-proxy/index.ts`: way-id filtering may support exact hydration later, but it is a Supabase Edge boundary change. Do not include in the DS-035 visual/adapter checkpoint unless the adapter explicitly depends on it and no deployment is performed.
+- `scripts/lib/rwgps_local_ingest.mjs`, `src/lib/route-load/source-projection-artifact.ts`, `src/lib/route-load/source-projection-artifact.test.ts`, `src/lib/rwgpsLoader.ts`, and `supabase/functions/_shared/rwgps-normalize.ts`: RWGPS/control-dedup/source-projection work. Leave aside.
+- `supabase/.temp/cli-latest`: local Supabase CLI temp metadata. Do not stage with this work.
+
+### Recommended Immediate Checkpoint Order
+
+1. Document and commit only this EXEC/checklist update if desired.
+2. Stabilize candidate-grid scope: keep script/route-fair logic; do not stage the 276 MB generated public grid as-is.
+3. Restore `/v2-review` artifact-primary behavior before main-app work.
+4. Extract the DS-035 adapter and have both V2Review fallback and main app dev mode consume it.
+5. Rewire the main app toggle through existing heatmap renderer and semantic color controllers.
+
+## Making Phase 8 Hardening Useful
+
+The next phase must turn the hardening work into runtime value through bounded consumers, not by exposing the raw ledger or raw corpus blobs.
+
+### Hardening To Runtime Map
+
+- **DS-050 signal registry and RouteX substrate signals** become aggregate route-behavior context only after rollup. Runtime may consume way/synthetic/route-span rollups, never raw signal rows.
+- **Rollup metadata and public aggregate policy** become the guardrails for viewport reads: bounded request, OSM-way-only public scope, minimum source count, no raw signal ids, no saved-route scope.
+- **Canonical RouteExperience substrate inputs** become the only eligible source for route-derived substrate signals. Stored source projections remain noncanonical audit/load inputs and do not emit substrate signals directly.
+- **Backfill planner, retry ledger, write caps, and rollup refresh intents** become the corpus deployment path for permanents, events, USBRS, Golden Harness, and later user saves. They should drive corpus hydration jobs, not client runtime hydration.
+- **Road-family/canonical-way identity helpers** become the shared identity layer for viewport provider frames, candidate-grid cells, route-line cache hints, and V2Review corridor/member inspection.
+- **Synthetic connector treatment** becomes a first-class adapter invariant: synthetic segment rollups and connector evidence are preserved in provider frames and inspection payloads, not rejected as bad/missing OSM data.
+- **Route-fair candidate selection and bounded candidate cells** become the route-line cache acceleration path. The runtime should fetch route-corridor cells, distribute capped hints across route distance, and leave final route truth to RouteLine.
+- **Viewport load policy, frame store, request gate, and subscriber contract** become the main app control plane for DS-035 substrate mode: ride-forward load, movement-derived load, bearing-spin suppression, retained-window purge, and no RouteMap working-set ownership.
+- **Viewport provider frame and rollup receipt** become the shared debug/admin receipt: requested cells/ways, fetched cells, raw compact records read, records admitted, cap hits, rollup counts, dropped reasons, parse/filter timing, and first-paint timing.
+- **Hint-source/source policy contracts** become future extensibility rules for TrailLink, ArcGIS, DOT overlays, HPMS, wind, watts, shoulder, traffic, and other macro sources: source adapter -> central evidence/display/score pipeline -> bounded provider frame -> subscriber.
+- **Semantic-token-only visual policy** becomes the enforcement point for main app and V2Review rendering. Substrate can select source/display payloads; color still comes from central speed/risk presentation contracts.
+- **No raw runtime scan tests** become acceptance tests for the DS-035 adapter and toggle. Any new consumer must prove it uses bounded cells, provider frames, rollups, or profile tiles.
+
+### What Gets Used In EXEC-042
+
+Phase 0 uses:
+
+- `.tmp` substrate artifacts as `/v2-review` QA truth for restored corridor/member rendering.
+- Existing substrate/corridor/member metadata for click inspection.
+- Candidate-grid fallback only as explicit bounded secondary source when artifacts are missing.
+
+Phase 1 uses:
+
+- shared road-family identity helpers;
+- `viewportSpeedProfile` admission and caps;
+- DS-035 profile fields from `viewport_speed` where available;
+- substrate/corridor/member payloads from artifacts or compact candidate-grid cells;
+- semantic presentation contracts for color decisions.
+
+Phase 2 uses:
+
+- viewport frame-store/load-policy/request-gate machinery as the substrate-mode control plane;
+- existing RouteMap heatmap renderer as the only renderer;
+- bounded provider-frame/candidate-grid/profile payloads as the source switch;
+- admin/debug receipts for load and performance visibility.
+
+Phase 3 uses:
+
+- corpus/region manifest contracts;
+- owned-OSM Golden Harness source planning;
+- bounded per-area/cell hydration;
+- count and coverage ranges to catch malformed or overgrown cache outputs.
+
+### What Stays Cold-Path
+
+- Raw DS-050 substrate signals.
+- Raw source blobs and full OSM tags.
+- RouteX Archive write payloads.
+- Source projection artifacts except as noncanonical input/audit material.
+- Supabase writes and migrations.
+- RouteLine ownership, topology proof, scoring migration, and DS-032 identity work.
+
+### Success Condition
+
+The hardening is useful only when a viewport or route-load surface can answer:
+
+```text
+What bounded substrate/profile/rollup source did I read?
+What did I admit or drop?
+What did I render first?
+What exact/cold source can I hydrate later?
+What proof confirms this did not become route truth?
+```
+
+If a runtime surface cannot answer those five questions from its receipt, it is not yet using the Phase 8 hardening correctly.
+
+## Phase 0 - Restore `/v2-review`
+
+Goal: make `/v2-review` the QA/comparison bench again.
+
+### Checkpoint Notes - 2026-06-02
+
+- `/v2-review` should treat `.tmp` preview artifacts as primary QA input.
+- When `.tmp` artifacts are unavailable, the bounded candidate-grid fallback must run through `buildCyclistSubstrateCacheCandidatePreview` and the DS-035 substrate preview z-band output, not through viewport-speed heatmap admission.
+- This matters at z10: DS-035 admits primary connectors, safe paths, protected cycling corridors, and useful gravel tracks there. Applying the viewport-speed policy first can make tracks/paths disappear and make same-class roads look partially drawn.
+- The fallback remains bounded by viewport, candidate-grid cells, and source artifacts, and reports source/cell/candidate/corridor counts. It is a QA fallback, not route truth and not a raw substrate signal read.
+- Keep unpaved/track QA visibility enabled by default in `/v2-review`; otherwise accepted z10 gravel tracks are hidden by presentation toggles after correct admission.
+- DS-035 9.1 visible groups are complete within the bounded viewport: z10 returns all loaded trunks, primaries, paths/cycleways, and tracks; z11 adds all secondaries and tertiaries; z12 adds all continuity-qualified local groups; z13 adds remaining local detail. Source-way caps apply only to optional overflow after those required groups are complete.
+- Zoom qualification may use effective merged length from substrate corridor metadata or bounded viewport profile-family continuity. This is presentation/cache admission only: fragmented OSM ways can qualify by merged road length without becoming route truth or durable ownership.
+- Presentation corridor identity should be sticky for touching same-road fragments, including `Road`/`Rd` and similar suffix variants, but less sticky for road-like slash aliases. A secondary slash name is inspectable metadata, not merge authority unless the primary road identity also matches.
+- Presentation road identity must not let route refs or broad name prefixes absorb separately named side roads into a major corridor. Directional variants such as `East Black Horse Pike` can stay merged with the true pike, but named tributaries such as `Chews Road`, `East Malaga Road`, `Cedar Brook Road`, `New Brooklyn Road`, `Pump Branch Road`, and `Pennington Avenue` remain independent display corridors.
+- Presentation road identity may bridge compatible same-ref compound-name transitions when the primary names share a meaningful token, such as `Chatsworth Road` -> `Tabernacle Chatsworth Road` -> `Chatsworth Barnegat Road`. This stays bounded to compatible road classes and does not re-enable pure ref-only grouping.
+- Same-name bike paths may bridge modest presentation gaps, such as separated north/south `Barnegat Branch Trail` sections, because named bikeway continuity is part of cyclist substrate salience. Keep this path/cycleway-only; do not use it as a road-ref or tributary merge shortcut.
+- Named trail corridors may emit dashed, display-only gap connector features when accepted path/cycleway member geometry leaves a mid-trail break. These connectors are noncanonical, substrate-signal-ineligible, and exist only as a visual affordance for the shared corridor; they do not create OSM way ownership or durable route truth.
+- Candidate-grid fallback must read bounded cells but paint in road-type priority lanes: trunk, primary, track, path/cycleway, secondary, tertiary, then residential/local. `/v2-review` should render each priority lane through the same DS-035 preview/admission pipeline, then replace it with the final combined preview so cross-lane corridor merging remains the final display truth. Do not leak cell-grid order into the visual loading experience. If first paint still stalls after priority-lane rendering, move the candidate-grid artifact format toward bounded lane-sharded files so trunk/primary records can be fetched without parsing every local-road record first.
+
+Tasks:
+
+- Confirm `/v2-review` defaults to South Jersey as the compatibility oracle.
+- Restore loading of real artifacts from `.tmp/substrate/<region>/`:
+  - `corridor-members-z*.geojson`
+  - `cache-candidates-z*.geojson`
+  - `substrate-z*.geojson`
+  - `cache-preview-audit.json`
+  - `audit.json`
+- Ensure `FALLBACK_SUBSTRATE_FEATURES` is only an explicit fixture/error fallback with a visible status message.
+- Preserve existing V2Review artifact renderer behavior; do not replace it with a new renderer.
+- Preserve corridor/member click inspection.
+- If `.tmp` artifacts are missing, surface a clear "artifact missing" state and optionally use bounded candidate-grid fallback as a secondary source, not as the primary QA path.
+
+Acceptance:
+
+- `/v2-review?substrate=1` renders real merged South Jersey roadway corridors.
+- It no longer shows only the three fake fallback lines as the normal result.
+- Click/hover inspection exposes substrate, corridor, member, and source-way metadata.
+- South Jersey remains the compatibility oracle.
+
+## Phase 1 - Shared DS-035 Substrate/Profile Adapter
+
+Goal: one adapter emits existing heatmap-compatible display payloads from substrate/profile runtime inputs.
+
+Input families:
+
+- Substrate candidate ways.
+- Logical corridors and member geometries.
+- Simplified zoom-band corridor artifacts.
+- Corridor/member cache preview artifacts.
+- `viewport_speed` profile records when available.
+
+Output payload:
+
+- Renderable corridor/display geometry.
+- Source way ids and member way ids.
+- Member geometries or compact member references for inspection.
+- Display label/name/ref.
+- Speed mph, speed class, and speed source when present.
+- Stage key, priority group, `startZoom`, and `minVisibleZoom`.
+- Substrate source/provenance/debug metadata.
+- Click inspection payload.
+
+Rules:
+
+- Reuse `src/lib/route-load/viewportSpeedProfile.ts` for zoom admission, hysteresis, and caps.
+- Reuse `src/lib/presentation/semantic-tokens.ts`, `speed-presentation-controller.ts`, and `route-paint-controller.ts` for color semantics.
+- Use existing substrate identity/merge helpers where needed:
+  - `cache-candidate-preview.ts`
+  - `substrate-simplification.ts`
+  - `corridor-continuity.ts`
+  - `canonical-way-family-identity.ts`
+  - `substrate-viewport-provider-frame.ts`
+- Do not put full raw OSM/source blobs in hot payloads.
+- Do not add route ownership spans, route-indexed truth runs, or score truth to the hot viewport payload.
+
+Acceptance:
+
+- `/v2-review` and main app dev mode consume the same adapter.
+- Adapter output is bounded, profile-aware, and heatmap-compatible.
+- No raw substrate signal scans or raw source mega-blobs enter runtime consumers.
+
+## Phase 2 - Main App Dev/Admin Toggle
+
+Goal: expose DS-035 substrate/profile runtime in the main app without changing production behavior.
+
+Toggle:
+
+```text
+Substrate foundation heatmap only
+```
+
+When ON:
+
+- Enabled only for dev/admin.
+- Suppress normal live viewport heatmap feeds.
+- Feed substrate/profile-backed roads into the existing heatmap renderer.
+- Respect DS-035 zoom hysteresis and `viewportSpeedProfile` caps.
+- Use existing semantic speed/risk colors.
+- Allow road/corridor click inspection.
+- Inspector shows substrate payload, member way ids, profile fields, source/version, and exact hydration availability.
+
+When OFF:
+
+- Current production behavior is unchanged.
+- Existing heatmap renderer, route display, V1 scoring, HPMS, hazards, route save/history, and Supabase behavior remain unchanged.
+
+Acceptance:
+
+- No third visualization path.
+- No literal substrate/debug color branch.
+- Existing RouteMap heatmap paint contract remains the renderer.
+- Runtime source switch is bounded by viewport, zoom, and cell/profile caps.
+
+## Phase 3 - Golden Harness Route-Area Manifest
+
+Goal: make Golden Harness expansion manifest-driven, not bespoke.
+
+Create a route-area manifest for 20 Golden Harness regions.
+
+Each area declares:
+
+- `areaId`
+- `displayName`
+- bbox and/or cell keys
+- substrate artifact source
+- schema version
+- source version
+- expected z-band coverage
+- expected substrate/corridor count range
+- fixture routes
+- known review notes
+
+Validation order:
+
+1. South Jersey restored.
+2. South Jersey through the shared DS-035 adapter.
+3. One Golden Harness area through the manifest.
+4. Remaining 19 areas through the same manifest contract.
+
+Rules:
+
+- Do not hardcode bespoke area logic.
+- Do not load all 20 areas first.
+- Do not turn public candidate-grid data into a client-side all-regions blob.
+
+## Performance And Boundedness Rules
+
+If the app stalls at `fetching candidate roads`, measure:
+
+- substrate cell count
+- profile tile count
+- raw records read
+- payload bytes
+- JSON parse ms
+- dedupe ms
+- filter/admission ms
+- z-band cap count
+- render-ready segment count
+- first substrate paint ms
+- first high-priority paint ms
+
+If the app stalls at `identifying transitions`, stop treating it as DS-035 viewport mode. That is DS-032 / RouteLine identity territory. Measure:
+
+- topology fetch ms
+- graph construction ms
+- candidate generation ms
+- path solve ms
+- handoff extraction ms
+- ownership span ms
+
+Hard runtime constraints:
+
+- Bounded viewport/profile/candidate-grid reads only.
+- No raw substrate signal scans.
+- No all-route/all-region hydration in the client.
+- No raw source mega-blobs in hot payloads.
+- No Supabase writes for this task.
+
+## Verification
+
+Minimum checks before committing implementation phases:
+
+- Visual check `/v2-review?substrate=1`: real South Jersey corridors render.
+- Visual check `/v2-review` inspector: corridor/member/source-way metadata appears.
+- Visual check main app dev toggle: substrate-only mode lights up bounded viewport substrate roads.
+- Focused tests for artifact loader, shared adapter, viewport candidate policy, and semantic color/no-new-renderer constraints if touched.
+- `npx tsc --noEmit --pretty false`
+- `git diff --check`
+
+## Review Closeout State - 2026-06-03
+
+Verified:
+
+- Candidate-grid canvas click selection reliably opens the cyclist substrate inspector with source-way metadata.
+- `/v2-review` inspector exposes structural substrate/corridor/member/source-way metadata: merged corridor family, member road, road type, OSM way id, road family, salience tier, importance score, zoom/cache eligibility, merged distance, member count, source way ids, variants, merge reasons, diagnostics, and noncanonical status.
+
+Current cache scope:
+
+- The public candidate-grid cells are compact structural substrate inputs: OSM way id/fid, highway, selected tags, bounds, and geometry.
+- The V2Review fallback derives corridor identity, member grouping, salience, continuity, zoom eligibility, and inspection metadata from those bounded cells.
+- The candidate-grid fallback now attempts a bounded, stage-aware `viewport_speed` profile-cache join by OSM way id before emitting DS-035 display payloads. It reads only materialized profile tiles for the active z-band stage set, never raw signal/source history.
+- When a matching profile row exists, the inspector can show `profile_joined` speed/source facts such as HPMS/official posted values. When no profile row exists, OSM `maxspeed` from the candidate-grid remains an explicit `OSM posted (grid fallback)` display hint, not central evidence resolver truth.
+- A pure `viewport_speed` profile tile write-plan contract now converts already-resolved speed evidence into compact cache rows. This is a server/backfill boundary: HPMS/DOT/OSM precedence must be decided upstream by the resolver, then written as bounded profile rows before runtime display.
+- Profile row `source_version` remains the bounded cache bundle version that readers request. Per-road evidence provenance such as `HPMS_FULL_NJ_2024` lives inside the compact road tags as `_viewport_profile_source_version`, so the reader can find the row and the inspector can still explain the winning source.
+- A service-role guarded `viewport_speed` profile tile upsert boundary now accepts only bounded write plans with `rawSignalRead=false`, `rawSourceRead=false`, and `scoreBearing=false`. Browser-like callers are rejected. The companion CLI `scripts/substrate/upsert-viewport-speed-profile-tiles.mjs` is dry-run by default and writes only with `--write` plus `SUPABASE_SERVICE_ROLE_KEY`.
+- A dry-run `viewport_speed` hydration planner now joins owned road geometry to already-resolved speed provenance and emits bounded write-plan JSON. Use `npx tsx scripts/substrate/plan-viewport-speed-profile-tiles.ts --roads <owned-roads.json> --speed-facts <resolved-speed-facts.json> --out <report.json> --plan-out <plan.json>` before the guarded upsert CLI. Roads without resolved speed facts stay out of the profile cache so candidate-grid OSM fallbacks do not become resolver truth.
+- A dry-run resolved speed fact exporter now adapts existing V2S+S scoring/evidence artifacts into planner-ready `resolvedSpeedFacts`. It reads selected speed evidence plus ownership/source-way contribution metadata, defaults to source-backed speed only, and requires explicit fallback inclusion for baseline-first-paint cache hydration.
+- A dry-run diagnostic lane writer can materialize V2S+S selected-evidence artifacts for cache-hydration preflight without Supabase writes or runtime route-state changes.
+- A bounded candidate-grid owned-road extractor now joins requested resolved OSM/source-way ids to local candidate-grid cells for build/backfill input geometry. It dedupes duplicate cell membership, reports missing ways, and keeps `rawSignalRead=false`, `rawSourceRead=false`, and `scoreBearing=false`.
+- Candidate-grid array geometry is normalized as lon/lat before entering `viewport_speed` write plans, preventing swapped-coordinate cache rows while preserving lat/lon route fixtures.
+- `plan-viewport-speed-profile-tiles.ts` now separates the inspection report from the raw guarded write-plan: use `--out <report.json>` for receipts and `--plan-out <plan.json>` for `upsert-viewport-speed-profile-tiles.mjs`.
+- `viewport_speed`, AADT/traffic, shoulder, bike-infra overlay, elevation/grade, and future wind/watts facts are not currently persisted in the base candidate-grid cell payload.
+- That is aligned with DS-035: base substrate is regional cyclist structure and continuity; profile overlays remain profile hydration, rollup, or tile payloads.
+
+Closeout interpretation:
+
+- Phase 0 structural QA is effectively closed for promotion if we accept the remaining trail-gap affordance as nonblocking.
+- Phase 1 must not bake speed/AADT/shoulder/elevation into base substrate. It should join bounded substrate cells/corridors with bounded profile/rollup tiles and expose the joined receipt in the inspector.
+- The first country-wide substrate promotion target is therefore a bounded, lane-sharded structural candidate-grid surface plus separate bounded profile/rollup hydration, not one all-purpose mega-cache.
+
+Country-wide promotion checklist:
+
+- Define a neutral candidate-grid namespace instead of continuing to name the shared runtime surface `south-jersey`.
+- Keep cell reads bounded by viewport/route corridor and reject oversized viewports before fetch.
+- Shard cell payloads by DS-035 priority lane or equivalent so trunk/primary/path/track first paint does not wait on local-road parsing.
+- Preserve structural payload minimalism: id/fid/highway/selected tags/bounds/geometry/source version, with corridor metadata derived or precomputed separately when payload cost justifies it.
+- Keep the bounded `viewport_speed` profile join for initial paint color/speed-band inspection, and hydrate those profile rows from the central evidence/resolver/profile pipeline so HPMS/DOT/OSM precedence is decided before runtime display.
+- Use generated `viewport_speed` write-plan JSON plus `node scripts/substrate/upsert-viewport-speed-profile-tiles.mjs --plan <plan.json>` for dry-run validation, then add `--write` only for an explicit service-role cache hydration run. Generate the raw write-plan with `--plan-out`; keep `--out` as an inspection/report artifact.
+- Add optional bounded profile joins for shoulder, bike-infra, traffic/AADT, surface, elevation/grade, wind, watts, or future domains through the same adapter contract.
+- Inspector must show source/version, structural substrate fields, profile fields when hydrated, exact-hydration availability, and source/cell/profile receipt counts.
+- Main app dev mode must consume the same DS-035 adapter and existing semantic color path; `/v2-review` remains the QA oracle.
+- Do not commit generated nationwide grid blobs to the app repo without a size/storage policy. Prefer artifact storage, CDN/object storage, or generated release bundles with manifest checks.
+
+## Phased Checklist
+
+- [x] Pre-Phase 0: Audit dirty DS-035 substrate runtime edits and isolate unrelated candidate-grid churn.
+- [x] Pre-Phase 0: Remove or rework custom renderer/literal color logic from aborted substrate viewport attempt.
+- [x] Phase 0: Restore `/v2-review` artifact loading for real corridor/member substrate QA.
+- [x] Phase 0: Keep fallback substrate lines explicit and non-primary.
+- [x] Phase 0: Stream bounded candidate-grid fallback by road-type priority lanes before final combined preview completion.
+- [x] Phase 0: Preserve same-name bike-path continuity across modest candidate-grid gaps without broadening road merge rules.
+- [x] Phase 0: Add display-only named-trail gap connectors for mid-trail visual affordance without creating route/source truth.
+- [x] Phase 0: Verify candidate-grid canvas click selection exposes source-way metadata.
+- [x] Phase 0: Confirm `/v2-review` inspector exposes corridor/member/source-way metadata.
+- [ ] Phase 0 closeout: Decide whether the remaining Barnegat Branch Trail visual gap is nonblocking for promotion.
+- [ ] Phase 0 closeout: Rename/reframe shared candidate-grid runtime surface away from South Jersey before country-wide promotion.
+- [ ] Phase 0 closeout: Define generated artifact storage/size policy for country-wide substrate.
+- [x] Phase 1: Add shared DS-035 substrate/profile display adapter and wire `/v2-review` candidate-grid QA through the adapter receipt.
+- [x] Phase 1: Expose bounded `viewport_speed` profile facts in `/v2-review` inspector without baking speed into base substrate.
+- [x] Phase 1: Add shared DS-035 substrate/profile-to-heatmap adapter.
+- [x] Phase 1: Join bounded `viewport_speed` profile metadata for speed-band/initial-paint inspection when profile-cache rows exist, and label candidate-grid OSM speed as grid fallback when no profile row exists.
+- [x] Phase 1: Add pure `viewport_speed` profile tile write-plan contract for resolved evidence hydration without runtime raw-source reads.
+- [x] Phase 1: Add service-role guarded `viewport_speed` profile tile upsert boundary and dry-run-first CLI.
+- [x] Phase 1: Add dry-run `viewport_speed` hydration planner from owned road geometry plus resolved provenance into bounded write-plan JSON.
+- [x] Phase 1: Add dry-run resolved speed fact exporter from V2S+S scoring/evidence artifacts into planner-ready `resolvedSpeedFacts`.
+- [x] Phase 1: Add dry-run V2S+S diagnostic lane artifact writer for cache-hydration preflight.
+- [x] Phase 1: Add bounded candidate-grid owned-road extractor for requested resolved OSM/source-way ids.
+- [x] Phase 1: Harden candidate-grid lon/lat geometry normalization before `viewport_speed` profile writes.
+- [x] Phase 1: Split planner inspection reports from raw guarded write-plan output with `--plan-out`.
+- [ ] Phase 1: Confirm adapter uses `viewportSpeedProfile` admission and semantic speed colors.
+- [ ] Phase 1: Confirm adapter hot payloads stay bounded and do not carry RouteLine truth.
+- [x] Phase 2: Add dev/admin `Substrate foundation heatmap only` toggle as a source switch.
+- [ ] Phase 2: Confirm production heatmap behavior is unchanged when toggle is OFF.
+- [ ] Phase 3: Add Golden Harness route-area manifest contract.
+- [ ] Phase 3: Validate South Jersey, one Golden Harness region, then remaining regions by manifest.
+- [ ] Phase 4: Promote bounded, lane-sharded candidate-grid generation/storage for country-wide substrate coverage.
+- [ ] Run focused tests, typecheck, and `git diff --check`.
+
+
+---
+
+## Source File: docs/04-execution/exec-043-ds035-substrate-runtime-status-and-next-steps.md
+
+# EXEC-043 - DS-035 Substrate Runtime Status And Next Steps
+
+Date: 2026-06-03
+
+Branch: `route-line-v2-substrate`
+
+Current checkpoint: `f872c197 feat(substrate): preflight viewport speed hydration`
+
+## Scope
+
+This execution note summarizes the current Phase 8 / Phase 8.1 / DS-035 substrate runtime work before running a real Dam Ride or Golden Harness cache-hydration dry run.
+
+This is not Phase 7B Personal Coverage Ledger work.
+
+The governing idea is still:
+
+Substrate is the durable signal ledger plus bounded rollup/profile cache. It is not the map itself. Runtime maps, heatmaps, routing hints, QA views, and future macro intelligence should consume bounded rollups, profile tiles, or candidate-grid cells, not raw signal/source history.
+
+## Hard Rules
+
+| Rule | Plain-English reason |
+| --- | --- |
+| Runtime consumers must not scan raw substrate signals. | The app cannot stay fast if every pan/hover/route load digs through historical event logs. |
+| Runtime consumers must not scan raw OSM/HPMS/DOT source blobs. | Source datasets are too large and too slow for rider-facing interactions. They belong upstream in builders/backfills. |
+| Base candidate-grid substrate must stay structural. | The base substrate answers "what road/path structure exists here"; speed, shoulder, AADT, grade, wind, and watts are overlay/profile facts. |
+| HPMS/DOT/OSM precedence must be resolved before runtime display. | The viewport should show the winning answer, not re-litigate source conflicts while the user pans. |
+| Visual color must use central semantic tokens. | If every surface invents colors, the same fact can look different in different places. |
+| Synthetic connectors remain first-class. | Gaps and inferred connectors can be meaningful cycling structure, not automatically bad data. |
+| Supabase writes require an explicit write step. | Dry-run planning should be safe to run repeatedly without changing production data. |
+
+## Done So Far
+
+| Item | Current implementation state | Plain-English why it matters |
+| --- | --- | --- |
+| DS-050 substrate signal registry | The generalized substrate registry exists for route behavior, field notes, external records, media, detours, institutional status, and related signal families. | Gives all future hints one vocabulary instead of a pile of one-off tables. |
+| RouteX Archive substrate promotion | RouteX promotion emits route-derived DS-050 route behavior signals after topology archive writes succeed. | Route experience becomes durable substrate evidence only after the route artifact is canonical enough to trust. |
+| Route behavior rollups | Way, synthetic-segment, and route-span rollups exist, with a bounded rollup reader. | Runtime can ask for summarized route behavior without reading raw signal rows. |
+| Public aggregate policy | Public aggregate reads are bounded, OSM-way-only, unscoped, privacy-filtered, and do not expose raw signal ids. | Lets public heatmaps be useful without leaking individual route or signal history. |
+| Canonical RouteExperience inputs | Route-derived substrate inputs are constrained to canonical/usable RouteExperience artifacts. | Prevents provisional or broken route artifacts from polluting long-lived substrate memory. |
+| Aggregate way intelligence | Traversed/rejected/synthetic/blocked route behavior feeds aggregate way intelligence and route-line/routing consumers through aggregate-only paths. | Helps the system learn where roads/connectors matter without making the runtime inspect raw evidence. |
+| Synthetic connector treatment | Synthetic connectors are kept as first-class substrate keys and test cases. | A useful connector gap should not be thrown away just because it is not an OSM way. |
+| Backfill contracts | Substrate backfill/run contracts, retry state, write caps, resumable cursors, and dry-run/write-plan boundaries exist. | A corpus job can fail halfway, resume, and explain what it did instead of becoming a mystery batch. |
+| Golden Harness/corpus planning | Golden Harness region hydration manifests, route-buffer commands, command reports, and owned-OSM candidate-grid expansion tools exist. | Makes it possible to hydrate substrate around important test routes without loading the whole country at once. |
+| Shared Golden Harness candidate-grid surface | The old Dam-only public candidate-grid artifact was removed in favor of the shared South Jersey/Golden Harness candidate-grid surface. | Avoids parallel cache paths where Dam Ride behaves differently from the rest of the substrate. |
+| V2 Review restoration | `/v2-review` now renders real candidate-grid substrate/corridor roads instead of the fake fallback horizontal lines. | Restores the QA bench needed to inspect the substrate before promoting it into the main app. |
+| DS-035 zoom behavior | The V2 Review substrate path now follows DS-035 9.1 z-band expectations: z10 structural trunk/primary/path-cycleway/track, then secondary/tertiary/local detail at later bands. | Far zoom should feel coherent and cycling-specific, not random fragments. |
+| Candidate-grid streaming | Candidate-grid fallback streams bounded preview output by road-type priority lanes instead of waiting for one big batch. | The first paint can show major structure quickly instead of freezing until every local road is parsed. |
+| Viewport fairness | Source-way selection was made viewport-fair so dense clusters do not starve the rest of the visible area. | The whole viewport should fill in, not just the densest corner. |
+| Corridor continuity tuning | Same-road abbreviation/compound-name continuity was improved, while side-road tributaries are kept independent. | Roads like Jackson Road should merge when they are the same road; side roads should not get swallowed into a false mega-road. |
+| Path gap affordances | Same-name path/trail gaps and noncanonical dashed gap connectors were added for QA display. | Trails often have short mapping gaps; the user should still perceive continuity without making fake source truth. |
+| Inspector metadata | Candidate-grid click/hover inspection exposes structural corridor/member/source-way metadata. | Tuning is possible only if the QA surface says what it is drawing and why. |
+| Tooltip/profile clarity | Candidate-grid OSM `maxspeed` is labeled as grid fallback unless a bounded `viewport_speed` profile row exists. | Prevents a fallback tag from masquerading as central evidence resolver truth. |
+| `viewport_speed` rename | The old `viewport_speed_v1` framing was renamed to `viewport_speed`. | Treats speed as a durable profile domain, not a throwaway versioned experiment in user-facing concepts. |
+| DS-035 display adapter | A shared substrate/profile display adapter now feeds `/v2-review` and prepares the main-app heatmap path. | Tuning done in QA should carry forward instead of being redone on the main app surface. |
+| Main app substrate toggle | A dev/admin "Substrate foundation heatmap only" source switch exists, reusing the existing heatmap renderer and semantic color path. | Lets the main app inspect substrate mode without creating a third renderer. |
+| Profile tile write-plan contract | A pure `viewport_speed` profile tile write-plan builder exists for already-resolved speed evidence. | The cache writer can build compact runtime rows without deciding HPMS-vs-OSM itself. |
+| Guarded upsert boundary | A service-role guarded `viewport_speed` upsert CLI validates bounded plans and is dry-run by default. | The write boundary is explicit and rejects unsafe/browser-like payloads. |
+| Resolved speed fact exporter | V2S+S scoring/evidence artifacts can export planner-ready `resolvedSpeedFacts` from selected speed evidence and source-way contributions. | The profile cache can inherit central evidence-builder provenance instead of doing rogue speed lookup. |
+| Diagnostic lane writer | A local V2S+S diagnostic lane artifact writer exists for preflight tests. | We can test the cache pipeline without touching Supabase or route runtime state. |
+| Candidate-grid owned-road extractor | A bounded extractor maps requested resolved OSM way ids to local candidate-grid geometry and dedupes duplicate cells. | The planner needs road geometry, but it should get only the requested ways, not an unbounded source dump. |
+| Candidate-grid coordinate hardening | Candidate-grid lon/lat arrays are normalized before becoming `SpeedRoad.coords`. | Prevents subtle swapped-coordinate cache rows that would be painful to debug later. |
+| Planner report vs raw plan split | `plan-viewport-speed-profile-tiles.ts` now writes inspection reports with `--out` and raw upsert plans with `--plan-out`. | Operators can inspect receipts without accidentally feeding the wrong JSON shape into the write CLI. |
+
+## Left To Do
+
+| Item | Next action | Plain-English why it matters |
+| --- | --- | --- |
+| Run real Dam Ride / Golden Harness preflight | Find a real route scoring/evidence artifact, export resolved speed facts, extract candidate-grid roads, build a raw `viewport_speed` plan, and validate upsert dry-run. | The Medford fixture proves the pipes connect; a real route proves the pipe is useful at realistic size. |
+| Inspect source mix | Count OSM posted, HPMS/DOT posted, inferred, baseline, and missing speed facts in the generated plan. | If everything says OSM when HPMS should win, the cache would be fast but wrong. |
+| Inspect payload size and rows | Record requested ways, matched roads, missing ways, plan rows, payload bytes, stage distribution, and duplicate cell count. | This tells us whether the cache shape can scale before writing anything. |
+| Verify `viewport_speed` joins in `/v2-review` | Confirm a hydrated profile row appears as `profile_joined` and preserves source labels such as `OSM posted` or `NJDOT / HPMS 2024 posted`. | The cache is only useful if the QA surface can prove it is reading the bounded profile row. |
+| Confirm semantic color path | Verify the adapter uses `viewportSpeedProfile` admission and central semantic speed/risk presentation, with no literal colors. | Keeps the V2 Review tuning reusable in the main app instead of creating another visual dialect. |
+| Confirm hot payload boundaries | Audit the adapter payloads for no RouteLine truth, no raw source blobs, no raw signal ids, and bounded profile/candidate fields only. | Prevents the viewport from quietly becoming the scoring engine or source database. |
+| Confirm production heatmap OFF behavior | With the dev/admin substrate toggle off, verify existing production heatmap behavior is unchanged. | A debug mode should not regress normal rider-facing behavior. |
+| Decide Barnegat Branch Trail gap policy | Decide whether the remaining visual gap is nonblocking or needs a stronger path-only continuity rule. | This is a QA/presentation decision; it should not block country-wide promotion unless it affects trust. |
+| Rename/reframe shared candidate-grid namespace | Move away from `south-jersey` as the shared runtime surface name before country-wide promotion. | A national cache cannot keep pretending its namespace is one region. |
+| Define artifact storage policy | Decide what belongs in git, object storage, CDN, or generated release bundles for country-wide grid/profile data. | Nationwide candidate grids and profile tiles can get expensive and large quickly. |
+| Build Golden Harness route-area manifest | Add the 20-region manifest with area ids, bboxes/cells, source versions, z-band coverage, fixture routes, and review notes. | Lets us validate one region, then repeat across all regions without bespoke scripts. |
+| Promote lane-sharded candidate-grid generation | Split structural candidate-grid output by priority lane or equivalent storage strategy. | Trunk/primary/path/track first paint should not wait for residential/local payloads. |
+| Hydrate first regional cache writes | After dry-run inspection, write a small approved `viewport_speed` profile cache area with service-role credentials. | We need one real hydrated region to test the runtime join end to end. |
+| Add future overlay domains through the same path | Add shoulder, bike infra, AADT/traffic, surface, elevation/grade, wind, watts, or other hints as bounded profile/rollup domains. | The architecture should handle tomorrow's overlays without making viewport a bespoke subscriber for each source. |
+
+## Immediate Next Run
+
+The next work item is still dry-run only:
+
+1. Locate the best real Dam Ride or Golden Harness V2S+S scoring/evidence artifact.
+2. Export `resolvedSpeedFacts` from selected speed evidence.
+3. Extract only those requested OSM/source-way ids from the bounded candidate-grid cells.
+4. Build the `viewport_speed` inspection report and raw upsert plan.
+5. Run the guarded upsert CLI in dry-run mode against the raw plan.
+6. Inspect source mix, payload size, missing way ids, and stage distribution.
+7. Decide whether the result is safe enough for an explicit small cache write later.
+
+No Supabase deploy or write is part of this immediate run.
+
+## Known Open Risks
+
+| Risk | What to watch | Plain-English why |
+| --- | --- | --- |
+| Candidate-grid extractor currently scans local grid files in build/backfill mode. | For country-wide hydration, add route/region indexing or lane-sharded manifests before large jobs. | Scanning local files is fine for controlled dry runs, but not a national operating model. |
+| HPMS/DOT may be absent from a scoring artifact. | If the selected speed facts are OSM-only where HPMS should exist, debug the central evidence builder, not the viewport. | The viewport cache should inherit the answer; it should not invent a better one. |
+| Profile cache misses fall back to candidate-grid `maxspeed`. | Inspect labels carefully: `OSM posted (grid fallback)` is not the same as `profile_joined`. | The fallback is useful for QA/first paint but should not be mistaken for resolved evidence. |
+| Corridor merge tuning can still overmerge or fragment. | Keep examples like Jackson Road, Black Horse Pike tributaries, US 9 / Old New York Road, and Barnegat Branch Trail as regression cases. | These are the concrete cases that prove the road-family logic is not just looking good in one spot. |
+| Main app promotion can drift from V2 Review. | Keep the shared DS-035 adapter as the only display pipeline. | Otherwise the same tuning gets repeated and slowly diverges. |
+
+## Definition Of Done For The Next Checkpoint
+
+- Real Dam Ride or Golden Harness dry-run report exists under `.tmp`.
+- Raw `viewport_speed` plan validates through `upsert-viewport-speed-profile-tiles.mjs` dry-run.
+- Report includes source mix, payload bytes, row count, matched/missing way ids, and stage distribution.
+- No runtime raw signal/source reads are introduced.
+- No Supabase write/deploy happens unless explicitly requested after review.
+- Any implementation or documentation change is committed narrowly.
+
+
+---
+
+## Source File: docs/04-execution/exec-044-rxon-first-paint-road-identity-repair-plan.md
+
+# EXEC-044 - RXON First Paint Road Identity Repair Plan
+
+## Purpose
+
+Make RXON first paint trustworthy.
+
+RXON should remain the canonical immutable RouteExperience artifact for Vault routes. It can drive fast first paint only when the artifact contains a real score receipt, a real paint receipt, and stable road identity for every painted span.
+
+This EXEC documents what has already been done, what is still left, and the plain-English reason for each item before continuing the builder repair work.
+
+## Current Product Problem
+
+The Dam Ride Vault route can now open from an RXON artifact, but the attempted first-paint risk layer was not trustworthy enough.
+
+The artifact contained many colored spans and road names, but the spans did not carry stable road identity. In practice, that made the first paint look confident while still being disconnected from the real road-by-road identity needed to trust the colors.
+
+Plainly: a map full of green, orange, red, and blue lines is worse than no risk paint if the app cannot prove which real road each color belongs to.
+
+## Governing Rules
+
+- RXON means RouteExperience artifact.
+- Do not reintroduce the old route-load RXON concept.
+- RXON remains the source of truth for topology, controls, POIs, hints, score receipts, paint receipts, and provenance.
+- Database tables or projections may make reads faster, but they are indexes derived from RXON, not competing truth.
+- First paint may be fast, but it may not fake confidence.
+- Paint must come from a scoreBuilder-produced receipt, not raw topology color guessing.
+- Live V2 validation/scoring may refresh RXON paint after first paint, but it should not block an already-valid RXON first paint.
+- If the receipt is missing stable road identity, selected evidence, or scored risk, first paint must be blocked.
+
+## What Has Been Done So Far
+
+### 1. RXON Score And Paint Receipt Fields Were Added
+
+Status: done
+
+Commit: `2febdf3c feat(rxon): add scored first paint receipts`
+
+What changed:
+
+- `RouteExperienceArtifact` can now carry `scoreReceipt`.
+- `RouteExperienceArtifact` can now carry `paintReceipt`.
+- Receipt metadata can record scorer version, evidence schema/version, paint contract version, snapshot metadata, generated time, validity, stale state, and diagnostics.
+- RXON first paint projection helpers were added for future table-backed first-paint reads.
+
+Why, in plain English:
+
+RXON should not just say "here is the route shape." It should be able to say "here is the route shape, here is the scoring receipt that produced the colors, and here is the compact paint instruction the map can trust."
+
+Without those receipts, the app has no durable proof that fast paint means real risk paint.
+
+### 2. Vault RXON Open Was Wired Into First-Paint Flow
+
+Status: done
+
+Commit: `2febdf3c feat(rxon): add scored first paint receipts`
+
+What changed:
+
+- Vault RXON opens can pass a RouteExperience artifact into the route load flow.
+- The app can build initial heatmap output from a valid RXON paint receipt.
+- The durable map can prefer live heatmap output when it exists, but otherwise use RXON first-paint output.
+- Route load tracing records whether RXON first paint was ready or blocked.
+
+Why, in plain English:
+
+The rider should not wait for the whole live evidence/scoring process when Lanterne already has a prebuilt route artifact. The app should paint quickly from RXON, then quietly check and improve it in the background.
+
+### 3. A Minimal RXON First-Paint Projection Shape Was Added
+
+Status: done
+
+Commit: `2febdf3c feat(rxon): add scored first paint receipts`
+
+What changed:
+
+- The code now has typed projection rows for route artifact metadata.
+- The code now has typed projection rows for paint spans.
+- Projection rows include artifact id/hash/fingerprint, schema versions, route distance, score summary fields, generated/stale/valid metadata, and paint span distance ranges.
+
+Why, in plain English:
+
+RXON can stay the truth while the app still gets fast reads. A table can answer "what should I paint first?" without pretending to be the route source of truth.
+
+### 4. Dam Ride RXON First-Paint Fixture Coverage Was Added
+
+Status: done
+
+Commit: `31e69878 test(rxon): cover dam ride first paint receipt`
+
+What changed:
+
+- Tests were added around a Dam Ride-like RXON first-paint receipt.
+- The test coverage initially proved semantic color tokens were used instead of raw hex colors.
+
+Why, in plain English:
+
+Dam Ride is the real route that exposed this product problem. A fixture keeps us from making theoretical changes that pass toy tests but fail the route Derek is actually looking at.
+
+### 5. Paint Receipts Were Updated To Preserve More Scored Road Metadata
+
+Status: done
+
+Commit: `dceb5e9c fix(rxon): preserve scored road paint spans`
+
+What changed:
+
+- Paint receipt spans now preserve road metadata, risk fields, evidence details, traffic details, and selected evidence where available.
+- The paint contract prefers scored heatmap truth segments when available.
+- The receipt builder avoids collapsing spans across different road identity.
+- First-paint heatmap projection passes that metadata into map segments.
+
+Why, in plain English:
+
+The first attempt made the map colorful but too shallow. A paint span needs to carry the useful facts behind the line, not just the color.
+
+### 6. Dam Ride RXON Was Regenerated And Installed Once With Receipts
+
+Status: done, but not accepted as trustworthy first paint
+
+What changed:
+
+- Dam Ride RWGPS `38741893` was regenerated into RXON with score and paint receipts.
+- Vault availability was pointed at the regenerated artifact.
+- The generated receipt had non-empty paint spans and semantic color tokens.
+
+Observed problem:
+
+- The receipt had road names and selected evidence fields.
+- The receipt did not have stable road ids for the spans.
+- That means it looked more complete than it really was.
+
+Why, in plain English:
+
+This proved the wiring path works, but also proved the builder is not yet producing the proof-quality road identity the product needs. A pretty fast route line is not good enough if the click inspector cannot confidently explain the real road behind it.
+
+### 7. RXON First Paint Was Gated On Stable Road Identity
+
+Status: done
+
+Commit: `c7fe4bd7 fix(rxon): gate first paint on stable road identity`
+
+What changed:
+
+- RXON first paint is now blocked unless every paint span has:
+  - stable road identity
+  - scored normalized risk
+  - selected evidence
+  - valid semantic color token
+  - valid route-distance range
+- The Dam Ride-like test now proves that named/colorful spans without stable road identity are blocked.
+
+Why, in plain English:
+
+This is the trust repair. If the app cannot prove "this color belongs to this real road," it should not draw a confident risk layer. It is better to fall back to the slower normal load than to show beautiful nonsense.
+
+## What Is Left To Do
+
+### 1. Repair The RXON Builder So Paint Spans Carry Stable Road Identity
+
+Status: next
+
+Needed work:
+
+- Trace where the existing scoreBuilder output loses canonical road identity before becoming `paintReceipt.segments`.
+- Preserve the best available stable identity on each span, such as canonical way id, canonical edge id, or the existing stable route-road identifier used by scored heatmap truth.
+- Keep road name as display text only, not identity.
+- Add a blocker when the builder cannot attach stable identity to a scored span.
+
+Why, in plain English:
+
+Names are messy. Two different roads can share a name, a single road can have multiple names, and abbreviations can drift. Risk paint needs an actual road identity, not just text that looks like a road name.
+
+### 2. Confirm The ScoreBuilder Is The Only Source Of Paint
+
+Status: next
+
+Needed work:
+
+- Audit the RXON generation path to prove the paint receipt is produced from the same scoring/evidence path as normal route loading.
+- Remove or block any fallback that assigns risk colors from raw topology alone.
+- Keep topology-only RXON usable for route shape, controls, and POIs, but mark risk paint unavailable.
+
+Why, in plain English:
+
+The line can come from route geometry, but the color must come from scoring. Otherwise the user sees risk paint that did not actually earn its risk score.
+
+### 3. Regenerate Dam Ride RXON With Proof-Quality Paint Receipt
+
+Status: after builder repair
+
+Needed work:
+
+- Rebuild Dam Ride RWGPS `38741893` RXON using the repaired builder.
+- Confirm `scoreReceipt.status` is `score_ready`.
+- Confirm `paintReceipt.status` is `paint_ready`.
+- Confirm all paint spans have stable identity.
+- Confirm all paint spans have selected evidence.
+- Confirm all paint spans use semantic tokens, not raw colors.
+- Confirm the artifact hash/fingerprint/schema values match the Vault open reference.
+
+Why, in plain English:
+
+The current installed Dam Ride artifact is useful as a wiring test, but not good enough as a product artifact. Regeneration is the moment where we prove the repair actually reaches Vault.
+
+### 4. Reinstall The Rebuilt Artifact Into The Vault Catalog Path
+
+Status: after regeneration
+
+Needed work:
+
+- Store the regenerated RXON where Vault open refs already look.
+- Update the catalog reference/hash if the artifact hash changes.
+- Confirm Vault availability points to the regenerated artifact.
+- Do not make GPX the preferred path when RXON is available and valid.
+
+Why, in plain English:
+
+The builder fix does not matter until the Vault route opens the corrected artifact. The catalog pointer is the bridge between the prebuilt file and the rider clicking Open.
+
+### 5. Verify Dam Ride First Paint In The Browser
+
+Status: after reinstall
+
+Needed work:
+
+- Open Dam Ride from Vault.
+- Confirm durable risk paint appears from RXON quickly.
+- Confirm the purple loader/scribe layer fades after durable paint is visible.
+- Click several road segments and confirm the inspector shows real road identity and evidence, not generic "RXON scored route segment" everywhere.
+- Confirm live V2 can refresh the paint later without clearing the route.
+
+Why, in plain English:
+
+Tests can prove the contract, but the product succeeds or fails by what the rider sees. The map must feel fast and trustworthy at the same time.
+
+### 6. Add A Focused Builder-Level Test
+
+Status: after builder repair
+
+Needed work:
+
+- Add a test that builds a small RXON-like scored artifact from scored route output.
+- Assert every paint span has stable identity, selected evidence, and scored risk.
+- Assert missing identity blocks `paint_ready`.
+- Assert topology-only artifacts do not get fake risk paint.
+
+Why, in plain English:
+
+The bug should be impossible to reintroduce silently. The test should fail if a future change makes colorful paint without proof.
+
+### 7. Decide Whether First-Paint Projection Tables Are Needed Immediately
+
+Status: later, not required for the next fix
+
+Needed work:
+
+- Keep RXON as source of truth.
+- If app startup needs faster reads, project RXON paint receipts into read/index tables keyed by artifact id/hash/fingerprint.
+- Store score summary fields, schema/scorer/evidence versions, generated/stale metadata, and paint spans.
+- Do not recreate the old route cache as canonical truth.
+
+Why, in plain English:
+
+Tables can make the app faster, but they should be a shortcut to read RXON, not a second reality. If the table and RXON disagree, RXON wins.
+
+## Definition Of Done For This Repair
+
+- Dam Ride opens from Vault using RXON.
+- RXON immediately paints durable risk only when the receipt passes the trust gate.
+- The durable paint uses real scored risk, not topology-derived guesses.
+- Every first-paint segment can explain what real road/edge/way it belongs to.
+- Segment clicks show meaningful road/evidence details.
+- Live V2 can refresh the route after first paint without a purple-only hang or flicker.
+- If an RXON artifact lacks proof-quality paint, first paint is blocked and the app does not fake it.
+
+## Narrow Commit Plan
+
+1. Commit this EXEC.
+2. Repair paint-span identity propagation in the RXON builder.
+3. Add builder-level identity/evidence tests.
+4. Regenerate and reinstall Dam Ride RXON.
+5. Verify Vault open behavior in browser.
+6. Commit the builder/test/artifact pointer change.
+
+## Non-Goals
+
+- Do not redesign Vault UI in this repair.
+- Do not edit unrelated substrate/runtime files.
+- Do not create database migrations unless explicitly requested.
+- Do not introduce a second RXON concept.
+- Do not make raw GPX or RWGPS JSON the preferred path when a valid RXON exists.
+- Do not use raw colors in paint receipts.
+- Do not let route names substitute for stable road identity.
 
 
 ---
