@@ -7237,7 +7237,7 @@ Each road-slice trace record must include:
 - slice id and geometry reference
 - slice miles
 - selected speed and its provenance / confidence
-- selected AADT per lane and its provenance / confidence
+- selected effective right-lane AADT and its provenance / confidence
 - selected lane count basis if AADT was converted from total AADT
 - curvature class and derivation
 - facility class and derivation
@@ -7256,7 +7256,7 @@ Each crossing-event trace record must include:
 - eligibility reason
 - crossed or entered road identity
 - selected crossed-road speed and provenance / confidence
-- selected crossed-road AADT per lane and provenance / confidence
+- selected crossed-road effective right-lane AADT and provenance / confidence
 - lanes crossed / width proxy and provenance / confidence
 - control type and provenance / confidence
 - movement type and provenance / confidence
@@ -7441,19 +7441,30 @@ Speed does not appear in `RoadLikelihood` at launch. It appears in `RoadRisk` th
 
 Traffic is the continuous-road exposure backbone.
 
-Canonical traffic input is **AADT per lane**. When official DOT / HPMS or equivalent AADT is available, Lanterne must use the exact numeric value, convert it to AADT per lane when needed, and interpolate against the traffic factor table. Real AADT must not be flattened into buckets.
+Canonical traffic input is **effective one-direction right-lane AADT**. Older code and some trace fields may still call this `aadtPerLane`; in DS-015 terms that means the rider-side motor-vehicle lane exposure, not one-direction whole-road traffic.
+
+When official DOT / HPMS or equivalent AADT is available, Lanterne must use the exact numeric value, convert it to effective one-direction right-lane AADT when needed, and interpolate against the traffic factor table. Real AADT must not be flattened into buckets.
 
 Conversion:
 
 ```text
-AADT per lane = total AADT / motor-vehicle lane count
+directional lane count = motor-vehicle through-lane count / direction divisor
+effective right-lane AADT = total AADT / direction divisor / directional lane count
 ```
+
+For normal two-way roads where the direction divisor is `2`, this simplifies to:
+
+```text
+effective right-lane AADT = total AADT / motor-vehicle through-lane count
+```
+
+Therefore, for the same total AADT, a 4-lane road resolves to lower rider-lane traffic exposure than a 2-lane road. Presentation logic must not multiply an already per-lane/class-proxy value by total lane count and then display it as rider exposure.
 
 If lane count is not directly observed or imported, the score may still use the value, but provenance and confidence must say so.
 
 Traffic fallback ladder:
 
-1. official AADT per lane
+1. official effective right-lane AADT
 2. official total AADT plus known lane count
 3. official total AADT plus relationship-inferred lane count
 4. relationship-inferred total AADT from nearby official values and corridor context
@@ -7477,7 +7488,7 @@ Step 5 launch policy:
 
 The table is a piecewise-linear anchor table. The implementation interpolates between anchors and clamps only at the launch saturation tail.
 
-| AADT per lane | TrafficFactor | Why |
+| Effective right-lane AADT | TrafficFactor | Why |
 | ---: | ---: | --- |
 | 500 | 0.35 | Very low vehicle exposure; below the baseline riding environment. |
 | 1,000 | 0.50 | Quiet-ish road; still below baseline but not zero. |
@@ -7495,15 +7506,15 @@ Rationale:
 
 - At ordinary and busy-road volumes, each additional vehicle is still a meaningful additional interaction opportunity.
 - The model should therefore remain close to exposure-proportional through the lower and middle table.
-- A road with 18,000 AADT per lane cannot be treated as only three times the 3,000 baseline if the model is claiming to represent vehicle exposure.
+- A road with 18,000 effective right-lane AADT cannot be treated as only three times the 3,000 baseline if the model is claiming to represent vehicle exposure.
 - At very high volume, traffic behaves less like independent isolated cars and more like a continuous stream. The rider's exposure window is bounded by time, gaps, queues, and platoons. Marginal risk per additional vehicle declines and eventually rounds toward zero.
 - This high-volume tail is a Lanterne calibration extension beyond the most convenient published breakpoint table. It must be validated against the corpus, not presented as a directly published coefficient.
 
 Rider-facing traffic display may convert AADT into average intensity:
 
 ```text
-cars per minute average = AADT / 1440
-average seconds per vehicle = 86400 / AADT
+cars per minute average = effective right-lane AADT / 1440
+average seconds per vehicle = 86400 / effective right-lane AADT
 ```
 
 Those translations are explanatory only. AADT is an annual average and does not predict a specific ride hour.
@@ -7613,9 +7624,9 @@ Then the speed of the crossed or entered road supplies the severity weight.
 
 A crossing event enters score math when at least one condition is true:
 
-- crossed or entered road speed is at least 30 mph and AADT per lane is at least 2,000
+- crossed or entered road speed is at least 30 mph and effective right-lane AADT is at least 2,000
 - lanes crossed is at least 3
-- movement is left across traffic on a road that is at least 30 mph or at least 2,000 AADT per lane
+- movement is left across traffic on a road that is at least 30 mph or at least 2,000 effective right-lane AADT
 - node is signalized on a materially trafficked motor road
 - route joins, exits, or crosses a motor road from path / MUP domain
 - route crosses a driveway or access-road connection that is materially part of the routed line and carries motor vehicles
@@ -7928,9 +7939,9 @@ Source keys:
 
 | Key | Source family / decision basis | Used for |
 | --- | --- | --- |
-| `S-HSM-NCHRP` | HSM / HSM2 / NCHRP bicycle modeling family | Factorized roadway structure, likelihood-style road factors, AADT per lane, curvature, and deferred lane width / visibility / parking / lighting concepts |
+| `S-HSM-NCHRP` | HSM / HSM2 / NCHRP bicycle modeling family | Factorized roadway structure, likelihood-style road factors, effective right-lane AADT, curvature, and deferred lane width / visibility / parking / lighting concepts |
 | `S-SPEED-156` | National Academies / TRB `Pedestrian and Bicycle Safety Performance Functions`, Table 156, attributed to iRAP 2013l | Non-linear speed severity shape |
-| `S-AADT` | NCHRP 17-84 / HSM2 AADT-per-lane breakpoint family | Traffic exposure anchor family |
+| `S-AADT` | NCHRP 17-84 / HSM2 AADT-derived rider-lane breakpoint family | Traffic exposure anchor family |
 | `S-BIKE-ISI` | FHWA Bicycle Intersection Safety Index | Lanes-to-cross, control, and movement relevance for bicyclist intersection conflicts |
 | `S-CMF-FACILITY` | FHWA bicycle treatment CMF direction plus HSM / HSM2 facility and shoulder concepts | Directional support for operating-space mitigation |
 | `S-LOCATION` | NTSB 2019 bicyclist safety study using 2014-2016 U.S. data, including about 65% of bicycle motor-vehicle crashes at intersections and 56% of bicyclist fatalities at midblock locations; NHTSA 2021 bicyclist fatality location summary, including 62% of bicyclist fatalities at non-intersection locations | Intersection-versus-midblock split, crossing importance, and sustained-exposure severity support |
@@ -7954,7 +7965,7 @@ Source keys:
 | Posted speed as severity proxy | Practical mapping of severity curve to route truth | `S-SPEED-156`, `P-LANTERNE` | Calibration / measurement policy | Posted speed is nationally available and explainable even though it is not literal operating-speed truth. |
 | 25 mph normalization baseline | Sets `sigma(25) = 1.0` | `P-LANTERNE` | Calibration choice | A clear baseline is needed to express relative severity cleanly in receipts and code. |
 | Rounded launch speed table values | Implementation-friendly severity table | `S-SPEED-156`, `P-LANTERNE` | Benchmark-informed / adapted | The shape stays benchmark-based while remaining usable in product code, traces, and docs. |
-| Traffic anchor family | Continuous-road likelihood backbone | `S-AADT`, `S-HSM-NCHRP` | Benchmark-informed / adapted | AADT per lane is the strongest practical launch exposure backbone. |
+| Traffic anchor family | Continuous-road likelihood backbone | `S-AADT`, `S-HSM-NCHRP` | Benchmark-informed / adapted | Effective right-lane AADT is the strongest practical launch exposure backbone. |
 | Exact AADT interpolation | Continuous traffic likelihood scaling | `S-AADT`, official DOT / HPMS numeric data | Canonical implementation rule | Exact DOT / HPMS readings should not be crushed into coarse buckets. |
 | Expanded high-volume traffic anchors | Realistic heavy-traffic scaling | `P-LANTERNE` | Calibration choice | Traffic risk should continue rising materially through higher-volume regimes before platoon and saturation effects bend the curve. |
 | Traffic saturation tail | Marginal traffic behavior | `P-LANTERNE` | Calibration choice | At very high volumes, traffic behaves more like a continuous stream; incremental cars add less new independent exposure. |

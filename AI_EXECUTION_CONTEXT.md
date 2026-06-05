@@ -47827,6 +47827,372 @@ Tables can make the app faster, but they should be a shortcut to read RXON, not 
 
 ---
 
+## Source File: docs/04-execution/exec-045-new-gretna-hpms-aadt-propagation-scoring-plan.md
+
+# EXEC-045 - New Gretna HPMS/AADT Propagation And Scoring Repair Plan
+
+## 1. Purpose
+
+Fix the remaining Green Bank and New Gretna HPMS/AADT propagation defects without disturbing the current production substrate baseline.
+
+New Gretna is the priority because it exposes three separate failures:
+
+1. Missing HPMS/AADT propagation.
+2. Untrustworthy non-HPMS traffic area-estimate fallback, previously producing inconsistent displayed traffic such as 8 cars/minute and 17 cars/minute on nearby non-HPMS sections because the display math treated the golden traffic stat as one-direction whole-road AADT instead of one-direction right-lane AADT.
+3. A scoring mismatch where equal-speed segments appear to reward bike-infrastructure differences more than the much larger traffic difference should allow.
+
+Do not fix route-wide propagation first. Propagation could smear correct HPMS evidence over the underlying fallback/scoring defects and make the root cause harder to see.
+
+## 2. Current Baseline
+
+- Chatsworth HPMS attachment is considered fixed and must not regress.
+- Green Bank propagation is still failing.
+- New Gretna propagation is still failing and also exposes area-estimate and scoring defects.
+- The current production route-analysis path is the current production substrate engine, even though code labels still say `v2`, `v2ss`, or `route-line-v2`.
+- `RouteOwnershipSpan` remains canonical route identity.
+- Ownership stays distance-first by `startDistM` and `endDistM`.
+- Rider-facing traffic flow labels must use effective one-direction right-lane exposure, not one-direction whole-road traffic. For the same total AADT, a 4-lane road should display lower right-lane exposure than a 2-lane road. Class-proxy per-lane fallback must not be multiplied by total lane count for display.
+
+Reference current-state doc:
+
+- `docs/current-production-substrate-state.md` or its repo-local successor if moved into `docs/assessments/`.
+
+## 3. Guardrails
+
+- Add failing assertions first.
+- Make the smallest fix that causes the assertions to pass.
+- Keep ownership distance-first.
+- Preserve `RouteOwnershipSpan` as canonical identity.
+- Do not make OSM way ID the canonical join key.
+- Do not let HPMS decide road identity.
+- Do not enable RXON runtime loading.
+- Do not add durable evidence persistence.
+- Do not change `route_cache` schema.
+- Do not touch unrelated substrate expansion.
+- Do not broaden candidate grids as part of this repair.
+- Do not fix visual paint by hardcoding color or road names.
+
+## 4. Files Likely In Scope
+
+Use the smallest subset possible.
+
+- `src/lib/route-line-v2/v2ss-current-route-production-engine.test.ts`
+- `src/lib/route-line-v2/v2ss-current-route-production-engine.ts`
+- `src/lib/route-line-v2/v2ss-evidence-source-abstraction.test.ts`
+- `src/lib/route-line-v2/v2ss-evidence-source-abstraction.ts`
+- `src/lib/route-line-v2/v2ss-hpms-multifield-hydrator.test.ts`
+- `src/lib/route-line-v2/v2ss-hpms-multifield-hydrator.ts`
+- `src/lib/route-line-v2/v2ss-hpms-debug-overlay-model.test.ts`
+- `src/lib/route-line-v2/v2ss-hpms-debug-overlay-model.ts`
+- `src/lib/route-line-v2/v2ss-route-evidence-profile-contract.test.ts`
+- `src/lib/route-line-v2/v2ss-route-evidence-profile-contract.ts`
+- `src/lib/route-line-v2/v2ss-active-display-handoff.test.ts`
+- `src/lib/route-line-v2/v2ss-active-display-handoff.ts`
+- `src/lib/heatmap/__tests__/resolved-traffic-propagation.test.ts`
+- `src/lib/heatmap/builder.ts`
+- `src/components/SegmentInspectorDrawer.test.tsx`
+- `src/components/SegmentInspectorDrawer.tsx`
+- `src/components/SegmentInspector.tsx`
+
+## 5. Files Forbidden In This Phase
+
+- `src/pages/Index.tsx`, unless a failing production-spine assertion proves the handoff loses data only there.
+- `src/lib/v1-route-analysis-cache.ts`
+- Supabase migrations.
+- RXON runtime loading code.
+- Durable evidence cache writers.
+- Substrate candidate expansion scripts.
+- Route cache schema or cache key logic.
+
+## 6. Phase 0 - Recovery And Working-Tree Check
+
+- [x] Confirm HEAD or an explicit branch/tag starts from the current production substrate baseline.
+- [x] Confirm whether the current-state doc was moved from `docs/current-production-substrate-state.md` to `docs/assessments/ass-024-current-production-substrate-state.md`.
+- [x] Confirm no unrelated runtime edits are present before starting the repair.
+- [x] Confirm localhost manual observations are recorded separately from test assertions.
+
+Required commands:
+
+```bash
+git status --short --branch
+git log --oneline -5
+```
+
+Phase 0 result, captured 2026-06-05:
+
+- Current branch: `route-line-v2-substrate`.
+- Current HEAD: `d1c03d706dfcd45e23eff92d798d454aab07c96a`.
+- Baseline tag `current-production-substrate-baseline-2026-06-05` resolves to `d1c03d706dfcd45e23eff92d798d454aab07c96a`.
+- Baseline branch `codex/current-production-substrate-baseline-2026-06-05` resolves to `d1c03d706dfcd45e23eff92d798d454aab07c96a`.
+- Recent log starts with `d1c03d70 chore: checkpoint current production substrate baseline`, followed by the HPMS/substrate recovery commits.
+- Current-state doc content was moved exactly from `docs/current-production-substrate-state.md` to `docs/assessments/ass-024-current-production-substrate-state.md`; both contents hash to `1070ff31e14a703bff556a3e3354a071a675923b1258dffc2b837cd3166b5e6f`.
+- Working tree dirty paths are docs-only: the moved current-state doc and this exec plan.
+- No runtime code edits are present at the start of the repair.
+- Localhost/manual observations remain prose observations in this exec plan. Phase 1 must convert them into structured diagnostic output and failing assertions before any behavior patch.
+
+## 7. Phase 1 - Stage-By-Stage New Gretna Evidence Report
+
+Goal: report the actual HPMS/AADT/source/provenance values before changing behavior.
+
+Create a diagnostic test or fixture-backed assertion helper that prints or snapshots New Gretna spans through every stage below. Prefer structured assertions over console-only output. Console output is acceptable only as temporary investigation and must not be the final guard.
+
+For each relevant New Gretna span, record:
+
+- route distance window: `startDistM`, `endDistM`
+- canonical ownership label/family/domain
+- accepted source way IDs as metadata only
+- HPMS source feature ID, if present
+- AADT value per day
+- displayed traffic value, including cars/minute conversion if present
+- traffic source: HPMS, DOT, OSM, area estimate, inherited, unknown, or unavailable
+- speed value and speed source
+- lane count value and source
+- bike infrastructure value and source
+- selected evidence ID
+- candidate/rejected evidence IDs
+- rejection reason or lower-confidence reason
+- provenance array
+- source lineage
+- confidence
+- stale/fresh/source update fields when present
+- score-driving eligibility
+- resulting risk score/color token when available
+
+Stage checklist:
+
+- [x] Evidence profile request: `V2SSRouteEvidenceScoringProfileRequest`.
+- [x] Resolved evidence: `ResolvedRouteEvidence[]`.
+- [x] Scoring input: exact payload handed to the scoring gateway.
+- [x] `SafetyResult`.
+- [x] `truthRuns`.
+- [x] `routeSpeedSegments`.
+- [x] Heatmap truth/display segments.
+- [x] SegmentInspector or SegmentInspectorDrawer payload.
+
+Expected report outcome:
+
+- [x] Identify which New Gretna spans have HPMS-backed AADT.
+- [x] Identify which New Gretna spans use area-estimate fallback.
+- [x] Identify why one fallback span displays roughly 8 cars/minute and another displays roughly 17 cars/minute.
+- [x] Identify whether those fallback values are selected evidence, presentation fallback, scoring fallback, or inspector-only fallback.
+- [x] Identify where provenance/confidence/source lineage first disappears, if it disappears.
+- [x] Identify whether traffic is being underweighted relative to bike infrastructure in scoring or whether display color is using stale/mismatched inputs.
+
+Phase 1 result, captured 2026-06-05:
+
+- Diagnostic added: `src/lib/route-line-v2/v2ss-new-gretna-phase1-diagnostic.test.ts`.
+- Exact command: `RUN_EXEC_045_PHASE1=1 ./node_modules/.bin/vitest run src/lib/route-line-v2/v2ss-new-gretna-phase1-diagnostic.test.ts`.
+- Result: pass, 1 test passed in 16-18 seconds across repeated runs.
+- Route status: `ready`; route distance: `102473.02m`.
+- Read functions invoked: `hpms-read-proxy`, `overpass-proxy`.
+- Blocked write-capable function: `supabase_hpms_proxy:hpms_proxy_may_upsert_hpms_tile_cache`.
+- Write/cache guards observed: `hpms_proxy_not_called`, `no_supabase_write`, `no_route_cache_write`, `route_cache_not_used`, `route_cache_not_used_as_evidence`.
+- Source fetch diagnostics: `hpms_route_window_count=21`, `hpms_window_attempts=10`, `hpms_windows_skipped_by_budget=11`, `hpms_candidate_acquisition_axis=route_distance`, `hpms_route_experience_stage=full_substrate_initial`.
+- Stage row counts in the focus corridor: evidence profile `10`, resolved traffic evidence `54`, scoring input `13`, `SafetyResult` score trace `13`, `truthRuns` `13`, `routeSpeedSegments` `13`, heatmap truth segments `13`, SegmentInspector payload `13`.
+- Suspicious diagnostics to keep in view for Phase 2: `v2_hpms_consistency_summary` reports `segmentInputMismatchCount=19`, `sourceIdentityWarnings=202`, `consistencyStatus=inconsistent`; `v2_hpms_kernel_binding_summary` reports `kernelBound=0`, `selectedWithoutKernel=19`, `projectedWithoutKernel=53`, `deprecatedSpanIds=777`.
+
+Resolved traffic-evidence bands in the Green Bank/New Gretna focus window:
+
+| Route distance | Selected AADT | Source/provenance | Confidence | Notes |
+| --- | ---: | --- | --- | --- |
+| `54222.01-55424.73m` | `542` / `0.4 cars/min` | `supabase-hpms-read-proxy`, `HPMS_FULL_NJ_2024`, `NJDOT / HPMS 2024` | high | Eight projected `traffic_aadt` slices. |
+| `55424.73-64482.82m` | `1524` / `1.1 cars/min` | `supabase-hpms-read-proxy`, `HPMS_FULL_NJ_2024`, `NJDOT / HPMS 2024` | high | Four projected slices; downstream Green Bank span reports selected evidence `supabase-hpms-read-proxy:00000563__:6:traffic_aadt`. |
+| `64482.82-70497.41m` | `1713` / `1.2 cars/min` | `supabase-hpms-read-proxy`, `HPMS_FULL_NJ_2024`, `NJDOT / HPMS 2024` | high | Thirty-nine projected slices; downstream New Gretna span reports selected evidence `supabase-hpms-read-proxy:00000563__:161:traffic_aadt`, then Main Street reports `supabase-hpms-read-proxy:00000563__:177:traffic_aadt`. |
+| `70665.97-71233.57m` | none | none | unknown | Two slices with missing selected traffic evidence; SegmentInspector synthesizes class-proxy area estimates here. |
+| `71233.57-76615.90m` | `3403` / `2.4 cars/min` | `supabase-hpms-read-proxy`, `HPMS_FULL_NJ_2024`, `NJDOT / HPMS 2024`, `hpms_same_road_propagation` | low | Propagated Route 532 record: `supabase-hpms-read-proxy:00000532__:27:traffic_aadt:propagated:osm-way_11591205_1442824462_1442824463:71234-76616`. |
+
+There is no focused resolved `traffic_aadt` row for `70497.41-70665.97m`; downstream scoring, heatmap, and inspection all report that segment as selected traffic `none / unavailable`.
+
+Downstream per-segment findings:
+
+| Route distance | Road | Selected traffic evidence | Scoring input | Heatmap/truth payload | Inspector payload |
+| --- | --- | --- | --- | --- | --- |
+| `53785.53-54222.01m` | Green Bank Chatsworth Road | none; source `none / unavailable`; confidence `unknown` | speed `40`, bike `painted_lane`, trafficRisk `4`, infraFactor `0.8`, speedRisk `5.7` | trafficSource `none`, trafficBucket `none` | `~8/min` after right-lane presentation fix; `highway_area_baseline`, confidence `low`, class proxy, laneCount `4`, provenance `Road class estimate` |
+| `54222.01-64437.28m` | Green Bank Chatsworth Road | `supabase-hpms-read-proxy:00000563__:6:traffic_aadt`; AADT `1524`; source `NJDOT / HPMS 2024`; provenance `official_imported`, `authoritative_posted`, `NJDOT / HPMS 2024`; confidence `high` | speed `50`, bike `painted_lane`, trafficRisk `0.4286`, infraFactor `0.8`, speedRisk `12` | trafficSource `hpms`, trafficBucket `low` | `<1/min, 32/hr`, authoritative, confidence `high` |
+| `64437.28-70043.10m` | New Gretna Chatsworth Road | `supabase-hpms-read-proxy:00000563__:161:traffic_aadt`; AADT `1713`; source `NJDOT / HPMS 2024`; provenance `official_imported`, `authoritative_posted`, `NJDOT / HPMS 2024`; confidence `high` | speed `50`, bike `painted_lane`, trafficRisk `0.45695`, infraFactor `0.8`, speedRisk `12` | trafficSource `hpms`, trafficBucket `low` | `<1/min, 36/hr`, authoritative, confidence `high` |
+| `70043.10-70497.41m` | Main Street | `supabase-hpms-read-proxy:00000563__:177:traffic_aadt`; AADT `1713`; source `NJDOT / HPMS 2024`; provenance `official_imported`, `authoritative_posted`, `NJDOT / HPMS 2024`; confidence `high` | speed `50`, bike `painted_lane`, trafficRisk `0.45695`, infraFactor `0.8`, speedRisk `12` | trafficSource `hpms`, trafficBucket `low` | `<1/min, 36/hr`, authoritative, confidence `high` |
+| `70497.41-70665.97m` | Main Street | none; source `none / unavailable`; confidence `unknown` | speed `40`, bike `painted_lane`, trafficRisk `4`, infraFactor `0.8`, speedRisk `5.7` | trafficSource `none`, trafficBucket `none` | `~8/min` after right-lane presentation fix; `highway_area_baseline`, confidence `low`, class proxy, laneCount `4`, provenance `Road class estimate` |
+| `70665.97-71090.16m` | New Gretna Chatsworth Road | none; source `none / unavailable`; confidence `unknown` | speed `40`, bike `shared_lane`, trafficRisk `4`, infraFactor `1`, speedRisk `5.7` | trafficSource `none`, trafficBucket `none` | `~8/min`, `highway_area_baseline`, confidence `low`, class proxy, laneCount `2`, provenance `Road class estimate` |
+| `71090.16-71233.57m` | Main Street | none; source `none / unavailable`; confidence `unknown` | speed `40`, bike `shared_lane`, trafficRisk `4`, infraFactor `1`, speedRisk `5.7` | trafficSource `none`, trafficBucket `none` | `~8/min`, `highway_area_baseline`, confidence `low`, class proxy, laneCount `2`, provenance `Road class estimate` |
+| `71233.57-76615.90m` | Tabernacle Chatsworth Road | propagated `supabase-hpms-read-proxy:00000532__:27:traffic_aadt:propagated:osm-way_11591205_1442824462_1442824463:71234-76616`; AADT `3403`; provenance `relationship_inferred`, `authoritative_inferred`, `official_imported`, `NJDOT / HPMS 2024`, `hpms_same_road_propagation`; confidence `low` | speed `35`, bike `painted_lane`, trafficRisk `0.675375`, infraFactor `0.8`, speedRisk `3.6` | trafficSource `hpms`, trafficBucket `low` | `1/min`; inspector resolver currently presents sourceType `authoritative_posted` and confidence `high`, which is more authoritative than the selected propagated evidence row |
+
+Phase 1 interpretation:
+
+- The prior `~17/min` and `~8/min` values were not selected HPMS/DOT evidence. They appeared only after `resolveSegmentTruth` / inspection presentation as `highway_area_baseline` class proxies when selected traffic evidence was missing.
+- The prior `~17/min` vs `~8/min` difference came from inverted presentation math: laneCount `4` multiplied class-proxy per-lane fallback into one-direction whole-road flow. The corrected presentation stat is effective one-direction right-lane exposure, so the affected class-proxy spans now display `~8/min` regardless of whether the fallback lane count is `4` or `2`.
+- For actual source-backed total AADT, lane count should reduce right-lane exposure: the same total AADT on a 4-lane road should display lower rider-lane traffic than on a 2-lane road.
+- Scoring did not consume the prior displayed `~17/min` or `~8/min` values as selected AADT. The affected missing-evidence spans all enter scoring with `trafficRisk=4`, `source=none / unavailable`, `confidence=unknown`.
+- Official HPMS AADT, provenance, and confidence survive into scoring input, `truthRuns`, `routeSpeedSegments`, heatmap segments, and SegmentInspector payload where selected evidence exists.
+- Source lineage is present in resolved traffic evidence as `supabase-hpms-read-proxy` and `HPMS_FULL_NJ_2024`; downstream payloads preserve source/provenance/confidence but do not consistently expose `sourceLineage` as a separate field.
+- The scoring suspicion is currently missing selected traffic evidence plus bike-infra display/risk reduction, not yet a proven traffic-weight coefficient bug. Phase 2 should assert that fallback presentation cannot imply selected traffic evidence that scoring did not receive.
+- The red/orange paint difference between equal-speed missing-traffic spans appears to be the expected `shared_lane` vs `painted_lane` scoring difference: both use `trafficRisk=4` and speed `40`, while painted lane gets `infraFactor=0.8` and shared lane gets `infraFactor=1`.
+- The Tabernacle propagated row preserves low confidence and inferred provenance through selected evidence and heatmap/truth payloads, but the SegmentInspector truth resolver currently presents it as `authoritative_posted` / confidence `high`; Phase 2 should lock that as a failure if inspection must distinguish propagated from directly observed HPMS evidence.
+
+Right-lane presentation correction, captured 2026-06-05:
+
+- Failing assertions were added in `src/lib/presentation/inspectable-field-presentation.test.ts` before the logic change.
+- Exact failing command before the fix: `./node_modules/.bin/vitest run src/lib/presentation/inspectable-field-presentation.test.ts`.
+- Initial failures: same total AADT on 4 lanes displayed `8/min` instead of `4/min`; 4-lane class proxy displayed `~17/min` instead of `~8/min`.
+- Logic changed in `src/lib/presentation/inspectable-field-presentation.ts`: `buildRawTrafficPresentation` now derives the display label from effective one-direction right-lane exposure and preserves `rawAadtTotal` as raw official/debug data.
+- Exact passing command after the fix: `./node_modules/.bin/vitest run src/lib/presentation/inspectable-field-presentation.test.ts`.
+- New Gretna diagnostic rerun after the fix: `RUN_EXEC_045_PHASE1=1 ./node_modules/.bin/vitest run src/lib/route-line-v2/v2ss-new-gretna-phase1-diagnostic.test.ts`.
+- Corrected diagnostic result: the formerly `~17/min` missing-evidence 4-lane class-proxy rows now display `~8/min`; scoring inputs remain unchanged at `trafficRisk=4`, `source=none / unavailable`, `confidence=unknown`.
+
+## 8. Phase 2 - Add Failing Assertions For The Triple Bug
+
+Goal: lock the bug before patching.
+
+New Gretna assertions:
+
+- [ ] HPMS/AADT attaches only to the route-distance spans it actually overlaps.
+- [ ] Nearby wrong HPMS/AADT evidence is rejected or marked lower confidence.
+- [ ] Non-HPMS area-estimate fallback is not allowed to masquerade as official HPMS/DOT evidence.
+- [ ] Area-estimate fallback carries explicit fallback provenance and lower confidence.
+- [ ] Traffic presentation labels use one-direction right-lane exposure, not one-direction whole-road traffic.
+- [ ] For equal total AADT, a 4-lane road displays lower right-lane exposure than a 2-lane road.
+- [ ] Class-proxy per-lane fallback is not multiplied by total lane count for display.
+- [ ] Equal-speed segments with materially different traffic must not score as though bike infrastructure dominates traffic.
+- [ ] Correct selected AADT survives from resolved evidence into scoring input.
+- [ ] Correct selected AADT survives into `SafetyResult`.
+- [ ] Correct selected AADT survives into `truthRuns`.
+- [ ] Correct selected AADT survives into `routeSpeedSegments`.
+- [ ] Correct selected AADT survives into heatmap segments.
+- [ ] Correct selected AADT survives into SegmentInspector payload.
+- [ ] Provenance/confidence/source lineage survive into display/inspection payloads.
+
+Regression assertions:
+
+- [ ] Chatsworth HPMS attachment remains fixed.
+- [ ] Medford/Batsto golden harness still passes.
+- [ ] Current production-spine golden test still passes.
+- [ ] RXON runtime loading remains disabled.
+- [ ] `route_cache` remains unused as current evidence truth.
+
+## 9. Phase 3 - Smallest Area-Estimate And Scoring Fix
+
+Goal: fix the New Gretna fallback/scoring defects before propagation.
+
+Possible fixes, only if failing assertions prove them:
+
+- [ ] Make area-estimate fallback explicitly non-authoritative in evidence selection.
+- [ ] Preserve area-estimate fallback provenance as fallback, not HPMS/DOT.
+- [ ] Lower confidence or scoring eligibility for area estimates when official evidence is missing or conflicting.
+- [ ] Ensure traffic/AADT selected evidence is the value used by scoring.
+- [ ] Ensure scoring does not let a painted bike lane or sharrow difference outweigh a materially larger traffic difference when speed is equal.
+- [ ] Ensure display color is derived from the same scoring inputs reported to inspection.
+
+Do not:
+
+- [ ] Patch by road name.
+- [ ] Patch by OSM way ID as canonical key.
+- [ ] Patch by widening HPMS matching until the visual line looks right.
+- [ ] Patch heatmap color directly.
+- [ ] Patch SegmentInspector display only.
+
+## 10. Phase 4 - HPMS/AADT Propagation Repair
+
+Goal: after the fallback/scoring defects are visible and protected, fix propagation for Green Bank and New Gretna.
+
+Propagation assertions:
+
+- [ ] Correct HPMS/AADT propagates across same-road route-distance gaps only when ownership continuity supports it.
+- [ ] Propagation stops at ownership transitions.
+- [ ] Propagation stops at route labels/families/domains that are not compatible.
+- [ ] Propagation preserves original HPMS source lineage.
+- [ ] Propagation records that the evidence was propagated, not directly observed on that local interval.
+- [ ] Wrong nearby HPMS evidence remains rejected or lower confidence.
+- [ ] Green Bank propagation bug is fixed.
+- [ ] New Gretna propagation bug is fixed.
+- [ ] Chatsworth remains fixed.
+
+## 11. Phase 5 - End-To-End Paint And Inspection Verification
+
+Goal: prove selected evidence survives every production-facing handoff.
+
+Checklist:
+
+- [ ] Evidence profile contains correct selected/candidate traffic evidence.
+- [ ] Resolved evidence contains correct AADT, source, provenance, confidence, and route window.
+- [ ] Scoring input contains the same selected AADT.
+- [ ] `SafetyResult` contains the same selected AADT and score-driving metadata.
+- [ ] `truthRuns` preserve traffic source and confidence.
+- [ ] `routeSpeedSegments` preserve traffic source and confidence.
+- [ ] Heatmap truth segments preserve traffic source and confidence.
+- [ ] Heatmap display segments preserve traffic source and confidence.
+- [ ] SegmentInspector payload displays the same selected traffic source.
+- [ ] SegmentInspector distinguishes official HPMS/DOT evidence from area-estimate fallback.
+- [ ] SegmentInspector does not present propagated evidence as directly observed.
+
+## 12. Required Verification Commands
+
+Run targeted tests first, then broader safety checks.
+
+```bash
+./node_modules/.bin/vitest run \
+  src/lib/route-line-v2/v2ss-current-route-production-engine.test.ts \
+  src/lib/route-line-v2/v2ss-evidence-source-abstraction.test.ts \
+  src/lib/route-line-v2/v2ss-hpms-multifield-hydrator.test.ts \
+  src/lib/route-line-v2/v2ss-hpms-debug-overlay-model.test.ts \
+  src/lib/route-line-v2/v2ss-route-evidence-profile-contract.test.ts \
+  src/lib/route-line-v2/v2ss-active-display-handoff.test.ts \
+  src/lib/heatmap/__tests__/resolved-traffic-propagation.test.ts \
+  src/components/SegmentInspectorDrawer.test.tsx
+
+./node_modules/.bin/tsc --noEmit
+
+npm run build -- --outDir /tmp/lanterne-build-new-gretna-hpms-aadt --emptyOutDir
+```
+
+If the Medford/Batsto golden harness requires an env var, run it explicitly and report the env var used. Do not write diagnostic snapshots unless the test requires it and the output path is intentional.
+
+## 13. Acceptance Checklist
+
+- [ ] Medford/Batsto golden harness passes.
+- [ ] Expected HPMS/AADT evidence attaches only to correct route-distance spans.
+- [ ] Wrong nearby HPMS evidence is rejected or marked lower confidence.
+- [ ] Correct HPMS/AADT survives into scoring input.
+- [ ] Correct HPMS/AADT survives into `truthRuns`.
+- [ ] Correct HPMS/AADT survives into heatmap payloads.
+- [ ] Correct HPMS/AADT survives into SegmentInspector payloads.
+- [ ] Provenance survives.
+- [ ] Confidence survives.
+- [ ] Source lineage survives.
+- [ ] Area-estimate fallback is clearly marked as fallback and lower authority than HPMS/DOT.
+- [ ] Equal-speed scoring no longer treats minor bike-infra differences as more important than major traffic differences.
+- [ ] Golden production-spine test still passes.
+- [ ] Typecheck passes.
+- [ ] Build passes.
+- [ ] No RXON runtime loading is enabled.
+- [ ] No durable evidence persistence is added.
+- [ ] No `route_cache` schema change is made.
+- [ ] No unrelated substrate expansion is touched.
+
+## 14. Patch Exit Report Template
+
+Every implementation patch for this exec should end with this table filled in:
+
+| Stage | New Gretna HPMS/AADT | Source | Provenance | Confidence | Notes |
+| --- | ---: | --- | --- | ---: | --- |
+| Evidence profile | TBD | TBD | TBD | TBD | TBD |
+| Resolved evidence | TBD | TBD | TBD | TBD | TBD |
+| Scoring input | TBD | TBD | TBD | TBD | TBD |
+| SafetyResult | TBD | TBD | TBD | TBD | TBD |
+| truthRuns | TBD | TBD | TBD | TBD | TBD |
+| routeSpeedSegments | TBD | TBD | TBD | TBD | TBD |
+| Heatmap segments | TBD | TBD | TBD | TBD | TBD |
+| SegmentInspector payload | TBD | TBD | TBD | TBD | TBD |
+
+Also report:
+
+- exact command output summaries
+- files changed
+- assertions added before fixes
+- smallest behavior change made
+- any remaining uncertainty
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
@@ -59851,6 +60217,199 @@ The next improvement should be contract hardening:
 4. One parity harness proving the three route building modes converge.
 
 That keeps the current V2 direction intact without inventing a V3, and it matches the product spirit: fast first experience when substrate exists, graceful bounded first display when it does not, and increasingly exact route-indexed truth as refinement completes.
+
+
+---
+
+## Source File: docs/assessments/ass-024-current-production-substrate-state.md
+
+# Current Production Substrate State
+
+Date captured: 2026-06-05
+
+Purpose: give future agents one current, production-oriented reference after the rollback and partial substrate cutover. This document is descriptive only. It does not rename code, change app behavior, enable RXON runtime loading, change caches, or define a migration plan.
+
+## Naming Ground Rules
+
+The codebase still contains names like `v1`, `v2`, `v2ss`, and `route-line-v2`. Treat those as historical code labels, not product architecture labels.
+
+Preferred working terms:
+
+- Current production substrate engine: the route-analysis path currently powering the app.
+- Canonical route ownership spans: distance-indexed ownership intervals along the route.
+- Legacy truth-run adapter: compatibility output shaped like `truthRuns`, `truthSegments`, and `routeSpeedSegments`.
+- Compiled RXON route receipt: a compiled route artifact/receipt, not the active canonical runtime source.
+- Reusable evidence cache: future or partial cache layer for evidence that can be reused across routes.
+- Route-indexed evidence layer: evidence attached to route distance windows, such as `startDistM` and `endDistM`.
+- Legacy route cache: the old completed-analysis `route_cache` boundary, not current substrate truth.
+
+## Current Production Spine
+
+The active production path is the code still named `v2` / `route-line-v2` / `v2ss`.
+
+```text
+GPX / RWGPS / manual / history route
+ -> normalize route geometry
+ -> buildRouteLoadSequencePlan(activeEngine='v2')
+ -> applyRouteLoadSequencePlan()
+ -> set gpxRoute
+ -> skip old progressive route analysis
+ -> loadCyclistSubstrateCacheCandidatesForRoute(...)
+ -> buildRouteExperiencePathFromSubstrateCandidates(...)
+ -> runCurrentRouteV2Production(...)
+ -> runCurrentRouteV2ProductionEngine(...)
+ -> runRouteLineV2IdentityKernel(...)
+ -> RouteOwnershipSpan[] + acceptedSourceWayIds
+ -> route-indexed evidence profile + source adapters
+ -> scoring gateway
+ -> SafetyResult
+ -> heatmap layers
+ -> active display handoff
+ -> RouteMap paint and SegmentInspector payloads
+```
+
+Important files:
+
+- `src/pages/Index.tsx`: app-level route load, engine selection, current production engine invocation, heatmap handoff, and segment inspection wiring.
+- `src/lib/route-load/RouteLoadSequence.ts`: decides whether to run the old progressive analysis path or the current production substrate engine.
+- `src/lib/route-line-v2/v2ss-current-route-production-engine.ts`: current production substrate engine.
+- `src/lib/route-line-v2/identity-kernel.ts`: shared route-line identity kernel.
+- `src/lib/route-line-v2/ownership-spans.ts`: canonical `RouteOwnershipSpan` type and ownership span builder.
+- `src/lib/route-line-v2/v2ss-evidence-source-abstraction.ts`: route-indexed evidence records and resolved evidence.
+- `src/lib/route-line-v2/v2ss-route-evidence-profile-contract.ts`: scoring evidence profile request contract.
+- `src/lib/route-line-v2/v2ss-active-display-handoff.ts`: adapter from current engine result into display/paint payloads.
+- `src/lib/heatmap/builder.ts`: heatmap layer construction.
+- `src/components/RouteMap.tsx`: map paint and segment hitbox behavior.
+- `src/components/SegmentInspector.tsx` and `src/components/SegmentInspectorDrawer.tsx`: segment inspection surfaces.
+
+## Canonical Runtime Sources
+
+### Route Geometry
+
+Current canonical runtime geometry is the normalized route point list, usually from `GpxRoute.points`. Saved route reload reconstructs geometry from `route_history.encoded_polyline` when present, with legacy `full_analysis.gpxPoints` as a fallback.
+
+Route geometry is not RXON-canonical today.
+
+### Route Ownership
+
+Canonical route ownership is `RouteOwnershipSpan[]`.
+
+Key properties:
+
+- `startDistM`
+- `endDistM`
+- `familyKey`
+- `displayLabel`
+- `domain`
+- `sourceWayIds`
+- `confidence`
+- `reason`
+- diagnostics
+
+Ownership is distance-first. OSM way IDs may appear in source metadata and diagnostics, but they must not become the canonical route join key. HPMS evidence must not decide road identity.
+
+### Evidence
+
+Current production evidence is intended to be route-indexed. Evidence should attach to route distance windows, not to raw GPX point indices, sampled matcher indices, OSM way IDs, or presentation segment indices.
+
+Relevant current evidence shapes:
+
+- `NormalizedEvidenceRecord`
+- `ResolvedRouteEvidence`
+- route windows such as `startDistM`, `endDistM`, and `overlapPct`
+- source lineage, provenance, confidence, stale/conflict flags, and selected/candidate evidence IDs
+
+Production-relevant evidence includes speed limits, AADT/traffic, lanes, shoulder, bike infrastructure, surface, and hazards. Weather, wind, temperature, sunlight, and similar environmental evidence are not established as current production route-indexed layers in this state.
+
+### Scoring Output
+
+The scoring gateway produces a `SafetyResult`. In the current pipeline, scoring still emits compatibility-shaped downstream data such as `truthRuns` and `routeSpeedSegments`.
+
+Those outputs are not canonical ownership. They are legacy truth-run adapter outputs used for paint, display, and inspection compatibility.
+
+### Heatmap Output
+
+Heatmap output is derived downstream from scoring/adapter output. It is presentation data, not the canonical source of route ownership.
+
+Heatmap and inspection payloads must preserve enough provenance/confidence/source lineage to explain selected traffic and HPMS/AADT evidence.
+
+### Segment Inspection
+
+Segment inspection currently consumes clicked heatmap/display segment payloads. It should be treated as presentation/inspection state derived from canonical ownership and route-indexed evidence, not as a separate identity source.
+
+## Persistence And Caches
+
+### route_history
+
+`route_history` is the saved route/history record. It stores route metadata and geometry-related payloads. In the current state, saved route reload should be understood as geometry reload plus rerun of the current production substrate engine, not as loading canonical substrate/evidence truth from history.
+
+### route_cache
+
+`route_cache` is the legacy completed-analysis cache.
+
+Important constraints:
+
+- Do not use `route_cache` as current substrate truth.
+- Do not use `route_cache` as route-indexed evidence truth.
+- Do not let it silently mix old point-first outputs with current distance-indexed ownership.
+- Do not change its schema as part of small substrate/evidence fixes.
+
+### Reusable Evidence Cache
+
+Reusable evidence cache work exists as contracts and partial infrastructure, but it is not the active canonical production source in this state.
+
+Safe current mental model:
+
+```text
+route geometry + ownership spans = canonical route identity
+route-indexed evidence = selected evidence attached to distance windows
+reusable evidence cache = future/partial source of reusable evidence
+route_cache = legacy completed-analysis cache only
+```
+
+### RXON / RouteExperienceArtifact
+
+RXON-related code exists as `RouteExperienceArtifact`, receipt/projection helpers, local browser-cache helpers, scripts, and database columns.
+
+Current status:
+
+- RXON is not the active canonical runtime load path.
+- RXON runtime loading is disabled in the app state captured here.
+- RXON should be treated as a compiled route receipt/snapshot unless and until a separate change deliberately promotes it.
+- Do not enable RXON runtime loading while stabilizing substrate/evidence bugs.
+
+## Index-Space Rule
+
+Route-indexed evidence should attach by route distance.
+
+Watch for confusion between:
+
+- uploaded GPX point index
+- densified route point index
+- sampled matcher index
+- sample original index
+- truth-run `startIdx` / `endIdx`
+- route distance in meters
+- presentation segment index
+- cue index
+
+The current production substrate engine should preserve distance-first ownership and route-indexed evidence even when it emits legacy truth-run adapter data for compatibility.
+
+## Recovery Guidance For Future Agents
+
+Before changing production behavior:
+
+1. Add failing assertions first.
+2. Preserve `RouteOwnershipSpan` as canonical identity.
+3. Keep ownership distance-first.
+4. Do not make OSM way ID the canonical join key.
+5. Do not let HPMS decide road identity.
+6. Do not enable RXON runtime loading.
+7. Do not add durable evidence persistence as part of a small bug fix.
+8. Do not change `route_cache` schema as part of substrate/evidence stabilization.
+9. Do not touch unrelated substrate expansion.
+10. Verify typecheck, targeted route-line/substrate tests, and build.
+
 
 
 ---
