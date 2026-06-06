@@ -60960,6 +60960,57 @@ The current-engine history reload path is now protected by a direct helper contr
 
 ---
 
+## Source File: docs/assessments/ass-028-rxon_artifact_validator_storage_policy_2026_06_06.md
+
+# Assessment 028: RXON Artifact Validator And Storage Policy
+
+Date: 2026-06-06
+
+## Phase 6B Scope
+
+Phase 6B hardens RXON as a compiled route receipt artifact before any storage or runtime read-path promotion.
+
+The current RXON receipt remains write-only. It can summarize current-production substrate markers, ownership receipts, route-indexed evidence rows, paint pointers, clicked-span receipt support, controls, POIs, and guardrail diagnostics. It cannot drive first paint, history reload, clicked-span receipt hydration, or route_cache truth.
+
+## Storage Options
+
+### Export-Only
+
+Export-only is the safest current posture. It lets us inspect and archive a compiled receipt without creating a read path or storage compatibility promise. It is appropriate for diagnostics and fixture review.
+
+Tradeoff: it does not help saved routes carry their receipt context.
+
+### Browser-Cache Debug Artifact
+
+Browser-cache debug storage is useful for local inspection, but it must stay gated by strict compatibility checks and dev/debug toggles. It should not promote RXON into first-paint truth or replace current substrate analysis.
+
+Tradeoff: local browser state can drift and should not become production truth.
+
+### route_history Attached Receipt
+
+Attaching a validator-approved compiled receipt to `route_history` is the recommended next storage step. The saved route should still reload geometry-first and rerun the current production substrate engine. The attached RXON receipt would be preserved as an audit/export artifact, not as route truth.
+
+This is the best next step because it keeps the receipt near the saved route while preserving the Phase 3B reload contract: geometry to current engine rerun.
+
+### Separate route_experience_artifacts Table
+
+A separate table is the future durable model once Lanterne needs versioned RXON artifacts, multiple generated receipts per route, retention policy, artifact invalidation, and larger audit workflows.
+
+Tradeoff: it adds schema and lifecycle complexity and should wait until the validator and route_history attachment policy are stable.
+
+## Recommendation
+
+Keep RXON export-only for now, then add validator-gated `route_history` attached receipts as the next storage step. Do not enable runtime RXON loading in that step. Do not let attached receipts drive first paint, history reload, clicked-span hydration, route_cache truth, ownership, evidence selection, or scoring.
+
+Use a separate `route_experience_artifacts` table later, after durable evidence persistence and artifact invalidation needs are concrete.
+
+## Guardrail
+
+Any future RXON storage write should run the Phase 6B validator and reject or quarantine unsupported, partial, stale, oversized, malformed, route_cache-shaped, or missing-marker artifacts before persistence.
+
+
+---
+
 ## Source File: docs/migrations/2026-03-21-canonical_boostrap.md
 
 # Canonical Route Bootstrap Migration
