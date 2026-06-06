@@ -60414,6 +60414,552 @@ Before changing production behavior:
 
 ---
 
+## Source File: docs/assessments/ass-025-cache_compatibility_fence_audit_2026_06_06.md
+
+# Cache Compatibility Fence Audit
+
+Date captured: 2026-06-06
+
+Status: Assessment
+
+Scope: Phase 2 cache compatibility fence for current production substrate analysis, with emphasis on preventing legacy `route_cache` completed-analysis blobs from hydrating current route-line/substrate/evidence/RXON truth.
+
+Purpose: record how well the current worktree satisfies the requested "Cache compatibility fence" goal after the golden harness work, RouteExperience/RXON guard work, and current production substrate stabilization. This document is descriptive only. It does not enable RXON, rewrite `route_cache`, change schema, or propose a migration as complete.
+
+## Direct Answer
+
+The cache compatibility fence is mostly achieved for the immediate ghost-bug risk: legacy `route_cache` is still isolated behind the V1 completed-analysis boundary, RouteLine V2 modules are tested not to import it, and legacy route-cache-shaped blobs are rejected before they can drive RXON/current first-paint truth.
+
+The implementation is not yet a complete versioned cache contract for every current-engine cacheable result. The new guard is narrow and useful, but it mostly validates RouteExperience artifact shape, canonical readiness, route fingerprint, receipt validity, score receipt status, and paint receipt status. It does not yet require the full explicit metadata list from the Phase 2 brief.
+
+Practical rating: approximately 75 percent complete.
+
+## Reviewed Files
+
+- `src/lib/route-line-v2/current-production-substrate-cache-guard.ts`
+- `src/lib/route-line-v2/rxon-first-paint.ts`
+- `src/lib/route-line-v2/rxon-first-paint.test.ts`
+- `src/lib/route-line-v2/route-experience-artifact.ts`
+- `src/lib/route-line-v2/route-experience-artifact-browser-cache.ts`
+- `src/lib/route-line-v2/route-experience-artifact-browser-cache.test.ts`
+- `src/lib/route-line-v2/route-experience-artifact-result-cache.ts`
+- `src/lib/v1-route-analysis-cache.ts`
+- `src/lib/__tests__/route-cache.test.ts`
+- `src/pages/Index.tsx`
+- `src/domain/vault/golden-harness-manifest.test.ts`
+
+## Verification Run
+
+Focused verification passed:
+
+```bash
+npm test -- \
+  src/lib/route-line-v2/rxon-first-paint.test.ts \
+  src/lib/route-line-v2/route-experience-artifact-browser-cache.test.ts \
+  src/lib/__tests__/route-cache.test.ts \
+  src/domain/vault/golden-harness-manifest.test.ts
+```
+
+Result: 4 test files passed, 27 tests passed.
+
+## What Is Solid
+
+### Legacy `route_cache` Boundary
+
+`src/lib/v1-route-analysis-cache.ts` explicitly documents `route_cache` as the V1 completed-analysis cache boundary. It is the only module that should read/write the legacy table for completed route-analysis reuse.
+
+`src/lib/__tests__/route-cache.test.ts` includes a guard that walks RouteLine V2 TypeScript files and fails if any import `route-cache` or `v1-route-analysis-cache`.
+
+This directly supports the Phase 2 rule:
+
+```text
+If a cached result lacks current substrate markers, it is legacy.
+It can be ignored, or used only by the old legacy path, but it must not hydrate current substrate truth.
+```
+
+### Narrow Guard Helper Exists
+
+`src/lib/route-line-v2/current-production-substrate-cache-guard.ts` defines:
+
+- `legacy`
+- `current-compatible`
+- `partial`
+- `invalid`
+
+The exported helper is:
+
+```ts
+classifyCurrentProductionSubstrateCacheEntry(...)
+```
+
+It returns:
+
+- `classification`
+- `canUseForCurrentSubstrateFirstPaintTruth`
+- `reasonCodes`
+
+This matches the requested narrow guard-helper shape.
+
+### Legacy Blobs Are Rejected For RXON First-Paint Truth
+
+`src/lib/route-line-v2/rxon-first-paint.ts` calls `classifyCurrentProductionSubstrateCacheEntry(...)` inside `validateRouteExperiencePaintReceipt(...)`.
+
+`src/lib/route-line-v2/rxon-first-paint.test.ts` verifies that a legacy route-cache-shaped entry with fields like `truthRuns`, `truthSegments`, `routeSpeedSegments`, and `scoreModelVersion` is classified as `legacy` and blocked from current substrate first-paint truth.
+
+The blocker includes:
+
+```text
+legacy_route_cache_rejected_for_current_substrate_first_paint_truth
+```
+
+This is the strongest evidence that the immediate ghost-bug path is fenced.
+
+### Partial Current Entries Are Blocked From Complete First-Paint Truth
+
+`rxon-first-paint.test.ts` also verifies that a current RouteExperience artifact without score/paint receipt completeness is classified as `partial` and cannot become complete first-paint truth.
+
+That satisfies this acceptance criterion:
+
+```text
+Partial current-engine entries are not treated as complete.
+```
+
+### Legacy Cache Can Still Exist
+
+`route-experience-artifact-browser-cache.test.ts` verifies that a legacy route-cache-shaped payload in the RouteExperience latest cache slot is rejected as invalid without deleting an unrelated legacy localStorage key.
+
+This supports the acceptance criterion:
+
+```text
+Legacy cache can still exist without breaking build.
+```
+
+### No Schema Rewrite
+
+No `route_cache` schema rewrite appears to be part of this work. That matches the instruction to avoid schema changes unless unavoidable.
+
+### RXON Runtime Remains Disabled
+
+`src/pages/Index.tsx` currently has:
+
+```ts
+const RXON_ROUTE_EXPERIENCE_RUNTIME_ENABLED = false;
+const ROUTE_EXPERIENCE_BROWSER_CACHE_ENABLED = false;
+const ROUTE_EXPERIENCE_POST_RUN_CACHE_PROMOTION_ENABLED = false;
+```
+
+So the guard is future-facing for runtime cache promotion/hydration. It is not currently enabling RXON or changing production route load behavior through RXON cache reads.
+
+## Acceptance Criteria Audit
+
+| Acceptance Item | Status | Notes |
+| --- | --- | --- |
+| Old `route_cache` entries without current metadata are rejected for current substrate first-paint truth | Pass | Covered by `rxon-first-paint.test.ts` legacy route-cache-shaped entry test. |
+| Partial current-engine entries are not treated as complete | Pass for RXON first-paint truth | Partial artifact without receipts is blocked in `rxon-first-paint.test.ts`. |
+| Legacy cache can still exist without breaking build | Pass | Legacy-shaped localStorage payload is rejected without deleting unrelated legacy state. |
+| Golden route still passes | Pass for focused manifest test | `src/domain/vault/golden-harness-manifest.test.ts` passed in focused verification. |
+| No schema rewrite | Pass | No `route_cache` schema rewrite observed. |
+| Do not enable RXON | Pass | RXON runtime/browser cache/promotion flags remain false in `Index.tsx`. |
+| Current engine must not read legacy `route_cache` as canonical ownership/evidence/scoring truth | Pass by boundary tests | V2 import boundary test prevents direct route-cache use. |
+| Explicit metadata required before a cached result can be used for current substrate analysis | Partial | Guard validates some required concepts but not the full metadata list. |
+
+## Metadata Coverage
+
+The requested metadata fields/concepts were:
+
+- analysis engine family
+- analysis version
+- ownership engine version
+- ownership contract version
+- evidence contract version
+- scoring version
+- route geometry hash
+- substrate candidate source/version
+- partial flag
+- match/ownership quality
+- generated timestamp
+- schema version
+
+Current coverage:
+
+| Metadata Concept | Current Coverage | Notes |
+| --- | --- | --- |
+| Analysis engine family | Partial | Implied by `artifactKind`, RouteExperience schema, `builderRole`, and source lineage, but not an explicit required field. |
+| Analysis version | Partial | `schemaVersion` exists for RouteExperience artifact, but there is not a separate analysis engine version. |
+| Ownership engine version | Missing/implicit | Ownership path/builder is represented, but no explicit ownership engine version is required. |
+| Ownership contract version | Missing/implicit | `routeExperiencePath` shape is validated indirectly; no explicit ownership contract version. |
+| Evidence contract version | Partial | `receiptMetadata.evidenceSchemaVersion` exists but is not strictly required by the guard. |
+| Scoring version | Partial | `scoreReceipt.schemaVersion` is required; `receiptMetadata.scorerVersion` exists but is not strictly required by the guard. |
+| Route geometry hash | Partial | `routeFingerprint` is required, but it is not a separately named route geometry hash contract. |
+| Substrate candidate source/version | Partial/missing | Source lineage exists; substrate candidate source/version is not required as explicit cache metadata. |
+| Partial flag | Partial | Readiness and receipt completeness determine `partial`, but there is no explicit `partial` field. |
+| Match/ownership quality | Partial | RouteExperience summaries and topology quality exist elsewhere, but the guard does not require a quality metric. |
+| Generated timestamp | Partial | `receiptMetadata.generatedAt` and `createdAt` exist, but the guard only checks receipt metadata validity/staleness, not timestamp presence directly beyond artifact contract shape. |
+| Schema version | Pass | RouteExperience artifact schema, score receipt schema, and paint contract schema are checked. |
+
+## Main Gap
+
+The guard is good at rejecting obviously legacy or malformed payloads, but it is not yet a complete compatibility contract for any current-engine cacheable result.
+
+Specifically, `classifyCurrentProductionSubstrateCacheEntry(...)` accepts a current-compatible result if the RouteExperience artifact shape is usable, canonical, and has valid score/paint receipts. It does not require all provenance/version fields from `receiptMetadata`, and it does not require explicit ownership/evidence/substrate source version markers.
+
+That means the current fence prevents old point-first blobs from pretending to be current RXON first-paint truth, but it does not fully solve long-term cache compatibility once reusable evidence cache, RXON snapshots, substrate cache hardening, and saved-route promotion all converge.
+
+## Subtle Runtime Risk
+
+The RXON paint path uses the guard.
+
+The browser RouteExperience cache read path does not use the same guard. `readLatestRouteExperienceArtifactFromBrowserCache(...)` calls `isUsableRouteExperienceArtifact(...)`, which validates artifact identity, schema, route fingerprint, builder/stage/path consistency, and optional canonical readiness.
+
+That is enough to reject stale or legacy-shaped artifacts in the latest RouteExperience cache slot, but it is not as strict as `classifyCurrentProductionSubstrateCacheEntry(...)`.
+
+Today this is lower risk because RouteExperience browser cache and post-run cache promotion are disabled in `Index.tsx`. If those flags are re-enabled later, the browser cache read path should be tightened before it can hydrate current production behavior.
+
+## Recommended Next Steps
+
+1. Use `classifyCurrentProductionSubstrateCacheEntry(...)` inside RouteExperience browser cache hydration before returning a cache hit that can affect current runtime behavior.
+
+2. Make receipt metadata requirements explicit:
+
+```text
+scorerVersion
+evidenceSchemaVersion
+evidenceSourceVersion
+paintContractVersion
+generatedAt
+valid
+stale
+```
+
+3. Add explicit current-engine cache metadata fields for ownership and substrate:
+
+```text
+analysisEngineFamily
+analysisVersion
+ownershipEngineVersion
+ownershipContractVersion
+evidenceContractVersion
+substrateCandidateSource
+substrateCandidateVersion
+routeGeometryHash
+matchOwnershipQuality
+partial
+cacheSchemaVersion
+```
+
+4. Add tests that intentionally omit each required marker and assert the entry becomes `partial` or `invalid`, not `current-compatible`.
+
+5. Keep `route_cache` as V1 completed-analysis-only until a separate migration explicitly deprecates or archives it.
+
+6. Keep RXON disabled until the stricter cache-read guard and metadata tests pass.
+
+## Final Assessment
+
+Phase 2 has achieved the most important immediate safety outcome: legacy `route_cache` does not become current substrate first-paint truth, and current RouteLine V2 is fenced away from direct legacy cache imports.
+
+The remaining work is not a schema rewrite. It is a stricter compatibility contract for future current-engine cache reads. The system should not be considered ready to rely on cached RouteExperience/RXON/substrate/evidence artifacts as current truth until the full metadata checklist is enforced at the read boundary.
+
+
+---
+
+## Source File: docs/assessments/ass-026-current_engine_save_reload_contract_assessment_2026_06_06.md
+
+# Current-Engine Save/Reload Contract Assessment
+
+Date captured: 2026-06-06
+
+Status: Assessment updated after history reload helper extraction
+
+Scope: focused contract-test and helper work for current-engine route save/reload behavior, route geometry persistence, provenance persistence, stale `full_analysis` avoidance, RXON non-dependency, and legacy `route_cache` exclusion.
+
+Purpose: assess whether the work satisfies the prompt goal: prove that a fresh current-engine route save stores enough geometry/provenance to reload, and that history reload reruns the current production substrate engine from stored geometry rather than treating stale saved blobs as canonical truth.
+
+## Direct Answer
+
+The work satisfies the prompt as a focused contract guard.
+
+It now proves the critical behavior through a pure helper instead of source-text assertions against `Index.tsx`. A fresh save writes `route_history.encoded_polyline` from the current route points, persists provenance in `external_source` / `external_route_id`, and a V2 history reload plan is built from decoded stored geometry while ignoring stale `full_analysis.gpxPoints`, RXON-shaped saved data while RXON runtime loading is disabled, and legacy `route_cache` decoys.
+
+This is still intentionally not a broad browser/Supabase end-to-end suite. The persistence layer is mocked, and the reload boundary is tested through `buildHistoryReloadRouteLoadPlan(...)`, which is the narrower contract the follow-up prompt requested.
+
+Practical rating: approximately 95 percent complete for the prompt.
+
+## Reviewed Files
+
+- `src/lib/current-engine-save-reload-contract.test.ts`
+- `src/lib/route-load/HistoryReloadPlan.ts`
+- `src/lib/route-persistence.ts`
+- `src/lib/normalized-route.ts`
+- `src/lib/route-load/RouteLoadSequence.ts`
+- `src/pages/Index.tsx`
+- `src/domain/vault/golden-harness-manifest.test.ts`
+
+## Verification Run
+
+Focused verification was rerun locally:
+
+```bash
+npm test -- src/lib/current-engine-save-reload-contract.test.ts src/domain/vault/golden-harness-manifest.test.ts
+git diff --check
+npx eslint src/lib/route-load/HistoryReloadPlan.ts src/lib/current-engine-save-reload-contract.test.ts
+```
+
+Result:
+
+- 2 test files passed.
+- 4 tests passed.
+- `git diff --check` passed.
+- Targeted ESLint for the helper and contract test passed.
+
+The full app typecheck still reports unrelated existing type debt across the repo. A filtered check for the helper/current contract/history reload lines did not report remaining errors after the helper cast/import fixes.
+
+## What The Work Proves
+
+### Fresh Geometry Is Persisted
+
+The test calls `saveRoute(...)` with current-engine route points and a stale `fullAnalysis.gpxPoints` decoy.
+
+It verifies that the mocked `route_history` insert receives:
+
+- `encoded_polyline`
+- `external_source`
+- `external_route_id`
+- the original stale `full_analysis` blob
+
+It then decodes `encoded_polyline` and confirms the decoded geometry equals the fresh current-engine points, not the stale full-analysis points.
+
+### Reload Is Geometry-First
+
+`buildHistoryReloadRouteLoadPlan(...)` accepts a route history record and current engine policy. It selects geometry in this order:
+
+1. `encoded_polyline`
+2. `full_analysis.gpxPoints`
+3. missing geometry
+
+The tests verify that encoded geometry wins over stale analysis, and that `full_analysis.gpxPoints` is fallback only.
+
+### RXON Runtime Loading Stays Disabled
+
+The helper accepts `rxonRuntimeLoadingEnabled`. When it is false, RXON-shaped saved data is ignored and does not become the route-load artifact.
+
+The tests verify:
+
+- `routeExperienceArtifact` is `undefined`
+- `routeExperienceArtifactIgnored` is `true` when a saved decoy exists
+- `shouldRunV2Engine` remains `true` for the current-engine reload policy
+
+### Legacy Route Cache Is Excluded
+
+The helper never reads `route_cache` as canonical history reload truth. The route-cache-only test verifies that a record with route-cache decoys but no encoded polyline and no `full_analysis.gpxPoints` returns `missing_geometry`.
+
+### Provenance Remains Metadata
+
+The helper returns saved provenance as sidecar metadata derived from `external_source` / `external_route_id`.
+
+It does not turn that provenance into route geometry or route truth.
+
+## Acceptance Criteria Audit
+
+| Acceptance Item | Status | Notes |
+| --- | --- | --- |
+| Fresh current-engine route can be saved | Pass as contract test | `saveRoute(...)` writes current points to `encoded_polyline`; persistence is mocked. |
+| Saved route can be reloaded | Pass as helper contract | Stored geometry is normalized and converted into a history reload plan. |
+| Reload path is explicit: geometry -> current engine rerun | Pass | The helper builds a `history_reload` plan with V2 execution under current-engine policy. |
+| No stale `full_analysis` dependency | Pass | Stale analysis is preserved as a decoy but encoded geometry wins. |
+| Full analysis points are fallback only | Pass | A direct fallback test covers this path. |
+| No RXON dependency | Pass | RXON-shaped saved data is ignored while runtime loading is disabled. |
+| Legacy route cache remains excluded | Pass | Route-cache-only data is not treated as reload geometry. |
+| Golden route still passes | Pass | `src/domain/vault/golden-harness-manifest.test.ts` passed. |
+| No identity-kernel/evidence resolver/route_cache schema changes | Pass | The change is limited to a reload helper, `Index.tsx` delegation, and tests. |
+
+## Remaining Gap
+
+This is not a live browser/Supabase integration test. It does not click through the UI or observe the production worker at runtime.
+
+That gap is acceptable for this prompt because the requested hardening was a pure helper boundary and direct contract tests, not a broad E2E suite.
+
+## Conclusion
+
+The save/reload contract is now much less brittle.
+
+History reload has a single helper for geometry selection and route-load-plan creation. `Index.tsx` delegates to that helper instead of reconstructing truth inline, and the tests now assert behavior directly through that helper. RXON stays disabled, legacy `route_cache` stays out of canonical reload truth, and current-engine history reload remains geometry-first.
+
+
+---
+
+## Source File: docs/assessments/ass-027-current_engine_history_reload_helper_prompt_assessment_2026_06_06.md
+
+# Current-Engine History Reload Helper Prompt Assessment
+
+Date captured: 2026-06-06
+
+Status: Post-implementation assessment
+
+Assessed commit: `2d94c94b Harden current-engine history reload contract`
+
+## Prompt Goal
+
+Harden the current-engine history reload contract without changing runtime behavior.
+
+The prompt asked for the history reload geometry selection and route-load-plan creation to move out of `Index.tsx` into a pure helper. The helper should accept a route history record plus current engine policy, then return a reload plan.
+
+The prompt also explicitly constrained the work:
+
+- Do not change identity kernel.
+- Do not change evidence resolver.
+- Do not enable RXON runtime loading.
+- Do not change route cache schema.
+- Do not change SegmentInspector.
+- Do not add a broad E2E suite.
+
+## Direct Answer
+
+The work satisfies the prompt.
+
+The previous app-boundary protection used brittle source-text assertions against `Index.tsx`. The new implementation replaces that with `buildHistoryReloadRouteLoadPlan(...)`, a pure helper in `src/lib/route-load/HistoryReloadPlan.ts`. `Index.tsx` now delegates history reload geometry selection, normalization, RXON gating, provenance sidecar extraction, and route-load-plan creation to that helper.
+
+The tests now exercise the behavior directly through the helper. That is the main architectural win: the inspector/app shell no longer has to prove correctness by reconstructing source ordering from a large React file.
+
+Practical rating: 96 percent aligned with the prompt.
+
+## What Changed
+
+### Added Pure Helper
+
+`src/lib/route-load/HistoryReloadPlan.ts` now owns:
+
+- route history `full_analysis` parsing
+- geometry selection
+- normalization metadata recovery
+- route provenance sidecar extraction
+- RXON artifact policy gating
+- route-load-plan creation through `buildRouteLoadSequencePlan(...)`
+- diagnostics for selected geometry source and cache exclusion
+
+The helper returns either:
+
+- `status: 'ready'` with a `RouteLoadSequencePlan`, normalized route, selected points, sidecar provenance, and diagnostics
+- `status: 'missing_geometry'` with diagnostics and no route plan
+
+### Updated Runtime Call Site
+
+`src/pages/Index.tsx` still fetches the same route history fields and still does the same RWGPS cue/control refresh attempt.
+
+After that, it calls:
+
+```ts
+buildHistoryReloadRouteLoadPlan({
+  record,
+  policy: {
+    activeEngine: activeAnalysisEngine,
+    rxonRuntimeLoadingEnabled: RXON_ROUTE_EXPERIENCE_RUNTIME_ENABLED,
+    refreshedCuePoints,
+    refreshedControlPoints,
+  },
+});
+```
+
+The existing V2 behavior is preserved: once a V2 history reload plan is applied, the V1 progressive analysis path is skipped.
+
+### Updated Contract Test
+
+`src/lib/current-engine-save-reload-contract.test.ts` now tests the helper directly.
+
+It proves:
+
+- fresh route saves write encoded geometry
+- provenance lands in route history columns
+- encoded polyline wins over stale `full_analysis.gpxPoints`
+- `full_analysis.gpxPoints` is fallback only
+- RXON-shaped saved data is ignored while runtime RXON is disabled
+- legacy `route_cache` decoys are not treated as canonical history reload geometry
+- current-engine policy creates a V2 history reload plan
+- sidecar provenance does not become route truth
+
+## Acceptance Criteria Audit
+
+| Acceptance Item | Status | Assessment |
+| --- | --- | --- |
+| Existing current-engine save/reload contract test passes | Pass | Re-run locally; 3 contract tests passed. |
+| Golden route manifest still passes | Pass | Re-run locally; golden manifest test passed. |
+| RXON remains disabled as runtime load source | Pass | `RXON_ROUTE_EXPERIENCE_RUNTIME_ENABLED` remains false, and the helper only passes saved RXON artifacts when policy enables runtime loading. |
+| Legacy route cache remains excluded | Pass | The helper never reads `route_cache` as geometry; route-cache-only decoys return `missing_geometry`. |
+| No production behavior change except clearer helper boundary | Pass | The runtime still uses the active engine policy, same route history fields, same legacy missing-geometry toast, same V2 skip behavior, and same RWGPS cue/control refresh intent. |
+| Encoded polyline preferred over stale full analysis points | Pass | Direct helper test verifies encoded geometry wins. |
+| Full analysis points fallback only | Pass | Direct helper test verifies fallback when encoded geometry is absent. |
+| RXON-shaped saved data ignored while runtime RXON is disabled | Pass | Direct helper test verifies `routeExperienceArtifact` is omitted and `routeExperienceArtifactIgnored` is true. |
+| Legacy route cache not used as canonical history reload truth | Pass | Direct helper test covers both top-level and nested decoys. |
+| Current substrate history reload uses current production substrate engine | Pass with caveat | The helper is policy-driven. When `activeEngine: 'v2'` is supplied, it creates a V2/current-engine reload plan. It does not infer or force V2 from route metadata, which preserves current runtime behavior. |
+| Provenance remains attached but does not become route truth | Pass | Helper returns provenance sidecar from `external_source` / `external_route_id`; test verifies it is not attached to `normalizedRoute.provenance`. |
+
+## Constraints Audit
+
+| Constraint | Status | Notes |
+| --- | --- | --- |
+| Do not change identity kernel | Pass | No identity-kernel files changed. |
+| Do not change evidence resolver | Pass | No evidence resolver behavior changed. |
+| Do not enable RXON runtime loading | Pass | RXON runtime loading remains disabled. |
+| Do not change route cache schema | Pass | No schema rewrite or migration. |
+| Do not change SegmentInspector | Pass | SegmentInspector was untouched. |
+| Do not add broad E2E suite | Pass | The test remains a focused contract/helper test. |
+
+## Verification
+
+Re-run locally after the commit:
+
+```bash
+npm test -- src/lib/current-engine-save-reload-contract.test.ts src/domain/vault/golden-harness-manifest.test.ts
+```
+
+Result:
+
+- 2 test files passed.
+- 4 tests passed.
+
+Earlier focused hygiene also passed:
+
+```bash
+git diff --check
+npx eslint src/lib/route-load/HistoryReloadPlan.ts src/lib/current-engine-save-reload-contract.test.ts
+```
+
+The full app typecheck still has unrelated existing repo-wide type debt, so it is not a clean acceptance signal for this narrow work.
+
+## Main Strength
+
+The work moved the contract from "trust a giant React file and assert source ordering" to "call a small pure helper and assert behavior."
+
+That is exactly the prompt's requested hardening. It makes route-history reload easier to test, easier to review, and harder to accidentally regress when `Index.tsx` is refactored.
+
+## Residual Caveats
+
+### No Engine Marker Added
+
+The optional engine marker was not added.
+
+That is the right conservative call for this prompt because the existing schema did not need to change, and the prompt said the marker was optional only if low-risk. The helper preserves current behavior by accepting `activeEngine` as policy instead of inferring a route's engine family from history metadata.
+
+### Not An E2E Proof
+
+The test does not drive a browser reload or a real Supabase row.
+
+That is acceptable because the prompt explicitly asked not to add a broad E2E suite. The contract now sits at the helper boundary, which is the more useful narrow proof.
+
+### Provenance Is Sidecar, Not Runtime Truth
+
+The helper returns provenance as sidecar metadata. `Index.tsx` does not currently use that sidecar for additional UI state.
+
+That preserves the prompt's safety rule: provenance stays available for audit without becoming geometry or scoring truth.
+
+## Conclusion
+
+The implementation meets the prompt.
+
+The current-engine history reload path is now protected by a direct helper contract: encoded stored geometry is canonical for reload, stale analysis is fallback only, RXON remains disabled as a load source, legacy route cache is excluded, and V2 reload behavior is driven through the current engine policy without changing runtime behavior.
+
+
+---
+
 ## Source File: docs/migrations/2026-03-21-canonical_boostrap.md
 
 # Canonical Route Bootstrap Migration
