@@ -2731,9 +2731,10 @@ Shoulder credit applies **only** when there is no dedicated bike facility **and*
 
 | Shoulder Class | Width           | ShoulderFactor |
 |---------------|-----------------|----------------|
-| Sub-usable    | < 2.0 ft (0.6 m) | 1.00 (no credit) |
-| Usable        | 2.0–7.9 ft (0.6–2.3 m) | 0.88 |
-| Wide          | ≥ 8.0 ft (2.4 m) | 0.78 |
+| None          | < 2 ft (0.6 m) | 1.00 (no credit) |
+| Narrow        | 2 ft to < 4 ft (0.6 m to < 1.2 m) | 1.00 (no credit) |
+| Normal        | 4 ft to < 8 ft (1.2 m to < 2.4 m) | 0.88 |
+| Wide          | ≥ 8 ft (2.4 m) | 0.78 |
 
 ---
 

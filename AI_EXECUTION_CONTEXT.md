@@ -56753,8 +56753,8 @@ Current factors:
 | Shoulder | Factor |
 | --- | --- |
 | Wide | `0.85` |
-| Usable | `0.90` |
-| Sub-usable | `1.00` |
+| Normal | `0.90` |
+| Narrow | `1.00` |
 | None / unknown | `1.00` |
 
 Important:
@@ -57203,7 +57203,7 @@ But it diverges from DS-015 in constants and vocabulary:
 
 - traffic table caps at 18,000 AADT per lane and `3.00`, not the DS-015 150,000+ tail to `12.50` in `src/lib/safety-scoring.ts:45-52`.
 - buffered facility is `0.68` and painted is `0.82`, not `0.75` and `0.80`, in `src/lib/safety-scoring.ts:61-69`.
-- usable shoulder is `0.90` and wide shoulder is `0.85`, not `0.85` and `0.80`, in `src/lib/safety-scoring.ts:75-80`.
+- normal shoulder is `0.90` and wide shoulder is `0.85`, not `0.85` and `0.80`, in `src/lib/safety-scoring.ts:75-80`.
 - the artifact vocabulary still uses `localHarm` throughout types and outputs in `src/lib/safety-scoring.ts:161-185` and `src/lib/safety-scoring.ts:405-466`.
 - route output still returns `safetyScore`, `grade`, `finalSafetyScore`, `effectiveCrossingRPM`, and `criticalStretchSuggestedCap` as first-class fields in `src/lib/safety-scoring.ts:195-215` and `src/lib/safety-scoring.ts:628-648`.
 
@@ -57360,7 +57360,7 @@ Assessment: tests should be rewritten around DS-015 invariants, not patched piec
 
 1. **Create a DS-015 canonical scoring types module.** Define `CanonicalRouteRiskArtifact`, `ScoreTraceRoadSlice`, `ScoreTraceCrossingEvent`, provenance family, model version, evidence snapshot, and projection metadata. Keep legacy aliases outside the canonical type.
 2. **Replace traffic constants everywhere that can touch canonical scoring.** Use the DS-015 500 to 150,000+ AADT-per-lane table, exact numeric interpolation, and a neutral unknown fallback with confidence loss.
-3. **Replace facility and shoulder constants.** Use protected `0.50`, buffered `0.75`, painted `0.80`, none `1.00`, usable shoulder `0.85`, wide shoulder `0.80`.
+3. **Replace facility and shoulder constants.** Use protected `0.50`, buffered `0.75`, painted `0.80`, none/narrow shoulder `1.00`, normal shoulder `0.85`, wide shoulder `0.80`.
 4. **Fix crossing eligibility parity.** Only score events whose trace disposition is `included`; add a scorer-side guard so trace and math cannot diverge again.
 5. **Rename risk vocabulary.** Migrate `localHarm` to `localRisk`, `roadRisk`, or `crossingRisk`; keep compatibility aliases only where needed.
 6. **Remove 0-100 score from canonical artifacts.** Keep rank and curved grade as projections with network metadata. Any shell score must be explicitly non-canonical.

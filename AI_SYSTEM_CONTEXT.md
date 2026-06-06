@@ -1242,11 +1242,12 @@ Traffic truth follows a descending-confidence ladder:
 6. unknown
 
 ### Shoulder classes
-- sub-usable shoulder: < 2.0 ft / 0.6 m
-- usable shoulder: 2.0 ft to < 8.0 ft / 0.6 m to < 2.4 m
-- wide shoulder: ≥ 8.0 ft / 2.4 m
+- none: < 2 ft / 0.6 m
+- narrow shoulder: 2 ft to < 4 ft / 0.6 m to < 1.2 m
+- normal shoulder: 4 ft to < 8 ft / 1.2 m to < 2.4 m
+- wide shoulder: ≥ 8 ft / 2.4 m
 
-Sub-usable shoulder remains visible to riders but earns no safety credit.
+Narrow shoulder remains visible to riders but earns no safety credit.
 
 ---
 
@@ -2968,9 +2969,9 @@ Applies ONLY when no dedicated bike facility AND speed ≥ 30 mph:
 | Shoulder       | Multiplier |
 |----------------|------------|
 | Wide (≥ 8 ft)  | 0.78       |
-| Usable (2–8 ft)| 0.88       |
-| Sub-usable (<2 ft) | 1.00   |
-| None           | 1.00       |
+| Normal (4–<8 ft)| 0.88      |
+| Narrow (2–<4 ft)| 1.00      |
+| None / <2 ft evidence | 1.00 |
 
 ---
 
@@ -3222,13 +3223,14 @@ Shoulder only applies when:
 - speed ≥ 30 mph
 
 Shoulder classes:
-- sub-usable: < 2.0 ft / 0.6 m
-- usable: 2.0 ft to < 8.0 ft / 0.6 m to < 2.4 m
-- wide: ≥ 8.0 ft / 2.4 m
+- none: < 2 ft / 0.6 m, including positive-width evidence of no meaningful shoulder
+- narrow: 2 ft to < 4 ft / 0.6 m to < 1.2 m
+- normal: 4 ft to < 8 ft / 1.2 m to < 2.4 m
+- wide: ≥ 8 ft / 2.4 m
 
 Launch values:
-- sub-usable / none → 1.00
-- usable → 0.88
+- none / narrow → 1.00
+- normal → 0.88
 - wide → 0.78
 
 ---
@@ -6849,8 +6851,8 @@ And shoulder:
 
 | Shoulder | Likelihood factor |
 | --- | ---: |
-| sub-usable / none | 1.00 |
-| usable shoulder | 0.85 |
+| none / narrow shoulder | 1.00 |
+| normal shoulder | 0.85 |
 | wide shoulder | 0.80 |
 
 This is not saying every painted lane is good or every shoulder is clean. Anyone who rides knows a shoulder can be full of glass, rumble strips, gravel, dead animals, storm grates, or whatever came loose from the last landscaping trailer.
@@ -7575,8 +7577,8 @@ Shoulder table:
 
 | Shoulder condition | ShoulderLikelihoodFactor |
 | --- | ---: |
-| sub-usable / none | 1.00 |
-| usable shoulder | 0.85 |
+| none / narrow shoulder | 1.00 |
+| normal shoulder | 0.85 |
 | wide shoulder | 0.80 |
 
 Application rules:
@@ -7976,7 +7978,7 @@ Source keys:
 | Facility likelihood concept | Operating-space reduction of road likelihood | `S-CMF-FACILITY`, `S-HSM-NCHRP` | Benchmark-informed / adapted | Dedicated space materially reduces conflict opportunity but does not erase the surrounding road context. |
 | Facility values `0.50 / 0.75 / 0.80 / 1.00` | Protected / buffered / painted / none | `S-CMF-FACILITY`, `P-LANTERNE` | Calibrated launch constants | Values reflect stronger separation for protected, meaningful benefit for buffered, and modest benefit for painted. |
 | Shoulder likelihood concept | Operating-space reduction where no facility exists | `S-CMF-FACILITY`, `S-HSM-NCHRP` | Benchmark-informed / adapted | Shoulder matters as operating space, but should remain secondary to true facility separation. |
-| Shoulder values `1.00 / 0.85 / 0.80` | None / usable / wide | `S-CMF-FACILITY`, `P-LANTERNE` | Calibrated launch constants | A usable shoulder deserves real credit, while still remaining weaker than true dedicated facility separation. |
+| Shoulder values `1.00 / 0.85 / 0.80` | None or narrow / normal / wide | `S-CMF-FACILITY`, `P-LANTERNE` | Calibrated launch constants | A normal shoulder deserves real credit, while still remaining weaker than true dedicated facility separation. |
 | Shoulder application gate | Applies only when no facility and speed is at least 30 mph | `P-LANTERNE` | Calibration policy | Shoulder matters most where it actually changes passing-space conditions. |
 | Path / MUP zero continuous-road risk | Prevents fake road risk on separated paths | `P-LANTERNE` | Canonical rule | A true path should not accumulate road risk while still carrying crossing risk. |
 | 15 mph path-like threshold | Operational proxy for path treatment | `P-LANTERNE` | Measurement policy | Launch needs a workable proxy while staying conservative about safe-path certainty. |
@@ -8444,14 +8446,14 @@ Launch table:
 
 | Shoulder condition | ShoulderLikelihoodFactor |
 | --- | ---: |
-| sub-usable / none | 1.00 |
-| usable shoulder | 0.85 |
+| none / narrow shoulder | 1.00 |
+| normal shoulder | 0.85 |
 | wide shoulder | 0.80 |
 
 Why:
 
-- a usable shoulder materially improves operating space and should receive real credit
-- a wide shoulder is still better than a merely usable one
+- a normal shoulder materially improves operating space and should receive real credit
+- a wide shoulder is still better than a merely normal one
 - shoulder remains weaker than true dedicated facility separation
 
 Shoulder is not a disguised bike-facility class.
@@ -8952,7 +8954,7 @@ They must remain explicitly named as deferred rather than silently disappearing 
 | facility likelihood concept | operating-space reduction of road likelihood | benchmark-informed / adapted | Dedicated space materially reduces conflict opportunity but does not erase the surrounding road context. |
 | facility values `0.50 / 0.75 / 0.80 / 1.00` | protected / buffered / painted / none | Lanterne calibration / policy | These values reflect stronger separation for protected, meaningful benefit for buffered, and modest benefit for painted. |
 | shoulder likelihood concept | operating-space reduction where no facility exists | benchmark-informed / adapted | Shoulder matters as operating space, but should remain secondary to true facility separation. |
-| shoulder values `1.00 / 0.85 / 0.80` | none / usable / wide | Lanterne calibration / policy | A usable shoulder deserves real operating-space credit, while still remaining weaker than true dedicated facility separation. |
+| shoulder values `1.00 / 0.85 / 0.80` | none or narrow / normal / wide | Lanterne calibration / policy | A normal shoulder deserves real operating-space credit, while still remaining weaker than true dedicated facility separation. |
 | shoulder application gate | only when no facility and speed >= 30 mph | Lanterne calibration / policy | Shoulder matters most where it actually changes passing-space conditions. |
 | path/MUP zero continuous-risk rule | prevents fake road risk on separated paths | Lanterne calibration / policy | A true path should not accumulate road risk while still carrying crossing risk. |
 | 15 mph path-like threshold | operational proxy for path treatment | Lanterne calibration / policy | Launch needs a workable proxy while staying conservative about safe-path certainty. |
