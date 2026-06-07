@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 10D cyclist substrate readiness is paused while visible product/admin naming is cleaned up. N1 was accepted and pushed in commit `99701f20`.
+N1 is complete. Phase 10D resumes the substrate hardening sequence with a pure cyclist substrate readiness contract.
 
 ## Checklist
 
@@ -15631,8 +15631,8 @@ Phase 10D cyclist substrate readiness is paused while visible product/admin nami
 | ----------------------------------------------- | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | **10B — Core Layer Spine Audit**                | ✅      | Figure out what is real, scaffold, test-only, legacy, or missing. | Codex reports substrate, evidence, global-unit, and heatmap reality without changing code. |
 | **10C — Heatmap Layer Source Registry**         | ✅      | Make every map/heatmap layer declare what it is allowed to believe. | Registry + tests separate raw evidence, calculated risk, display-only, debug, aggregate, and coverage layers. |
-| **N1 — Visible V1/V2/V2SS Naming Cleanup**      | ◐      | Remove internal version archaeology from the map/test/admin experience. | Visible UI says Route Builder / Legacy Analysis / Builder Review; no runtime behavior changes. |
-| **10D — Cyclist Substrate Readiness Contract**  | ⏸      | Decide when the road/path skeleton is actually usable.       | Pure helper classifies substrate as `ready_for_viewport_skeleton`, `ready_for_global_unit_input`, `partial`, or `blocked`. |
+| **N1 — Visible V1/V2/V2SS Naming Cleanup**      | ✅      | Remove internal version archaeology from the map/test/admin experience. | Visible UI says Route Builder / Legacy Analysis / Builder Review; no runtime behavior changes. |
+| **10D — Cyclist Substrate Readiness Contract**  | ✅      | Decide when the road/path skeleton is actually usable.       | Pure helper classifies substrate as `ready_for_viewport_skeleton`, `ready_for_global_unit_input`, `partial`, or `blocked`. |
 | **10E — Evidence Substrate Readiness Contract** | ☐      | Separate reusable evidence descriptors from route-only evidence blobs. | Pure helper proves lineage, provenance, confidence, selected/rejected/missing/fallback state are preserved. |
 | **10F — Route Unit → Heatmap Adapter**          | ☐      | Make route units capable of feeding today’s heatmap without rewriting RouteMap. | Pure adapter converts `LanterneRouteUnit` into current truth-run/heatmap-compatible shape. |
 | **10G — Raw Evidence Overlay Fixtures**         | ☐      | Prove speed, traffic, shoulder, bike infra, surface, and hazards can appear as raw layers separate from safety paint. | Fixture tests show raw evidence overlays without letting them become headline risk truth. |
