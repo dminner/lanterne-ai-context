@@ -15610,6 +15610,31 @@ The critical behavioral success condition is:
 
 ---
 
+## Source File: docs/04-execution/exec-026-project_phase_checklist.md
+
+# EXEC-026 Project Phase Checklist
+
+## Status Key
+
+- ✅ Accepted
+- ⚠️ Needs rework or blocked
+- ◐ Partially completed, not accepted
+- ⏸ Intentionally paused
+
+## Current Execution Note
+
+Phase 10D cyclist substrate readiness is paused while visible product/admin naming is cleaned up. N1 was accepted and pushed in commit `99701f20`.
+
+## Checklist
+
+| Phase | Status | Note |
+| --- | --- | --- |
+| Phase 10D - Cyclist substrate readiness | ⏸ | Paused for visible naming cleanup. |
+| N1 - Visible V1/V2/V2SS naming cleanup | ✅ | Accepted; visible route builder labels updated and pushed. |
+
+
+---
+
 ## Source File: docs/04-execution/exec-029-profile_aware_hydration_cache_and_cyclist_mobility_substrate_runtime_execution_plan.md
 
 # EXEC-029 - Profile-Aware Hydration Cache and Cyclist Mobility Substrate Runtime Execution Plan
