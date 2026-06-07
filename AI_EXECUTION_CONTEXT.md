@@ -61010,6 +61010,291 @@ Any future RXON storage write should run the Phase 6B validator and reject or qu
 
 ---
 
+## Source File: docs/assessments/ass-029-route_analysis_summary_storage_boundary_2026_06_07.md
+
+# ASS-029 - Route Analysis Summary Storage Boundary
+
+Date: 2026-06-07
+
+Status: Accepted assessment
+
+Starting branch: `main`
+
+Starting commit: `4962a8bb Add route intelligence to RXON receipts`
+
+Related: ADR-051, ADR-052, DS-052, Phase 7A, Phase 7B, Phase 8D
+
+## Summary
+
+Lanterne should not store route-level "juicy findings" in `route_history`, `route_cache`, or RXON as the only durable query surface.
+
+The long-term storage target should be a reconciled `route_analysis_summary` table, parented by a route analysis identity and attached to saved/shared/Vault/RUSA/ride-history or explicitly archived routes.
+
+No production write should be added yet. The existing database objects are close enough to guide the future, but not safe enough to write current Route Unit summaries without reconciliation.
+
+## Decision
+
+`route_history` stays basic and geometry-first.
+
+RXON remains a write-only receipt/export artifact. It may carry compact Route Units and a compact Route Analysis Summary when explicitly emitted, but it is not the query index and not runtime truth.
+
+`route_discovery_facts` is the right projection surface for sortable Vault/RUSA/corpus discovery fields. It should not become the canonical saved route summary.
+
+The logical future table for saved route-level findings is `route_analysis_summary`, but the existing physical schema is an older canonical/corpus scaffold and must be reconciled before current-engine writes.
+
+Anonymous ad hoc analyses should not write summary rows by default.
+
+## Audited Objects
+
+| Object | Classification | Finding |
+| --- | --- | --- |
+| `route_history` | safe current foundation | Stores saved route relationship, geometry/provenance, and a few legacy score columns. Current reload is geometry-first through `HistoryReloadPlan`. It should not become the full summary warehouse. |
+| `route_analysis_runs` | needs reconciliation | Exists in production schema and project-local reconciliation. It is oriented around `canonical_route_id`, older analysis families, and corpus/comparative hydration. It can inform a future parent, but is not the current Route Analysis Identity contract. |
+| `route_analysis_summary` | needs reconciliation / future target | Exists with older fields such as `safety_score`, `traffic_index`, `bike_support_index`, `worst_mile_json`, plus later `total_route_risk` and `route_risk_per_mile`. It does not yet match `LanterneRouteAnalysisSummary`. |
+| `route_discovery_facts` | projection-only / RouteX-corpus-only | Has structured sortable fields for risk, controls, POIs, hazards, surface, airport/train/bus proximity, and intersections. Its SQL guard says it cannot drive route load or route truth. |
+| `route_slices` | legacy scaffold | Older canonical route slice storage, not current Lanterne Route Units. |
+| `route_slice_analysis` | legacy scaffold | Older slice analysis rows, not current Route Unit score/evidence state. |
+| `route_slice_osm_facts` | legacy scaffold | OSM fact storage for old slices; not current source-agnostic route-distance evidence. |
+| `route_slice_support_facts` | legacy scaffold | Support/proximity facts for old slices; useful conceptually, but not current summary persistence. |
+| `canonical_segments` | legacy/global scaffold | Cross-route segment identity concept. Related to future Global Units, not route-local summary identity. |
+| `way_intelligence_rollups` | RouteX/global rollup scaffold | Useful for future substrate/global unit and viewport layers. Not a route-local summary table. |
+| `route_topology_revisions` | RouteX archive parent | Stores archived RouteX topology artifacts and revisions. Not the summary query table. |
+| `route_cache` | not suitable | Fenced legacy/operational cache. Must not become current summary or evidence truth. |
+| RXON compiled receipt | receipt/export only | Can include compact Route Units and summaries after Phase 8D, but cannot drive first paint, history reload, route cache, or inspector runtime truth. |
+
+## Schema And Type Drift
+
+The generated Supabase type file is stale relative to the checked production schema and current write code.
+
+Observed drift:
+
+- generated `route_history` types expose `route_name`, while current route persistence writes `name`
+- generated `route_history` types omit later fields such as `route_hash`, `encoded_polyline`, `external_source`, `external_route_id`, and share metadata
+- generated types did not expose the later RouteX and route-analysis tables found in production schema and migrations
+- production schema and local schema reconciliation disagree on some `route_history.full_analysis` typing details
+
+This is another reason not to add writes in this phase. A future migration should update generated types as part of the same controlled schema reconciliation.
+
+## Current Runtime Contracts
+
+The pure current summary contract is `src/lib/route-line-v2/route-analysis-summary.ts`.
+
+It derives `LanterneRouteAnalysisSummary` from Route Units and explicitly carries guardrails:
+
+- derives from Route Units
+- does not use `route_cache`
+- does not use RXON as truth
+- does not use heatmap/display as truth
+- performs no database writes
+- does not use `RouteMap`
+- does not mutate Route Units
+- keeps controls and POIs out of Safety Score
+
+Phase 8D added compact summary inclusion to `rxon-compiled-route-receipt.ts`, but RXON diagnostics still mark runtime loading and cache replacement as disabled.
+
+Phase 7A/7B evidence persistence code remains pure and memory/test-only. It does not create a production evidence ledger.
+
+## Storage Boundary
+
+### Not `route_history`
+
+`route_history` should continue to store:
+
+- user/save relationship
+- name/file metadata
+- encoded geometry
+- source/provenance
+- basic route facts needed for saved route lists
+- optional future pointers to summary, RXON, or archive rows
+
+It should not receive a large `route_analysis_summary` blob or become the canonical source for current-engine scoring/evidence truth. Existing legacy score columns can remain for compatibility, but new summary expansion should not continue there.
+
+### Not RXON Only
+
+RXON is a receipt/export artifact. It is useful when a route is explicitly saved, exported, or archived, but it is not a query index.
+
+Using RXON as the only saved summary would force summary reads to open artifact JSON and would blur the line between receipt and runtime truth.
+
+### Not `route_discovery_facts` As Canonical Summary
+
+`route_discovery_facts` is ideal for sortable public/corpus projections:
+
+- route risk per mile
+- route distance
+- controls
+- POI and hazard counts
+- surface bucket
+- nearest major airport/train/bus distances
+- intersection count
+
+It should stay projection-only. It can be derived from a validated summary or RXON/corpus artifact, but it must not become the canonical saved route summary.
+
+### Future `route_analysis_summary`
+
+The logical target is `route_analysis_summary` after reconciliation.
+
+The future table should represent one bounded summary for one route analysis identity. It should be written only for saved/shared/Vault/RUSA/ride-history or explicitly archived routes.
+
+If reconciling the existing `route_analysis_runs`/`route_analysis_summary` scaffold becomes risky, a future ADR may choose a new physical table name. The logical boundary should remain "route analysis summary", not route history, RXON, route cache, or discovery projection.
+
+## Route Classes
+
+| Route class | Durable summary write? | Notes |
+| --- | --- | --- |
+| Anonymous ad hoc analysis | no | Preserve client-side cost model and avoid backend bloat. |
+| Saved route | yes, future gated write | Justified once schema is reconciled. |
+| Shared route | yes, future gated write | Needed for shared route pages and collection sorting. |
+| Vault/RUSA corpus route | yes | May also project into `route_discovery_facts`. |
+| Ride-history import | yes, opt-in/future | Should likely connect to user-private coverage and ride archive policy. |
+| Debug/export only | no database summary by default | Use RXON or diagnostic artifacts. |
+
+## Future Structured Columns
+
+Recommended structured fields for a reconciled `route_analysis_summary` row:
+
+- `id`
+- `route_history_id` or route parent pointer where applicable
+- `route_analysis_id`
+- `route_fingerprint`
+- `route_geometry_hash`
+- `summary_version`
+- `unit_contract_version`
+- `analysis_engine_family`
+- `analysis_engine_version`
+- `evidence_contract_version`
+- `scoring_version`
+- `generated_at`
+- `route_class` or storage context
+- `summary_status`
+- `partial_flag`
+- `total_distance_m`
+- `analyzed_distance_m`
+- `coverage_percent`
+- `unit_count`
+- `resolved_ownership_distance_m`
+- `unresolved_ownership_distance_m`
+- `total_risk`
+- `risk_per_mile`
+- `road_risk`
+- `crossing_risk`
+- `hazard_risk`
+- `high_risk_distance_m`
+- `high_risk_miles`
+- `worst_unit_risk`
+- `shoulderless_high_speed_distance_m`
+- `high_traffic_no_shoulder_distance_m`
+- `official_evidence_percent`
+- `direct_evidence_percent`
+- `fallback_evidence_percent`
+- `missing_evidence_percent`
+- `unavailable_evidence_percent`
+- `low_confidence_percent`
+
+Optional structured fields if saved-route sorting needs them directly:
+
+- `surface_bucket`
+- `unpaved_distance_m`
+- `unpaved_percent`
+- `control_count`
+- `poi_count`
+- `hazard_observation_count`
+- `intersection_count`
+- `crossing_count`
+- `railroad_crossing_count`
+- `nearest_major_airport_code`
+- `nearest_major_airport_name`
+- `nearest_major_airport_distance_m`
+- `nearest_train_name`
+- `nearest_train_distance_m`
+- `nearest_bus_name`
+- `nearest_bus_distance_m`
+
+These optional transport/service fields already appear in the Route Analysis Summary access hooks and in `route_discovery_facts` projections. They should be structured in the summary table only if the product needs to query saved summaries by them; otherwise keep them in bounded JSON and project selected fields into `route_discovery_facts`.
+
+## Future Bounded JSON Fields
+
+Recommended bounded JSON fields:
+
+- `worst_windows_json`
+- `worst_unit_json`
+- `evidence_quality_by_layer_json`
+- `resolution_distance_by_state_json`
+- `source_lineage_summary_json`
+- `confidence_summary_json`
+- `surface_summary_json`
+- `remoteness_summary_json`
+- `service_gap_summary_json`
+- `access_summary_json`
+- `transport_bailout_summary_json`
+- `climb_descent_summary_json`
+- `network_summary_json`
+- `controls_pois_summary_json`
+- `diagnostics_json`
+- `partial_reasons_json`
+- `fallback_reasons_json`
+
+Bounded JSON must not contain:
+
+- raw route units unless explicitly requested by a later archive design
+- raw external API payloads
+- raw corridor roads
+- full substrate candidate arrays
+- graph objects
+- route cache blobs
+- RXON artifacts
+- durable evidence ledgers
+
+## Minimal Future Migration
+
+A later migration should:
+
+1. Reconcile or replace the existing physical `route_analysis_summary` shape with current summary version markers.
+2. Add a current route analysis identity parent or nullable parent fields compatible with saved routes, not only `canonical_route_id`.
+3. Add `route_history_id` where saved-route attachment is required.
+4. Preserve existing corpus/comparative fields or migrate them intentionally.
+5. Add structured columns for the core sortable fields above.
+6. Add bounded JSON columns for breakdowns.
+7. Add indexes for `route_history_id`, `route_analysis_id`, `route_geometry_hash`, `generated_at`, `risk_per_mile`, `high_risk_distance_m`, and route class/storage context.
+8. Update generated Supabase types.
+9. Add RLS/write policy so anonymous analyses do not write summaries by default.
+
+No migration is added in this phase.
+
+## Deferred
+
+Deferred work:
+
+- production summary writes
+- schema migration
+- generated type regeneration
+- route_history summary pointers
+- runtime wiring to save `LanterneRouteAnalysisSummary`
+- RouteX/corpus projection updates from current Route Analysis Summary
+- global units
+- viewport/country-wide maps
+- durable evidence ledger writes
+- RXON runtime loading
+
+## Acceptance Check
+
+This assessment preserves the requested boundaries:
+
+- `route_history` remains basic and geometry-first
+- RXON remains receipt/export, not query index or runtime truth
+- `route_cache` remains fenced and non-canonical
+- route-level queryable findings have a clear future target
+- existing schema objects are classified honestly
+- no production writes or migrations are added
+- no runtime behavior changes are made
+- client-side analysis remains the default cost model
+
+## Implementation Note
+
+No helper was added. The existing pure `LanterneRouteAnalysisSummary` builder already has the storage-ready shape needed for this boundary decision. Adding a mapper before schema reconciliation would create a false sense that the current database target is ready.
+
+
+---
+
 ## Source File: docs/migrations/2026-03-21-canonical_boostrap.md
 
 # Canonical Route Bootstrap Migration
