@@ -38596,3 +38596,92 @@ Vault -> Collection -> Matching Routes
 
 Everything else - route family, cohort, source provenance, evidence coverage, contextual overlays, and personal achievement - stays behind the product surface until the rider needs it.
 
+
+---
+
+## Source File: docs/03-adrs/adr-051-durable_evidence_persistence_is_deferred.md
+
+# ADR-051 - Durable Evidence Persistence Is Deferred
+
+Status: Accepted
+Date: 2026-06-07
+Related: ADR-045, ADR-048, ADR-049, DS-031, DS-047
+
+------
+
+## Context
+
+Lanterne has route-indexed evidence contracts for current-engine analysis evidence, including traffic, speed, shoulder, bike infrastructure, surface, and hazards.
+
+Those contracts are useful because they define how evidence should attach to a route by distance, preserve source lineage and provenance, and keep selected, rejected, missing, fallback, and unavailable states explicit.
+
+However, having a contract for durable evidence records does not mean every route analysis should produce production database writes.
+
+Lanterne's current runtime model remains browser-first and client-side. The system should avoid converting derived route evidence into accidental runtime truth or creating backend storage volume before the product needs it.
+
+------
+
+## Decision
+
+Lanterne will not persist route-indexed evidence records for every analysis by default.
+
+Runtime route analysis remains client-side.
+
+Durable storage remains limited to:
+
+- route geometry and provenance
+- user save relationships
+- global source caches
+- validated RXON artifacts where explicitly saved or exported
+- future opt-in route experience archives
+
+Route-indexed evidence persistence contracts exist for future use, but they are not production writes.
+
+------
+
+## Rationale
+
+This preserves Lanterne's zero-server-compute scaling model.
+
+It avoids backend storage bloat from saving derived evidence spans for every ad hoc route analysis.
+
+It avoids turning RXON or evidence persistence into accidental runtime truth.
+
+It keeps Builder Mode focused on fast, local route understanding rather than production archive management.
+
+It leaves room for future saved/shared RouteXperience history without forcing that archive model onto every analysis.
+
+------
+
+## Implications
+
+Route-indexed evidence may still be computed at runtime and used by scoring, heatmap, cue sheets, receipts, and inspector surfaces.
+
+Prepared receipts and RXON artifacts may summarize evidence where explicitly saved, exported, or promoted by a future archive path.
+
+The durable route-indexed evidence contract remains valuable as a boundary for future opt-in persistence, tests, migrations, and repository design.
+
+Production runtime must not treat route-indexed evidence persistence, RXON, or route_cache as canonical first-paint, route reload, or inspector truth unless a future ADR explicitly changes this decision.
+
+------
+
+## Non-Goals
+
+This ADR does not disable runtime route-indexed evidence.
+
+This ADR does not remove the route-indexed evidence persistence contract.
+
+This ADR does not prohibit global source caches.
+
+This ADR does not prohibit future opt-in saved/shared route experience archives.
+
+This ADR does not enable RXON runtime loading.
+
+This ADR does not make route_cache current-engine truth.
+
+------
+
+## Future Reconsideration
+
+This decision can be revisited if durable saved/shared RouteXperience history becomes a core product requirement, if server-side analysis becomes intentional product infrastructure, or if route-level archive value clearly outweighs storage, invalidation, and runtime-truth risks.
+
