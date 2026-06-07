@@ -28945,6 +28945,664 @@ Phase 7B is complete when:
 
 ---
 
+## Source File: docs/02-architecture/design/ds-052-lanterne_route_units_summary_global_units_and_viewport_index_spec.md
+
+# DS-052 - Lanterne Route Units, Route Analysis Summary, Global Units, and Viewport Index Spec
+
+**Status:** Draft for architecture contract
+**Date:** 2026-06-07
+**Related:** ADR-045, ADR-049, ADR-051, ADR-052, DS-031, DS-047, DS-048, DS-050, DS-051
+
+---
+
+## 1. Purpose
+
+This specification defines the route unit and route intelligence contracts needed to connect current client-side route analysis to future saved route summaries, RXON compaction, global unit coverage, and instant viewport/corpus maps.
+
+It covers:
+
+- Lanterne Route Units
+- Route Analysis Summary
+- Lanterne Global Units
+- Route Unit Coverage
+- viewport and country-wide map indexes
+- storage boundaries for client-only analysis, saved summaries, RXON receipts, Vault/RUSA indexes, and future ride-history coverage
+
+This is a contract spec only. It does not implement global units, viewport heatmaps, migrations, production writes, RXON runtime loading, route_cache replacement, score model changes, or server-side route analysis workers.
+
+## 2. Current Foundations
+
+Current pure contracts and adapters:
+
+- `src/lib/route-line-v2/route-units.ts`
+- `src/lib/route-line-v2/route-analysis-summary.ts`
+- `src/lib/route-line-v2/route-indexed-evidence-persistence.ts`
+- `src/lib/route-line-v2/route-analysis-evidence-repository.ts`
+- `src/lib/route-line-v2/rxon-compiled-route-receipt.ts`
+- `src/lib/route-line-v2/rxon-artifact-validator.ts`
+- `src/lib/route-load/HistoryReloadPlan.ts`
+- `src/lib/evidence/receiptBuilder.ts`
+- `src/lib/route-line-v2/v2ss-active-display-handoff.ts`
+
+Current runtime guardrails:
+
+- Active route analysis remains client-side.
+- `route_history` reload remains geometry-first.
+- `route_cache` remains fenced and non-canonical.
+- RXON is write-only receipt material and cannot drive runtime loading.
+- Display and heatmap segments remain presentation outputs.
+- Clicked-span receipts consume prepared receipt objects.
+- Route-local evidence is keyed by route distance.
+- External source IDs are metadata, not route join keys.
+
+## 3. Vocabulary
+
+| Term | Meaning |
+| --- | --- |
+| Route Analysis Identity | Parent identity for one route analysis run, including geometry hash, analysis version, evidence contract version, scoring version, generated time, and diagnostics. |
+| Lanterne Route Unit | A route-local atomic analysis slice on the route distance axis. |
+| Route Analysis Summary | A bounded route-level rollup derived from Route Units. |
+| Lanterne Global Unit | A reusable physical road/path/evidence-stable interval independent of any one route. |
+| Route Unit Coverage | A bridge row linking a route-local unit to a global unit. |
+| Viewport Index | A tile-like or bounded-query read model that can render evidence, safety, and coverage overlays without opening many route artifacts. |
+| RXON Compiled Receipt | A compact saved/exported RouteXperience receipt, not runtime truth. |
+
+## 4. Lanterne Route Unit Contract
+
+The current pure contract is `LanterneRouteUnit` in `route-units.ts`.
+
+Route Units are route-local. Their canonical interval key is route distance.
+
+### 4.1 Identity And Version Fields
+
+Each Route Unit should carry:
+
+- `unitId`
+- `unitIndex`
+- `routeAnalysisId`
+- `routeGeometryHash`
+- `unitContractVersion`
+- `analysisEngineFamily`
+- `analysisVersion`
+- `evidenceContractVersion`
+- `scoringVersion`
+
+Route Unit identity must not depend on OSM way ID, HPMS ID, DOT ID, API row ID, raw GPX point index, sample matcher index, display segment index, or `spanId` text.
+
+### 4.2 Route Interval
+
+Each Route Unit should carry:
+
+- `startDistM`
+- `endDistM`
+- `lengthM`
+- `intervalSemantics = route_distance_half_open`
+- optional `startIdx`
+- optional `endIdx`
+- optional `direction`
+
+Half-open route-distance semantics mean `[startDistM, endDistM)`.
+
+### 4.3 Ownership Fields
+
+Each Route Unit should carry:
+
+- `ownershipSpanId`
+- `ownershipReceiptId`
+- `familyKey`
+- `displayLabel`
+- `routeRef`
+- `domain`
+- `sourceWayIds`
+- `confidence`
+- `reason`
+- `unresolved`
+- `warnings`
+
+Ownership comes from canonical route ownership, not from traffic, speed, AADT, HPMS, DOT, OSM evidence overlays, heatmap display, or inspector parsing.
+
+### 4.4 Safety Input Fields
+
+Each Route Unit should carry current production safety inputs where available:
+
+- speed value/bucket/source/provenance/confidence/resolution state
+- traffic/AADT value/source/provenance/confidence/resolution state
+- lane count value/source/provenance/confidence/resolution state
+- shoulder value/bucket/source/provenance/confidence/resolution state
+- bike infrastructure value/bucket/source/provenance/confidence/resolution state
+- surface value/source/provenance/confidence/resolution state
+- hazard event summaries
+- crossing connector status and crossing count
+
+Current first-contract evidence layers are:
+
+- `traffic_aadt`
+- `speed_limit`
+- `shoulder`
+- `bike_infra`
+- `lane_count`
+- `surface`
+- `hazard_events`
+
+### 4.5 Score Contribution Fields
+
+Each Route Unit should carry score fields where available:
+
+- `scoreBucket`
+- `riskLevel`
+- `rawRisk`
+- `normalizedRisk`
+- `riskContribution`
+- `riskPerMile`
+- `roadRiskContribution`
+- `crossingRiskContribution`
+- `hazardRiskContribution`
+- `trafficExposureComponent`
+- `bikeSupportMitigation`
+- `hazardCrossingPenalty`
+- `scoreTraceSliceIds`
+
+Safety Score remains narrow. Route Reality and Conditions facts must not silently become Safety Score inputs.
+
+### 4.6 Evidence State Fields
+
+Each Route Unit should carry explicit evidence state groups:
+
+- selected
+- rejected
+- missing
+- fallback
+- unavailable
+- unresolved
+
+Each evidence summary should include:
+
+- `layerId`
+- `value`
+- `resolutionState`
+- `sourceLineage`
+- `provenance`
+- `provenanceKinds`
+- `confidence`
+- `confidenceReason`
+- `sourceMetadata`
+- `diagnostics`
+
+Missing or unresolved evidence must remain explicit. It must not be silently converted into confident fallback.
+
+### 4.7 Source Lineage, Provenance, And Confidence
+
+Source lineage and provenance are separate.
+
+Source lineage identifies where the record came from:
+
+- source record ID
+- upstream IDs
+- source feature ID
+- fetched time
+- source update time
+- freshness
+- warnings
+
+Provenance explains the kind of truth claim:
+
+- official imported
+- posted
+- OSM-derived
+- geometry-derived
+- relationship-inferred
+- model-derived
+- baseline fallback
+- unknown
+
+Confidence should carry:
+
+- value such as high, medium, low, unknown, or unresolved
+- reason
+
+### 4.8 Route Reality Hooks
+
+Route Units may carry route reality hooks that do not automatically participate in Safety Score:
+
+- remoteness band
+- service access band
+- surface quality index
+- fatigue baseline
+- descent risk
+- climb distance
+- descent distance
+- elevation gain/loss
+- climb count
+- max grade
+- max sustained climb
+- intersection count
+- crossing count
+- railroad crossing count
+- POI category counts
+- largest POI diversion
+- control count
+
+### 4.9 Logistics And Access Hooks
+
+Route Units and summaries should support nearest-service facts such as:
+
+- nearest airport: name/code, distance, route distance, routeable distance, travel time, source, provenance, confidence
+- nearest train station: name/code, distance, route distance, routeable distance, travel time, source, provenance, confidence
+- nearest rail access: name/code, distance, route distance, routeable distance, travel time, source, provenance, confidence
+- nearest bus stop/service: name/code, distance, route distance, routeable distance, travel time, source, provenance, confidence
+- nearest transit access
+- nearest resupply
+- nearest water
+- nearest food
+- nearest lodging
+- nearest medical access
+- nearest bike shop
+- nearest bailout
+
+These are Route Reality and logistics facts unless a later scoring ADR explicitly adds them to Safety Score.
+
+### 4.10 Diagnostics And Split Reasons
+
+Each Route Unit should carry:
+
+- split reasons
+- merged-from unit IDs
+- source ownership span IDs
+- source ownership receipt IDs
+- evidence record IDs
+- score trace slice IDs
+- heatmap segment IDs
+- display merge status
+- warnings
+- partial flag
+- unresolved flag
+
+## 5. Route Analysis Summary Contract
+
+The current pure contract is `LanterneRouteAnalysisSummary` in `route-analysis-summary.ts`.
+
+The summary is derived from Route Units. It is not a replacement for route units, clicked-span receipts, runtime evidence resolution, or canonical ownership.
+
+### 5.1 Version Markers
+
+Each summary should carry:
+
+- `summaryVersion`
+- `unitContractVersion`
+- `analysisEngineVersion`
+- `evidenceContractVersion`
+- `scoringVersion`
+- `routeGeometryHash`
+- `generatedAt`
+
+### 5.2 Coverage
+
+Coverage should include:
+
+- total distance
+- analyzed distance
+- unit count
+- resolved ownership distance
+- unresolved ownership distance
+- partial analysis flag
+- coverage percent
+- ownership coverage percent
+
+### 5.3 Safety Rollups
+
+Safety rollups should include:
+
+- total risk
+- risk per mile
+- road risk
+- crossing risk
+- hazard risk
+- traffic exposure
+- bike support mitigation
+- high-risk distance
+- high-risk miles
+- worst unit
+- worst mile window
+- worst five-mile window
+- shoulderless high-speed distance
+- high-traffic no-shoulder distance
+
+Letter grades and 1-100 scores are not required by this contract. Current product language is road risk plus crossing risk equals route risk, risk per mile, and relative safety rank where applicable.
+
+### 5.4 Evidence Quality
+
+Evidence quality should include:
+
+- official evidence distance and percent
+- direct evidence distance and percent
+- fallback evidence distance and percent
+- missing evidence distance and percent
+- unavailable evidence distance and percent
+- low-confidence evidence distance and percent
+- traffic fallback distance
+- speed fallback distance
+- bike infrastructure missing distance
+- shoulder missing distance
+- resolution distance by state
+- source lineage
+- provenance
+- provenance kinds
+- confidence summary
+- missing evidence by layer
+- fallback evidence by layer
+
+### 5.5 Route Reality Summary
+
+Route Reality summary should include:
+
+- surface summary
+- remoteness summary
+- service gap summary
+- airport/train/rail/bus/transit/resupply/water/food/lodging/medical/bike shop/bailout access summaries
+- climb and descent summary
+- network summary
+
+These fields are queryable route intelligence, not automatic Safety Score inputs.
+
+### 5.6 POI And Control Summary
+
+POI and control summary should include:
+
+- control count
+- POI category counts
+- largest POI diversion
+- max service gap
+- availability
+- `safetyScoreParticipation = false`
+
+### 5.7 Diagnostics And Guardrails
+
+Summary diagnostics should include:
+
+- warnings
+- partial reasons
+- fallback reasons
+- missing evidence by layer
+- confidence summary
+- rollup completeness
+
+Summary guardrails should assert:
+
+- derives from route units
+- route_cache not used
+- RXON not used as truth
+- heatmap display not used as truth
+- database writes not performed by the pure builder
+- RouteMap not used
+- route units not mutated
+- controls and POIs excluded from Safety Score
+
+## 6. Lanterne Global Unit Contract
+
+Global Units are route-independent physical intervals over stable road/path/substrate geometry.
+
+They are future contract objects and are not implemented by this spec.
+
+Expected fields:
+
+- `globalUnitId`
+- substrate family/key
+- substrate source and source version
+- global geometry ID
+- start offset on global geometry
+- end offset on global geometry
+- interval semantics
+- direction where needed
+- display label
+- refs
+- domain
+- source way IDs and node IDs
+- evidence fingerprint
+- topology version markers
+- geometry checksum
+- evidence checksum
+- viewport/index geometry
+- cohort membership hooks
+- freshness
+- provenance
+- confidence
+- diagnostics
+
+Global Units support reusable network queries and viewport map indexes. They must not replace route-local Route Units.
+
+## 7. Route Unit Coverage Contract
+
+Route Unit Coverage links route-local Route Units to route-independent Global Units.
+
+Expected fields:
+
+- `routeAnalysisId`
+- `routeUnitId`
+- `globalUnitId`
+- route `startDistM`
+- route `endDistM`
+- global `startOffsetM`
+- global `endOffsetM`
+- direction
+- `coverageM`
+- confidence
+- match reason
+- membership context
+- source route ID where applicable
+- user/activity ID where applicable and privacy policy allows it
+- generated time
+- version markers
+- diagnostics
+
+Membership context values should include:
+
+- analyzed
+- saved
+- planned
+- ridden
+- shared
+- Vault
+- RUSA
+
+The bridge lets Lanterne answer cross-route questions without opening every GPX, RXON, or route_history row.
+
+## 8. Viewport And Country-Wide Map Index
+
+Viewport and corpus map indexes should support rendering:
+
+- instant viewport overlays
+- all RUSA permanents on one map
+- Vault collection maps
+- personal coverage maps
+- future evidence and heatmap overlays
+
+The read path should be tile-like or bounded-query:
+
+```text
+viewport bounds + zoom + layer request
+  -> index read
+  -> compact global unit or coverage rows
+  -> map overlay
+```
+
+It should not be:
+
+```text
+viewport bounds
+  -> open thousands of GPX files
+  -> open thousands of RXON files
+  -> hydrate full route analysis for each route
+  -> draw map
+```
+
+### 8.1 Index Inputs
+
+Expected inputs:
+
+- Global Units
+- Route Unit Coverage
+- substrate signal rollups
+- route discovery facts
+- saved route summaries
+- user coverage ledger rows
+- corpus membership rows
+
+### 8.2 Index Outputs
+
+Expected outputs:
+
+- geometry suitable for viewport display
+- layer ID
+- bucket/value
+- count/coverage metrics
+- route membership counts
+- cohort membership
+- route references or bounded sample references
+- freshness
+- provenance
+- confidence
+- diagnostics
+
+### 8.3 Map Types
+
+RUSA and Vault maps should read corpus membership and route/global coverage summaries.
+
+Personal coverage maps should read private user coverage over global units or canonical way/edge ranges.
+
+Instant evidence overlays should read evidence substrate/global unit facts, not rerun per-route client analysis for the viewport.
+
+## 9. Storage Strategy
+
+### 9.1 Client-Only Active Analysis
+
+Client-only active analysis can produce:
+
+- ownership spans
+- route-indexed evidence
+- scoring traces
+- heatmap/display output
+- clicked-span receipts
+- Route Units
+- Route Analysis Summary
+
+No production writes are implied.
+
+### 9.2 Saved Route Summary
+
+Saved route summary storage may persist bounded route-level findings for saved/shared/Vault/RUSA/ride-history routes:
+
+- structured sortable values
+- bounded JSON breakdowns
+- version markers
+- pointers to RXON or route experience archive where explicitly saved
+
+### 9.3 RXON Export Or Receipt
+
+RXON may contain:
+
+- compact route summary
+- ownership receipt summaries
+- evidence summaries
+- route unit summaries where size allows
+- controls
+- POIs
+- diagnostics
+- checksums
+
+RXON must omit:
+
+- raw external API payloads
+- full corridor roads
+- full substrate candidates
+- full graph objects
+- full POI tile caches
+- durable evidence tables
+
+### 9.4 Vault/RUSA Corpus Index
+
+Vault/RUSA corpus indexes should persist enough to sort and draw collection maps:
+
+- route discovery facts
+- route risk per mile
+- route distance
+- controls
+- service access fields such as nearest airport/train/bus where available
+- route/global unit coverage references
+- corpus membership
+
+### 9.5 Future Ride-History Coverage
+
+Future ride-history coverage should primarily serve maps from private coverage over global units or canonical way/edge ranges, not from raw activity polylines.
+
+Raw GPX/FIT/TCX/activity data remains archive/evidence payload, not the main map-serving shape.
+
+## 10. Existing Schema Object Classification
+
+| Object | Current Classification | Notes |
+| --- | --- | --- |
+| `route_history` | current saved route foundation | Geometry/provenance/user relationship. Not a full analysis warehouse. |
+| `route_analysis_runs` | existing scaffold/older corpus storage | Used by older comparative/corpus hydration paths. Needs reconciliation before new writes. |
+| `route_analysis_summary` | existing scaffold/future candidate | Can become the bounded route summary table after storage decision. |
+| `route_slices` | legacy/older route slice model | Not the same as current Route Unit contract unless migrated. |
+| `route_slice_analysis` | legacy/older route slice analysis | Not current Route Unit storage by default. |
+| `route_discovery_facts` | corpus projection scaffold | Useful for sortable route discovery facts, not full route analysis truth. |
+| `canonical_segments` | older cross-route segment concept | Related to future Global Units, but not current Route Unit identity. |
+| `way_intelligence_rollups` | substrate/global rollup scaffold | Candidate support for future Global Units and viewport indexes. |
+
+## 11. Non-Goals
+
+This spec does not implement server-side route analysis workers.
+
+This spec does not create a production evidence ledger for every route analysis.
+
+This spec does not enable RXON runtime loading.
+
+This spec does not replace `route_cache`.
+
+This spec does not implement global units.
+
+This spec does not implement viewport heatmaps.
+
+This spec does not change scoring.
+
+This spec does not add migrations.
+
+This spec does not add database writes.
+
+This spec does not put giant raw JSON dumps in any table.
+
+This spec does not put a full POI cache inside RXON.
+
+## 12. Future Slices
+
+Recommended implementation sequence:
+
+1. 8D: integrate route units and summary into RXON compact receipt.
+2. 8E: decide the `route_analysis_summary` storage boundary.
+3. 9A: define and test Global Unit and Route Unit Coverage contracts.
+4. 9B: design the viewport index read model.
+5. 9C: design the RUSA/Vault corpus map index.
+6. Later: climb, descent, remoteness, service access, airport/train/bus, and route reality feature indexes.
+
+## 13. Acceptance Rules
+
+Any implementation based on this spec must preserve these rules:
+
+- route distance is canonical for route-local evidence and route units
+- source IDs are metadata
+- Route Units are route-local
+- Global Units are route-independent
+- Route Unit Coverage bridges local route units to global units
+- Safety Score remains narrow
+- Route Reality and Conditions stay separate from Safety Score
+- RXON remains a receipt unless a future read-path ADR changes it
+- `route_cache` remains fenced
+- `route_history` reload remains geometry-first
+- client-side analysis remains the default scaling model
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
@@ -38684,4 +39342,354 @@ This ADR does not make route_cache current-engine truth.
 ## Future Reconsideration
 
 This decision can be revisited if durable saved/shared RouteXperience history becomes a core product requirement, if server-side analysis becomes intentional product infrastructure, or if route-level archive value clearly outweighs storage, invalidation, and runtime-truth risks.
+
+
+---
+
+## Source File: docs/03-adrs/adr-052-route_intelligence_storage_and_unit_architecture.md
+
+# ADR-052 - Route Intelligence Storage and Unit Architecture
+
+Status: Accepted
+Date: 2026-06-07
+Related: ADR-045, ADR-048, ADR-049, ADR-051, DS-031, DS-047, DS-048, DS-050, DS-051, DS-052
+
+------
+
+## Context
+
+Lanterne now has several current-engine foundations that make route intelligence explainable without making the inspector, map, RXON, or cache layers into canonical truth:
+
+- `HistoryReloadPlan` reloads saved route history from geometry first.
+- `RouteOwnershipSpan` remains the canonical current route road/path identity.
+- Active display handoff carries ownership receipts derived from canonical ownership spans.
+- `ClickedSpanSafetyReceipt` is centralized through `receiptBuilder`.
+- Route-indexed evidence persistence has a pure, disabled contract.
+- Route analysis evidence repository boundaries are memory/test-only.
+- RXON can emit and validate write-only compiled receipts.
+- Lanterne Route Units and Route Analysis Summary now exist as pure builders.
+
+These contracts create a useful route intelligence spine, but they do not imply that every ad hoc analysis should write a durable evidence ledger, route unit archive, or RXON runtime cache.
+
+The architecture needs a layered storage model so saved routes, route summaries, reusable substrate facts, RXON receipts, route-local units, global units, and future viewport indexes do not collapse into one ambiguous warehouse.
+
+------
+
+## Decision
+
+Lanterne will use a layered route intelligence storage and unit model.
+
+The layers are:
+
+1. `route_history`
+2. `route_analysis_summary`
+3. road/path substrate cache
+4. evidence substrate cache
+5. RXON compiled RouteXperience receipt
+6. Lanterne Route Units
+7. Lanterne Global Units
+8. Route Unit Coverage bridge
+9. viewport and corpus map indexes
+
+Each layer has a narrow responsibility and must not become canonical truth for another layer without a later ADR.
+
+------
+
+## Layer Responsibilities
+
+### route_history
+
+`route_history` stores basic saved-route facts:
+
+- user relationship
+- route name
+- encoded geometry
+- source and provenance
+- saved date
+- optional future pointers to summaries, RXON artifacts, or route experience archives
+
+`route_history` must not become the full route analysis warehouse.
+
+History reload remains geometry-first. Saved analysis blobs, stale `full_analysis`, RXON-shaped payloads, and `route_cache` entries must not replace a current-engine rerun from saved geometry.
+
+### route_analysis_summary
+
+`route_analysis_summary` stores bounded, queryable route-level findings for saved/shared/Vault/RUSA/ride-history routes.
+
+Core sortable values should be structured columns where a table is used:
+
+- total risk
+- risk per mile
+- road risk
+- crossing risk
+- high-risk miles
+- worst stretch
+- evidence quality
+- analysis, scoring, and evidence version markers
+
+Bounded JSON may hold breakdowns:
+
+- remoteness summary
+- service gaps
+- airport, train, rail, bus, transit, resupply, water, food, lodging, medical, bike shop, and bailout access
+- intersection and crossing counts
+- climb and descent summaries
+- POI and control summaries
+- diagnostics and partial reasons
+
+The pure current contract is `src/lib/route-line-v2/route-analysis-summary.ts`. Durable writes are a future storage decision.
+
+### Road/path substrate cache
+
+The road/path substrate cache stores the reusable physical skeleton:
+
+- road/path geometry
+- topology
+- `familyKey`
+- display label
+- refs
+- source way IDs and node IDs
+- domain
+- geometry and version checksums
+
+This layer supports road/path identity hints and global substrate reuse. It does not decide route-local ownership by itself. Current ownership remains route-distance-first through `RouteOwnershipSpan`.
+
+### Evidence substrate cache
+
+The evidence substrate cache stores reusable descriptors and facts:
+
+- speed
+- traffic/AADT
+- shoulder
+- bike infrastructure
+- lane count
+- surface
+- hazards
+- provenance
+- confidence
+- freshness
+
+This is the future basis for instant viewport evidence and heatmap overlays. It should be source-agnostic where the problem is span selection, propagation, selected/rejected/missing state, freshness, or viewport indexing. HPMS-specific parsing stays in HPMS-specific source adapters.
+
+Evidence source IDs such as OSM way IDs, HPMS IDs, DOT IDs, API row IDs, and tile IDs are metadata. They are not canonical route join keys.
+
+### RXON
+
+RXON is a compiled RouteXperience receipt. It may summarize:
+
+- route summary
+- ownership receipt summaries
+- evidence summaries
+- route units and route analysis summary where appropriate
+- controls
+- POIs
+- diagnostics
+- substrate and evidence checksums
+
+RXON remains a receipt, not runtime truth.
+
+RXON runtime loading remains disabled until a separate read-path ADR. RXON must not drive first paint, history reload, route_cache truth, or clicked-span inspector truth.
+
+### Lanterne Route Units
+
+Lanterne Route Units are route-local atomic analysis slices.
+
+They are used for:
+
+- rollups
+- route summaries
+- RXON compaction
+- receipts
+- detour comparison
+- POI diversion analysis
+- future saved route history insights
+
+Route Units are keyed by route distance and a route analysis identity. They are not global road/path identity.
+
+The current pure contract is `src/lib/route-line-v2/route-units.ts`.
+
+### Lanterne Global Units
+
+Lanterne Global Units are reusable network/substrate units independent of any one route.
+
+They are used for:
+
+- personal coverage maps
+- RUSA, Vault, and corpus maps
+- route traversal counts for a physical spot
+- hardest climb, steepest climb, longest descent, and similar cross-route queries
+- repeated dangerous segment detection
+- cohort membership
+
+Global Units are defined on stable substrate geometry and evidence fingerprints, not on a specific route's distance axis.
+
+### Route Unit Coverage Bridge
+
+The Route Unit Coverage bridge links route-local units to global units.
+
+It enables cross-route aggregation without opening thousands of GPX or RXON files.
+
+The bridge records:
+
+- route analysis identity
+- route unit identity
+- global unit identity
+- route start and end distance
+- global start and end offset
+- direction
+- coverage length
+- confidence
+- membership context such as analyzed, saved, planned, ridden, shared, Vault, or RUSA
+
+### Viewport And Corpus Map Indexes
+
+Viewport and corpus map indexes serve map-scale questions without opening route artifacts one by one.
+
+They support:
+
+- instant viewport overlays
+- all RUSA permanents on one map
+- Vault collection maps
+- personal coverage maps
+- future evidence and heatmap overlays
+
+These indexes should read from global units, route unit coverage, substrate rollups, and bounded route summaries. They should not require thousands of GPX files, RXON files, or route_history blobs to be opened in the browser.
+
+------
+
+## Current Foundation Classification
+
+| Object | Classification | Current Use | Boundary |
+| --- | --- | --- | --- |
+| `route_history` | safe current foundation | saved route relationship, geometry, source/provenance | not full analysis truth |
+| `HistoryReloadPlan` | safe current foundation | geometry-first reload planning | does not read RXON or route_cache as truth |
+| `route-units.ts` | safe current pure contract | route-local unit construction | no production writes |
+| `route-analysis-summary.ts` | safe current pure contract | route-level rollups from route units | no production writes |
+| `route-indexed-evidence-persistence.ts` | safe current contract scaffold | persistence-ready route-distance evidence records | no production writes |
+| `route-analysis-evidence-repository.ts` | safe current repository boundary | memory/test-only save/read/classify | not runtime truth |
+| `rxon-compiled-route-receipt.ts` | safe current receipt emitter | write-only compact receipt | not runtime loading |
+| `rxon-artifact-validator.ts` | safe current validator | classifies RXON artifacts | runtime loading remains disabled |
+| `receiptBuilder.ts` | safe current inspector contract | clicked-span safety receipt | inspector consumes prepared receipt |
+| `v2ss-active-display-handoff.ts` | safe current display adapter | ownership receipt handoff | display is not canonical |
+| `route_analysis_runs` | existing scaffold/older corpus storage | comparative/corpus hydration code references | not current runtime parent by default |
+| `route_analysis_summary` | existing scaffold/future candidate | admin/corpus read paths and older scoring summaries | must be reconciled before new writes |
+| `route_slices` | older ADR/storage idea | historical route slice concept | not current Route Unit contract unless migrated |
+| `route_slice_analysis` | older scaffold | older slice analysis storage | not current Route Unit contract unless migrated |
+| `route_discovery_facts` | RouteX/corpus projection scaffold | route discovery facts and sortable projections | not full analysis warehouse |
+| `canonical_segments` | older canonical segment architecture | cross-route canonical segment idea | not route-local Route Unit identity |
+| `way_intelligence_rollups` | substrate/global rollup scaffold | future global unit/viewport support | not route-local evidence truth |
+
+------
+
+## Preserved Rules
+
+Client-side analysis remains the default scaling model.
+
+There is no automatic durable evidence ledger for every anonymous analysis.
+
+Rich artifacts and summaries should be stored only for saved, shared, Vault, RUSA, ride-history, or explicitly archived routes unless a later ADR justifies broader writes.
+
+Safety Score remains narrow.
+
+Route Reality and Conditions stay separate from Safety Score.
+
+`route_cache` remains a fenced legacy/operational cache.
+
+RXON runtime loading remains disabled until a separate read-path ADR.
+
+`route_history` reload remains geometry-first.
+
+Route Units are route-local.
+
+Global Units are route-independent.
+
+Evidence source IDs are metadata, not canonical route join keys.
+
+Route-distance spans are canonical for route-local evidence.
+
+------
+
+## Storage Strategy
+
+Lanterne separates:
+
+- client-only active analysis
+- saved route summary
+- RXON export or receipt
+- Vault/RUSA corpus index
+- future ride-history coverage
+
+Client-only active analysis may compute full route units, evidence, scoring traces, heatmap display, receipts, and summaries without durable writes.
+
+Saved route summary may store bounded route-level values for sorting, filtering, and collection maps.
+
+RXON export may store a compact compiled route receipt for explicit saved/shared/exported route experiences.
+
+Vault/RUSA corpus index may store route discovery facts, route unit coverage, and global unit references for collection-scale map rendering.
+
+Future ride-history coverage may store user-private global unit coverage, not raw activity polylines as primary map-serving data.
+
+------
+
+## Non-Goals
+
+This ADR does not implement server-side route analysis workers.
+
+This ADR does not create a production evidence ledger for every route analysis.
+
+This ADR does not enable RXON runtime loading.
+
+This ADR does not replace `route_cache`.
+
+This ADR does not implement global units.
+
+This ADR does not implement viewport heatmaps.
+
+This ADR does not change the score model.
+
+This ADR does not add giant raw JSON dumps.
+
+This ADR does not put a full POI cache inside RXON.
+
+This ADR does not add migrations or database writes.
+
+------
+
+## Future Implementation Slices
+
+Recommended next slices:
+
+- 8D: integrate route units and summary into RXON compact receipt.
+- 8E: decide the `route_analysis_summary` storage boundary.
+- 9A: define and test the global unit contract and coverage bridge.
+- 9B: design the viewport index read model.
+- 9C: design the RUSA/Vault corpus map index.
+- Later: climb, descent, remoteness, service access, and route reality feature indexes.
+
+------
+
+## References
+
+Current code references:
+
+- `src/lib/route-line-v2/route-units.ts`
+- `src/lib/route-line-v2/route-analysis-summary.ts`
+- `src/lib/route-line-v2/route-indexed-evidence-persistence.ts`
+- `src/lib/route-line-v2/route-analysis-evidence-repository.ts`
+- `src/lib/route-line-v2/rxon-compiled-route-receipt.ts`
+- `src/lib/route-line-v2/rxon-artifact-validator.ts`
+- `src/lib/route-load/HistoryReloadPlan.ts`
+- `src/lib/evidence/receiptBuilder.ts`
+- `src/lib/route-line-v2/v2ss-active-display-handoff.ts`
+
+Schema and scaffold references:
+
+- `route_history`
+- `route_analysis_runs`
+- `route_analysis_summary`
+- `route_slices`
+- `route_slice_analysis`
+- `route_discovery_facts`
+- `canonical_segments`
+- `way_intelligence_rollups`
 
