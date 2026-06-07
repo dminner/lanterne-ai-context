@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-10D is complete. Phase 10E adds a pure evidence readiness gate for reusable descriptors and route-projected evidence.
+10E is complete. Phase 10F adds a pure route-unit to heatmap compatibility adapter.
 
 ## Checklist
 
@@ -15634,7 +15634,7 @@ The critical behavioral success condition is:
 | **N1 — Visible V1/V2/V2SS Naming Cleanup**      | ✅      | Remove internal version archaeology from the map/test/admin experience. | Visible UI says Route Builder / Legacy Analysis / Builder Review; no runtime behavior changes. |
 | **10D — Cyclist Substrate Readiness Contract**  | ✅      | Decide when the road/path skeleton is actually usable.       | Pure helper classifies substrate as `ready_for_viewport_skeleton`, `ready_for_global_unit_input`, `partial`, or `blocked`. |
 | **10E — Evidence Substrate Readiness Contract** | ✅      | Separate reusable evidence descriptors from route-only evidence blobs. | Pure helper proves lineage, provenance, confidence, selected/rejected/missing/fallback state are preserved. |
-| **10F — Route Unit → Heatmap Adapter**          | ☐      | Make route units capable of feeding today’s heatmap without rewriting RouteMap. | Pure adapter converts `LanterneRouteUnit` into current truth-run/heatmap-compatible shape. |
+| **10F — Route Unit → Heatmap Adapter**          | ✅      | Make route units capable of feeding today’s heatmap without rewriting RouteMap. | Pure adapter converts `LanterneRouteUnit` into current truth-run/heatmap-compatible shape. |
 | **10G — Raw Evidence Overlay Fixtures**         | ☐      | Prove speed, traffic, shoulder, bike infra, surface, and hazards can appear as raw layers separate from safety paint. | Fixture tests show raw evidence overlays without letting them become headline risk truth. |
 | **10H — Global Unit Real-Input Integration**    | ☐      | Stop feeding global units only synthetic toy data.           | `GlobalUnitBuilder` accepts real-ish substrate/evidence fixtures with stable IDs, checksums, freshness, and traceability. |
 | **10I — Coverage / Viewport Readiness Gate**    | ☐      | Decide whether global-unit coverage is ready for Vault/RUSA/corpus maps. | Coverage rows can be queried/displayed as read-model inputs without becoming route truth. |
