@@ -60411,7 +60411,6 @@ Before changing production behavior:
 10. Verify typecheck, targeted route-line/substrate tests, and build.
 
 
-
 ---
 
 ## Source File: docs/assessments/ass-025-cache_compatibility_fence_audit_2026_06_06.md
