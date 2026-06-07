@@ -234,6 +234,23 @@ This replaces the old “one giant master manual” way of thinking.
 The paths still exist.
 They are just now properly housed across the repo.
 
+## Path: Map UI / road focus / surface runtime
+What it is:
+- replacing drawer/button/map-click sprawl with a road-focus runtime
+- registering rider/admin surfaces behind one foreground surface model
+- making the bottom sheet the primary rider shell without creating a new god component
+- reducing `Index.tsx` and `RouteMap.tsx` through staged seams instead of a giant refactor
+
+Read:
+- `04-execution/exec-046-road_focus_surface_runtime_cutover.md`
+- `04-execution/exec-022-road_focus_runtime_and_surface_routing_cutover.md`
+- `04-execution/exec-023-foreground_surface_registry_and_shell_unification_program.md`
+
+Current truth:
+- EXEC-046 is the active implementation plan
+- EXEC-008/EXEC-008v2 are historical and product-directionally useful, but stale as implementation plans
+- acute UX/control-click fixes may happen independently, but the chronic architecture correction is road focus plus surface registry plus shell adapters
+
 ## Path: Expedition / multi-day continuity
 What it is:
 - durable route progress across days
@@ -672,13 +689,13 @@ Prevent idea thrash, keep development focused, and make it obvious what is activ
 
 ## Current Priorities
 
-### 1. RUSA Events 
+### 1. RUSA Events
 
 - ingest, json download to storage, extract to normalized json and table structure (route info, hazards, cues, POIs,etc)
 
 - Set up vault to have 2 sections at first: perms and rides
 
-  - Perms - table that is filterable and sortable by every important field - 
+  - Perms - table that is filterable and sortable by every important field -
 
   - | Starting location: *(or ending location) * | --all locations-- AK AL AR AS AZ CA CO CT DC DE FL GA GU HI IA ID IL IN KS KY LA MA MD ME MI MN MO MP MS MT NC ND NE NH NJ NM NV NY OH OK ON OR PA PR RI SC SD TN TX UT VA VI VT WA WI WV WY |
     | ------------------------------------------ | ------------------------------------------------------------ |
@@ -695,15 +712,15 @@ Prevent idea thrash, keep development focused, and make it obvious what is activ
 
      Contains unpaved sections
 
-    
+
 
      Missing unpaved data
 
-    
+
 
      Only show SR 600K routes
 
-    
+
 
      Include inactive routes
 
@@ -713,9 +730,9 @@ Prevent idea thrash, keep development focused, and make it obvious what is activ
 
 - Harden seed routes (back to DC)
 
-- Harden safety score.  
+- Harden safety score.
 
-  - Did we drop crossings as a factor or are we really calculating?  
+  - Did we drop crossings as a factor or are we really calculating?
   - Scorecard/method receipt structure, format, and accuracy
 
 - Traffic issues
@@ -727,18 +744,19 @@ Prevent idea thrash, keep development focused, and make it obvious what is activ
 
 - UX redo/refactor
 
+  - Current active architecture plan: `exec-046-road_focus_surface_runtime_cutover.md`
   - state machine
   - extractinng code from index, routemap and drawers and into central system
   - building interdependencies of state to avoid drawers opening over one another etc.
   - Hiding lantern, disappearing lantern - keep map clean
   - Bottom slide up info (like cancel button) - keep map clean
-  - 
+  -
 
 
 
 ### 4. Front-end architecture refactor - PAUSED
 
-- 
+-
 
 ### 5. Cue points formatting - The RWGPS-imported cues flow through as **nativeCues** (type GpxCuePoint[]) into resolveCues(), which outputs them as **cuePoints** — that's what CueMarkerLayer receives as its prop to render the markers on the map.
 
@@ -841,7 +859,7 @@ This focus window is complete when:
 
 ## Completed
 
-### 2026-04-24 
+### 2026-04-24
 
 - Loader / analysis presentation polish - COMPLETE
 
@@ -852,7 +870,7 @@ This focus window is complete when:
 - Confirmed turns are overwritten properly w/o reproducing the canonical route
 - Moving on to hardening the canonical route hashing approach for multi-direction / out-and-back / slight variation routes so there isn't route sprawl in the future
 - Tried to switch left turn analysis into a new pipeline version but failed to get it as accurate as the old route-level turn scoring so reverted to the old method since it isn't truly required to be known at the segment level at time of ingest and if one wanted to ascribe it to a segment, it could be done based on location after the fact.
-- 
+-
 
 ### 2026-03-27
 
@@ -1647,10 +1665,14 @@ After that, execute front-end Phases 1 → 4 in order.
 
 # EXEC-008 — Unified Surface Runtime and Domain Refactor Program
 
-Status: Draft
+Status: Historical / superseded for implementation
 Owner: Derek Minner
 Scope: Cross-surface UI/runtime refactor for Lanterne
 Related: Map Visibility System, Push Intelligence, Vault expansion, scoring overhaul, unified surface architecture
+
+**Current implementation source:** [EXEC-046 - Road Focus Runtime and Foreground Surface Registry Cutover](./exec-046-road_focus_surface_runtime_cutover.md)
+
+This document remains useful for product intent and early surface/runtime principles, but it should not be used as the active implementation plan. The repo now has Route-Line V2, RXON, RouteExperienceArtifact, route units, active display handoff, and newer road-focus/surface-registry architecture that are reflected in EXEC-046.
 
 ---
 
@@ -2301,11 +2323,15 @@ When EXEC-008 is done:
 
 # EXEC-008 v2 — Experience Runtime, Unified Surface Architecture, and Domain Migration Program
 
-**Status:** Draft v2
+**Status:** Historical / superseded for implementation
 **Owner:** Derek Minner
 **Scope:** Master architecture and implementation program for Lanterne’s runtime model, unified surface system, ride surfaces, review layers, and adjacent domain migrations
 **Supersedes:** `exec-008-refactor_plan_and_implementation_spec.md`
 **Related:** DS-012, DS-014, DS-015, ADR-028, ADR-036, PROD-010, PROD-012, PROD-014
+
+**Current implementation source:** [EXEC-046 - Road Focus Runtime and Foreground Surface Registry Cutover](./exec-046-road_focus_surface_runtime_cutover.md)
+
+This document remains useful for the runtime/surface worldview, but it predates the current Route-Line V2, RXON, RouteExperienceArtifact, route units, active display handoff, Vault, and road-focus implementation context. Use EXEC-046 for current sequencing and contracts.
 
 ---
 
@@ -2948,10 +2974,14 @@ That is how Lanterne gets the long-term benefit without attempting a one-shot re
 
 # EXEC-008 v2 — Master Implementation Manual
 
-**Status:** Draft
+**Status:** Historical / superseded for implementation
 **Owner:** Derek Minner
 **Purpose:** Step-by-step implementation manual for the Experience Runtime, Unified Surface Architecture, and Domain Migration Program
 **Companion:** `EXEC-008 v2 — Experience Runtime, Unified Surface Architecture, and Domain Migration Program`
+
+**Current implementation source:** [EXEC-046 - Road Focus Runtime and Foreground Surface Registry Cutover](./exec-046-road_focus_surface_runtime_cutover.md)
+
+This manual should no longer be followed phase by phase. Its guardrail against giant refactors remains valid, but EXEC-046 is the current plan for road focus, foreground surfaces, shell adapters, bottom-drawer-first rider policy, and staged migration.
 
 ------
 
@@ -13356,10 +13386,14 @@ This appendix is intentionally operational. It is the concrete punch list for tu
 
 # EXEC-022 — Road Focus Runtime and Surface Routing Cutover
 
-**Status:** Draft  
-**Owner:** Derek Minner  
-**Scope:** Replace `road click -> open Inspect` behavior with a centralized road-focus runtime that routes the click into whichever surface is currently active and capable of consuming it  
+**Status:** Superseded as standalone plan / incorporated into EXEC-046
+**Owner:** Derek Minner
+**Scope:** Replace `road click -> open Inspect` behavior with a centralized road-focus runtime that routes the click into whichever surface is currently active and capable of consuming it
 **Related:** [EXEC-008 v2](./exec-008v2-experience_runtime_and_surface_architecture_program.md), [EXEC-016](./exec-016-analyze_drawer_architecture_spec.md), [DS-016](../02-architecture/design/ds-016-experience_policy_layer.md), [src/pages/Index.tsx](../../src/pages/Index.tsx), [src/lib/ux-interaction-policy.ts](../../src/lib/ux-interaction-policy.ts)
+
+**Current implementation source:** [EXEC-046 - Road Focus Runtime and Foreground Surface Registry Cutover](./exec-046-road_focus_surface_runtime_cutover.md)
+
+This document still describes the correct road-focus seam. EXEC-046 incorporates it into the broader current surface runtime, shell adapter, bottom-sheet policy, RouteExperience/RXON, and migration-ledger plan.
 
 ---
 
@@ -13943,10 +13977,14 @@ That is the correct architectural seam for:
 
 # EXEC-023 — Foreground Surface Registry and Shell Unification Program
 
-**Status:** Draft Outline  
-**Owner:** Derek Minner  
-**Scope:** Follow-on program after [EXEC-022](./exec-022-road_focus_runtime_and_surface_routing_cutover.md) to unify right-rail, bottom-surface, and future review-shell behavior behind one foreground-surface runtime  
+**Status:** Superseded as standalone plan / incorporated into EXEC-046
+**Owner:** Derek Minner
+**Scope:** Follow-on program after [EXEC-022](./exec-022-road_focus_runtime_and_surface_routing_cutover.md) to unify right-rail, bottom-surface, and future review-shell behavior behind one foreground-surface runtime
 **Related:** [EXEC-008 v2](./exec-008v2-experience_runtime_and_surface_architecture_program.md), [EXEC-016](./exec-016-analyze_drawer_architecture_spec.md), [EXEC-022](./exec-022-road_focus_runtime_and_surface_routing_cutover.md), [DS-016](../02-architecture/design/ds-016-experience_policy_layer.md)
+
+**Current implementation source:** [EXEC-046 - Road Focus Runtime and Foreground Surface Registry Cutover](./exec-046-road_focus_surface_runtime_cutover.md)
+
+This document remains the conceptual bridge from road focus to surface registry. EXEC-046 is the current implementation plan and adds repo-state inventory, RouteExperience/RXON context, shell policy, map control policy, and the migration ledger.
 
 ---
 
@@ -48189,6 +48227,914 @@ Also report:
 - assertions added before fixes
 - smallest behavior change made
 - any remaining uncertainty
+
+
+---
+
+## Source File: docs/04-execution/exec-046-road_focus_surface_runtime_cutover.md
+
+# EXEC-046 - Road Focus Runtime and Foreground Surface Registry Cutover
+
+**Status:** Current implementation plan
+**Date:** 2026-06-07
+**Owner:** Derek Minner
+**Scope:** Front-end runtime and surface architecture for the map-heavy rider experience
+**Supersedes:** [EXEC-008 drawer refactor plan](./exec-008-drawer%20refactor_plan_and_implementation_spec.md), [EXEC-008 v2 experience runtime program](./exec-008v2-experience_runtime_and_surface_architecture_program.md), [EXEC-008 v2 master manual](./exec-008v2-master_implementation_manual.md)
+**Updates:** [EXEC-022 road focus runtime](./exec-022-road_focus_runtime_and_surface_routing_cutover.md), [EXEC-023 foreground surface registry](./exec-023-foreground_surface_registry_and_shell_unification_program.md)
+**Related:** [EXEC-018 route annotation archive](./exec-018-route_annotation_archive_and_hydration_contract.md), [DS-047 route experience artifact](../02-architecture/design/ds-047-route_experience_artifact_spec.md), [DS-049 first-paint worker handoff](../02-architecture/design/ds-049-first_paint_worker_handoff_and_route_experience_artifact_boundary_spec.md), [ADR-045 route indexed evidence platform](../03-adrs/adr-045-route_indexed_evidence_platform.md)
+
+---
+
+## 1. Purpose
+
+This document replaces the older "drawer refactor" program with the current architecture plan for Lanterne's map-heavy UI.
+
+The original EXEC-008 product instinct was right: Lanterne needs fewer competing drawers, simpler rider-facing surfaces, less page-level state sprawl, and a map that does not own every interaction policy.
+
+The original EXEC-008 implementation plan is now stale. The repo has moved forward. Route-Line V2, RXON, RouteExperienceArtifact, route units, route indexed evidence, active display handoff, route analysis summaries, Vault view models, and newer road-focus/surface docs now exist.
+
+The current correction is:
+
+```text
+road focus runtime
+  -> foreground surface registry
+  -> shell adapters
+  -> bottom-drawer-first rider surface policy
+  -> staged surface migration
+  -> RouteMap reduction
+```
+
+This is not a request to build one giant bottom drawer. The bottom drawer is a shell adapter, not the brain.
+
+---
+
+## 2. Executive Decision
+
+Lanterne will move toward:
+
+- one canonical road-focus runtime
+- one canonical foreground surface registry
+- one SurfaceHost capable of rendering registered surfaces into different shells
+- shell adapters for bottom sheet, right rail, top sheet, fullscreen, and debug surfaces
+- bottom-drawer-first policy for ordinary rider surfaces
+- temporary right-rail/admin/debug policy for specialized tooling
+- map controls that separate "open a surface" from "mount a map overlay"
+
+The implementation must avoid turning `MasterBottomDrawer` into another large conditional component.
+
+Bad shape:
+
+```text
+MasterBottomDrawer
+  -> if analyze render analyze
+  -> if cues render cues
+  -> if inspect render inspect
+  -> if stops render stops
+  -> if vault render vault
+  -> if debug render debug
+```
+
+Good shape:
+
+```text
+SurfaceRuntime
+  -> active focus
+  -> active foreground surface
+  -> shell placement policy
+
+SurfaceRegistry
+  -> typed surface definitions
+
+SurfaceHost
+  -> selected registered surface
+  -> selected shell adapter
+
+Surface modules
+  -> Analyze
+  -> Inspect
+  -> Cues
+  -> Stops and Hazards
+  -> Layers
+  -> Vault
+  -> Dev tools
+```
+
+---
+
+## 3. Current State Inventory
+
+## 3.1 Root UI
+
+Current root orchestration lives primarily in:
+
+- `src/pages/Index.tsx`
+
+Current reality:
+
+- owns route load state
+- owns many drawer/sheet booleans
+- owns top drawer, left drawer, right drawer, bottom drawer, dev panel, audit panel, inspector panel, and route load UI coupling
+- owns road inspect state and route click response
+- coordinates RouteMap props, route analysis handoff, POIs, hazards, cues, Vault, GPX/RWGPS loading, and Street View return behavior
+
+This file is still the root surface/runtime bottleneck.
+
+## 3.2 Map UI
+
+Current map composition lives primarily in:
+
+- `src/components/RouteMap.tsx`
+
+Current reality:
+
+- renders base map and many Leaflet panes
+- owns hazard markers and popups
+- owns control markers and Street View popup restoration
+- owns route creation layers, edit handles, detour candidates, GPS, POIs through clustering hooks, heatmap, flow, bike sidecars, and many admin/debug overlays
+- accepts a very large prop surface from `Index.tsx`
+- still contains business/presentation policy that should eventually move outward
+
+RouteMap should eventually become a map composer, layer host, and event adapter.
+
+## 3.3 Existing Runtime Seams
+
+Partial seams already exist:
+
+- `src/hooks/useMapOrchestrator.ts`
+- `src/lib/map-modes.ts`
+- `src/lib/ux-interaction-policy.ts`
+- `src/contexts/LayoutContext.tsx`
+- `src/hooks/useLanternInteraction.ts`
+- `src/lib/lantern-interaction.ts`
+- `src/lib/lantern-screen-stack.ts`
+
+These are useful, but they are not yet the surface runtime.
+
+Current limitation:
+
+- `MapMode` models user intent.
+- `LayoutContext` models drawer occupancy.
+- `ux-interaction-policy` only knows primitive segment-inspect behavior.
+- none of these provide a canonical foreground surface registry, focus runtime, shell adapter model, or surface capability routing.
+
+## 3.4 Current Surface Landscape
+
+Current rider/admin surfaces include:
+
+- Analyze: `RouteAndAnalysisDrawer`
+- Cues: `CueDrawer`
+- Stops/Layers/Hazards: `StopsLayersDrawer`
+- POI status: `RouteBottomDrawer`
+- Inspect: `SegmentInspectorDrawer`
+- Vault: `VaultBrowserPanel` inside `TopActionDrawer`
+- Load/Search/Draw/RWGPS/GPX/Vault: `TopActionDrawer`
+- Dev tuning: `DevTuningPanel`
+- V2 shadow/runtime: `MainAppShadowTestDrawer`
+- Candidates audit: `CandidatesDrawer`
+- Raw roads audit: `RawRoadsDrawer`
+- Fragments audit: `FragmentsDrawer`
+- Sequence audit: `MatchedRoadSequencePanel`
+- Turn audit: `TurnPointAuditPanel`
+
+These are still modeled as shell-specific components rather than registered surfaces.
+
+## 3.5 Current Domain and Data Foundations
+
+The updated architecture must account for these existing foundations:
+
+- `src/lib/route-line-v2/*`
+  - route axis
+  - route ownership
+  - topology
+  - evidence registry
+  - route units
+  - route indexed evidence
+  - V2 active display handoff
+  - RXON validation and receipts
+  - RouteExperienceArtifact and RouteExperiencePath
+
+- `src/domain/vault/*`
+  - collection view models
+  - route row view models
+  - filters/sort
+  - map preview
+  - route open refs
+  - RXON availability
+
+- `src/lib/route-load/*`
+  - route load sequence
+  - load progress/story/telemetry
+  - source projection artifacts
+  - viewport road context
+
+- `src/domain/analyze/*`
+  - scorecard/method/receipts view models
+
+- `src/lib/pois/*`
+  - POI fetch, parse, prune, dedupe, budget, scheduler, route metrics
+
+- `src/lib/presentation/*`
+  - semantic tokens
+  - hazard registry and presentation
+  - route paint controller
+  - tooltips
+  - traffic/speed/bike presentation
+
+The new doc set must not ask the implementation to recreate these from scratch.
+
+---
+
+## 4. What EXEC-008 Got Right
+
+EXEC-008 remains useful for product intent.
+
+It correctly identified that:
+
+- surfaces should be shells, not feature brains
+- drawer state should be unified
+- RouteMap should not own drawer policy
+- domain state should move out of presentation components
+- rider surfaces need simpler, more unified placement
+- desktop and mobile should differ through adapters, not duplicated logic
+- registry/resolver patterns are preferable to one-off branching
+- route intelligence and ride intelligence should stay separate
+
+Those principles remain binding.
+
+---
+
+## 5. What Is Stale In EXEC-008
+
+The old implementation plan is stale because:
+
+- it predates Route-Line V2's current maturity
+- it does not center RXON, RouteExperienceArtifact, route units, or active display handoff
+- it treats Vault extraction as future work even though much of it now exists
+- it does not incorporate EXEC-022's road-focus correction
+- it does not incorporate EXEC-023's foreground surface registry direction
+- it assumes a broader `src/runtime` plan before acknowledging the existing route-load, route-line, and domain modules
+- it risks encouraging a visual drawer migration before the click/focus/runtime seams are in place
+
+The replacement plan is not "finish EXEC-008." It is "preserve EXEC-008's product instinct through the current repo architecture."
+
+---
+
+## 6. Core Architecture
+
+## 6.1 Road Focus Runtime
+
+Road focus answers:
+
+```text
+What is the user focused on right now?
+```
+
+It is not a drawer. It is not Inspect. It is not a Leaflet popup.
+
+Examples:
+
+- no route loaded
+- route loaded but not analyzed
+- whole route focused
+- road/span focused
+- route unit focused
+- POI focused
+- control focused
+- cue focused
+- hazard focused
+- detour candidate focused
+- debug candidate focused
+- Vault route focused
+
+Map clicks, cue clicks, receipt clicks, POI clicks, hazard clicks, and debug clicks should emit focus requests. The runtime owns canonical focus state. Registered surfaces decide whether and how they consume that focus.
+
+## 6.2 Foreground Surface Registry
+
+The foreground surface registry answers:
+
+```text
+What surface is active, what can it consume, and where should it render?
+```
+
+A surface is a domain-level interaction target. A shell is a container.
+
+Example surfaces:
+
+- `analyze`
+- `inspect`
+- `cues`
+- `stops_hazards`
+- `layers`
+- `vault`
+- `load_route`
+- `dev_tuning`
+- `v2_runtime`
+- `candidates`
+- `raw_roads`
+- `fragments`
+- `truth_mode`
+- `rxon_tools`
+
+## 6.3 SurfaceHost
+
+`SurfaceHost` renders the currently selected registered surface using the selected shell adapter.
+
+It may know:
+
+- active surface id
+- active shell kind
+- surface open state
+- focus object
+- placement policy
+- dismissal policy
+
+It may not know:
+
+- how safety receipts are computed
+- how route units are built
+- how road identity is resolved
+- how hazards are detected
+- how POIs are fetched
+- how RWGPS is parsed
+- how RXON is validated
+- how Vault filtering works
+
+## 6.4 Shell Adapters
+
+Shell adapters own container behavior.
+
+Initial shell kinds:
+
+- `bottom_sheet`
+- `right_rail`
+- `left_rail`
+- `top_sheet`
+- `fullscreen`
+- `debug_rail`
+- `floating_card`
+- `none`
+
+Adapters own:
+
+- placement
+- sizing
+- snap state
+- transition/motion
+- safe-area behavior
+- z-index policy
+- dismissal gestures
+- focus trapping where needed
+
+Adapters do not own domain truth.
+
+---
+
+## 7. Road Focus Runtime Contract
+
+Suggested first contract:
+
+```ts
+export type FocusKind =
+  | 'none'
+  | 'route'
+  | 'road_span'
+  | 'route_unit'
+  | 'cue'
+  | 'control'
+  | 'poi'
+  | 'hazard'
+  | 'detour_candidate'
+  | 'vault_route'
+  | 'debug_feature';
+
+export interface RoadFocusTarget {
+  kind: FocusKind;
+  routeFingerprint?: string;
+  routeUnitId?: string;
+  segmentId?: string;
+  ownershipSpanId?: string;
+  roadId?: string | number;
+  roadName?: string | null;
+  cueIndex?: number;
+  controlId?: string;
+  poiId?: string;
+  hazardId?: string;
+  vaultRouteId?: string;
+  debugFeatureId?: string;
+  lat?: number;
+  lon?: number;
+  routeDistM?: number;
+  mileMarker?: number;
+  source:
+    | 'map_click'
+    | 'route_line_click'
+    | 'cue_click'
+    | 'control_click'
+    | 'poi_click'
+    | 'hazard_click'
+    | 'receipt_click'
+    | 'vault_click'
+    | 'debug_click'
+    | 'programmatic';
+  nonce: number;
+  requestedAt: number;
+  payload?: unknown;
+}
+
+export interface RoadFocusRequest {
+  target: RoadFocusTarget;
+  preferredSurfaceId?: SurfaceId;
+  allowSurfaceChange: boolean;
+  reason?: string;
+}
+
+export interface RoadFocusResult {
+  handled: boolean;
+  handledBySurfaceId?: SurfaceId;
+  surfaceChanged: boolean;
+  latentOnly: boolean;
+}
+```
+
+Phase-one rule:
+
+- map clicks update focus
+- the active compatible surface gets first chance to consume focus
+- no map click inherently means "open Inspect"
+- if no compatible foreground surface is active, focus is latent and may highlight the map only
+
+---
+
+## 8. Surface Registry Contract
+
+Suggested first contract:
+
+```ts
+export type SurfaceId =
+  | 'analyze'
+  | 'inspect'
+  | 'cues'
+  | 'stops_hazards'
+  | 'layers'
+  | 'vault'
+  | 'load_route'
+  | 'dev_tuning'
+  | 'v2_runtime'
+  | 'candidates'
+  | 'raw_roads'
+  | 'fragments'
+  | 'truth_mode'
+  | 'rxon_tools';
+
+export type SurfaceAudience = 'rider' | 'power_user' | 'admin_debug';
+
+export type SurfaceRole =
+  | 'rider_surface'
+  | 'admin_debug_surface'
+  | 'map_overlay_control'
+  | 'route_focus_producer'
+  | 'route_focus_consumer'
+  | 'temporary_legacy_surface';
+
+export interface SurfaceDefinition {
+  id: SurfaceId;
+  label: string;
+  audience: SurfaceAudience;
+  roles: SurfaceRole[];
+  defaultShell: ShellKind;
+  allowedShells: ShellKind[];
+  canConsumeFocusKinds: FocusKind[];
+  canProduceFocusKinds: FocusKind[];
+  supportsDeepLink: boolean;
+  supportsPinned: boolean;
+  priority: number;
+}
+
+export interface ForegroundSurfaceState {
+  surfaceId: SurfaceId | null;
+  shellKind: ShellKind | null;
+  snap: 'hidden' | 'peek' | 'compact' | 'medium' | 'full' | 'pinned';
+  payload?: unknown;
+  openedAt?: number;
+  lastFocusedAt?: number;
+}
+```
+
+---
+
+## 9. Shell Policy
+
+## 9.1 Bottom-Drawer-First Rider Policy
+
+The bottom sheet should become the default ordinary rider shell for:
+
+- Inspect
+- Cues
+- Analyze summary
+- Stops and hazards list/detail
+- Layers
+- POI/hazard/control detail
+- route note/annotation detail when shipped
+
+The rider should experience this as one coherent bottom surface that changes modes, not as a pile of unrelated drawers.
+
+## 9.2 Temporary Right-Rail Policy
+
+Right rail may remain for:
+
+- admin/debug surfaces
+- large diagnostic surfaces
+- comparison-heavy developer views
+- transitional wrappers while rider surfaces migrate
+
+Right rail should not be treated as the permanent product default for ordinary rider inspection.
+
+## 9.3 Top Sheet Policy
+
+Top sheet remains appropriate for:
+
+- route loading
+- search
+- GPX/RWGPS upload
+- Vault entry
+- route creation entry points
+
+Long term, `TopActionDrawer` should split into registered surfaces and domain controllers instead of acting as one mixed shell.
+
+## 9.4 Fullscreen Policy
+
+Fullscreen is appropriate for:
+
+- Vault map-native browsing
+- admin review experiences
+- diagnostic harnesses
+- future route review screens
+
+Fullscreen must still consume the same focus/runtime contracts.
+
+---
+
+## 10. Map Control Policy
+
+Map controls must distinguish between two actions:
+
+1. Open a surface.
+2. Mount or change a map overlay.
+
+These must not be implicit twins.
+
+Examples:
+
+- opening Stops and Hazards should open a surface list/detail
+- enabling hazard markers should mount the hazard overlay
+- opening Speed explanation should open a surface
+- enabling speed overlay should mount a map overlay
+- opening Cues should open cue details
+- enabling cue markers should mount cue map markers
+
+No control should trigger route-wide layer churn unless the user explicitly requested a map overlay change or the active route paint contract requires it.
+
+---
+
+## 11. Migration Ledger
+
+| Surface | Current Home | Classification | Focus Producer | Focus Consumer | Target Shell | Migration Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| Analyze | `RouteAndAnalysisDrawer` | rider surface | yes, receipt/metric clicks | yes, road/route focus | bottom sheet first, left rail transitional | wrap existing content, then move |
+| Inspect | `SegmentInspectorDrawer` | rider + admin surface | yes | yes, road_span/route_unit/debug_feature | bottom sheet for rider, debug rail for admin | first rider migration candidate |
+| Cues | `CueDrawer` | rider surface | yes, cue clicks | yes, cue/control/road focus | bottom sheet first, right rail transitional | wrap after focus runtime |
+| Stops and Hazards | `StopsLayersDrawer` | rider surface + overlay control | yes, POI/hazard clicks | yes, POI/hazard/control focus | bottom sheet | split surface open from overlay toggles |
+| Layers | `StopsLayersDrawer` tab | map overlay control | no | maybe route focus context | bottom sheet compact | split from stops/hazards semantics |
+| POI Status | `RouteBottomDrawer` | rider status surface | no | yes, POI category/status focus | bottom sheet | likely absorbed into SurfaceHost |
+| Vault | `TopActionDrawer` + `VaultBrowserPanel` | rider/power user surface | yes, vault route clicks | yes, vault route focus | top sheet/fullscreen/bottom detail | preserve domain controller |
+| Load Route | `TopActionDrawer` | rider surface | yes, route load intent | no | top sheet | split from Vault and route creation |
+| Dev Tuning | `DevTuningPanel` | admin/debug surface | yes | yes, debug focus | debug rail | keep out of rider bottom shell |
+| V2 Runtime | `MainAppShadowTestDrawer` | admin/debug surface | yes | yes, debug/route focus | debug rail/fullscreen | keep separate, registry-aware |
+| Candidates | `CandidatesDrawer` | admin/debug surface | yes | yes, debug candidate focus | debug rail | wrap later |
+| Raw Roads | `RawRoadsDrawer` | admin/debug surface | yes | yes, raw road focus | debug rail | wrap later |
+| Fragments | `FragmentsDrawer` | admin/debug surface | yes | yes, fragment focus | debug rail | wrap later |
+| Sequence Audit | `MatchedRoadSequencePanel` | admin/debug surface | yes | yes, switch/road focus | debug rail | wrap later |
+| Turn Audit | `TurnPointAuditPanel` | admin/debug surface | yes | yes, turn focus | debug rail/floating | wrap later |
+| Truth Mode | `RouteMap` + dev controls | map overlay control | yes | yes, road/unit focus | overlay + debug rail | separate overlay toggle from surface |
+| RXON Tools | V2/RXON modules and debug tools | admin/power user surface | yes | yes, route artifact focus | debug rail/fullscreen | expose through registry later |
+
+---
+
+## 12. RouteExperience and RXON Relationship
+
+RouteExperience and RXON are now central to the UI architecture.
+
+The UI runtime should treat these as durable route context providers:
+
+- route fingerprint
+- route distance axis
+- route units
+- ownership spans
+- controls
+- associated observations
+- evidence readiness
+- route analysis summary
+- paint/display handoff
+- durable receipt/export context
+
+RouteExperienceArtifact is not a drawer artifact. It is route truth context.
+
+Surfaces should read projected view models from RouteExperience/RXON-aware domain adapters rather than parsing raw route evidence inside components.
+
+Important rule:
+
+- first paint can render from compact display contracts
+- richer route experience artifacts can arrive later
+- surface runtime should tolerate progressive enrichment without remounting the world
+
+---
+
+## 13. Annotation, Observation, POI, Hazard, Cue, And Control Model
+
+Route-associated rider/context data should converge around one normalized model.
+
+Inputs may include:
+
+- RWGPS cues
+- RWGPS points of interest
+- RWGPS hazard-like route-owner annotations
+- GPX controls
+- Lanterne-detected hazards
+- fetched POIs
+- user-submitted field notes
+- future media or personal experience notes
+- external safety records
+
+These should not each create separate UI pathways.
+
+Target shape:
+
+```text
+source input
+  -> ingestion/archive preservation
+  -> route-indexed normalization
+  -> associated observation/control/annotation model
+  -> route presentation surface
+  -> map markers, cue sheet rows, bottom sheet details, RXON receipts
+```
+
+Controls are route-owned.
+
+POIs, hazards, services, field notes, media, and route-owner notes are associated observations unless promoted by a separate validation/canonicalization path.
+
+RWGPS hazard-like annotations are valuable, route-specific signals. They should be preserved and displayed with provenance, but they should not become canonical hazard truth by default.
+
+---
+
+## 14. RouteMap Reduction Strategy
+
+Do not begin by gutting `RouteMap.tsx`.
+
+First build the seams:
+
+1. road focus runtime
+2. surface registry
+3. shell adapters
+4. overlay control policy
+5. map layer contracts
+
+Then reduce RouteMap toward:
+
+```text
+MapComposer
+  -> base map
+  -> route paint layer
+  -> selected focus highlight
+  -> overlay layer host
+  -> event adapter
+```
+
+RouteMap should eventually not own:
+
+- drawer policy
+- route analysis state
+- surface routing
+- hazard business logic
+- RXON logic
+- Vault logic
+- route save/load orchestration
+- debug routing policy
+
+The reduction should happen only after surfaces can consume focus and overlays can be toggled independently from shell state.
+
+---
+
+## 15. Non-Goals
+
+This program does not:
+
+- rewrite RouteMap in one pass
+- rewrite Index in one pass
+- change scoring math
+- change Route-Line V2 truth contracts
+- add SQL migrations
+- implement a new RXON schema
+- build open-ended field notes
+- force admin/debug tools into the rider bottom drawer
+- remove all right rails immediately
+- make the bottom drawer a god component
+- change route loading/fetching behavior except where surface policy requires decoupling
+
+Acute UX freezes and control-click bugs may be fixed independently. Those fixes can inform this program, but they are not the same work.
+
+---
+
+## 16. Implementation Slices
+
+## Slice 0 - Baseline And Guardrails
+
+Goal:
+
+- document current surface state and interaction hot paths
+- protect core route load, route paint, inspect, cues, and stops/hazards behavior with focused tests where feasible
+- do not visually migrate surfaces yet
+
+Deliverables:
+
+- current surface inventory
+- current route-click path inventory
+- current map-control/overlay coupling inventory
+- regression notes for route load, inspect, cues, stops/hazards, Vault, and debug surfaces
+
+## Slice 1 - Road Focus Runtime
+
+Goal:
+
+- introduce road/focus state without changing visuals
+
+Deliverables:
+
+- `RoadFocusTarget`
+- `RoadFocusRequest`
+- `RoadFocusResult`
+- focus store/hook
+- map segment click updates focus before any shell behavior
+- existing Inspect behavior preserved through an adapter
+
+Exit:
+
+- route click no longer has to mean "open Inspect" at the runtime contract level
+
+## Slice 2 - Surface Registry
+
+Goal:
+
+- introduce typed surface definitions without changing visuals
+
+Deliverables:
+
+- `SurfaceId`
+- `SurfaceDefinition`
+- registry
+- active surface state
+- shell placement policy
+- initial definitions for Analyze, Inspect, Cues, Stops/Hazards, Layers, Vault, Dev, Candidates, Raw Roads, Fragments, Truth Mode, RXON tools
+
+Exit:
+
+- current booleans can be mapped to a canonical active surface model
+
+## Slice 3 - Wrap Existing Surfaces
+
+Goal:
+
+- put existing surfaces behind registry adapters while preserving current shells
+
+Order:
+
+1. Inspect
+2. Cues
+3. Analyze
+4. Stops/Hazards/Layers
+5. Vault
+6. admin/debug surfaces
+
+Exit:
+
+- opening a surface goes through registry/runtime even if the visual shell is unchanged
+
+## Slice 4 - Bottom Shell Adapter
+
+Goal:
+
+- create the bottom sheet shell adapter as a boring host
+
+Deliverables:
+
+- bottom shell adapter
+- snap state
+- safe-area behavior
+- dismissal behavior
+- focus handoff
+- no domain logic
+
+Exit:
+
+- one registered surface can render in the bottom shell without duplicating feature logic
+
+## Slice 5 - Rider Surface Migration
+
+Goal:
+
+- make bottom sheet the ordinary rider shell
+
+Suggested order:
+
+1. Inspect
+2. Cues
+3. Analyze summary/receipts
+4. Stops/Hazards
+5. Layers
+6. POI/hazard/control detail
+
+Exit:
+
+- ordinary rider deep dives no longer depend on separate left/right drawer concepts
+
+## Slice 6 - Map Control Decoupling
+
+Goal:
+
+- separate surface open actions from overlay mount actions
+
+Deliverables:
+
+- explicit overlay toggle state
+- explicit surface open actions
+- no hidden route-wide redraw from merely opening a surface
+- budget/progressive render policy for expensive overlays
+
+Exit:
+
+- "open Stops" and "show hazard overlay" are distinct actions
+
+## Slice 7 - RouteMap Reduction
+
+Goal:
+
+- reduce RouteMap only after runtime and surface contracts exist
+
+Deliverables:
+
+- layer-host extraction
+- event-adapter extraction
+- hazard marker adapter
+- cue/control marker adapter
+- overlay orchestration adapter
+- fewer policy props from Index
+
+Exit:
+
+- RouteMap behaves like a composer/layer host, not a product policy component
+
+## Slice 8 - Annotation And Observation Surface Integration
+
+Goal:
+
+- route-owner annotations, cues, POIs, controls, hazards, and future field notes share a route-indexed presentation path
+
+Deliverables:
+
+- route annotation/associated observation view model
+- map marker projection
+- bottom detail projection
+- cue sheet projection
+- RXON receipt/export projection
+
+Exit:
+
+- RWGPS POI/hazard/cue data can surface consistently on map, cue sheet, bottom sheet, and durable route receipt
+
+---
+
+## 17. Success Criteria
+
+This program is successful when:
+
+- RouteMap no longer decides which drawer opens
+- map clicks update focus instead of directly commanding Inspect
+- ordinary rider surfaces render through a shared SurfaceHost
+- the bottom sheet is the primary rider shell
+- right rails remain only as transitional/admin/debug shells
+- surface open state is centralized and typed
+- overlay mount state is separate from surface open state
+- Analyze, Inspect, Cues, Stops/Hazards, Layers, and Vault have registry definitions
+- RouteExperience/RXON context is available to surfaces through adapters/view models
+- route annotations/observations have one normalization path before presentation
+- Index and RouteMap can be reduced in smaller, lower-risk slices
+
+---
+
+## 18. Guiding Principle
+
+The interface should feel simple because the runtime is explicit.
+
+The architecture should make it hard for any button, drawer, map click, or debug tool to accidentally become the owner of the whole app.
 
 
 ---
