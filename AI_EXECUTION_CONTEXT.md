@@ -15632,7 +15632,7 @@ The critical behavioral success condition is:
 | **11E — Route Relation Panel Readiness Candidate**   | ✅      | Prepare the next diagnostic surface after the Test Console is proven safe. | Audit-only or pure-plan update confirms whether `MainAppShadowRouteRelationPanel` can consume the same summaries without touching scoring, heatmap, receipts, or runtime truth. |
 | **11F — Debug Control Center Candidate Audit**       | ✅      | Decide if broader admin diagnostics can safely consume readiness summaries. | Audit classifies safe panels versus overlay-control danger zones; no runtime wiring unless separately approved. |
 | **11G — Route Builder Review Candidate Audit**       | ✅      | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
-| **11H — Raw Evidence Admin Readout Plan**            | ☐      | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
+| **11H — Raw Evidence Admin Readout Plan**            | ✅      | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
 | **11I — Coverage Readiness Admin Readout Plan**      | ☐      | Plan admin-only coverage/readiness visibility before Vault/RUSA maps. | Coverage rows remain read models; no storage, no viewport map rendering, no route truth. |
 | **11J — Second Consumer Cutover Decision**           | ☐      | Choose exactly one second runtime consumer after 11A–11D prove safe. | One next target is chosen from the candidate inventory, with rollback, tests, and explicit non-goals. |
 
@@ -15657,7 +15657,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-11G is complete. Route Builder Review remains a later candidate only for a narrow non-map diagnostics subsection; review map layers and evidence inspectors are explicitly excluded; no runtime consumer was wired.
+11H is complete. Raw evidence admin readout remains a later candidate only for admin diagnostics; raw evidence stays non-score-driving and does not become route paint, live map output, or rider-facing overlay behavior.
 
 ## Checklist
 
@@ -16086,6 +16086,91 @@ Future copy must say:
 - Evidence inspectors are excluded.
 
 This phase does not wire `V2Review` or `V2ReviewMap` to new summaries, does not add a second consumer, and does not change review map, overlay, viewport hydration, substrate QA, or evidence inspector behavior.
+
+## Phase 11H Raw Evidence Admin Readout Plan
+
+`raw_evidence_overlay_admin_readout` remains a `later_candidate`.
+
+Audit result:
+
+- Raw speed, traffic, shoulder, bike, surface, hazard, and evidence-quality records already exist as fixture/admin proof in `src/lib/evidence/raw-evidence-overlay-fixtures.ts`.
+- Fixture records are route-distance bound and preserve source lineage, provenance, confidence, freshness, and selected/rejected/missing/fallback/stale/unresolved/derived states.
+- Fixture guardrails say raw evidence only, no route safety paint, no score-output truth, no RouteMap wiring, no `buildHeatmapLayers` call, no database writes, no route-cache truth, no RXON truth, no route-history truth, and no scoring mutation.
+- `src/lib/evidence/evidence-substrate-readiness.ts` can classify those records as route projections while keeping evidence quality diagnostic-only and non-score-eligible.
+- `src/lib/heatmap/layer-source-registry.ts` classifies raw evidence layers separately from calculated risk paint and rejects route_cache, RXON, route_history, display artifacts, and clicked UI state as canonical inputs.
+- Current runtime surfaces already have raw/evidence overlay danger zones in `RouteMap`, `DebugControlCenter`, `DevTuningPanel`, and `/v2-review`. This phase does not wire any of them.
+- `docs/04-execution/exec-028-controlled_runtime_cutover_checklist.md` does not exist in this branch.
+
+Safe admin evidence display inputs:
+
+- Pure raw evidence overlay fixture bundle.
+- Pure evidence readiness classifications.
+- Pure heatmap layer source registry raw-evidence definitions.
+- Route-distance bound source lineage, provenance, confidence, freshness, and value-state metadata.
+- Admin/test fixture summaries.
+
+Safe evidence layers:
+
+- `speed_overlay`
+- `traffic_overlay`
+- `shoulder_overlay`
+- `bike_overlay`
+- `surface_overlay`
+- `hazard_overlay`
+- `evidence_quality_overlay`
+
+Evidence-quality states that must stay visible:
+
+- `selected`
+- `rejected`
+- `missing`
+- `fallback`
+- `stale`
+- `unresolved`
+- `unavailable`
+- `derived`
+- `competing`
+
+Future forbidden inputs:
+
+- RouteMap props or rendered map state.
+- `buildHeatmapLayers` runtime input.
+- Heatmap display segments as truth.
+- Route paint output.
+- Score outputs or risk buckets as raw evidence truth.
+- Rider-facing overlay toggles.
+- Clicked SegmentInspector payloads.
+- Production receiptBuilder output.
+- RXON runtime artifacts.
+- `route_cache` entries.
+- `route_history` reload plans.
+- Supabase/database rows.
+- Browser storage state.
+
+Future guards:
+
+- Explicit diagnostics enablement required before rendering future raw evidence rows.
+- Admin-only surface remains required.
+- Future raw evidence rows default hidden when diagnostics are disabled.
+- No RouteMap or rendered-overlay coupling.
+- No score-driving display copy.
+- No second consumer is selected by this phase.
+- Source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, `route_history`, receipts, SegmentInspector, and Supabase imports.
+
+Future copy must say:
+
+- Admin raw evidence only.
+- Fixture/admin proof.
+- Not runtime route truth.
+- Not live map output.
+- Not route paint.
+- Not score input.
+- Not production coverage.
+- Not runtime cutover.
+- Not rider-facing overlay.
+- Selected/rejected/missing/fallback states are evidence state, not score state.
+
+This phase does not wire a raw evidence readout, does not create a runtime consumer, does not choose a second consumer, does not render raw overlays, and does not change RouteMap, `buildHeatmapLayers`, safety scoring, receipts, RXON runtime loading, route_cache, route_history reload, storage, or rider-facing overlay behavior.
 
 ## Acceptance For Phase 10J
 
