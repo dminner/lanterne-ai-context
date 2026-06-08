@@ -15631,7 +15631,7 @@ The critical behavioral success condition is:
 | **11D — Route Builder Test Console Regression Pack** | ✅      | Lock the first cutover behind tests before touching broader admin panels. | Tests prove exactly one first consumer, component renders admin-only, and source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, and `route_history`. |
 | **11E — Route Relation Panel Readiness Candidate**   | ✅      | Prepare the next diagnostic surface after the Test Console is proven safe. | Audit-only or pure-plan update confirms whether `MainAppShadowRouteRelationPanel` can consume the same summaries without touching scoring, heatmap, receipts, or runtime truth. |
 | **11F — Debug Control Center Candidate Audit**       | ✅      | Decide if broader admin diagnostics can safely consume readiness summaries. | Audit classifies safe panels versus overlay-control danger zones; no runtime wiring unless separately approved. |
-| **11G — Route Builder Review Candidate Audit**       | ☐      | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
+| **11G — Route Builder Review Candidate Audit**       | ✅      | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
 | **11H — Raw Evidence Admin Readout Plan**            | ☐      | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
 | **11I — Coverage Readiness Admin Readout Plan**      | ☐      | Plan admin-only coverage/readiness visibility before Vault/RUSA maps. | Coverage rows remain read models; no storage, no viewport map rendering, no route truth. |
 | **11J — Second Consumer Cutover Decision**           | ☐      | Choose exactly one second runtime consumer after 11A–11D prove safe. | One next target is chosen from the candidate inventory, with rollback, tests, and explicit non-goals. |
@@ -15657,7 +15657,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-11F is complete. Debug Control Center remains a later candidate only for narrow diagnostic readout zones; overlay-control zones are explicitly excluded; no runtime consumer was wired.
+11G is complete. Route Builder Review remains a later candidate only for a narrow non-map diagnostics subsection; review map layers and evidence inspectors are explicitly excluded; no runtime consumer was wired.
 
 ## Checklist
 
@@ -15988,6 +15988,104 @@ Future copy must say:
 - Overlay toggles are excluded.
 
 This phase does not wire DebugControlCenter or DevTuningPanel to new summaries, does not add a second consumer, and does not change overlay behavior.
+
+## Phase 11G Route Builder Review Candidate
+
+`v2_review_route_builder_review_diagnostics` remains a `later_candidate`.
+
+Audit result:
+
+- `/v2-review` is registered in `src/App.tsx` as a lazy standalone Route Builder Review page.
+- `V2Review` consumes uploaded GPX review routes, review worker results, ownership/evidence summaries, viewport provider diagnostics, substrate QA status, evidence source filters, and review-mode toggles.
+- `V2ReviewMap` owns a review-only Leaflet map, route polyline rendering, ownership overlays, evidence overlays, viewport speed overlays, substrate skeleton/rendering, substrate QA layers, map click state, and review evidence inspectors.
+- `V2Review` does not import main RouteMap, `buildHeatmapLayers`, Supabase, RXON runtime loading, `route_cache`, `route_history`, SegmentInspector, receipt builders, or scoring modules.
+- `V2ReviewMap` does not import main RouteMap, `buildHeatmapLayers`, Supabase, RXON runtime loading, `route_cache`, `route_history`, SegmentInspector, receipt builders, or scoring modules.
+- Existing review query params for substrate QA are already present. Future readiness summaries must not add URL-param, browser-storage, or DB enablement.
+- Adjacent high-risk surfaces remain audit-only: `Index.tsx`, `RouteMap.tsx`, SegmentInspector drawer files, `buildHeatmapLayers`, route-unit heatmap adapter, and coverage readiness helpers.
+
+Safe diagnostic display zones:
+
+- `V2Review` header route-state copy.
+- Worker Progress summary.
+- Summary metric grid.
+- Evidence overlays provider explanation.
+- Source/filter count summaries without changing filters.
+- `ReviewAdminDiagnosticsSection`.
+- `V2SSDiagnosticArtifactViewer`.
+
+Review map danger zones:
+
+- `V2ReviewMap`.
+- Leaflet layer creation.
+- Route polyline rendering.
+- Ownership overlay rendering.
+- Evidence overlay rendering.
+- Viewport speed overlay rendering.
+- Substrate skeleton rendering.
+- Substrate QA layer rendering.
+- Base map peek state.
+- Map click state.
+
+Evidence inspector danger zones:
+
+- `EvidenceOverlayInspectorDetails`.
+- `PinnedEvidenceInspector`.
+- `evidenceOverlayInspectorHtml`.
+- `v2ReviewSubstrateInspectorForFeature`.
+- `cyclistSubstrateInspector`.
+- Selected issue/cue state.
+
+Future allowed inputs:
+
+- Pure readiness summaries already proven in the Test Console.
+- Pure controlled-consumer candidate summaries.
+- Existing review worker progress summary.
+- Existing review result summary counts.
+- Existing viewport provider status explanation.
+- Existing substrate QA status counts.
+- Existing boundary false flags.
+
+Future forbidden inputs:
+
+- RouteMap props or map paint.
+- `buildHeatmapLayers` runtime input.
+- Review map layer state as readiness truth.
+- Review overlay toggle state.
+- Viewport hydration toggle state.
+- Substrate QA toggle state.
+- Evidence inspector selection state.
+- Heatmap display segments as truth.
+- Score outputs as cutover proof.
+- Clicked SegmentInspector payloads or production receiptBuilder output.
+- RXON runtime artifacts.
+- `route_cache` entries.
+- `route_history` reload plans.
+- Supabase/database rows.
+- Browser storage state.
+
+Future guards:
+
+- Explicit diagnostics enablement required before rendering future readiness rows.
+- `/v2-review` remains review/admin oriented.
+- Readiness rows default hidden when diagnostics are disabled.
+- No review map layer coupling.
+- No evidence inspector coupling.
+- Source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, `route_history`, receipts, SegmentInspector, and Supabase imports.
+
+Future copy must say:
+
+- Narrow review diagnostic subsection only.
+- Not runtime route truth.
+- Not live map output.
+- Not review map layer truth.
+- Not route paint.
+- Not score input.
+- Not production coverage.
+- Not runtime cutover.
+- Review map overlays are excluded.
+- Evidence inspectors are excluded.
+
+This phase does not wire `V2Review` or `V2ReviewMap` to new summaries, does not add a second consumer, and does not change review map, overlay, viewport hydration, substrate QA, or evidence inspector behavior.
 
 ## Acceptance For Phase 10J
 
