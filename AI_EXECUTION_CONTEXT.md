@@ -15630,7 +15630,7 @@ The critical behavioral success condition is:
 | **11C — Diagnostic Copy Truth Audit**                | ✅      | Make the readout’s language impossible to misread as live map truth. | Labels clearly say “diagnostic,” “readiness,” “fixture/admin-only,” “not runtime wiring,” and “not route paint.” |
 | **11D — Route Builder Test Console Regression Pack** | ✅      | Lock the first cutover behind tests before touching broader admin panels. | Tests prove exactly one first consumer, component renders admin-only, and source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, and `route_history`. |
 | **11E — Route Relation Panel Readiness Candidate**   | ✅      | Prepare the next diagnostic surface after the Test Console is proven safe. | Audit-only or pure-plan update confirms whether `MainAppShadowRouteRelationPanel` can consume the same summaries without touching scoring, heatmap, receipts, or runtime truth. |
-| **11F — Debug Control Center Candidate Audit**       | ☐      | Decide if broader admin diagnostics can safely consume readiness summaries. | Audit classifies safe panels versus overlay-control danger zones; no runtime wiring unless separately approved. |
+| **11F — Debug Control Center Candidate Audit**       | ✅      | Decide if broader admin diagnostics can safely consume readiness summaries. | Audit classifies safe panels versus overlay-control danger zones; no runtime wiring unless separately approved. |
 | **11G — Route Builder Review Candidate Audit**       | ☐      | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
 | **11H — Raw Evidence Admin Readout Plan**            | ☐      | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
 | **11I — Coverage Readiness Admin Readout Plan**      | ☐      | Plan admin-only coverage/readiness visibility before Vault/RUSA maps. | Coverage rows remain read models; no storage, no viewport map rendering, no route truth. |
@@ -15657,7 +15657,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-11E is complete. The Route Relation Panel remains a later diagnostic candidate with pure readiness metadata and source guards; no runtime consumer was wired.
+11F is complete. Debug Control Center remains a later candidate only for narrow diagnostic readout zones; overlay-control zones are explicitly excluded; no runtime consumer was wired.
 
 ## Checklist
 
@@ -15757,8 +15757,8 @@ The executable inventory lives in:
 | Consumer | Recommendation | Surface | Blast Radius | Truth Risk | Why |
 | --- | --- | --- | --- | --- | --- |
 | `main_app_shadow_test_drawer_diagnostic_output` | `first_cutover_candidate` | admin debug | low | low | Best first consumer. It is admin-only, diagnostic-only, read-only, and already separated from receipts and map paint. |
-| `route_builder_admin_diagnostics` | `later_candidate` | admin debug | medium | low | Safe later, but broader because it includes Debug Control Center and overlay controls. |
 | `main_app_shadow_route_relation_panel` | `later_candidate` | runtime diagnostic | medium | low | Diagnostic-only, but closer to production/builder lane comparison. |
+| `debug_control_center` | `later_candidate` | admin debug | medium | medium | Only safe later as a narrow diagnostic subsection. The broader panel includes overlay controls, evidence filters, and local debug settings. |
 | `v2_review_route_builder_review_diagnostics` | `later_candidate` | builder review | medium | medium | Admin/review oriented, but it owns a map and overlays. |
 | `raw_evidence_overlay_admin_readout` | `later_candidate` | admin debug | low | low | Useful, but fixture-centered and less representative than the Test Console. |
 | `coverage_readiness_admin_diagnostics` | `later_candidate` | admin debug | low | low | Safe, but better as part of the first Test Console readout. |
@@ -15913,6 +15913,81 @@ Future copy must say:
 - Not runtime cutover.
 
 This phase does not choose the second consumer and does not wire the Route Relation Panel to new summaries.
+
+## Phase 11F Debug Control Center Candidate
+
+`debug_control_center` remains a `later_candidate`.
+
+Audit result:
+
+- `DebugControlCenter` is admin-only through the `DevTuningPanel` shell, but it is broader than the Test Console.
+- It consumes debug registry toggles, `DevTuningSettings`, `V2SSActiveDisplayHandoff`, `AdminRuntimeSurfaceViewModel`, viewport substrate debug snapshots, debug overlay state, and evidence source/field filter state.
+- It does not directly import RouteMap, `buildHeatmapLayers`, Supabase, RXON runtime loading, `route_cache`, `route_history`, SegmentInspector, receipt builders, or scoring modules.
+- `DevTuningPanel` and `debug-flags` already use localStorage for debug settings. Future readiness summaries must not use that storage state as readiness truth.
+- Adjacent high-risk surfaces remain audit-only: `Index.tsx`, `RouteMap.tsx`, `V2Review.tsx`, `V2ReviewMap.tsx`, and SegmentInspector drawer files.
+
+Safe diagnostic display zones:
+
+- `AdminRuntimeSurfaceSection`
+- `AdminRuntimeWorkerProgressPanel`
+- `AdminRuntimeEvidencePanel`
+- `RouteEvidenceMapSection` read-only values only
+- `ReviewAdminDiagnosticsSection`
+- `V2SSDiagnosticArtifactViewer`
+
+Overlay-control danger zones:
+
+- `CategorySection`
+- `ToggleRow`
+- `SliderRow`
+- `SubstrateCacheDebugSection`
+- `HpmsDebugSection`
+- Evidence source and field filters
+- Existing DevTuning localStorage settings shell
+- RouteMap debug overlays
+
+Future allowed inputs:
+
+- Pure readiness summaries already proven in the Test Console.
+- Pure controlled-consumer candidate summaries.
+- Admin runtime surface view-model guardrails and counts.
+- Viewport overlay registry descriptors with production disabled.
+- Existing boundary false flags.
+
+Future forbidden inputs:
+
+- RouteMap props or map paint.
+- `buildHeatmapLayers` runtime input.
+- Heatmap display segments as truth.
+- Score outputs as cutover proof.
+- Clicked SegmentInspector payloads or receiptBuilder output.
+- RXON runtime artifacts.
+- `route_cache` entries.
+- `route_history` reload plans.
+- Supabase or database rows.
+- Browser storage state.
+- Overlay toggle state.
+
+Future guards:
+
+- Explicit diagnostics enablement required before rendering any readiness rows.
+- Admin-only DevTuning shell remains required.
+- Readiness rows default hidden when diagnostics are disabled.
+- No overlay toggle coupling.
+- Source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, `route_history`, receipts, SegmentInspector, and Supabase imports.
+
+Future copy must say:
+
+- Narrow diagnostic subsection only.
+- Not runtime route truth.
+- Not live map output.
+- Not route paint.
+- Not score input.
+- Not production coverage.
+- Not runtime cutover.
+- Overlay toggles are excluded.
+
+This phase does not wire DebugControlCenter or DevTuningPanel to new summaries, does not add a second consumer, and does not change overlay behavior.
 
 ## Acceptance For Phase 10J
 
