@@ -15659,7 +15659,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 2B is complete. Phase 2C adds controlled RWGPS geometry resolution for allowlisted curated routes and feeds resolved geometry into the dry-run seed plan without production writes or bulk warming.
+Phase 2C is complete. Phase 2D formalizes the substrate coverage strategy: full-US cyclist substrate is the primary US platform target, while curated route seeding and corridor hydration remain bootstrap/validation/global-fallback paths. International first-load Overpass hydration must normalize into compact cyclist substrate, not raw corridor cache.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15733,6 +15733,17 @@ Phase 2C checkpoint:
 - Mocked allowlisted RWGPS geometry can feed the dry-run seed plan and produce `tile_cache` eligibility while preserving `hpms_tile_cache` state gating.
 - Non-allowlisted RWGPS routes and unsupported source URLs remain blocked; resolver failures fail closed without crashing the dry-run plan.
 - No production writes, bulk warming, real network fetches, migrations, new tables, RouteMap changes, scoring changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
+- Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
+
+Phase 2D checkpoint:
+- Full-US cyclist substrate is declared the primary US strategy.
+- Curated route seeding and corridor envelopes are bootstrap, validation, and warming inputs; they are not the final US coverage boundary.
+- Corridor-on-first-load remains the global fallback for non-US or unknown coverage.
+- First international load may use Overpass or fallback analysis, then normalize into compact cyclist substrate.
+- Second international load should use hydrated cyclist substrate when available.
+- Raw Overpass payloads and old raw corridor cache are not future cyclist substrate without filtering, compaction, stable identity, and source lineage.
+- `route_cache` remains completed-output cache only; `route_history` remains geometry/history context only; RXON remains a receipt/export path only.
+- No production writes, bulk warming, network fetches, migrations, new tables, RouteMap changes, scoring changes, heatmap paint changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
 - Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
 
 ## Checklist
