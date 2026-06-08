@@ -15659,7 +15659,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 0 remains open. A real cold Erie, PA manually drawn route still hangs at fetching candidate roads even though route geometry renders.
+Phase 0 remains open. Phase 0B bounded the real cold Erie, PA manual-route hang into geometry-only, but that is not useful enough. Phase 0C adds a Legacy Analysis fallback so V2/Builder failure can still show roads, turns, and legacy heatmap intelligence while keeping V2 as canonical when it succeeds.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15699,6 +15699,10 @@ Phase 1B checkpoint:
 
 Phase 0B checkpoint:
 - Phase 0B fixes the remaining real cold-route hang at fetching candidate roads for Erie-style drawn routes by bounding live candidate-road fetch and consuming terminal geometry-only/degraded states.
+
+Phase 0C checkpoint:
+- Phase 0C keeps V2/Builder as the preferred route intelligence path, but when V2 ends geometry-only it either reveals a usable saved Legacy Analysis fallback or runs Legacy Analysis on the current drawn/uploaded geometry. This is explicitly display fallback, not canonical V2 truth, route_cache truth, RXON truth, or route_history promotion.
+- Fresh upload/manual/clear route actions now clear stale persisted-route URL query locators (`route`, `event`, `rwgps`, `driver`) so a newly drawn draft does not keep pointing at an unrelated saved route.
 
 ## Checklist
 
