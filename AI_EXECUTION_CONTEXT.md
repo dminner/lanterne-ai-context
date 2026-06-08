@@ -15659,7 +15659,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 2A is complete. Phase 2B resolves seedable curated-route geometry and produces a dry-run seed plan for tile_cache and hpms_tile_cache eligibility without production writes or bulk warming.
+Phase 2B is complete. Phase 2C adds controlled RWGPS geometry resolution for allowlisted curated routes and feeds resolved geometry into the dry-run seed plan without production writes or bulk warming.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15725,6 +15725,14 @@ Phase 2B checkpoint:
 - RWGPS/sourceUrl-only RUSA, USBRS, and RideYrBike routes require future external geometry resolution; source URLs do not imply local seedable geometry.
 - Local fixtures can produce deterministic tile plans when full route geometry is supplied; missing geometry remains blocked.
 - No production writes, bulk warming, network fetches, migrations, new tables, RouteMap changes, scoring changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
+- Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
+
+Phase 2C checkpoint:
+- Added a pure RWGPS route reference parser and external geometry resolver contract for curated route seeding.
+- External geometry resolution is injected and allowlisted by RWGPS route ID; source URLs alone do not become local seedable geometry.
+- Mocked allowlisted RWGPS geometry can feed the dry-run seed plan and produce `tile_cache` eligibility while preserving `hpms_tile_cache` state gating.
+- Non-allowlisted RWGPS routes and unsupported source URLs remain blocked; resolver failures fail closed without crashing the dry-run plan.
+- No production writes, bulk warming, real network fetches, migrations, new tables, RouteMap changes, scoring changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
 - Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
 
 ## Checklist
