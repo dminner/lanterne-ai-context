@@ -15659,7 +15659,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 2D is complete. Phase 2D2 clarifies the unified cyclist substrate layer model: corridor hydration, curated route seeding, full-US hydration, and later full-country hydration all target the same compact `cyclist_substrate` layer. Corridor hydration drops records into the same sandbox; full-country hydration later fills gaps and reconciles compatible records in that same layer. It is not a separate competing corridor layer.
+Phase 2D2 is complete. Phase 2E defines the compact `cyclist_substrate` tile/record contract and proves raw OSM/SpeedRoad-style roads can be projected into normalized cyclist substrate records without production writes, network fetches, RouteMap, scoring, or route_cache truth promotion.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15756,6 +15756,16 @@ Phase 2D2 checkpoint:
 - Old raw corridor cache and broad `tile_cache` OSM road/tag payloads are not future cyclist substrate.
 - Raw Overpass must be normalized, filtered, compacted, and lineage-preserved before becoming cyclist substrate.
 - `route_cache` remains completed-output cache only; `route_history` remains geometry/history context only; RXON remains a receipt/export path only.
+- No production writes, bulk warming, network fetches, migrations, new tables, RouteMap changes, scoring changes, heatmap paint changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
+- Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
+
+Phase 2E checkpoint:
+- Added a pure compact `cyclist_substrate` tile/record contract with deterministic record keys, geometry checksums, source lineage, diagnostics, and compact guardrails.
+- Added pure raw-road/SpeedRoad-style projection into normalized cyclist substrate records.
+- Noisy raw Overpass features are filtered, excluded, or deferred before substrate projection: driveways, parking aisles, crosswalk-only features, incidental foot-only fragments, private access unless route-aligned context, and proposed/construction features.
+- Retained tags are compact and allowlisted: bicycle, foot, access, service, cycleway, surface, shoulder, maxspeed, lanes, bridge, and tunnel.
+- Raw Overpass payloads, broad `tile_cache` OSM road/tag blobs, route_cache, route_history, RXON, RouteMap, display, and heatmap payloads are not embedded in compact substrate records.
+- Corridor hydration and full-country hydration produce the same `cyclist_substrate` record shape and can reconcile by lineage rather than last-write-wins.
 - No production writes, bulk warming, network fetches, migrations, new tables, RouteMap changes, scoring changes, heatmap paint changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
 - Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
 
