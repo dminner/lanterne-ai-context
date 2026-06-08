@@ -15659,14 +15659,14 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 0 is complete. Phase 1A adds a focused cache/API failure contract for the core route analysis path so route_cache, candidate cache, tile_cache, HPMS/DOT, and live road fetch failures classify cleanly, degrade visibly, and do not create mystery hangs or fake success.
+Phase 1A is complete. Phase 1B adds compact cache/API diagnostics and regression coverage so route_cache, candidate cache, tile_cache, live road fetch, HPMS, and DOT failures are visible, bounded, and cannot become fake success.
 
 ## Product-Visible Map Intelligence Plan
 
 | Phase | Status | Product Result | Steps | Accepted When |
 |---|---:|---|---|---|
 | 0 — No-Cache Route-Line Analysis Recovery | ✅ | Uncached routes outside warm regions can analyze and safety-paint instead of hanging at fetching candidate roads. | 0.1 audit route-load/candidate-road fetch state · 0.2 identify why cache miss blocks progress · 0.3 ensure tile-cache miss/failure falls through to live road fetch · 0.4 make cache write failures non-blocking after live fetch · 0.5 add bounded failure/degraded state for road fetch failure · 0.6 preserve purple geometry-only line when analysis fails · 0.7 add tests for cold-cache success and cold-cache failure. | Small uncached routes outside South Jersey can fetch candidate roads live and paint; if road fetch fails, the app exits the loader, keeps geometry visible, and shows road-intelligence-unavailable state. |
-| 1 — Cache Failure Contract | ◐ | Cache/API failures stop becoming mystery hangs. | 1.1 inventory tile_cache, hpms_tile_cache, route_cache, substrate/evidence cache calls · 1.2 define hit/miss/stale/timeout/rate_limited/backend_down/invalid_payload states · 1.3 add lightweight retry where appropriate · 1.4 add non-blocking write behavior · 1.5 expose admin diagnostics · 1.6 regression-test no silent fake success. | Cache and proxy failures classify cleanly, retry once where safe, degrade visibly, and never impersonate successful analysis. |
+| 1 — Cache Failure Contract | ✅ | Cache/API failures stop becoming mystery hangs. | 1.1 inventory tile_cache, hpms_tile_cache, route_cache, substrate/evidence cache calls · 1.2 define hit/miss/stale/timeout/rate_limited/backend_down/invalid_payload states · 1.3 add lightweight retry where appropriate · 1.4 add non-blocking write behavior · 1.5 expose admin diagnostics · 1.6 regression-test no silent fake success. | Cache and proxy failures classify cleanly, retry once where safe, degrade visibly, and never impersonate successful analysis. |
 | 2 — Curated Route Cache Seeding | ☐ | RUSA/events/USBRS/RideYrBike target routes can be warmed first without blocking arbitrary user routes. | 2.1 define seed manifest shape · 2.2 choose initial collections/routes · 2.3 seed road tiles and HPMS/evidence where available · 2.4 report coverage by route/region · 2.5 validate warm-cache timing · 2.6 keep arbitrary cold user routes on live-fetch fallback. | Curated routes can be pre-warmed and verified, while non-curated uploads/draws still attempt live analysis rather than hanging. |
 | 3 — Cyclist Substrate Cache Expansion | ☐ | Road/path substrate cache expands beyond Medford/Batsto. | 3.1 define regions · 3.2 hydrate substrate cache for multiple real regions · 3.3 preserve stable family/corridor identity · 3.4 validate geometry/checksum/freshness · 3.5 expose readiness/failure diagnostics · 3.6 test routes across regions. | Multiple real regions hydrate substrate with stable identity, geometry, freshness, confidence, and clear blocked/partial states. |
 | 4 — Main-App Viewport Heatmap Intelligence | ☐ | Main app gains V2-review-style viewport intelligence for speed, traffic, bike support, risk, and corridor inspection. | 4.1 build pure viewport layer data bridge · 4.2 define speed/traffic/bike/risk/evidence-quality records · 4.3 group records by road/path corridor · 4.4 add admin/dev layer switcher · 4.5 add corridor click payload · 4.6 source-guard RouteMap/display/cache artifacts from becoming truth. | Admin/dev main app can flip viewport intelligence layers and click corridors without changing route paint, scoring, RouteMap truth, route_cache, route_history, or RXON. |
@@ -15688,7 +15688,14 @@ Phase 1A checkpoint:
 - Tile cache writes remain fire-and-forget and non-blocking.
 - Route analysis IO metrics now include compact cache-failure diagnostics for route_cache, tile_cache, live road fetch, HPMS, and DOT.
 - HPMS/DOT enrichment remains fail-open: unavailable traffic enrichment preserves fallback/missing evidence and does not mark fallback as official selected truth.
-- Phase 1 remains partial until broader admin diagnostics and wider regression coverage are accepted.
+- Phase 1A left Phase 1 partial until admin diagnostics and wider regression coverage were accepted.
+
+Phase 1B checkpoint:
+- Added a structured admin-safe cache/API diagnostic summary for route_cache, candidate cache, tile_cache, live road fetch, HPMS, DOT, warnings, and route-analysis outcome.
+- Exposed the compact read-only summary in `MainAppShadowTestDrawer` behind the existing admin Test Console and diagnostics switch; no RouteMap, heatmap paint, scoring, RXON, storage, `route_cache`, or `route_history` runtime source is used.
+- Kept `Index.tsx` plumbing to a read-only `activeGpxAnalysis.ioMetrics.cacheFailureDiagnostics` prop pass at the existing drawer mounts.
+- Added regression coverage for cache-summary guardrails, geometry-only/no-fake-paint outcomes, candidate cache empty/unavailable fallback, route_cache not acting as road candidate truth, and admin readout visibility/copy.
+- Phase 1 is accepted: cache/API failures are classified, visible in an admin/test surface, bounded, and guarded against fake success.
 
 ## Checklist
 
