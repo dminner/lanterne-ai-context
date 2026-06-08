@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-10G is complete. Phase 10H adds real-shaped global unit input fixtures without runtime wiring.
+10H is complete. Phase 10I adds a pure coverage readiness gate for viewport and corpus read models.
 
 ## Checklist
 
@@ -15637,7 +15637,7 @@ The critical behavioral success condition is:
 | **10F — Route Unit → Heatmap Adapter**          | ✅      | Make route units capable of feeding today’s heatmap without rewriting RouteMap. | Pure adapter converts `LanterneRouteUnit` into current truth-run/heatmap-compatible shape. |
 | **10G — Raw Evidence Overlay Fixtures**         | ✅      | Prove speed, traffic, shoulder, bike infra, surface, and hazards can appear as raw layers separate from safety paint. | Fixture tests show raw evidence overlays without letting them become headline risk truth. |
 | **10H — Global Unit Real-Input Integration**    | ✅      | Stop feeding global units only synthetic toy data.           | `GlobalUnitBuilder` accepts real-ish substrate/evidence fixtures with stable IDs, checksums, freshness, and traceability. |
-| **10I — Coverage / Viewport Readiness Gate**    | ☐      | Decide whether global-unit coverage is ready for Vault/RUSA/corpus maps. | Coverage rows can be queried/displayed as read-model inputs without becoming route truth. |
+| **10I — Coverage / Viewport Readiness Gate**    | ✅      | Decide whether global-unit coverage is ready for Vault/RUSA/corpus maps. | Coverage rows can be queried/displayed as read-model inputs without becoming route truth. |
 | **10J — Controlled Consumer Cutover Plan**      | ☐      | Pick one runtime consumer to move first, with rollback rules. | One narrow consumer is chosen before any real RouteMap or heatmap wiring. |
 
 
