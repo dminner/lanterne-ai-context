@@ -15659,7 +15659,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 2C is complete. Phase 2D formalizes the substrate coverage strategy: full-US cyclist substrate is the primary US platform target, while curated route seeding and corridor hydration remain bootstrap/validation/global-fallback paths. International first-load Overpass hydration must normalize into compact cyclist substrate, not raw corridor cache.
+Phase 2D is complete. Phase 2D2 clarifies the unified cyclist substrate layer model: corridor hydration, curated route seeding, full-US hydration, and later full-country hydration all target the same compact `cyclist_substrate` layer. Corridor hydration drops records into the same sandbox; full-country hydration later fills gaps and reconciles compatible records in that same layer. It is not a separate competing corridor layer.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15742,6 +15742,19 @@ Phase 2D checkpoint:
 - First international load may use Overpass or fallback analysis, then normalize into compact cyclist substrate.
 - Second international load should use hydrated cyclist substrate when available.
 - Raw Overpass payloads and old raw corridor cache are not future cyclist substrate without filtering, compaction, stable identity, and source lineage.
+- `route_cache` remains completed-output cache only; `route_history` remains geometry/history context only; RXON remains a receipt/export path only.
+- No production writes, bulk warming, network fetches, migrations, new tables, RouteMap changes, scoring changes, heatmap paint changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
+- Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
+
+Phase 2D2 checkpoint:
+- One compact `cyclist_substrate` layer is clarified as the only future cyclist substrate layer.
+- Corridor hydration writes normalized records into the same layer; it does not create a separate corridor runtime layer.
+- Curated route seeding, manual fixtures, full-US hydration, and later full-country hydration write the same normalized record shape into that layer.
+- Full-country hydration fills gaps and reconciles existing records in the same layer through deterministic insert, merge, refresh, schema-conflict, and geometry-conflict outcomes.
+- Hydration method, coverage completeness, freshness, lineage, and diagnostics are metadata for reconciliation, not competing runtime authority tiers.
+- No last-write-wins: compatible records merge/refresh with lineage, while schema and geometry conflicts are flagged.
+- Old raw corridor cache and broad `tile_cache` OSM road/tag payloads are not future cyclist substrate.
+- Raw Overpass must be normalized, filtered, compacted, and lineage-preserved before becoming cyclist substrate.
 - `route_cache` remains completed-output cache only; `route_history` remains geometry/history context only; RXON remains a receipt/export path only.
 - No production writes, bulk warming, network fetches, migrations, new tables, RouteMap changes, scoring changes, heatmap paint changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
 - Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
