@@ -15621,45 +15621,9 @@ The critical behavioral success condition is:
 - ◐ Partially completed, not accepted
 - ⏸ Intentionally paused
 
-
-
-
-
-| Phase                                                | Status | Plain-English Purpose                                        | Accepted When                                                |
-| ---------------------------------------------------- | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| **11A — Test Console Diagnostic Readout Cutover**    | ✅      | Wire the first tiny admin-only consumer to pure readiness/cutover summaries. | `MainAppShadowTestDrawer` shows a guarded diagnostic readout using pure summaries only; no RouteMap, heatmap, scoring, storage, RXON, `route_cache`, or `route_history` imports. |
-| **11B — Test Console Admin Guard / Kill Switch**     | ✅      | Make sure the new readout cannot leak into normal rider UX.  | Readout is dev/admin gated, defaults off unless explicitly enabled, and has tests proving it stays hidden outside admin/test surfaces. |
-| **11C — Diagnostic Copy Truth Audit**                | ✅      | Make the readout’s language impossible to misread as live map truth. | Labels clearly say “diagnostic,” “readiness,” “fixture/admin-only,” “not runtime wiring,” and “not route paint.” |
-| **11D — Route Builder Test Console Regression Pack** | ✅      | Lock the first cutover behind tests before touching broader admin panels. | Tests prove exactly one first consumer, component renders admin-only, and source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, and `route_history`. |
-| **11E — Route Relation Panel Readiness Candidate**   | ✅      | Prepare the next diagnostic surface after the Test Console is proven safe. | Audit-only or pure-plan update confirms whether `MainAppShadowRouteRelationPanel` can consume the same summaries without touching scoring, heatmap, receipts, or runtime truth. |
-| **11F — Debug Control Center Candidate Audit**       | ✅      | Decide if broader admin diagnostics can safely consume readiness summaries. | Audit classifies safe panels versus overlay-control danger zones; no runtime wiring unless separately approved. |
-| **11G — Route Builder Review Candidate Audit**       | ✅      | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
-| **11H — Raw Evidence Admin Readout Plan**            | ✅      | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
-| **11I — Coverage Readiness Admin Readout Plan**      | ✅      | Plan admin-only coverage/readiness visibility before Vault/RUSA maps. | Coverage rows remain read models; no storage, no viewport map rendering, no route truth. |
-| **11J — Second Consumer Cutover Decision**           | ✅      | Choose exactly one second runtime consumer after 11A–11D prove safe. | One next target is chosen from the candidate inventory, with rollback, tests, and explicit non-goals. |
-
-| Blocked / Not First Surface                    | Status | Why                                                          |
-| ---------------------------------------------- | ------ | ------------------------------------------------------------ |
-| **Main RouteMap safety heatmap**               | 🚫      | Rider-facing paint; high truth risk. EXEC-027 explicitly marks it not first. |
-| **RouteMap layer rendering**                   | 🚫      | Main map renderer; high blast radius.                        |
-| **`buildHeatmapLayers` runtime input cutover** | 🚫      | This is the actual heatmap cutover, not a diagnostic consumer. |
-| **SegmentInspector clicked payload truth**     | 🚫      | Inspector is a trust surface and must not become a second analysis engine. |
-| **`route_history` reload**                     | 🚫      | Reload stays geometry-first.                                 |
-| **`route_cache` hydration**                    | 🚫      | It can exist operationally, but must never impersonate current truth. |
-| **RXON runtime loading**                       | 🚫      | RXON runtime loading remains disabled.                       |
-| **Global-unit / coverage storage**             | 🚫      | Future persistence phase only.                               |
-| **Vault/RUSA/corpus viewport map**             | 🚫      | Needs storage/read-model and privacy proof first.            |
-| **Rider-facing raw evidence overlays**         | 🚫      | Raw overlays must prove admin-only semantics first.          |
-
-
-
-
-
-
-
 ## Current Execution Note
 
-Phase 2E is complete. Phase 2F defines the storage-agnostic `cyclist_substrate` repository boundary and proves idempotent dry-run writes with a memory adapter, using insert/merge/refresh/conflict outcomes without production writes, migrations, Supabase writes, RouteMap, scoring, or route_cache truth promotion.
+Phase 2F is complete. Phase 2G defines the storage row contract and schema plan for compact `cyclist_substrate` records, including deterministic keys, row mappers, upsert planning, indexes, RLS/write-policy plan, and a docs-only SQL plan without production writes or applied migrations.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15771,6 +15735,7 @@ Phase 2E checkpoint:
 
 Phase 2F checkpoint:
 - Added a storage-agnostic `cyclist_substrate` repository contract for tile reads and dry-run/memory-only writes.
+- Kept the repository boundary explicit: Phase 2F is dry-run and memory-only, with no production writes or Supabase adapter.
 - Added a memory repository adapter that uses the same-layer hydration reconciliation policy for insert, merge, refresh, keep-existing, schema-conflict, geometry-conflict, blocked, and invalid outcomes.
 - Added a dry-run write plan helper for projected compact substrate tiles.
 - Idempotent insert/merge/refresh/conflict behavior is proven without last-write-wins.
@@ -15779,20 +15744,76 @@ Phase 2F checkpoint:
 - No production writes, no Supabase writes, no DB writes, no migrations/new tables, no network fetches, no RouteMap changes, no scoring changes, no heatmap paint changes, no RXON runtime loading, no route_history truth promotion, and no route_cache road/substrate truth promotion.
 - Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
 
+Phase 2G checkpoint:
+- Added a pure storage row contract for compact `cyclist_substrate` records.
+- Added record-to-storage-row and storage-row-to-record mappers with compact encoded geometry.
+- Added storage row validation and tile summary row planning.
+- Added a pure storage upsert plan using deterministic conflict target `schema_version`, `tile_key`, and `record_key`.
+- Added a docs-only storage schema plan with planned tables, primary key, indexes, RLS/read policy, and service/admin-only write policy.
+- Recommended first production shape is record-level `cyclist_substrate_records`, not old raw tile blob storage.
+- Upsert planning preserves hydration lineage, supports insert/merge/refresh/keep-existing/conflict outcomes, and forbids last-write-wins.
+- No production writes, no Supabase writes, no DB writes, no migrations applied, no new tables, no network fetches, no RouteMap changes, no scoring changes, no heatmap paint changes, no RXON runtime loading, no route_history truth promotion, and no route_cache road/substrate truth promotion.
+- Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
+
 ## Checklist
 
-| Phase                                           | Status | Plain-English Purpose                                        | Accepted When                                                |
-| ----------------------------------------------- | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| **10B — Core Layer Spine Audit**                | ✅      | Figure out what is real, scaffold, test-only, legacy, or missing. | Codex reports substrate, evidence, global-unit, and heatmap reality without changing code. |
-| **10C — Heatmap Layer Source Registry**         | ✅      | Make every map/heatmap layer declare what it is allowed to believe. | Registry + tests separate raw evidence, calculated risk, display-only, debug, aggregate, and coverage layers. |
-| **N1 — Visible V1/V2/V2SS Naming Cleanup**      | ✅      | Remove internal version archaeology from the map/test/admin experience. | Visible UI says Route Builder / Legacy Analysis / Builder Review; no runtime behavior changes. |
-| **10D — Cyclist Substrate Readiness Contract**  | ✅      | Decide when the road/path skeleton is actually usable.       | Pure helper classifies substrate as `ready_for_viewport_skeleton`, `ready_for_global_unit_input`, `partial`, or `blocked`. |
-| **10E — Evidence Substrate Readiness Contract** | ✅      | Separate reusable evidence descriptors from route-only evidence blobs. | Pure helper proves lineage, provenance, confidence, selected/rejected/missing/fallback state are preserved. |
-| **10F — Route Unit → Heatmap Adapter**          | ✅      | Make route units capable of feeding today’s heatmap without rewriting RouteMap. | Pure adapter converts `LanterneRouteUnit` into current truth-run/heatmap-compatible shape. |
-| **10G — Raw Evidence Overlay Fixtures**         | ✅      | Prove speed, traffic, shoulder, bike infra, surface, and hazards can appear as raw layers separate from safety paint. | Fixture tests show raw evidence overlays without letting them become headline risk truth. |
-| **10H — Global Unit Real-Input Integration**    | ✅      | Stop feeding global units only synthetic toy data.           | `GlobalUnitBuilder` accepts real-ish substrate/evidence fixtures with stable IDs, checksums, freshness, and traceability. |
-| **10I — Coverage / Viewport Readiness Gate**    | ✅      | Decide whether global-unit coverage is ready for Vault/RUSA/corpus maps. | Coverage rows can be queried/displayed as read-model inputs without becoming route truth. |
-| **10J — Controlled Consumer Cutover Plan**      | ✅      | Pick one runtime consumer to move first, with rollback rules. | One narrow admin/debug consumer is chosen before any real RouteMap or heatmap wiring. |
+### Section 10 — Core Layer And Cutover Readiness
+
+| Phase | Status | Plain-English Purpose | Accepted When |
+| --- | --- | --- | --- |
+| **10B — Core Layer Spine Audit** | ✅ | Figure out what is real, scaffold, test-only, legacy, or missing. | Codex reports substrate, evidence, global-unit, and heatmap reality without changing code. |
+| **10C — Heatmap Layer Source Registry** | ✅ | Make every map/heatmap layer declare what it is allowed to believe. | Registry + tests separate raw evidence, calculated risk, display-only, debug, aggregate, and coverage layers. |
+| **N1 — Visible V1/V2/V2SS Naming Cleanup** | ✅ | Remove internal version archaeology from the map/test/admin experience. | Visible UI says Route Builder / Legacy Analysis / Builder Review; no runtime behavior changes. |
+| **10D — Cyclist Substrate Readiness Contract** | ✅ | Decide when the road/path skeleton is actually usable. | Pure helper classifies substrate as `ready_for_viewport_skeleton`, `ready_for_global_unit_input`, `partial`, or `blocked`. |
+| **10E — Evidence Substrate Readiness Contract** | ✅ | Separate reusable evidence descriptors from route-only evidence blobs. | Pure helper proves lineage, provenance, confidence, selected/rejected/missing/fallback state are preserved. |
+| **10F — Route Unit -> Heatmap Adapter** | ✅ | Make route units capable of feeding today’s heatmap without rewriting RouteMap. | Pure adapter converts `LanterneRouteUnit` into current truth-run/heatmap-compatible shape. |
+| **10G — Raw Evidence Overlay Fixtures** | ✅ | Prove speed, traffic, shoulder, bike infra, surface, and hazards can appear as raw layers separate from safety paint. | Fixture tests show raw evidence overlays without letting them become headline risk truth. |
+| **10H — Global Unit Real-Input Integration** | ✅ | Stop feeding global units only synthetic toy data. | `GlobalUnitBuilder` accepts real-ish substrate/evidence fixtures with stable IDs, checksums, freshness, and traceability. |
+| **10I — Coverage / Viewport Readiness Gate** | ✅ | Decide whether global-unit coverage is ready for Vault/RUSA/corpus maps. | Coverage rows can be queried/displayed as read-model inputs without becoming route truth. |
+| **10J — Controlled Consumer Cutover Plan** | ✅ | Pick one runtime consumer to move first, with rollback rules. | One narrow admin/debug consumer is chosen before any real RouteMap or heatmap wiring. |
+
+### Section 11 — Diagnostic Consumer Cutover
+
+| Phase | Status | Plain-English Purpose | Accepted When |
+| --- | --- | --- | --- |
+| **11A — Test Console Diagnostic Readout Cutover** | ✅ | Wire the first tiny admin-only consumer to pure readiness/cutover summaries. | `MainAppShadowTestDrawer` shows a guarded diagnostic readout using pure summaries only; no RouteMap, heatmap, scoring, storage, RXON, `route_cache`, or `route_history` imports. |
+| **11B — Test Console Admin Guard / Kill Switch** | ✅ | Make sure the new readout cannot leak into normal rider UX. | Readout is dev/admin gated, defaults off unless explicitly enabled, and has tests proving it stays hidden outside admin/test surfaces. |
+| **11C — Diagnostic Copy Truth Audit** | ✅ | Make the readout's language impossible to misread as live map truth. | Labels clearly say "diagnostic," "readiness," "fixture/admin-only," "not runtime wiring," and "not route paint." |
+| **11D — Route Builder Test Console Regression Pack** | ✅ | Lock the first cutover behind tests before touching broader admin panels. | Tests prove exactly one first consumer, component renders admin-only, and source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, and `route_history`. |
+| **11E — Route Relation Panel Readiness Candidate** | ✅ | Prepare the next diagnostic surface after the Test Console is proven safe. | Audit-only or pure-plan update confirms whether `MainAppShadowRouteRelationPanel` can consume the same summaries without touching scoring, heatmap, receipts, or runtime truth. |
+| **11F — Debug Control Center Candidate Audit** | ✅ | Decide if broader admin diagnostics can safely consume readiness summaries. | Audit classifies safe panels versus overlay-control danger zones; no runtime wiring unless separately approved. |
+| **11G — Route Builder Review Candidate Audit** | ✅ | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
+| **11H — Raw Evidence Admin Readout Plan** | ✅ | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
+| **11I — Coverage Readiness Admin Readout Plan** | ✅ | Plan admin-only coverage/readiness visibility before Vault/RUSA maps. | Coverage rows remain read models; no storage, no viewport map rendering, no route truth. |
+| **11J — Second Consumer Cutover Decision** | ✅ | Choose exactly one second runtime consumer after 11A-11D prove safe. | One next target is chosen from the candidate inventory, with rollback, tests, and explicit non-goals. |
+
+### Section 12 — Route Relation Production Readiness
+
+| Phase | Status | Plain-English Purpose | Accepted When |
+| --- | --- | --- | --- |
+| **12A — Route Relation Production Migration Readiness** | ✅ | Define the production migration readiness checklist and release plan. | Production blockers, preflight checks, rollback plan, smoke checks, and no-app-write boundaries are documented without executing production SQL. |
+| **12B — Project-Local Migration Stack Audit** | ✅ | Audit why the project-local migration stack could not rehearse Route Relation cleanly. | The local migration failure and broader migration-history drift are reproduced, documented, and handed to a dedicated repair path. |
+| **12B.1 — Project-Local Migration Stack Reconciliation** | ✅ | Reconcile local migration history against the production schema snapshot before repair. | Missing/drifted objects are inventoried and a local/disposable hybrid repair strategy is recommended without changing production. |
+| **12B.2 — Project-Local Migration Stack Repair** | ✅ | Repair the local/disposable migration stack enough to support full rehearsal. | A copied local/disposable stack boots and resets cleanly, representative repaired objects exist, and Route Relation tables remain absent until the candidate is appended. |
+| **12C — Full-Stack Route Relation Migration Rehearsal** | ✅ | Rehearse the repaired project-local stack plus the Route Relation migration candidate. | The candidate applies and reruns in a copied local/disposable workdir, Phase 11 fixture suites pass, and no production SQL is executed. |
+| **12D — Route Relation Production Migration Preflight** | ✅ | Finalize production preflight before any execution planning. | Catalog, RLS, rollback, smoke-test, and stop-condition checks show readiness for controlled execution planning, not execution. |
+| **12E — Route Relation Controlled Production Migration Plan** | ✅ | Define the controlled production execution, rollback, and smoke-test sequence. | The execution plan is documented as a future explicitly approved sequence; app writes, lookup, reload, and main-pane integration remain blocked. |
+| **12F — Route Relation Production Migration Approval Packet** | ✅ | Package the final go/no-go decision materials. | Evidence, exact artifact rules, approval gates, rollback posture, and post-decision paths are documented; production execution remains unapproved unless the approval block is completed. |
+
+### Blocked / Not First Surface
+
+| Surface | Status | Why |
+| --- | --- | --- |
+| **Main RouteMap safety heatmap** | 🚫 | Rider-facing paint; high truth risk. EXEC-027 explicitly marks it not first. |
+| **RouteMap layer rendering** | 🚫 | Main map renderer; high blast radius. |
+| **`buildHeatmapLayers` runtime input cutover** | 🚫 | This is the actual heatmap cutover, not a diagnostic consumer. |
+| **SegmentInspector clicked payload truth** | 🚫 | Inspector is a trust surface and must not become a second analysis engine. |
+| **`route_history` reload** | 🚫 | Reload stays geometry-first. |
+| **`route_cache` hydration** | 🚫 | It can exist operationally, but must never impersonate current truth. |
+| **RXON runtime loading** | 🚫 | RXON runtime loading remains disabled. |
+| **Global-unit / coverage storage** | 🚫 | Future persistence phase only. |
+| **Vault/RUSA/corpus viewport map** | 🚫 | Needs storage/read-model and privacy proof first. |
+| **Rider-facing raw evidence overlays** | 🚫 | Raw overlays must prove admin-only semantics first. |
 
 
 ---
@@ -44933,6 +44954,221 @@ No scoring formulas, constants, weights, risk math, AADT logic, shoulder logic, 
 15Q — expose the evidence-readiness receipt in the diagnostic worker/report lane, still unselected and read-only.
 
 If read-only Nuremberg config becomes available first, rerun the live evidence smoke and include the readiness receipt in that smoke output.
+
+
+---
+
+## Source File: docs/04-execution/exec-032-cyclist_substrate_storage_schema_plan.md
+
+# EXEC-032 Cyclist Substrate Storage Schema Plan
+
+**Status:** planned only, not applied
+**Date:** 2026-06-08
+**Related:** EXEC-026 Phase 2G, Phase 2D2, Phase 2E, Phase 2F
+
+## Scope
+
+This document defines the planned storage shape for compact `cyclist_substrate` records.
+
+It is a docs-only schema plan. It is not an active migration, does not create production tables, does not apply SQL, does not write Supabase, does not backfill records, does not hydrate the full US, and does not enable app runtime writes.
+
+## Storage Model
+
+Recommended first table:
+
+- `cyclist_substrate_records`
+
+Optional future tables:
+
+- `cyclist_substrate_tile_summaries`
+- `cyclist_substrate_hydration_runs`
+
+The first production shape should be record-level, not an old raw tile blob. Record-level rows allow deterministic idempotent reconciliation:
+
+- insert missing records,
+- merge compatible hydration lineage,
+- refresh fresher compatible records,
+- keep existing compatible records,
+- flag schema conflicts,
+- flag geometry conflicts.
+
+No last-write-wins behavior is allowed.
+
+## Primary Key And Conflict Target
+
+Recommended primary key and upsert conflict target:
+
+- `schema_version`
+- `tile_key`
+- `record_key`
+
+This target keeps the storage row deterministic while the ingestion planner still performs same-layer reconciliation by logical record identity, geometry checksum, schema version, freshness, and hydration lineage.
+
+## Planned Columns
+
+Recommended columns for `cyclist_substrate_records`:
+
+- `schema_version text not null`
+- `tile_key text not null`
+- `record_key text not null`
+- `country_code text null`
+- `osm_way_id bigint null`
+- `family_key text not null`
+- `display_label text not null`
+- `name text null`
+- `ref text null`
+- `highway text null`
+- `domain text not null`
+- `access text not null`
+- `one_way text not null`
+- `geometry_encoded text not null`
+- `geometry_checksum text not null`
+- `retained_tags_json jsonb not null default '{}'::jsonb`
+- `lineage_json jsonb not null default '[]'::jsonb`
+- `diagnostics_json jsonb not null default '[]'::jsonb`
+- `source_methods text[] not null default '{}'::text[]`
+- `generated_at timestamptz null`
+- `refreshed_at timestamptz null`
+- `created_at timestamptz not null default now()`
+- `updated_at timestamptz not null default now()`
+
+## Geometry Storage
+
+Preferred first geometry format:
+
+- `geometry_encoded text`
+
+This uses the existing Google encoded polyline helper. It is compact, pure, browser-safe, and already used by route persistence and curated route dry-run helpers.
+
+PostGIS geometry/geography remains useful for future spatial queries, but it should not be required for the first `cyclist_substrate` storage contract. If later needed, add a generated or separately maintained geometry column through a dedicated migration phase.
+
+## Lineage Storage
+
+Preferred first lineage format:
+
+- `lineage_json jsonb`
+- `source_methods text[]`
+
+This preserves corridor first-load Overpass, curated seed, manual fixture, full-US import, and full-country import lineage in the same record row. A future `cyclist_substrate_hydration_runs` table can normalize run metadata if production ingestion volume requires it.
+
+## Recommended Indexes
+
+Recommended indexes:
+
+- `cyclist_substrate_records(tile_key)`
+- `cyclist_substrate_records(country_code, tile_key)`
+- `cyclist_substrate_records(osm_way_id)`
+- `cyclist_substrate_records(family_key)`
+- `cyclist_substrate_records(domain)`
+- `cyclist_substrate_records using gin(source_methods)`
+- `cyclist_substrate_records(refreshed_at desc)`
+
+## RLS And Write Policy Plan
+
+Planned RLS policy:
+
+- Enable RLS on `cyclist_substrate_records`.
+- Allow anon/authenticated reads only if the query shape matches the current cache policy and is cost-safe.
+- Allow writes only through service-role/admin/edge ingest paths.
+- Deny browser/client direct insert, update, and delete.
+- Do not use rider-facing UI, RouteMap, heatmap display segments, SegmentInspector payloads, receipts, `route_cache`, `route_history`, or RXON as storage truth.
+
+## SQL Draft
+
+This SQL is intentionally not in `supabase/migrations`.
+
+```sql
+-- Docs-only draft. Do not execute without an approved migration phase.
+
+create table if not exists public.cyclist_substrate_records (
+  schema_version text not null,
+  tile_key text not null,
+  record_key text not null,
+  country_code text null,
+  osm_way_id bigint null,
+  family_key text not null,
+  display_label text not null,
+  name text null,
+  ref text null,
+  highway text null,
+  domain text not null check (domain in ('motor_road', 'safe_path', 'context', 'unknown')),
+  access text not null check (access in ('public', 'private', 'restricted', 'unknown')),
+  one_way text not null check (one_way in ('yes', '-1', 'no', 'unknown')),
+  geometry_encoded text not null,
+  geometry_checksum text not null,
+  retained_tags_json jsonb not null default '{}'::jsonb,
+  lineage_json jsonb not null default '[]'::jsonb,
+  diagnostics_json jsonb not null default '[]'::jsonb,
+  source_methods text[] not null default '{}'::text[],
+  generated_at timestamptz null,
+  refreshed_at timestamptz null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (schema_version, tile_key, record_key)
+);
+
+create index if not exists cyclist_substrate_records_tile_key_idx
+  on public.cyclist_substrate_records (tile_key);
+
+create index if not exists cyclist_substrate_records_country_tile_idx
+  on public.cyclist_substrate_records (country_code, tile_key);
+
+create index if not exists cyclist_substrate_records_osm_way_idx
+  on public.cyclist_substrate_records (osm_way_id);
+
+create index if not exists cyclist_substrate_records_family_idx
+  on public.cyclist_substrate_records (family_key);
+
+create index if not exists cyclist_substrate_records_domain_idx
+  on public.cyclist_substrate_records (domain);
+
+create index if not exists cyclist_substrate_records_source_methods_gin_idx
+  on public.cyclist_substrate_records using gin (source_methods);
+
+create index if not exists cyclist_substrate_records_refreshed_idx
+  on public.cyclist_substrate_records (refreshed_at desc);
+
+alter table public.cyclist_substrate_records enable row level security;
+
+-- Future policy sketch only:
+-- create policy "cyclist substrate read"
+--   on public.cyclist_substrate_records for select
+--   using (true);
+--
+-- Writes should be service/admin only. Do not add browser-client insert,
+-- update, or delete policies in the first migration.
+```
+
+## Guardrails
+
+- No production writes.
+- No Supabase writes.
+- No DB writes.
+- No migrations applied.
+- No new tables created in this phase.
+- No network fetches.
+- No raw Overpass blob storage.
+- No old broad `tile_cache` roads_json storage as cyclist substrate.
+- No `route_cache`, `route_history`, RXON, RouteMap, heatmap display, SegmentInspector, or receipt truth.
+- No last-write-wins.
+- Arbitrary cold routes remain live-fetch capable.
+- fallback analysis remains a product safety net, not substrate truth.
+
+## Migration Readiness Checklist
+
+Before a real migration phase:
+
+- [ ] Confirm final table and index names.
+- [ ] Confirm production schema ordering.
+- [ ] Confirm RLS read cost and policy shape.
+- [ ] Confirm service/admin write path owner.
+- [ ] Confirm no browser direct writes.
+- [ ] Confirm rollback approach.
+- [ ] Confirm no backfill in table-creation migration.
+- [ ] Confirm row mapper round-trip tests pass.
+- [ ] Confirm upsert planning tests pass.
+- [ ] Confirm compact geometry precision is acceptable.
+- [ ] Confirm hydration lineage retention and conflict behavior.
 
 
 ---
