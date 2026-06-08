@@ -15626,7 +15626,7 @@ The critical behavioral success condition is:
 | Phase                                                | Status | Plain-English Purpose                                        | Accepted When                                                |
 | ---------------------------------------------------- | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | **11A — Test Console Diagnostic Readout Cutover**    | ✅      | Wire the first tiny admin-only consumer to pure readiness/cutover summaries. | `MainAppShadowTestDrawer` shows a guarded diagnostic readout using pure summaries only; no RouteMap, heatmap, scoring, storage, RXON, `route_cache`, or `route_history` imports. |
-| **11B — Test Console Admin Guard / Kill Switch**     | ☐      | Make sure the new readout cannot leak into normal rider UX.  | Readout is dev/admin gated, defaults off unless explicitly enabled, and has tests proving it stays hidden outside admin/test surfaces. |
+| **11B — Test Console Admin Guard / Kill Switch**     | ✅      | Make sure the new readout cannot leak into normal rider UX.  | Readout is dev/admin gated, defaults off unless explicitly enabled, and has tests proving it stays hidden outside admin/test surfaces. |
 | **11C — Diagnostic Copy Truth Audit**                | ☐      | Make the readout’s language impossible to misread as live map truth. | Labels clearly say “diagnostic,” “readiness,” “fixture/admin-only,” “not runtime wiring,” and “not route paint.” |
 | **11D — Route Builder Test Console Regression Pack** | ☐      | Lock the first cutover behind tests before touching broader admin panels. | Tests prove exactly one first consumer, component renders admin-only, and source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, and `route_history`. |
 | **11E — Route Relation Panel Readiness Candidate**   | ☐      | Prepare the next diagnostic surface after the Test Console is proven safe. | Audit-only or pure-plan update confirms whether `MainAppShadowRouteRelationPanel` can consume the same summaries without touching scoring, heatmap, receipts, or runtime truth. |
@@ -15657,7 +15657,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-11A is complete. The Route Builder Test Console now shows a guarded admin-only diagnostic readout from pure cutover summaries.
+11B is complete. The Route Builder Test Console cutover readout is behind drawer visibility, admin surface, and explicit diagnostics enablement.
 
 ## Checklist
 
