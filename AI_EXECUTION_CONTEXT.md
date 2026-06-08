@@ -15659,7 +15659,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 0 and Phase 1 are accepted. Phase 2A starts curated route cache seeding by defining the seed manifest, cache target policy, and guardrails for RUSA/events/USBRS/RideYrBike routes without production writes or bulk seeding.
+Phase 2A is complete. Phase 2B resolves seedable curated-route geometry and produces a dry-run seed plan for tile_cache and hpms_tile_cache eligibility without production writes or bulk warming.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15717,6 +15717,14 @@ Phase 2A checkpoint:
 - Added seed target policy: `tile_cache` is first ready target when geometry/bounds exist; `hpms_tile_cache` is conditional on supported US state metadata; `route_cache` is blocked unless a completed analysis artifact exists and remains completed-output cache only.
 - Deferred `candidate_substrate_cache` and `evidence_cache` until explicit seedable write contracts exist.
 - No production writes, bulk seeding, migrations, new tables, RouteMap changes, scoring changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
+- Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
+
+Phase 2B checkpoint:
+- Added a pure curated-route geometry resolution helper for embedded polylines and caller-supplied local GPX text.
+- Added a pure dry-run seed plan for `tile_cache`, `hpms_tile_cache`, and completed-output-only `route_cache` eligibility.
+- RWGPS/sourceUrl-only RUSA, USBRS, and RideYrBike routes require future external geometry resolution; source URLs do not imply local seedable geometry.
+- Local fixtures can produce deterministic tile plans when full route geometry is supplied; missing geometry remains blocked.
+- No production writes, bulk warming, network fetches, migrations, new tables, RouteMap changes, scoring changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
 - Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
 
 ## Checklist
