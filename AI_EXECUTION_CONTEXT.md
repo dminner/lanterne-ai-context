@@ -15621,6 +15621,40 @@ The critical behavioral success condition is:
 - ◐ Partially completed, not accepted
 - ⏸ Intentionally paused
 
+
+
+| Phase                                                | Status | Plain-English Purpose                                        | Accepted When                                                |
+| ---------------------------------------------------- | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| **11A — Test Console Diagnostic Readout Cutover**    | ◐      | Wire the first tiny admin-only consumer to pure readiness/cutover summaries. | `MainAppShadowTestDrawer` shows a guarded diagnostic readout using pure summaries only; no RouteMap, heatmap, scoring, storage, RXON, `route_cache`, or `route_history` imports. |
+| **11B — Test Console Admin Guard / Kill Switch**     | ☐      | Make sure the new readout cannot leak into normal rider UX.  | Readout is dev/admin gated, defaults off unless explicitly enabled, and has tests proving it stays hidden outside admin/test surfaces. |
+| **11C — Diagnostic Copy Truth Audit**                | ☐      | Make the readout’s language impossible to misread as live map truth. | Labels clearly say “diagnostic,” “readiness,” “fixture/admin-only,” “not runtime wiring,” and “not route paint.” |
+| **11D — Route Builder Test Console Regression Pack** | ☐      | Lock the first cutover behind tests before touching broader admin panels. | Tests prove exactly one first consumer, component renders admin-only, and source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, and `route_history`. |
+| **11E — Route Relation Panel Readiness Candidate**   | ☐      | Prepare the next diagnostic surface after the Test Console is proven safe. | Audit-only or pure-plan update confirms whether `MainAppShadowRouteRelationPanel` can consume the same summaries without touching scoring, heatmap, receipts, or runtime truth. |
+| **11F — Debug Control Center Candidate Audit**       | ☐      | Decide if broader admin diagnostics can safely consume readiness summaries. | Audit classifies safe panels versus overlay-control danger zones; no runtime wiring unless separately approved. |
+| **11G — Route Builder Review Candidate Audit**       | ☐      | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
+| **11H — Raw Evidence Admin Readout Plan**            | ☐      | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
+| **11I — Coverage Readiness Admin Readout Plan**      | ☐      | Plan admin-only coverage/readiness visibility before Vault/RUSA maps. | Coverage rows remain read models; no storage, no viewport map rendering, no route truth. |
+| **11J — Second Consumer Cutover Decision**           | ☐      | Choose exactly one second runtime consumer after 11A–11D prove safe. | One next target is chosen from the candidate inventory, with rollback, tests, and explicit non-goals. |
+
+| Blocked / Not First Surface                    | Status | Why                                                          |
+| ---------------------------------------------- | ------ | ------------------------------------------------------------ |
+| **Main RouteMap safety heatmap**               | 🚫      | Rider-facing paint; high truth risk. EXEC-027 explicitly marks it not first. |
+| **RouteMap layer rendering**                   | 🚫      | Main map renderer; high blast radius.                        |
+| **`buildHeatmapLayers` runtime input cutover** | 🚫      | This is the actual heatmap cutover, not a diagnostic consumer. |
+| **SegmentInspector clicked payload truth**     | 🚫      | Inspector is a trust surface and must not become a second analysis engine. |
+| **`route_history` reload**                     | 🚫      | Reload stays geometry-first.                                 |
+| **`route_cache` hydration**                    | 🚫      | It can exist operationally, but must never impersonate current truth. |
+| **RXON runtime loading**                       | 🚫      | RXON runtime loading remains disabled.                       |
+| **Global-unit / coverage storage**             | 🚫      | Future persistence phase only.                               |
+| **Vault/RUSA/corpus viewport map**             | 🚫      | Needs storage/read-model and privacy proof first.            |
+| **Rider-facing raw evidence overlays**         | 🚫      | Raw overlays must prove admin-only semantics first.          |
+
+
+
+
+
+
+
 ## Current Execution Note
 
 10I is complete. Phase 10J selects the Route Builder Test Console as the first controlled consumer cutover target.
