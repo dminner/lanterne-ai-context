@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3B is complete. Phase 3C adds a John's Waterfall substrate hydration dry run: local GPX geometry -> route tile keys -> injected raw-road source -> compact `cyclist_substrate` projection -> memory repository write -> before/after admin coverage read model. This is memory-only and does not hydrate production, write Supabase, call Overpass, execute SQL, touch RouteMap, change scoring, or require Global Units.
+Phase 3C is complete. Phase 3C.1 triages the actual John's Waterfall main-app load failure and establishes that future substrate/evidence/global-unit visualization belongs in the main app surface behind admin/dev gates, not in a new v2-review-style surface. No production hydration, production writes, RouteMap rewrite, scoring change, or rider-facing coverage UI.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15802,7 +15802,7 @@ Phase 3B checkpoint:
 - Phase 3 remains partial until actual multi-region hydration and verification are safely implemented.
 
 Phase 3C checkpoint:
-- Added a John's Waterfall GPX hydration dry-run harness for the Stage 1 local proving region.
+- Added a John's Waterfall substrate hydration dry run with GPX harness for the Stage 1 local proving region.
 - Added an injected raw-road source contract and fixture raw-road source; the dry run does not call Overpass, edge functions, RWGPS, Supabase, or public network sources.
 - Proved local GPX parsing and deterministic route-derived tile-key derivation for John's Waterfall.
 - Used compact `cyclist_substrate` projection from raw-road-like fixture inputs, including noisy-road exclusion before storage.
@@ -15812,6 +15812,19 @@ Phase 3C checkpoint:
 - Evidence coverage and future global-unit coverage remain separate/future layers; Global Units are not required for substrate coverage.
 - No production writes, Supabase writes, DB writes, SQL execution, active migrations, new tables, network fetches, RouteMap changes, scoring changes, heatmap changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
 - Arbitrary cold routes remain live-fetch capable and do not depend on the dry-run harness.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3C.1 checkpoint:
+- Audited John's Waterfall actual main-app load path: the route is available as an admin Golden Harness bundled GPX route (`incomplete-02408-john-s-waterfall`) with local source `routes_incomplete/_02408_-_John_s_Waterfall_.gpx`, RUSA permanent 2408, and RWGPS route 36642262.
+- Identified the likely load-path root cause: bundled Golden Harness routes with RWGPS ids could attempt archived source-projection lookup before local GPX projection; an archive/Supabase failure could block the local GPX fallback.
+- Added a narrow load fix so bundled Golden Harness GPX routes build their source projection from the bundled GPX loader before any archived RWGPS/source-projection dependency.
+- Added an admin-gated main-app Test Console verification readout for John's Waterfall that reports route source, active route geometry status, expected point/tile counts, memory-only substrate dry-run counts, and substrate coverage before/after.
+- No new standalone review map, no new v2-review-style surface, and no rider-facing coverage UI were created.
+- Future substrate/evidence/global-unit visualization belongs in the main app surface behind admin/dev gates.
+- First visual layer should be tile/status coverage, not every road polyline; RouteMap is not truth, coverage UI is not route paint, and coverage UI is not scoring.
+- substrate/evidence/global-unit coverage remain separate; Global Units not required for substrate coverage.
+- No production hydration, production writes, Supabase writes, DB writes, SQL execution, active migrations, new tables, network fetches, RouteMap changes, scoring changes, heatmap changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
+- Arbitrary cold routes remain live-fetch capable and do not depend on the verification readout.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
