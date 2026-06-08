@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 2I is complete. Phase 3A starts cyclist substrate cache expansion by defining the first region manifest, priority policy, and tile-count sizing model. This defines where to hydrate first without production writes, migrations, network fetches, RouteMap changes, scoring changes, heatmap changes, or actual substrate hydration.
+Phase 3A is complete. Phase 3B defines the New York staged substrate proving plan: John's Waterfall/local NY first, broader New York State second. Both stages target the same `cyclist_substrate` layer, and Stage 2 fills gaps/reconciles Stage 1 records. Phase 3B also defines an admin-only coverage read model that separates substrate coverage from evidence coverage and future global-unit coverage. No hydration, production writes, migrations, network fetches, RouteMap changes, scoring changes, or heatmap changes.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15785,6 +15785,20 @@ Phase 3A checkpoint:
 - No substrate hydration, bulk warming, production writes, SQL migrations, active migrations, storage writes, Supabase writes, network fetches, RouteMap changes, scoring changes, or heatmap changes.
 - `route_cache` remains completed-output cache only; `route_history`, RXON, display state, heatmap segments, and fallback analysis are not substrate truth.
 - Arbitrary cold routes remain live-fetch capable and do not depend on region hydration.
+- Phase 3 remains partial until actual multi-region hydration and verification are safely implemented.
+
+Phase 3B checkpoint:
+- Added a New York staged substrate proving plan: John's Waterfall/local NY first, broader New York State second.
+- Added John's Waterfall local proving region with local GPX geometry from `routes_incomplete/_02408_-_John_s_Waterfall_.gpx`, RUSA permanent 2408, and RWGPS route 36642262.
+- Added New York State Stage 2 gap-fill region as a deferred broad state planning envelope.
+- Stage 2 depends on Stage 1, and both stages target the same `cyclist_substrate` layer.
+- Stage 2 is explicitly gap-fill/reconciliation behavior: compatible records merge/refresh in the same layer, schema/geometry conflicts are flagged, and there is no separate New York layer or last-write-wins behavior.
+- Substrate coverage, evidence coverage, and future global-unit coverage are separate coverage layers.
+- Global Units are not required for the first substrate coverage map/read model.
+- Added an admin-only tile/status coverage read model; it is not road-polyline rendering and is not rider-facing RouteMap work.
+- No substrate hydration, bulk warming, production writes, Supabase writes, DB writes, SQL execution, migrations, new tables, network fetches, RouteMap changes, scoring changes, or heatmap changes.
+- `route_cache` remains completed-output cache only; `route_history`, RXON, display state, heatmap segments, receipts, and fallback analysis are not substrate or coverage truth.
+- Arbitrary cold routes remain live-fetch capable and do not depend on New York staged planning.
 - Phase 3 remains partial until actual multi-region hydration and verification are safely implemented.
 
 ## Checklist
