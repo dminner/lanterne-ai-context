@@ -15629,7 +15629,7 @@ The critical behavioral success condition is:
 | **11B — Test Console Admin Guard / Kill Switch**     | ✅      | Make sure the new readout cannot leak into normal rider UX.  | Readout is dev/admin gated, defaults off unless explicitly enabled, and has tests proving it stays hidden outside admin/test surfaces. |
 | **11C — Diagnostic Copy Truth Audit**                | ✅      | Make the readout’s language impossible to misread as live map truth. | Labels clearly say “diagnostic,” “readiness,” “fixture/admin-only,” “not runtime wiring,” and “not route paint.” |
 | **11D — Route Builder Test Console Regression Pack** | ✅      | Lock the first cutover behind tests before touching broader admin panels. | Tests prove exactly one first consumer, component renders admin-only, and source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, and `route_history`. |
-| **11E — Route Relation Panel Readiness Candidate**   | ☐      | Prepare the next diagnostic surface after the Test Console is proven safe. | Audit-only or pure-plan update confirms whether `MainAppShadowRouteRelationPanel` can consume the same summaries without touching scoring, heatmap, receipts, or runtime truth. |
+| **11E — Route Relation Panel Readiness Candidate**   | ✅      | Prepare the next diagnostic surface after the Test Console is proven safe. | Audit-only or pure-plan update confirms whether `MainAppShadowRouteRelationPanel` can consume the same summaries without touching scoring, heatmap, receipts, or runtime truth. |
 | **11F — Debug Control Center Candidate Audit**       | ☐      | Decide if broader admin diagnostics can safely consume readiness summaries. | Audit classifies safe panels versus overlay-control danger zones; no runtime wiring unless separately approved. |
 | **11G — Route Builder Review Candidate Audit**       | ☐      | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
 | **11H — Raw Evidence Admin Readout Plan**            | ☐      | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
@@ -15657,7 +15657,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-11D is complete. The Route Builder Test Console regression pack now locks first-consumer identity, not-first surfaces, visibility guards, copy safety, source isolation, and legacy-label prevention.
+11E is complete. The Route Relation Panel remains a later diagnostic candidate with pure readiness metadata and source guards; no runtime consumer was wired.
 
 ## Checklist
 
@@ -15875,6 +15875,44 @@ Use the existing admin-only Test Console guard. In the next implementation phase
 | Global-unit / coverage storage | Future persistence phase only. |
 | Vault/RUSA/corpus map rendering | Needs storage/read-model and privacy proof first. |
 | Rider-facing raw evidence overlays | Must prove admin-only semantics first. |
+
+## Phase 11E Route Relation Panel Candidate
+
+`main_app_shadow_route_relation_panel` remains a `later_candidate`.
+
+Audit result:
+
+- It is not mounted from `src/pages/Index.tsx` in the current branch.
+- It consumes compact shadow diagnostics, baseline diagnostics, production-comparison metrics, lane selection, and boundary false flags.
+- It does not import RouteMap, `buildHeatmapLayers`, Supabase, RXON runtime loading, `route_cache`, `route_history`, SegmentInspector, receipt builders, or scoring modules.
+- It is runtime-adjacent because it compares current production and Route Builder lanes, so future readiness rows must stay diagnostic-only and default guarded.
+
+Future allowed inputs:
+
+- Pure controlled-consumer candidate summaries.
+- Pure readiness summaries already proven in the Test Console.
+- Existing shadow diagnostics, baseline diagnostics, production-comparison metrics, and boundary false flags.
+
+Future forbidden inputs:
+
+- RouteMap props or map paint.
+- `buildHeatmapLayers` runtime input.
+- Clicked SegmentInspector payloads or receiptBuilder output.
+- RXON runtime artifacts.
+- `route_cache` entries or `route_history` reload plans.
+- Supabase/database rows or browser storage state.
+
+Future copy must say:
+
+- Diagnostic comparison only.
+- Not runtime route truth.
+- Not live map output.
+- Not route paint.
+- Not score input.
+- Not production coverage.
+- Not runtime cutover.
+
+This phase does not choose the second consumer and does not wire the Route Relation Panel to new summaries.
 
 ## Acceptance For Phase 10J
 
