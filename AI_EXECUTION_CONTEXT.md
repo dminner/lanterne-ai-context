@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 2F is complete. Phase 2G defines the storage row contract and schema plan for compact `cyclist_substrate` records, including deterministic keys, row mappers, upsert planning, indexes, RLS/write-policy plan, and a docs-only SQL plan without production writes or applied migrations.
+Phase 2G is complete. Phase 2H adds a non-applied `cyclist_substrate` migration candidate, migration SQL audit helper, and local/disposable rehearsal plan. No production SQL, Supabase writes, DB writes, migrations applied, or app runtime writes are enabled.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15753,6 +15753,16 @@ Phase 2G checkpoint:
 - Recommended first production shape is record-level `cyclist_substrate_records`, not old raw tile blob storage.
 - Upsert planning preserves hydration lineage, supports insert/merge/refresh/keep-existing/conflict outcomes, and forbids last-write-wins.
 - No production writes, no Supabase writes, no DB writes, no migrations applied, no new tables, no network fetches, no RouteMap changes, no scoring changes, no heatmap paint changes, no RXON runtime loading, no route_history truth promotion, and no route_cache road/substrate truth promotion.
+- Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
+
+Phase 2H checkpoint:
+- Added a non-applied `cyclist_substrate_records` migration candidate under `docs/04-execution/sql-drafts`, not an active migration folder.
+- Added a pure migration SQL audit helper for idempotency markers, required columns, primary key, indexes, checks, planned-only warnings, and dangerous-SQL absence.
+- Added local/disposable rehearsal planning for applying and rerunning the candidate, verifying catalog objects, manually exercising the conflict target, and resetting the disposable environment.
+- Added production preflight checklist for migration-stack reconciliation, backup/snapshot, generated DB types, RLS roles, write path exposure, monitoring, rollback, smoke tests, storage cost, and p95 tile-key read target.
+- Added idempotency and dangerous-SQL checks; destructive SQL and production data writes remain blocked.
+- No production SQL executed, no Supabase writes, no DB writes, no migrations applied, no new tables created, no app runtime writes enabled, and no production rows written.
+- No network fetches, no RouteMap changes, no scoring changes, no heatmap paint changes, no RXON runtime loading, no route_history truth promotion, and no route_cache road/substrate truth promotion.
 - Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
 
 ## Checklist
@@ -45077,6 +45087,12 @@ Planned RLS policy:
 
 This SQL is intentionally not in `supabase/migrations`.
 
+Phase 2H promoted the earlier inline sketch into a concrete non-applied candidate:
+
+- `docs/04-execution/sql-drafts/cyclist_substrate_records_candidate.sql`
+
+That file is the current migration candidate for local/disposable rehearsal. It remains a draft only and must not be copied into `supabase/migrations` until a separate approved migration execution phase.
+
 ```sql
 -- Docs-only draft. Do not execute without an approved migration phase.
 
@@ -45169,6 +45185,68 @@ Before a real migration phase:
 - [ ] Confirm upsert planning tests pass.
 - [ ] Confirm compact geometry precision is acceptable.
 - [ ] Confirm hydration lineage retention and conflict behavior.
+
+## Local / Disposable Rehearsal Plan
+
+This phase does not execute the candidate. A later rehearsal should use only a disposable database or copied local Supabase workdir.
+
+1. Create a disposable database or copied local Supabase workdir.
+2. Apply the existing schema baseline if possible. If the project-local migration stack is still under repair, use the latest repaired local/disposable stack documented by the Route Relation rehearsal work.
+3. Copy `docs/04-execution/sql-drafts/cyclist_substrate_records_candidate.sql` into the disposable workdir as a temporary migration ordered after the existing stack.
+4. Apply the temporary candidate using the repo-specific local Supabase command. This repo has no `package.json` script for Supabase reset or migration rehearsal, so the exact command is repo/operator-specific.
+5. Re-run the candidate as a second temporary migration to prove idempotency.
+6. Verify `public.cyclist_substrate_records` exists.
+7. Verify the primary key exists on `schema_version`, `tile_key`, and `record_key`.
+8. Verify indexes exist for `tile_key`, `country_code + tile_key`, nullable `osm_way_id`, `family_key`, `domain`, `source_methods` GIN, and `refreshed_at`.
+9. Verify domain/access/one-way checks exist.
+10. Verify JSONB shape checks exist for retained tags, lineage, and diagnostics.
+11. Verify RLS is enabled if the candidate keeps RLS enablement active.
+12. Verify read/write policy behavior only if final role conventions are active in the disposable environment; otherwise keep policy SQL commented until production preflight.
+13. Insert one small projected fixture row manually only in the disposable/local database.
+14. Re-run the same manual insert/upsert using the conflict target `schema_version`, `tile_key`, `record_key`.
+15. Verify the repeated insert/upsert does not imply last-write-wins; lineage merge/refresh decisions must still come from the storage upsert plan before SQL execution.
+16. Verify no app runtime writes are enabled.
+17. Reset or delete the disposable database/workdir after the rehearsal.
+18. Never execute this candidate against production in Phase 2H.
+
+Example disposable-workdir shape, adapted from the Route Relation rehearsal pattern:
+
+```sh
+tmpdir=$(mktemp -d /tmp/lanterne-cyclist-substrate.XXXXXX)
+mkdir -p "$tmpdir/supabase/migrations"
+cp supabase/config.toml "$tmpdir/supabase/config.toml"
+cp supabase/migrations/*.sql "$tmpdir/supabase/migrations/"
+cp docs/04-execution/sql-drafts/cyclist_substrate_records_candidate.sql \
+  "$tmpdir/supabase/migrations/20260608120000_cyclist_substrate_records_candidate.sql"
+
+# Repo-specific local Supabase command required here.
+# Do not point this workdir at hosted production.
+```
+
+Rollback/reset guidance for disposable environments:
+
+- Prefer deleting the disposable workdir/database or running the repo-specific local reset command.
+- Do not prepare production drop SQL in Phase 2H.
+- Do not retry failed migration output blindly; inspect the disposable catalog first.
+
+## Production Preflight Before Applying Later
+
+Before a future production migration phase can apply this candidate:
+
+- [ ] Confirm the project-local migration stack is reconciled.
+- [ ] Confirm hosted production migration history and local migration ordering are reconciled.
+- [ ] Confirm production backup or snapshot completion.
+- [ ] Confirm generated DB types update plan for `src/integrations/supabase/types.ts`.
+- [ ] Confirm final RLS policy using actual Supabase roles, grants, and cost limits.
+- [ ] Confirm service/admin write path is not exposed to browser clients.
+- [ ] Confirm no app runtime writes are enabled.
+- [ ] Confirm no RouteMap, heatmap, scoring, route_cache, route_history, RXON, or fallback analysis truth path depends on the table.
+- [ ] Confirm monitoring/logging plan for future service/admin writes.
+- [ ] Confirm rollback and stop-condition plan.
+- [ ] Confirm smoke test plan for table, PK, indexes, constraints, and RLS.
+- [ ] Confirm storage/cost estimate for compact encoded geometry and lineage JSON.
+- [ ] Confirm p95 read query target by `tile_key` lookup and country/tile lookup.
+- [ ] Confirm no bulk hydration or production row writes are bundled with table creation.
 
 
 ---
