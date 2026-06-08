@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-10H is complete. Phase 10I adds a pure coverage readiness gate for viewport and corpus read models.
+10I is complete. Phase 10J selects the Route Builder Test Console as the first controlled consumer cutover target.
 
 ## Checklist
 
@@ -15638,7 +15638,231 @@ The critical behavioral success condition is:
 | **10G — Raw Evidence Overlay Fixtures**         | ✅      | Prove speed, traffic, shoulder, bike infra, surface, and hazards can appear as raw layers separate from safety paint. | Fixture tests show raw evidence overlays without letting them become headline risk truth. |
 | **10H — Global Unit Real-Input Integration**    | ✅      | Stop feeding global units only synthetic toy data.           | `GlobalUnitBuilder` accepts real-ish substrate/evidence fixtures with stable IDs, checksums, freshness, and traceability. |
 | **10I — Coverage / Viewport Readiness Gate**    | ✅      | Decide whether global-unit coverage is ready for Vault/RUSA/corpus maps. | Coverage rows can be queried/displayed as read-model inputs without becoming route truth. |
-| **10J — Controlled Consumer Cutover Plan**      | ☐      | Pick one runtime consumer to move first, with rollback rules. | One narrow consumer is chosen before any real RouteMap or heatmap wiring. |
+| **10J — Controlled Consumer Cutover Plan**      | ✅      | Pick one runtime consumer to move first, with rollback rules. | One narrow admin/debug consumer is chosen before any real RouteMap or heatmap wiring. |
+
+
+---
+
+## Source File: docs/04-execution/exec-027-controlled_consumer_cutover_plan.md
+
+# EXEC-027 Controlled Consumer Cutover Plan
+
+## Decision
+
+The first controlled consumer cutover target is:
+
+`main_app_shadow_test_drawer_diagnostic_output`
+
+Plain name:
+
+Route Builder Test Console diagnostic output.
+
+This is the admin-only `MainAppShadowTestDrawer` surface. It may consume pure readiness and cutover-plan summaries in a later implementation phase.
+
+It must not change RouteMap, safety paint, scoring, receipts, RXON runtime loading, route_cache, route_history reload, storage, Vault/RUSA/corpus maps, or rider-facing raw evidence overlays.
+
+## Starting State
+
+- Branch before work: `main`
+- Starting commit: `55e9b985 Add global unit coverage readiness gate`
+- Work tree before work: clean
+- Phase 10I: complete
+
+Recent commits inspected:
+
+| Commit | Subject |
+| --- | --- |
+| `55e9b985` | Add global unit coverage readiness gate |
+| `b95baaba` | Add global unit real input fixtures |
+| `e38d5d32` | Add raw evidence overlay fixtures |
+| `7a5e550c` | Add route unit heatmap adapter |
+| `9e850040` | Gate finish loader subtitle by visible progress |
+| `6a827dac` | Gate finish-climb loader copy near completion |
+| `10669f73` | Add evidence substrate readiness contract |
+| `d60c7368` | Update route loader finish copy |
+
+## Audit - Runtime Consumers
+
+These files and functions were inspected before editing.
+
+| File | Relevant functions / exports | Current role | Cutover risk |
+| --- | --- | --- | --- |
+| `src/components/MainAppShadowTestDrawer.tsx` | `MainAppShadowTestDrawer`, `TimingSection`, `TraceSection`, `ReadinessRow`, `diagnosticValue`, `traceDiagnosticValue` | Admin-only Test Console for Route Builder timing, trace, source budget, route experience, readiness, and memory-only comparison export. | Low. Best first consumer because it is already diagnostic-only and not rider-facing. |
+| `src/components/MainAppShadowRouteRelationPanel.tsx` | `MainAppShadowRouteRelationPanel`, `ComparisonRow` | Diagnostic comparison between current production, Route Builder baseline, and Route Builder shadow. Explicitly shows no persistence, lookup, reload, route_cache, scoring cutover, or heatmap cutover. | Medium. Safe later, but closer to runtime lane comparison. |
+| `src/components/DebugControlCenter.tsx` | `DebugControlCenter`, `RouteEvidenceMapSection`, `AdminRuntimeSurfaceSection`, `DebugSurfaceSection`, `SubstrateCacheDebugSection`, `HpmsDebugSection`, `getDebugTooltipLegend` | Admin debug panel, debug registry controls, route evidence map values, runtime surface view model, HPMS and substrate overlay toggles. | Medium. Admin-only but broader and already touches overlay controls. |
+| `src/components/DevTuningPanel.tsx` | `DevTuningPanel`, `loadDevTuningSettings`, `saveDevTuningSettings` | Admin-only debug shell that renders `DebugControlCenter` and persists local debug settings. | Medium. Good shell, but localStorage debug state makes it less narrow than the Test Console. |
+| `src/pages/V2Review.tsx` | `V2Review`, `viewportProviderStateExplanation`, `viewportProviderStateLabel`, `viewportHydrationEnabledForMode`, `evidenceAvailableSourceRows` | Standalone Route Builder Review/admin surface with worker result, ownership, evidence overlays, viewport evidence, and substrate QA controls. | Medium. It has its own map/viewport overlays, so not first. |
+| `src/components/V2ReviewMap.tsx` | `V2ReviewMap`, `loadV2ReviewSubstrateFeatures`, `v2ReviewSubstrateInspectorForFeature`, `v2ReviewSubstrateStyleForFeature`, `v2ReviewSubstrateTrailGapConnectorFeatures` | Review-only Leaflet map for ownership spans, direct evidence, viewport speed, substrate QA, and evidence inspector. | Medium/high. Review-only, but it renders a map and overlays. |
+| `src/components/RouteMap.tsx` | `RouteMap`, `groupEvidenceOverlayTooltipRecords`, `buildCurrentRouteSubstrateCandidateDebugPayload`, `drawRoad`, ownership/evidence overlay effects | Main rider-facing map renderer. It renders safety paint, debug overlays, evidence overlays, ownership labels, and viewport road overlays. | High. Not first. |
+| `src/pages/Index.tsx` | `buildHeatmapLayers` calls, `buildV2SSActiveDisplayHandoff`, `v2ActiveDisplayHandoff`, `speedMapProps`, `drawerProps`, `SegmentInspectorDrawer` props, `MainAppShadowTestDrawer` usage, `DevTuningPanel` usage | Main app orchestration for route analysis, RouteMap props, active display handoff, RXON first-paint guard, route_history, route_cache fencing, inspectors, drawers, and debug surfaces. | High. Not first except as the existing mount point for admin diagnostics. |
+
+## Audit - Spine Contracts
+
+These files were inspected before editing.
+
+| File | Relevant functions / exports | Current role |
+| --- | --- | --- |
+| `src/lib/heatmap/layer-source-registry.ts` | `listHeatmapLayerSourceDefinitions`, `getHeatmapLayerSourceDefinition`, `assertLayerMayConsumeInput`, `classifyHeatmapLayer`, `isLayerRiderVisible`, `isLayerScoreDriving` | Declares what each heatmap/map layer may believe. Blocks route_cache, RXON, route_history, display artifacts, and clicked UI state as canonical inputs. |
+| `src/lib/substrate/cyclist-substrate-readiness.ts` | `classifyCyclistSubstrateReadiness`, `assertCyclistSubstrateReadyForViewportSkeleton`, `assertCyclistSubstrateReadyForGlobalUnitInput`, `explainCyclistSubstrateReadiness` | Pure readiness gate for substrate skeleton/global-unit input. |
+| `src/lib/evidence/evidence-substrate-readiness.ts` | `classifyEvidenceSubstrateReadiness`, `assertEvidenceReadyForReusableDescriptor`, `assertEvidenceReadyForRouteProjection`, `summarizeEvidenceValueStates` | Pure readiness gate for source-agnostic evidence descriptors and route projections. |
+| `src/lib/evidence/raw-evidence-overlay-fixtures.ts` | `buildRawEvidenceOverlayFixtureBundle`, `rawEvidenceOverlayRecordToReadinessInput`, `assertRawEvidenceOverlayFixtureRecordsSafe` | Test/admin fixture proof for raw speed, traffic, shoulder, bike, surface, hazard, and evidence-quality overlays. |
+| `src/lib/route-line-v2/route-units.ts` | `buildLanterneRouteUnits`, `LanterneRouteUnit` | Route-local unit contract and pure builder. |
+| `src/lib/route-line-v2/route-unit-heatmap-adapter.ts` | `routeUnitsToTruthRuns`, `routeUnitsToHeatmapBuildInput`, `assertRouteUnitsHeatmapAdapterSafe` | Pure adapter from route units into current heatmap-compatible truth-run/build input. Not runtime-wired. |
+| `src/lib/route-line-v2/global-units.ts` | `LanterneGlobalUnit`, `RouteUnitCoverage`, `buildRouteUnitCoverageCandidates` | Route-independent global unit and route-unit coverage candidate contracts. |
+| `src/lib/route-line-v2/global-unit-builder.ts` | `buildLanterneGlobalUnits`, `GLOBAL_UNIT_BUILDER_SUPPORTED_EVIDENCE_LAYERS` | Pure global-unit builder from substrate/evidence descriptors. |
+| `src/lib/route-line-v2/global-unit-real-input-fixtures.ts` | `buildGlobalUnitRealInputFixtureBundle`, `assertGlobalUnitRealInputFixtureSafe`, `substrateFixtureToCyclistReadinessInput`, `evidenceDescriptorFixtureToEvidenceReadinessInput` | Real-ish fixture bridge from substrate/evidence/route units to global-unit inputs. |
+| `src/lib/route-line-v2/global-unit-coverage-readiness.ts` | `classifyGlobalUnitCoverageReadiness`, `assertGlobalUnitCoverageReadyForViewportReadModel`, `assertGlobalUnitCoverageReadyForCorpusReadModel`, `routeUnitCoverageToCoverageReadinessInput`, `coverageIndexRowToCoverageReadinessInput`, `viewportCoverageReadModelUnitToCoverageReadinessInput`, `corpusCoverageRollupToCoverageReadinessInput` | Pure readiness gate for coverage rows, viewport read models, and corpus read models. |
+| `src/lib/route-line-v2/route-unit-coverage-index.ts` | `buildRouteUnitCoverageIndexRows`, `buildViewportCoverageReadModel`, `buildCorpusCoverageRollups` | Pure route-unit coverage index/read-model builders. No storage writes. |
+
+## Candidate Inventory
+
+The executable inventory lives in:
+
+`src/lib/route-line-v2/controlled-consumer-cutover-plan.ts`
+
+| Consumer | Recommendation | Surface | Blast Radius | Truth Risk | Why |
+| --- | --- | --- | --- | --- | --- |
+| `main_app_shadow_test_drawer_diagnostic_output` | `first_cutover_candidate` | admin debug | low | low | Best first consumer. It is admin-only, diagnostic-only, read-only, and already separated from receipts and map paint. |
+| `route_builder_admin_diagnostics` | `later_candidate` | admin debug | medium | low | Safe later, but broader because it includes Debug Control Center and overlay controls. |
+| `main_app_shadow_route_relation_panel` | `later_candidate` | runtime diagnostic | medium | low | Diagnostic-only, but closer to production/builder lane comparison. |
+| `v2_review_route_builder_review_diagnostics` | `later_candidate` | builder review | medium | medium | Admin/review oriented, but it owns a map and overlays. |
+| `raw_evidence_overlay_admin_readout` | `later_candidate` | admin debug | low | low | Useful, but fixture-centered and less representative than the Test Console. |
+| `coverage_readiness_admin_diagnostics` | `later_candidate` | admin debug | low | low | Safe, but better as part of the first Test Console readout. |
+| `route_analysis_summary_receipt_debug_panel` | `later_candidate` | runtime diagnostic | medium | medium | Receipts are trust surfaces and should follow admin-only diagnostics. |
+| `rxon_receipt_emission` | `later_candidate` | export | medium | medium | RXON remains write-only; expansion must stay snapshot/export-only. |
+| `route_unit_compact_summary_export` | `later_candidate` | export | low | low | Safe helper/export, but not a runtime consumer. |
+| `safety_heatmap_input` | `blocked_for_now` | rider-facing | high | high | Directly changes score/paint input. |
+| `build_heatmap_layers_runtime_input_cutover` | `blocked_for_now` | rider-facing | high | high | This is the actual heatmap cutover, not a diagnostic consumer. |
+| `main_route_map_layer_rendering` | `blocked_for_now` | rider-facing | high | high | Main map rendering has high blast radius. |
+| `segment_inspector_clicked_payload` | `blocked_for_now` | rider-facing | high | high | Inspector is a trust surface and must not become a second analysis engine. |
+| `route_history_reload` | `blocked_for_now` | storage/reload | high | high | Reload stays geometry-first. |
+| `route_cache_hydration` | `never_canonical_truth` | storage/reload | high | high | route_cache can exist but must never impersonate current truth. |
+| `rxon_runtime_loading` | `blocked_for_now` | storage/reload | high | high | RXON runtime loading remains disabled. |
+| `global_unit_coverage_storage` | `blocked_for_now` | storage/reload | high | medium | Storage is a future persistence phase, not 10J. |
+| `vault_rusa_corpus_viewport_map` | `blocked_for_now` | rider-facing | high | medium | Needs storage/read model and privacy proof first. |
+| `rider_facing_raw_evidence_overlays` | `blocked_for_now` | rider-facing | high | high | Raw overlays must first prove admin-only display semantics. |
+
+## First Cutover Target
+
+### Target
+
+`main_app_shadow_test_drawer_diagnostic_output`
+
+Implementation location for the next phase:
+
+`src/components/MainAppShadowTestDrawer.tsx`
+
+### Why First
+
+- It is admin-only.
+- It is already called "Test Console".
+- It already explains that receipts stay in the left drawer.
+- It already lists boundary labels: no route_cache, no hpms-proxy, no service-role, no SQL, no Supabase writes, existing scorer, existing heatmap builder.
+- It can read pure plan/readiness summaries without touching RouteMap or changing route paint.
+- Its rollback is one small UI import/prop removal.
+
+### May Consume
+
+- `listControlledConsumerCutoverCandidates()`
+- `getFirstControlledCutoverCandidate()`
+- Heatmap layer source registry summaries.
+- Cyclist substrate readiness summaries.
+- Evidence substrate readiness summaries.
+- Global unit coverage readiness summaries.
+- Raw evidence overlay fixture summaries, clearly labeled as fixture/admin-only.
+- Existing builder trace strings and timing diagnostics.
+
+### Must Not Consume
+
+- RouteMap props as truth.
+- Heatmap display segments as truth.
+- `buildHeatmapLayers` runtime input.
+- Clicked SegmentInspector payloads.
+- RXON runtime artifacts.
+- route_cache entries.
+- route_history reload plans.
+- Supabase or any DB rows.
+- Global unit storage rows.
+
+### Future Files Touched
+
+- `src/components/MainAppShadowTestDrawer.tsx`
+- `src/lib/route-line-v2/controlled-consumer-cutover-plan.ts`
+- `src/lib/route-line-v2/controlled-consumer-cutover-plan.test.ts`
+
+### Expected Tests For The Next Implementation Phase
+
+- Pure plan asserts exactly one first consumer.
+- Component rendering test keeps the new readout admin-only.
+- Source guard proves no RouteMap, `buildHeatmapLayers`, storage, route_cache, route_history, or RXON runtime imports.
+- Existing heatmap/source/readiness tests still pass.
+
+### Rollback
+
+Remove the Test Console readout import/props and leave the pure plan module/doc in place.
+
+### Failure Modes
+
+- Diagnostic status is stale or misleading.
+- Admin-only guard is accidentally loosened.
+- The readout implies runtime wiring that does not exist.
+- Fixture summaries are mistaken for live route evidence.
+
+### Kill Switch / Dev Guard
+
+Use the existing admin-only Test Console guard. In the next implementation phase, the new diagnostic block should be behind a small dev/admin guard that defaults off unless explicitly enabled.
+
+### Non-Goals
+
+- No RouteMap wiring.
+- No heatmap paint cutover.
+- No `buildHeatmapLayers` runtime input cutover.
+- No scoring cutover.
+- No SegmentInspector clicked payload cutover.
+- No RXON runtime loading.
+- No route_cache hydration.
+- No route_history reload change.
+- No DB writes.
+- No storage migration.
+- No Vault/RUSA/corpus viewport map.
+- No rider-facing raw evidence overlays.
+
+## Explicitly Not First
+
+| Surface | Reason |
+| --- | --- |
+| Main RouteMap safety heatmap | Rider-facing paint; high truth risk. |
+| RouteMap layer rendering | Main map renderer; high blast radius. |
+| `buildHeatmapLayers` runtime input cutover | Actual heatmap cutover, not a diagnostic consumer. |
+| SegmentInspector clicked payload truth | Trust surface; must remain a prepared receipt consumer. |
+| route_history reload | Must remain geometry-first. |
+| route_cache hydration | Never canonical truth. |
+| RXON runtime loading | Runtime loading remains disabled. |
+| Global-unit / coverage storage | Future persistence phase only. |
+| Vault/RUSA/corpus map rendering | Needs storage/read-model and privacy proof first. |
+| Rider-facing raw evidence overlays | Must prove admin-only semantics first. |
+
+## Acceptance For Phase 10J
+
+Phase 10J is accepted if:
+
+- Exactly one first cutover consumer is chosen.
+- The first consumer is admin/debug only.
+- The first consumer does not touch RouteMap, safety score, heatmap paint, receipts, SegmentInspector clicked payloads, RXON runtime, route_cache, route_history reload, DB, storage, Vault/RUSA/corpus maps, or rider-facing raw overlays.
+- All not-first surfaces are explicitly blocked or marked never canonical truth.
+- The plan is testable without wiring a runtime consumer.
+
+## What Was Not Implemented
+
+- No runtime consumer was wired.
+- No RouteMap code changed.
+- No heatmap builder code changed.
+- No scoring code changed.
+- No receipt or inspector code changed.
+- No route analysis code changed.
+- No storage code changed.
+- No RXON runtime loading changed.
+- No route_cache or route_history behavior changed.
 
 
 ---
