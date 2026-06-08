@@ -15623,6 +15623,8 @@ The critical behavioral success condition is:
 
 
 
+
+
 | Phase                                                | Status | Plain-English Purpose                                        | Accepted When                                                |
 | ---------------------------------------------------- | ------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | **11A — Test Console Diagnostic Readout Cutover**    | ✅      | Wire the first tiny admin-only consumer to pure readiness/cutover summaries. | `MainAppShadowTestDrawer` shows a guarded diagnostic readout using pure summaries only; no RouteMap, heatmap, scoring, storage, RXON, `route_cache`, or `route_history` imports. |
@@ -15657,7 +15659,27 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-11J is complete. The Route Relation Panel is selected as the second controlled consumer target, but remains blocked pending a future admin/dev mount and guard phase; no runtime readout or route behavior was wired.
+Phase 11J is complete. The active work now pivots from admin consumer fencing to near-term product reliability: no-cache route-line analysis, cache robustness, curated cache seeding, cyclist substrate cache expansion, and main-app viewport heatmap intelligence. The purple route geometry already renders; Phase 0 fixes the cold/no-cache analysis hang so uncached routes can fetch candidate roads and paint when road data is available.
+
+## Product-Visible Map Intelligence Plan
+
+| Phase | Status | Product Result | Steps | Accepted When |
+|---|---:|---|---|---|
+| 0 — No-Cache Route-Line Analysis Recovery | ◐ | Uncached routes outside warm regions can analyze and safety-paint instead of hanging at fetching candidate roads. | 0.1 audit route-load/candidate-road fetch state · 0.2 identify why cache miss blocks progress · 0.3 ensure tile-cache miss/failure falls through to live road fetch · 0.4 make cache write failures non-blocking after live fetch · 0.5 add bounded failure/degraded state for road fetch failure · 0.6 preserve purple geometry-only line when analysis fails · 0.7 add tests for cold-cache success and cold-cache failure. | Small uncached routes outside South Jersey can fetch candidate roads live and paint; if road fetch fails, the app exits the loader, keeps geometry visible, and shows road-intelligence-unavailable state. |
+| 1 — Cache Failure Contract | ☐ | Cache/API failures stop becoming mystery hangs. | 1.1 inventory tile_cache, hpms_tile_cache, route_cache, substrate/evidence cache calls · 1.2 define hit/miss/stale/timeout/rate_limited/backend_down/invalid_payload states · 1.3 add lightweight retry where appropriate · 1.4 add non-blocking write behavior · 1.5 expose admin diagnostics · 1.6 regression-test no silent fake success. | Cache and proxy failures classify cleanly, retry once where safe, degrade visibly, and never impersonate successful analysis. |
+| 2 — Curated Route Cache Seeding | ☐ | RUSA/events/USBRS/RideYrBike target routes can be warmed first without blocking arbitrary user routes. | 2.1 define seed manifest shape · 2.2 choose initial collections/routes · 2.3 seed road tiles and HPMS/evidence where available · 2.4 report coverage by route/region · 2.5 validate warm-cache timing · 2.6 keep arbitrary cold user routes on live-fetch fallback. | Curated routes can be pre-warmed and verified, while non-curated uploads/draws still attempt live analysis rather than hanging. |
+| 3 — Cyclist Substrate Cache Expansion | ☐ | Road/path substrate cache expands beyond Medford/Batsto. | 3.1 define regions · 3.2 hydrate substrate cache for multiple real regions · 3.3 preserve stable family/corridor identity · 3.4 validate geometry/checksum/freshness · 3.5 expose readiness/failure diagnostics · 3.6 test routes across regions. | Multiple real regions hydrate substrate with stable identity, geometry, freshness, confidence, and clear blocked/partial states. |
+| 4 — Main-App Viewport Heatmap Intelligence | ☐ | Main app gains V2-review-style viewport intelligence for speed, traffic, bike support, risk, and corridor inspection. | 4.1 build pure viewport layer data bridge · 4.2 define speed/traffic/bike/risk/evidence-quality records · 4.3 group records by road/path corridor · 4.4 add admin/dev layer switcher · 4.5 add corridor click payload · 4.6 source-guard RouteMap/display/cache artifacts from becoming truth. | Admin/dev main app can flip viewport intelligence layers and click corridors without changing route paint, scoring, RouteMap truth, route_cache, route_history, or RXON. |
+| 5 — Golden Route Quality Gate + Cutover Decision | ☐ | Decide whether current paint remains, route-unit heatmap input should be cut over, or global-unit work should wait. | 5.1 create 10–20 golden routes across regions · 5.2 measure cold/warm analysis · 5.3 verify safety paint · 5.4 verify viewport layer coverage · 5.5 verify corridor click evidence · 5.6 compare cache diagnostics · 5.7 make hold/cutover/defer decision. | Golden routes prove no-cache analysis, cache robustness, substrate coverage, viewport layers, and corridor click quality; decision is explicit: hold current paint, route-unit heatmap cutover, global-unit work, or defer. |
+
+Deferred for now:
+- RouteMap rewrite
+- Route Unit production heatmap cutover
+- Global Unit storage
+- Vault/RUSA/corpus maps
+- Wind/weather/light layer switcher
+- Rider-facing raw evidence overlays
+- RXON runtime loading
 
 ## Checklist
 
