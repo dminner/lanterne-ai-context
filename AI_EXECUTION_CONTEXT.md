@@ -15634,7 +15634,7 @@ The critical behavioral success condition is:
 | **11G — Route Builder Review Candidate Audit**       | ✅      | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
 | **11H — Raw Evidence Admin Readout Plan**            | ✅      | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
 | **11I — Coverage Readiness Admin Readout Plan**      | ✅      | Plan admin-only coverage/readiness visibility before Vault/RUSA maps. | Coverage rows remain read models; no storage, no viewport map rendering, no route truth. |
-| **11J — Second Consumer Cutover Decision**           | ☐      | Choose exactly one second runtime consumer after 11A–11D prove safe. | One next target is chosen from the candidate inventory, with rollback, tests, and explicit non-goals. |
+| **11J — Second Consumer Cutover Decision**           | ✅      | Choose exactly one second runtime consumer after 11A–11D prove safe. | One next target is chosen from the candidate inventory, with rollback, tests, and explicit non-goals. |
 
 | Blocked / Not First Surface                    | Status | Why                                                          |
 | ---------------------------------------------- | ------ | ------------------------------------------------------------ |
@@ -15657,7 +15657,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-11I is complete. Coverage readiness admin readout remains a later candidate only for admin/read-model diagnostics; coverage rows stay non-score-driving, non-storage, not route truth, not live map output, and no viewport/Vault/RUSA map behavior was wired.
+11J is complete. The Route Relation Panel is selected as the second controlled consumer target, but remains blocked pending a future admin/dev mount and guard phase; no runtime readout or route behavior was wired.
 
 ## Checklist
 
@@ -16283,6 +16283,123 @@ Future copy must say:
 - Partial or unmatched coverage is diagnostic state, not route truth.
 
 This phase does not wire a coverage readiness readout, does not create a runtime consumer, does not choose a second consumer, does not render coverage overlays, and does not change RouteMap, `buildHeatmapLayers`, heatmap paint, scoring, route analysis, route-unit/global-unit builders, coverage readiness behavior, raw evidence semantics, receipts, RXON runtime loading, route_cache, route_history reload, storage, Vault/RUSA/corpus maps, or rider-facing coverage behavior.
+
+## Phase 11J Second Consumer Cutover Decision
+
+Selected second consumer target:
+
+`main_app_shadow_route_relation_panel`
+
+Decision status:
+
+`blocked_pending_mount_or_guard`
+
+Audit result:
+
+- `MainAppShadowRouteRelationPanel` exists and has focused tests.
+- It is not currently mounted from `src/pages/Index.tsx`.
+- It has an `enabled` prop that returns `null` when disabled.
+- It compares current production, Route Builder baseline, and Route Builder shadow diagnostics.
+- It already renders copy saying diagnostic only, no persistence, no lookup, no reload, no `route_cache`, no scoring cutover, and no heatmap cutover.
+- Its source/import guard rejects RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, `route_history`, SegmentInspector, receipts, and scoring imports.
+- Because it is unmounted, this phase chooses it only as the future target. It does not create a live second consumer.
+
+Candidate classification:
+
+| Candidate | Current status | Classification | Why not selected / why selected |
+| --- | --- | --- | --- |
+| `main_app_shadow_route_relation_panel` | Unmounted component with tests | Selected target, blocked pending future mount/guard | Best runtime-adjacent diagnostic comparison. Requires explicit future admin/dev mount and guard before implementation. |
+| `debug_control_center` | Mounted through `DevTuningPanel` | Not selected | Broader admin surface with overlay controls, evidence filters, and local debug settings. |
+| `v2_review_route_builder_review_diagnostics` | Live `/v2-review` route | Not selected | Review/admin page owns a review map, overlay controls, viewport hydration controls, and evidence inspector state. |
+| `raw_evidence_overlay_admin_readout` | Pure fixture/admin plan | Not selected | Safe, but fixture-centered and less representative of runtime boundary behavior. |
+| `coverage_readiness_admin_diagnostics` | Pure read-model/admin plan | Not selected | Safe, but coverage readiness is not the next runtime-adjacent diagnostic comparison. |
+| `route_analysis_summary_receipt_debug_panel` | Runtime diagnostic/trust surface | Not selected | Receipts are trust surfaces and should follow another admin/runtime diagnostic proof. |
+| `rxon_receipt_emission` | Export/write-only | Not selected | Not a runtime diagnostic consumer; RXON runtime loading remains disabled. |
+| `route_unit_compact_summary_export` | Export/helper | Not selected | Low risk, but not a runtime consumer. |
+
+Future implementation scope:
+
+Allowed future files:
+
+- `src/pages/Index.tsx`
+- `src/components/MainAppShadowRouteRelationPanel.tsx`
+- `src/components/MainAppShadowRouteRelationPanel.test.tsx`
+- `src/lib/route-line-v2/controlled-consumer-cutover-plan.ts`
+- `src/lib/route-line-v2/controlled-consumer-cutover-plan.test.ts`
+
+Forbidden files and systems:
+
+- RouteMap.
+- `buildHeatmapLayers`.
+- Heatmap rendering.
+- Route paint.
+- Safety scoring.
+- SegmentInspector clicked payloads.
+- Production receipts.
+- RXON runtime loading.
+- `route_cache`.
+- `route_history` reload.
+- Supabase/database/storage/migrations.
+- Raw evidence overlays.
+- Coverage overlays.
+- Viewport/Vault/RUSA/corpus maps.
+- Rider-facing overlays.
+
+Allowed future inputs:
+
+- `MainAppRouteRelationShadowDiagnostics`
+- `MainAppRouteRelationBaselineDiagnostics`
+- `MainAppRouteRelationProductionComparisonEventDetail`
+- Existing lane-selection booleans.
+- Existing boundary false flags.
+- Pure controlled consumer cutover candidate summary.
+
+Forbidden future inputs:
+
+- RouteMap props as truth.
+- `buildHeatmapLayers` runtime input.
+- Heatmap display segments as truth.
+- Route paint output.
+- Score outputs as cutover proof.
+- Clicked SegmentInspector payloads.
+- receiptBuilder output.
+- RXON runtime artifacts.
+- `route_cache` entries.
+- `route_history` reload plans.
+- Supabase/database rows.
+- Browser storage state.
+- Rider-facing overlay toggle state.
+
+Future guards:
+
+- Admin/dev surface required.
+- Existing panel `enabled` prop remains required.
+- Explicit diagnostics enablement required before rendering.
+- Future mount must default hidden when diagnostics are disabled.
+- Source guard rejects RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, `route_history`, receipts, SegmentInspector, scoring, and Supabase imports.
+
+Future copy must say:
+
+- Diagnostic comparison only.
+- Admin debug.
+- Not runtime route truth.
+- Not live map output.
+- Not route paint.
+- Not score input.
+- Not production coverage.
+- Not runtime cutover.
+- No persistence.
+- No lookup.
+- No reload.
+- No `route_cache`.
+- No scoring cutover.
+- No heatmap cutover.
+
+Rollback path:
+
+Remove the `MainAppShadowRouteRelationPanel` import/mount and related diagnostic props from `Index.tsx`, leaving the pure plan metadata, current route analysis, RouteMap, heatmap, scoring, receipts, RXON, `route_cache`, `route_history`, storage, and route behavior unchanged.
+
+This phase does not wire the second consumer, does not mount `MainAppShadowRouteRelationPanel`, does not create a runtime readout, and does not change `Index.tsx`, RouteMap, `buildHeatmapLayers`, heatmap paint, scoring, ownership, route analysis, route-unit/global-unit builders, raw evidence semantics, coverage readiness, receipts, RXON runtime loading, `route_cache`, `route_history`, storage, maps, workerization, or rider-facing behavior.
 
 ## Acceptance For Phase 10J
 
