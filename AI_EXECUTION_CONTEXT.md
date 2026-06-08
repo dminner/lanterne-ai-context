@@ -15633,7 +15633,7 @@ The critical behavioral success condition is:
 | **11F — Debug Control Center Candidate Audit**       | ✅      | Decide if broader admin diagnostics can safely consume readiness summaries. | Audit classifies safe panels versus overlay-control danger zones; no runtime wiring unless separately approved. |
 | **11G — Route Builder Review Candidate Audit**       | ✅      | Decide whether the review page can show readiness/coverage diagnostics without map-overlay confusion. | `/v2-review` remains review/admin-only; any future diagnostic block is separated from rendered map layers and overlay truth. |
 | **11H — Raw Evidence Admin Readout Plan**            | ✅      | Plan admin-only raw evidence display semantics before rider-facing overlays. | Raw evidence can be shown as admin diagnostics without becoming route safety paint or score-driving output. |
-| **11I — Coverage Readiness Admin Readout Plan**      | ☐      | Plan admin-only coverage/readiness visibility before Vault/RUSA maps. | Coverage rows remain read models; no storage, no viewport map rendering, no route truth. |
+| **11I — Coverage Readiness Admin Readout Plan**      | ✅      | Plan admin-only coverage/readiness visibility before Vault/RUSA maps. | Coverage rows remain read models; no storage, no viewport map rendering, no route truth. |
 | **11J — Second Consumer Cutover Decision**           | ☐      | Choose exactly one second runtime consumer after 11A–11D prove safe. | One next target is chosen from the candidate inventory, with rollback, tests, and explicit non-goals. |
 
 | Blocked / Not First Surface                    | Status | Why                                                          |
@@ -15657,7 +15657,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-11H is complete. Raw evidence admin readout remains a later candidate only for admin diagnostics; raw evidence stays non-score-driving and does not become route paint, live map output, or rider-facing overlay behavior.
+11I is complete. Coverage readiness admin readout remains a later candidate only for admin/read-model diagnostics; coverage rows stay non-score-driving, non-storage, not route truth, not live map output, and no viewport/Vault/RUSA map behavior was wired.
 
 ## Checklist
 
@@ -16171,6 +16171,118 @@ Future copy must say:
 - Selected/rejected/missing/fallback states are evidence state, not score state.
 
 This phase does not wire a raw evidence readout, does not create a runtime consumer, does not choose a second consumer, does not render raw overlays, and does not change RouteMap, `buildHeatmapLayers`, safety scoring, receipts, RXON runtime loading, route_cache, route_history reload, storage, or rider-facing overlay behavior.
+
+## Phase 11I Coverage Readiness Admin Readout Plan
+
+`coverage_readiness_admin_diagnostics` remains a `later_candidate`.
+
+Audit result:
+
+- Coverage readiness already has pure contracts in `src/lib/route-line-v2/global-unit-coverage-readiness.ts`.
+- Route-unit coverage index rows, viewport read-model units, and corpus rollups already have pure read-model builders in `src/lib/route-line-v2/route-unit-coverage-index.ts`.
+- Route-unit coverage candidates already come from `src/lib/route-line-v2/global-units.ts`.
+- The viewport/corpus map query helper in `src/lib/route-line-v2/viewport-corpus-map-query.ts` is pure query/read-model shaping only. It does not render maps, query storage, open GPX/RXON/history files, use route_cache, or wire RouteMap.
+- The heatmap layer source registry already classifies `coverage_overlay` as future, aggregate, hidden, display-only, and non-score-driving.
+- Existing Vault/RUSA/corpus map and preview surfaces remain audit-only danger zones. This phase does not wire them.
+- `docs/04-execution/exec-028-controlled_runtime_cutover_checklist.md` does not exist in this branch.
+
+Safe coverage display inputs:
+
+- RouteUnitCoverage candidates.
+- Global-unit coverage index rows.
+- Viewport coverage read-model units.
+- Corpus coverage rollups.
+- Vault/RUSA collection coverage rollup metadata.
+- Coverage overlay layer-source definitions.
+- Viewport/corpus query guardrail summaries.
+- Admin/test fixture summaries.
+
+Coverage readiness states:
+
+- `ready_for_viewport_read_model`
+- `ready_for_corpus_read_model`
+- `partial`
+- `blocked`
+
+Read-model types:
+
+- `route_unit_coverage`
+- `global_unit_coverage_index_row`
+- `viewport_coverage_read_model_unit`
+- `viewport_coverage_read_model`
+- `corpus_coverage_rollup`
+- `vault_collection_coverage`
+- `rusa_collection_coverage`
+- `viewport_corpus_map_query_response`
+
+Partial or blocked cases that must stay visible:
+
+- Global unit without coverage membership.
+- Route unit without global coverage linkage.
+- Unmatched route unit.
+- Partial or unresolved global unit.
+- Missing global unit ID.
+- Missing route unit ID.
+- Missing or invalid coverage length.
+- Missing route interval.
+- Missing global interval.
+- Private identifiers outside private mode.
+- Runtime map wiring present.
+- Database runtime access present.
+- `route_cache` used as coverage input.
+- RXON used as coverage input.
+
+Future forbidden inputs:
+
+- Coverage storage rows as route truth.
+- Vault/RUSA/corpus viewport map data as runtime truth.
+- RouteMap props or rendered map state.
+- `buildHeatmapLayers` runtime input.
+- Route paint output.
+- Score outputs or risk buckets as coverage truth.
+- Rider-facing coverage overlay toggles.
+- Clicked SegmentInspector payloads.
+- Production receiptBuilder output.
+- RXON runtime artifacts.
+- `route_cache` entries.
+- `route_history` reload plans.
+- Supabase/database rows or queries.
+- Global-unit or route-unit coverage storage.
+- Browser storage state.
+- GPX/RXON/route_history files opened by the readout.
+
+Future guards:
+
+- Explicit diagnostics enablement required before rendering future coverage readiness rows.
+- Admin-only surface remains required.
+- Future coverage readiness rows default hidden when diagnostics are disabled.
+- Coverage rows remain read-model-only.
+- No RouteMap or rendered map coupling.
+- No viewport coverage map rendering.
+- No Vault/RUSA/corpus map rendering.
+- No DB query/write/migration/storage coupling.
+- No score-driving display copy.
+- Private identifiers remain redacted outside private mode.
+- No second consumer is selected by this phase.
+- Source guards reject RouteMap, `buildHeatmapLayers`, storage, RXON runtime, `route_cache`, `route_history`, receipts, SegmentInspector, Supabase, and map-rendering imports.
+
+Future copy must say:
+
+- Admin coverage readiness only.
+- Read-model proof.
+- Not runtime route truth.
+- Not storage truth.
+- Not live map output.
+- Not viewport map rendering.
+- Not Vault/RUSA/corpus map rendering.
+- Not route paint.
+- Not score input.
+- Not production coverage.
+- Not runtime cutover.
+- Not rider-facing coverage overlay.
+- Partial or unmatched coverage is diagnostic state, not route truth.
+
+This phase does not wire a coverage readiness readout, does not create a runtime consumer, does not choose a second consumer, does not render coverage overlays, and does not change RouteMap, `buildHeatmapLayers`, heatmap paint, scoring, route analysis, route-unit/global-unit builders, coverage readiness behavior, raw evidence semantics, receipts, RXON runtime loading, route_cache, route_history reload, storage, Vault/RUSA/corpus maps, or rider-facing coverage behavior.
 
 ## Acceptance For Phase 10J
 
