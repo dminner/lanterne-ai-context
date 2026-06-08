@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 2G is complete. Phase 2H adds a non-applied `cyclist_substrate` migration candidate, migration SQL audit helper, and local/disposable rehearsal plan. No production SQL, Supabase writes, DB writes, migrations applied, or app runtime writes are enabled.
+Phase 2H is complete. Phase 2I adds a disposable/local migration rehearsal harness for `cyclist_substrate_records`. The harness refuses production-like database URLs, applies the candidate twice, inspects table/PK/index/constraint state, and can optionally insert a tiny fixture row in a disposable database only. No production SQL, production writes, app runtime writes, or migrations are applied.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15762,6 +15762,18 @@ Phase 2H checkpoint:
 - Added production preflight checklist for migration-stack reconciliation, backup/snapshot, generated DB types, RLS roles, write path exposure, monitoring, rollback, smoke tests, storage cost, and p95 tile-key read target.
 - Added idempotency and dangerous-SQL checks; destructive SQL and production data writes remain blocked.
 - No production SQL executed, no Supabase writes, no DB writes, no migrations applied, no new tables created, no app runtime writes enabled, and no production rows written.
+- No network fetches, no RouteMap changes, no scoring changes, no heatmap paint changes, no RXON runtime loading, no route_history truth promotion, and no route_cache road/substrate truth promotion.
+- Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
+
+Phase 2I checkpoint:
+- Added disposable rehearsal harness `scripts/rehearse-cyclist-substrate-migration.sh`.
+- Added production-refusal guard for missing database URLs, missing disposable confirmation, production-looking URLs, and ambiguous non-local URLs without a second explicit confirmation.
+- The harness applies the `cyclist_substrate_records` candidate twice by script to prove idempotency in a disposable/local database.
+- Table, primary-key, index, enum/JSONB/nonempty-geometry constraint, and RLS checks are scripted.
+- Added optional disposable fixture insert SQL guarded by `RUN_FIXTURE_INSERT=1`.
+- Added rehearsal-script source audit tests and fixture-safety tests.
+- Rehearsal was not executed in this environment because no disposable database URL was provided and `psql` is not available on `PATH`.
+- No production SQL executed, no production writes, no Supabase app/runtime writes, no app runtime writes enabled, no production migrations applied, and no new production tables created.
 - No network fetches, no RouteMap changes, no scoring changes, no heatmap paint changes, no RXON runtime loading, no route_history truth promotion, and no route_cache road/substrate truth promotion.
 - Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
 
@@ -45247,6 +45259,83 @@ Before a future production migration phase can apply this candidate:
 - [ ] Confirm storage/cost estimate for compact encoded geometry and lineage JSON.
 - [ ] Confirm p95 read query target by `tile_key` lookup and country/tile lookup.
 - [ ] Confirm no bulk hydration or production row writes are bundled with table creation.
+
+## Phase 2I Disposable Rehearsal Harness
+
+Harness:
+
+- `scripts/rehearse-cyclist-substrate-migration.sh`
+
+Inputs:
+
+- `docs/04-execution/sql-drafts/cyclist_substrate_records_candidate.sql`
+- optional fixture: `docs/04-execution/sql-drafts/cyclist_substrate_records_fixture_insert.sql`
+
+Required environment:
+
+```sh
+CONFIRM_DISPOSABLE_DB=1 \
+CYCLIST_SUBSTRATE_REHEARSAL_DATABASE_URL="postgresql://postgres:password@localhost:54322/postgres" \
+scripts/rehearse-cyclist-substrate-migration.sh
+```
+
+Optional disposable fixture insert:
+
+```sh
+CONFIRM_DISPOSABLE_DB=1 \
+RUN_FIXTURE_INSERT=1 \
+CYCLIST_SUBSTRATE_REHEARSAL_DATABASE_URL="postgresql://postgres:password@localhost:54322/postgres" \
+scripts/rehearse-cyclist-substrate-migration.sh
+```
+
+The harness requires `psql` on `PATH`. It hides the database URL value in output and refuses to run if the URL is missing.
+
+Production-refusal behavior:
+
+- Refuses URLs containing `supabase.co`, `aws`, `amazonaws`, `pooler.supabase`, `production`, `prod`, `lanterne`, or `lovable`.
+- Allows by default only URLs that look local/disposable/test, including `localhost`, `127.0.0.1`, `host.docker.internal`, `disposable`, or `test`.
+- Requires `CONFIRM_DISPOSABLE_DB=1` for every run.
+- For ambiguous non-production-looking URLs, also requires `CONFIRM_I_UNDERSTAND_THIS_IS_NOT_PRODUCTION=1`.
+- Does not include any production-looking example URL.
+
+Expected harness steps:
+
+1. Read the non-applied SQL candidate.
+2. Refuse missing/unsafe database targets.
+3. Apply the candidate once.
+4. Apply the candidate a second time to prove idempotency.
+5. Check table existence.
+6. Check primary key existence on `schema_version`, `tile_key`, and `record_key`.
+7. Check expected indexes.
+8. Check expected enum/JSONB/nonempty geometry constraints.
+9. Check RLS enablement.
+10. Optionally apply the tiny disposable fixture insert twice when `RUN_FIXTURE_INSERT=1`.
+11. Verify the fixture row remains one row after duplicate upsert.
+
+Expected output:
+
+- `Applying candidate once`
+- `Applying candidate a second time for idempotency`
+- `table existence: ok`
+- `primary key schema_version/tile_key/record_key: ok`
+- `expected indexes: ok`
+- `expected check constraints: ok`
+- `nonempty geometry constraints: ok`
+- `RLS enabled: ok`
+
+Reset/rollback guidance:
+
+- Use only a disposable/local database.
+- Prefer deleting the temp workdir/database or running the repo-specific local reset command after rehearsal.
+- Do not prepare or execute production drop SQL in Phase 2I.
+- Do not run with `.env.local` production Supabase credentials.
+
+Phase 2I execution status:
+
+- Harness added.
+- Static tests added.
+- Rehearsal not executed in this environment because no disposable DB URL was provided and `psql` is not available on `PATH`.
+- No production SQL, production writes, app runtime writes, active migrations, or production table creation occurred.
 
 
 ---
