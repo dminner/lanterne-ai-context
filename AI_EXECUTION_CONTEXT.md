@@ -15659,7 +15659,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 2D2 is complete. Phase 2E defines the compact `cyclist_substrate` tile/record contract and proves raw OSM/SpeedRoad-style roads can be projected into normalized cyclist substrate records without production writes, network fetches, RouteMap, scoring, or route_cache truth promotion.
+Phase 2E is complete. Phase 2F defines the storage-agnostic `cyclist_substrate` repository boundary and proves idempotent dry-run writes with a memory adapter, using insert/merge/refresh/conflict outcomes without production writes, migrations, Supabase writes, RouteMap, scoring, or route_cache truth promotion.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15767,6 +15767,16 @@ Phase 2E checkpoint:
 - Raw Overpass payloads, broad `tile_cache` OSM road/tag blobs, route_cache, route_history, RXON, RouteMap, display, and heatmap payloads are not embedded in compact substrate records.
 - Corridor hydration and full-country hydration produce the same `cyclist_substrate` record shape and can reconcile by lineage rather than last-write-wins.
 - No production writes, bulk warming, network fetches, migrations, new tables, RouteMap changes, scoring changes, heatmap paint changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
+- Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
+
+Phase 2F checkpoint:
+- Added a storage-agnostic `cyclist_substrate` repository contract for tile reads and dry-run/memory-only writes.
+- Added a memory repository adapter that uses the same-layer hydration reconciliation policy for insert, merge, refresh, keep-existing, schema-conflict, geometry-conflict, blocked, and invalid outcomes.
+- Added a dry-run write plan helper for projected compact substrate tiles.
+- Idempotent insert/merge/refresh/conflict behavior is proven without last-write-wins.
+- Hydration lineage is preserved across corridor first-load, curated/manual fixture, and full-country compatible records.
+- Compact `CyclistSubstrateTile` and `CyclistSubstrateRecord` payloads are used; raw Overpass blobs and broad `tile_cache` road/tag payloads are not stored as substrate.
+- No production writes, no Supabase writes, no DB writes, no migrations/new tables, no network fetches, no RouteMap changes, no scoring changes, no heatmap paint changes, no RXON runtime loading, no route_history truth promotion, and no route_cache road/substrate truth promotion.
 - Arbitrary cold user routes remain live-fetch capable and do not depend on curated seeding.
 
 ## Checklist
