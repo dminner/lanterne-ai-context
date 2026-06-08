@@ -15659,14 +15659,14 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 0 remains open. Phase 0B bounded the real cold Erie, PA manual-route hang into geometry-only, but that is not useful enough. Phase 0C adds a Legacy Analysis fallback so V2/Builder failure can still show roads, turns, and legacy heatmap intelligence while keeping V2 as canonical when it succeeds.
+Phase 0 remains open pending real Erie, PA cold drawn-route verification. Phase 1C confirmed production serves the Phase 1B Cache/API diagnostics and Phase 0C Legacy Analysis fallback bundle, but the in-app verification session could not complete an authenticated admin/manual Erie draw: place search produced no selectable result, the session was not admin-authenticated, and Cache/API drawer diagnostics could not be captured.
 
 ## Product-Visible Map Intelligence Plan
 
 | Phase | Status | Product Result | Steps | Accepted When |
 |---|---:|---|---|---|
 | 0 — No-Cache Route-Line Analysis Recovery | ◐ | Uncached routes outside warm regions can analyze and safety-paint instead of hanging at fetching candidate roads. | 0.1 audit route-load/candidate-road fetch state · 0.2 identify why cache miss blocks progress · 0.3 ensure tile-cache miss/failure falls through to live road fetch · 0.4 make cache write failures non-blocking after live fetch · 0.5 add bounded failure/degraded state for road fetch failure · 0.6 preserve purple geometry-only line when analysis fails · 0.7 add tests for cold-cache success and cold-cache failure. | Small uncached routes outside South Jersey can fetch candidate roads live and paint; if road fetch fails, the app exits the loader, keeps geometry visible, and shows road-intelligence-unavailable state. |
-| 1 — Cache Failure Contract | ◐ | Cache/API failures stop becoming mystery hangs. | 1.1 inventory tile_cache, hpms_tile_cache, route_cache, substrate/evidence cache calls · 1.2 define hit/miss/stale/timeout/rate_limited/backend_down/invalid_payload states · 1.3 add lightweight retry where appropriate · 1.4 add non-blocking write behavior · 1.5 expose admin diagnostics · 1.6 regression-test no silent fake success. | Cache and proxy failures classify cleanly, retry once where safe, degrade visibly, and never impersonate successful analysis. |
+| 1 — Cache Failure Contract | ✅ | Cache/API failures stop becoming mystery hangs. | 1.1 inventory tile_cache, hpms_tile_cache, route_cache, substrate/evidence cache calls · 1.2 define hit/miss/stale/timeout/rate_limited/backend_down/invalid_payload states · 1.3 add lightweight retry where appropriate · 1.4 add non-blocking write behavior · 1.5 expose admin diagnostics · 1.6 regression-test no silent fake success. | Cache and proxy failures classify cleanly, retry once where safe, degrade visibly, and never impersonate successful analysis. |
 | 2 — Curated Route Cache Seeding | ☐ | RUSA/events/USBRS/RideYrBike target routes can be warmed first without blocking arbitrary user routes. | 2.1 define seed manifest shape · 2.2 choose initial collections/routes · 2.3 seed road tiles and HPMS/evidence where available · 2.4 report coverage by route/region · 2.5 validate warm-cache timing · 2.6 keep arbitrary cold user routes on live-fetch fallback. | Curated routes can be pre-warmed and verified, while non-curated uploads/draws still attempt live analysis rather than hanging. |
 | 3 — Cyclist Substrate Cache Expansion | ☐ | Road/path substrate cache expands beyond Medford/Batsto. | 3.1 define regions · 3.2 hydrate substrate cache for multiple real regions · 3.3 preserve stable family/corridor identity · 3.4 validate geometry/checksum/freshness · 3.5 expose readiness/failure diagnostics · 3.6 test routes across regions. | Multiple real regions hydrate substrate with stable identity, geometry, freshness, confidence, and clear blocked/partial states. |
 | 4 — Main-App Viewport Heatmap Intelligence | ☐ | Main app gains V2-review-style viewport intelligence for speed, traffic, bike support, risk, and corridor inspection. | 4.1 build pure viewport layer data bridge · 4.2 define speed/traffic/bike/risk/evidence-quality records · 4.3 group records by road/path corridor · 4.4 add admin/dev layer switcher · 4.5 add corridor click payload · 4.6 source-guard RouteMap/display/cache artifacts from becoming truth. | Admin/dev main app can flip viewport intelligence layers and click corridors without changing route paint, scoring, RouteMap truth, route_cache, route_history, or RXON. |
@@ -15695,7 +15695,7 @@ Phase 1B checkpoint:
 - Exposed the compact read-only summary in `MainAppShadowTestDrawer` behind the existing admin Test Console and diagnostics switch; no RouteMap, heatmap paint, scoring, RXON, storage, `route_cache`, or `route_history` runtime source is used.
 - Kept `Index.tsx` plumbing to a read-only `activeGpxAnalysis.ioMetrics.cacheFailureDiagnostics` prop pass at the existing drawer mounts.
 - Added regression coverage for cache-summary guardrails, geometry-only/no-fake-paint outcomes, candidate cache empty/unavailable fallback, route_cache not acting as road candidate truth, and admin readout visibility/copy.
-- Phase 1 diagnostics exist, but Phase 1 remains partial while Phase 0B reopens the real cold-route candidate-road hang.
+- Phase 1 diagnostics and regression coverage are accepted; Phase 0 remains partial until real Erie-style cold drawn-route behavior is manually verified.
 
 Phase 0B checkpoint:
 - Phase 0B fixes the remaining real cold-route hang at fetching candidate roads for Erie-style drawn routes by bounding live candidate-road fetch and consuming terminal geometry-only/degraded states.
@@ -15703,6 +15703,12 @@ Phase 0B checkpoint:
 Phase 0C checkpoint:
 - Phase 0C keeps V2/Builder as the preferred route intelligence path, but when V2 ends geometry-only it either reveals a usable saved Legacy Analysis fallback or runs Legacy Analysis on the current drawn/uploaded geometry. This is explicitly display fallback, not canonical V2 truth, route_cache truth, RXON truth, or route_history promotion.
 - Fresh upload/manual/clear route actions now clear stale persisted-route URL query locators (`route`, `event`, `rwgps`, `driver`) so a newly drawn draft does not keep pointing at an unrelated saved route.
+
+Phase 1C checkpoint:
+- Production asset audit on June 8, 2026 confirmed `www.lanterne.io` serves the Phase 1B Cache/API diagnostics and Phase 0C Legacy Analysis fallback bundle (`index-aDzPbD5j.js`, last modified June 8, 2026 12:55:51 UTC), so deployment lag is unlikely after that asset is loaded.
+- Cache/API diagnostics are available only in `MainAppShadowTestDrawer` when the user is admin-authenticated, the Test Console drawer is open, and the existing Builder diagnostics switch is enabled.
+- In-app browser verification could not complete the Erie-style cold drawn-route manual test: the session was not admin-authenticated, place search did not render a selectable Erie/Edinboro result, and manual map panning could not reliably establish the Erie route area. Cache/API diagnostics were therefore not captured in this session.
+- Phase 0 remains partial until a real admin/user session manually verifies that an Erie-style cold drawn route either safety-paints from live/legacy road intelligence or exits boundedly into road-intelligence-unavailable without hanging.
 
 ## Checklist
 
