@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3D.2 is complete and John’s Waterfall is usable enough to pause performance shaving. Phase 3E resumes cyclist substrate cache conversion by defining a unified route substrate candidate provider bridge: the current static candidate-grid JSON remains the runtime source for South Jersey and John’s Waterfall, while future `cyclist_substrate` repository and live fallback sources are represented without production storage wiring.
+Phase 3E is complete. Phase 3F proves one tiny generated candidate-grid pack works end-to-end before any larger hydration: generator dry-run/write mode, generated smoke-test public pack, pack validation, provider loading, and a production-shaped Route Builder smoke without production writes or broad hydration.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15874,6 +15874,28 @@ Phase 3E checkpoint:
 - Added a live fallback provider contract so arbitrary cold routes remain live-fetch capable when static regions are empty or unavailable.
 - Added admin-only Test Console copy for substrate provider kind, provider role, source mode, region, future repository planned/not wired state, and forbidden truth-source boundaries.
 - No production substrate writes, Supabase reads/writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, worker changes, route_cache truth, route_history truth, or RXON runtime truth changes occurred.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3F checkpoint:
+- Added candidate-grid generator dry-run/write mode and deterministic `--generated-at` support.
+- Added a tiny generated smoke-test input at `data/substrate/generated-smoke-test-candidates.geojson`.
+- Generated `public/substrate/generated-smoke-test/candidate-grid` from that input: one manifest, one cell, four compact route-aligned candidate records.
+- Added a generated substrate pack smoke test that validates manifest/cell existence, record parsing, geometry/bounds validity, raw Overpass/truth-source absence, deterministic record ordering, provider load readiness, generated region/source-mode diagnostics, and a production-shaped Route Builder engine smoke.
+- Provider smoke proves `generated-smoke-test` loads through `static_candidate_grid_json` with candidates and without broad-bbox fallback.
+- Existing John’s Waterfall and South Jersey static grid behavior remains unchanged; arbitrary cold routes remain live-fetch capable when no substrate exists.
+- No state/country hydration, production writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, route_cache truth, route_history truth, or RXON runtime truth changes occurred.
+- Exact tiny dry-run command:
+  `npx tsx scripts/substrate/build-candidate-grid.ts --input data/substrate/generated-smoke-test-candidates.geojson --out public/substrate/generated-smoke-test/candidate-grid --region generated-smoke-test --grid-size-deg 0.05 --mode dry-run --generated-at 2026-06-08T00:00:00.000Z`
+- Exact tiny write command:
+  `npx tsx scripts/substrate/build-candidate-grid.ts --input data/substrate/generated-smoke-test-candidates.geojson --out public/substrate/generated-smoke-test/candidate-grid --region generated-smoke-test --grid-size-deg 0.05 --mode write --generated-at 2026-06-08T00:00:00.000Z`
+- Exact validate command:
+  `npm test -- src/lib/route-line-v2/generated-substrate-pack-smoke.test.ts`
+- Exact resume/sanity command:
+  `npm test -- src/lib/route-line-v2/generated-substrate-pack-smoke.test.ts src/lib/route-line-v2/route-substrate-candidate-provider.test.ts src/lib/route-line-v2/cyclist-substrate-cache.test.ts`
+- Exact New York dry-run planning command, not executed in Phase 3F:
+  `npx tsx scripts/substrate/plan-golden-harness-region-hydration.ts --route _02408_-_John_s_Waterfall_.gpx --out .tmp/substrate/new-york-stage1-hydration-plan.json --out-root .tmp/substrate/new-york-stage1 --generated-at 2026-06-08T00:00:00.000Z --no-overpass`
+- Exact New York one-region real-run command, not executed in Phase 3F and requiring explicit approval before use:
+  `npx tsx scripts/substrate/plan-golden-harness-region-hydration.ts --route _02408_-_John_s_Waterfall_.gpx --out .tmp/substrate/new-york-stage1-hydration-plan.json --out-root .tmp/substrate/new-york-stage1 --generated-at 2026-06-08T00:00:00.000Z --run-first-region`
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
