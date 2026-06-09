@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3D is complete. Phase 3D.1 generalizes the same route-aligned candidate-pruning idea that makes OSM substrate fast to HPMS evidence: HPMS rows are pruned by route geometry and ownership-span overlap before expensive normalization/projection/gateway work. A Phase 3D.1 follow-up restores HPMS dev candidate overlays to the raw pre-prune diagnostic feed while runtime normalization/gateway/scoring continue to consume pruned rows.
+Phase 3D is complete. Phase 3D.2 performs one focused runtime optimization pass before returning to cyclist substrate cache conversion: route-span HPMS candidate pruning before gateway normalization. The goal is to reduce wasted HPMS multifield expansion and gateway work without deferring score-driving traffic evidence after paint.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15856,6 +15856,15 @@ Phase 3D.1 checkpoint:
 - Updated the long route engine regression so John's-like HPMS rows shrink before normalization/projection by route alignment rather than by arbitrary row cap.
 - No worker was added, no production writes occurred, no SQL or migrations were executed, no new tables were created, no RouteMap rewrite/touch occurred, no scoring math changed, no heatmap behavior changed, and no route_cache, route_history, or RXON runtime truth changed.
 - Arbitrary cold routes remain live-fetch capable and do not depend on the John's Waterfall HPMS pruning path.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3D.2 checkpoint:
+- Added a pure route-span evidence candidate pruner for HPMS-first evidence rows before multifield expansion and gateway normalization.
+- The pruner keeps route-touching HPMS rows, rejects near-route rows that do not plausibly match accepted ownership spans, and fails open with diagnostics when geometry is missing or weak enough that silent dropping would be unsafe.
+- Applied the pruner at the final accepted-route evidence boundary before `normalizedRecordsFromPrefetchedResponses`, HPMS projection, and source gateway normalization.
+- Added Test Console diagnostics for HPMS rows after route-span pruning, HPMS rows rejected by span pruning, and route-span rejection reasons.
+- Score-driving HPMS evidence is not deferred after paint; selected traffic/speed/lane/shoulder evidence remains available for first paint when route-span plausible.
+- No worker was added, no production writes occurred, no SQL or migrations were executed, no RouteMap rewrite/touch occurred, no scoring math changed, and no route_cache, route_history, or RXON runtime truth changed.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
