@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3I accepted the trimmed John's generated pack. Phase 3J adds a bounded Western NY proving region, generates a small real-source candidate-grid pack from bounded OSM geometry, and adds merge/coverage reporting against John's trimmed pack without full New York, full-US hydration, production writes, SQL, RouteMap, scoring, or heatmap changes.
+Phase 3J proved a bounded Western NY generated pack can coexist with John's trimmed pack, but it did not prove broad Western NY draw-route coverage. Phase 3K locks down static candidate-grid merge conflict policy and adds draw-route coverage triage showing a 100-mile Western NY fixture is mostly outside generated substrate coverage and likely falls into live/self-hosted road fallback.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15960,6 +15960,20 @@ Phase 3J checkpoint:
 - Added static HTML coverage report output at `.tmp/substrate/operator/reports/western-ny-coverage.html` with tile status legend, overlap count, conflict count, validation status, bounds, and next command.
 - Full New York and full-US hydration remain refused; Western NY write requires explicit bounded flags and a validated source.
 - No production writes, Supabase writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, worker changes, `route_cache` writes/truth, `route_history` writes/truth, RXON runtime truth, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3K checkpoint:
+- Added a pure static candidate-grid merge policy: same OSM way ID plus same geometry checksum is compatible; same OSM way ID plus different geometry checksum is a reported geometry conflict; tag-only differences are diagnostic when geometry is stable.
+- Provider precedence remains deterministic: `johns-waterfall-generated-trimmed`, `western-ny-generated-trimmed`, `johns-waterfall-generated`, then protected `johns-waterfall`.
+- Source lineage is preserved and no last-write-wins behavior is allowed.
+- The existing John's/Western NY merge still reports deterministically: 6 overlapping cells, 40 shared OSM way IDs, 39 compatible duplicates, 1 geometry checksum conflict, and 0 tag conflicts.
+- Added a route substrate coverage triage script for GPX or lat/lon polyline-style drawn routes.
+- Added synthetic `data/substrate/western-ny-100mi-draw-route.gpx` for the reported 100-mile Western NY draw-route shape.
+- Triage for that fixture finds 93 route cells, 0 cells covered by `western-ny-generated-trimmed`, partial static coverage only from `johns-waterfall-generated-trimmed` at about 2.15%, and likely live/self-hosted road fallback or worker path.
+- Enhanced the static coverage HTML report with route-cell coverage, missing route cells, covered route cells, provider mode, likely worker-path reason, and a warning when a route exceeds generated pack bounds.
+- Phase 3J remains a local/bounded merge proof, not broad Western NY route-corpus or draw-route coverage.
+- Route-corpus hydration, RUSA/USBRS/RideYrBike bulk hydration, full New York hydration, and full-US hydration remain blocked until conflict policy and broader draw-route coverage planning are accepted.
+- No pack overwrites, production writes, Supabase writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, worker changes, `route_cache` writes/truth, `route_history` writes/truth, RXON runtime truth, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
@@ -46049,6 +46063,63 @@ This writes:
 ```
 
 The HTML report is static only. It has no backend, no RouteMap, no heatmap, no Supabase, and no production writes.
+
+The current report also includes route-cell coverage for:
+
+```text
+data/substrate/western-ny-100mi-draw-route.gpx
+```
+
+That fixture is intentionally a broad drawn-route-style Western NY route outside the tiny generated proving pack. It is not a hydration target.
+
+## Merge Conflict Policy
+
+Preview the same-layer static candidate-grid overlap:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-merge-preview
+```
+
+Policy:
+
+- Same OSM way ID plus same geometry checksum is compatible.
+- Same OSM way ID plus different geometry checksum is a geometry conflict.
+- Geometry conflicts are reported, not overwritten.
+- Tag-only differences are diagnostic when geometry is stable.
+- Provider precedence is deterministic.
+- Source lineage is preserved.
+- No last-write-wins.
+
+Current expected merge metrics:
+
+- 6 overlapping cells
+- 40 shared OSM way IDs
+- 39 compatible duplicate records
+- 1 geometry checksum conflict
+- 0 tag conflicts
+
+## Western NY Draw Route Coverage Triage
+
+Run the synthetic 100-mile Western NY draw-route triage:
+
+```sh
+npx tsx scripts/substrate/route-substrate-coverage-triage.ts --route-gpx data/substrate/western-ny-100mi-draw-route.gpx --route-label western-ny-100mi-draw-fixture --json
+```
+
+Current expected result:
+
+- 8 route points
+- 93 route cells
+- `western-ny-generated-trimmed` matched: false
+- `western-ny-generated-trimmed` covered route cells: 0
+- `western-ny-generated-trimmed` missing route cells: 93
+- first partial static region: `johns-waterfall-generated-trimmed`
+- static coverage from that partial region: about 2.15%
+- likely worker path reason: `static_grid_partial_coverage_live_or_worker_fallback_likely`
+
+Interpretation:
+
+Phase 3J proved a bounded Western NY merge/control pack, not broad Western NY draw-route coverage. A long arbitrary drawn route can still leave the generated substrate footprint and fall into live/self-hosted road candidate fetch or overlay-worker paths.
 
 Runtime fallback order after Western NY is:
 
