@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3J proved a bounded Western NY generated pack can coexist with John's trimmed pack, but it did not prove broad Western NY draw-route coverage. Phase 3K locks down static candidate-grid merge conflict policy and adds draw-route coverage triage showing a 100-mile Western NY fixture is mostly outside generated substrate coverage and likely falls into live/self-hosted road fallback.
+Phase 3L correction patches substantial Western NY bootstrap pack generation to use the existing owned OSM `overpass-proxy` path (`sourceBackend: owned_osm`, `preferOwnedOsm`, `ownedOsmOnly`) instead of direct public Overpass/public endpoint modes. Generated candidate-grid packs remain bootstrap runtime artifacts for the current runtime bridge; they map toward the future `cyclist_substrate` repository but are not final canonical substrate storage.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15974,6 +15974,15 @@ Phase 3K checkpoint:
 - Phase 3J remains a local/bounded merge proof, not broad Western NY route-corpus or draw-route coverage.
 - Route-corpus hydration, RUSA/USBRS/RideYrBike bulk hydration, full New York hydration, and full-US hydration remain blocked until conflict policy and broader draw-route coverage planning are accepted.
 - No pack overwrites, production writes, Supabase writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, worker changes, `route_cache` writes/truth, `route_history` writes/truth, RXON runtime truth, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3L correction checkpoint:
+- Patched substantial Western NY source generation to require the owned OSM `overpass-proxy` path, not direct public Overpass or public endpoint modes.
+- The required generator request shape is `mode=raw`, `sourceBackend=owned_osm`, `preferOwnedOsm=true`, and `ownedOsmOnly=true`; if the owned proxy/env path is unavailable, substantial write is `BLOCKED`.
+- Substantial Western NY remains bounded to south 42.502380, west -78.853119, north 43.173634, east -76.516858; full New York and full-US hydration remain refused.
+- Source provenance records `source_kind=owned_osm`, `source_backend=owned_osm`, `generated_from_existing_owned_osm_proxy=true`, and `direct_public_overpass=false`.
+- Static candidate-grid JSON is documented as a bootstrap candidate-grid pack/current runtime bridge artifact that maps toward final `cyclist_substrate`; it is not final canonical substrate storage and not route truth.
+- No production writes, Supabase DB writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, worker changes, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` writes occurred.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
@@ -46127,7 +46136,95 @@ Runtime fallback order after Western NY is:
 2. `western-ny-generated-trimmed`
 3. `johns-waterfall-generated`
 4. protected `johns-waterfall`
-5. normal live fallback
+5. `western-ny-generated-substantial`, when it fully covers a broader Western NY drawn route that the specific packs do not cover
+6. normal live fallback
+
+## Western NY Substantial Bootstrap Pack
+
+The substantial Western NY path is a bounded bootstrap candidate-grid pack for the current runtime bridge. It maps toward the future `cyclist_substrate` repository, but it is not final canonical substrate storage and not route truth.
+
+Required bounds:
+
+```text
+south 42.502380
+west -78.853119
+north 43.173634
+east -76.516858
+```
+
+This mode must use the existing owned OSM `overpass-proxy` export path:
+
+```text
+mode=raw
+sourceBackend=owned_osm
+preferOwnedOsm=true
+ownedOsmOnly=true
+```
+
+Required environment:
+
+```text
+VITE_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_PUBLISHABLE_KEY
+```
+
+`LANTERNE_OVERPASS_PROXY_URL` or `SUPABASE_EDGE_OVERPASS_PROXY_URL` may override the proxy URL. Direct public Overpass/public endpoint modes are prohibited for this substantial Western NY mode. If the owned OSM proxy is unavailable, the operator must report `BLOCKED` and must not silently fall back to public Overpass or generate a fake pack.
+
+Preview the substantial source and pack commands:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-substantial-dry-run --max-requests 256
+```
+
+Generate the substantial source through owned OSM proxy and write the bounded bootstrap pack:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-substantial-write --write-output --allow-large-region --max-cells 900 --max-requests 256
+```
+
+The lower-level owned-proxy source command is:
+
+```sh
+npx tsx scripts/substrate/build-region-substrate.ts --region western-ny-generated-substantial-source --label 'Western NY substantial bootstrap candidate-grid pack source' --bounds '42.50238,-78.853119,43.173634,-76.516858' --out .tmp/substrate/operator/western-ny-generated-substantial/source-region --owned-osm-roads --source-backend owned_osm --prefer-owned-osm --owned-osm-only --max-requests 256
+```
+
+The source GeoJSON must stamp:
+
+- `sourceKind: bounded_western_ny_owned_osm_proxy`
+- `sourcePipeline: build-region-substrate --owned-osm-roads --source-backend owned_osm --prefer-owned-osm --owned-osm-only --max-requests`
+- `source_kind: owned_osm`
+- `source_backend: owned_osm`
+- `generated_from_existing_owned_osm_proxy: true`
+- `direct_public_overpass: false`
+- `direct_public_endpoint: false`
+- `preferOwnedOsm: true`
+- `ownedOsmOnly: true`
+- `artifactType: bootstrap_candidate_grid_pack_source`
+- `finalCanonicalSubstrateStorage: false`
+
+Validate the pack:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts validate-western-ny-substantial
+```
+
+Preview same-layer overlap with John's trimmed pack:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-substantial-merge-preview
+```
+
+Generate the static substantial coverage report:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-substantial-coverage-report
+```
+
+Run the 100-mile Western NY draw-route coverage triage against the current runtime bridge packs:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-substantial-route-coverage-triage
+```
 
 ## New York Dry Run
 
