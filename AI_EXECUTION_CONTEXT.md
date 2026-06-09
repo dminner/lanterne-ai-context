@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3F is complete. Phase 3G makes substrate candidate-grid hydration operator-safe before New York or any larger hydration: one wrapper command path, go/no-go validation, overwrite protection, bounded New York gates, full-US refusal, and a Derek-facing runbook without production writes or broad hydration.
+Phase 3G is complete. Phase 3G.1 turns the next real target into the full John's Waterfall generated substrate pack: bounded Golden Harness source generation, route-envelope trimming, provenance validation, generated candidate-grid write, and runtime preference with the existing John's static pack protected as fallback/control.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15907,6 +15907,18 @@ Phase 3G checkpoint:
 - New York write is blocked unless `--write-output`, `--allow-large-region`, `--max-cells`, `--max-requests`, and an already bounded source GeoJSON are present.
 - Full-US hydration is refused in this phase no matter what flags are supplied.
 - Generated smoke-test, John's Waterfall, and South Jersey pack/provider tests remain the validation path; arbitrary cold routes remain live-fetch capable when no substrate exists.
+- No production writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, `route_cache` writes, `route_history` writes, RXON writes, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3G.1 checkpoint:
+- Corrected the next real hydration target from abstract New York small-batch to the full John's Waterfall route, because that is bounded, product-visible, and directly testable in the main app.
+- Added operator modes for `johns-waterfall-source-generate`, `validate-johns-waterfall-source`, `johns-waterfall-generated-write`, and `validate-johns-waterfall-generated`.
+- The John's source-generation path uses the intended Golden Harness route envelope and `build-region-substrate` pipeline, then stamps provenance: NY state, John's route ID, route-bounded Overpass source kind, source pipeline, `copiedFromStaticGrid=false`, `fullStateHydration=false`, and `fullUsHydration=false`.
+- Added route-envelope trimming before candidate-grid generation so relation/member geometry cannot balloon the source into a broad New York-like pack.
+- Generated `public/substrate/johns-waterfall-generated/candidate-grid` as a separate pack; the existing `public/substrate/johns-waterfall/candidate-grid` remains protected and unchanged as fallback/control.
+- Runtime substrate candidate loading now prefers `johns-waterfall-generated` when present and falls through to the existing `johns-waterfall` static pack if generated is missing or unavailable.
+- Added smoke coverage proving the generated John's pack validates and loads through the provider with the real John's GPX route without broad-bbox fallback.
+- New York-rest hydration and same-layer merge with John's generated records are deferred to the next phase; John's static grid is not copied or relabeled as New York source data.
 - No production writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, `route_cache` writes, `route_history` writes, RXON writes, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
@@ -45760,13 +45772,77 @@ npx tsx scripts/substrate/run-substrate-hydration-operator.ts validate-johns-loc
 
 `READY` means the manifest exists, all cell files exist, records parse, geometry and bounds are valid, and no raw Overpass/truth-source blobs were found.
 
+## John's Waterfall Full-Route Source
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts johns-waterfall-source-generate --write-output --allow-large-region --max-cells 1200 --max-requests 1
+```
+
+This runs the intended bounded source-generation path for the full John's Waterfall route:
+
+```text
+Golden Harness GPX route envelope -> build-region-substrate -> cache-candidates-z14.geojson
+```
+
+It writes only to:
+
+```text
+.tmp/substrate/operator/johns-waterfall-full/source-regions/vault_golden_harness_01/cache-candidates-z14.geojson
+```
+
+It stamps provenance onto the source GeoJSON:
+
+- `regionId: johns-waterfall-generated`
+- `stateCode: NY`
+- `routeId: _02408_-_John_s_Waterfall_.gpx`
+- `sourceKind: golden_harness_route_bounded_overpass`
+- `copiedFromStaticGrid: false`
+- `fullStateHydration: false`
+- `fullUsHydration: false`
+
+This is not copied from the existing John's static grid.
+
+## Validate John's Waterfall Source
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts validate-johns-waterfall-source
+```
+
+`READY` means the source GeoJSON exists, is route-bounded, has NY/John's provenance, is not copied from a static grid, and stays inside the route envelope plus the explicit trim pad.
+
+## John's Waterfall Generated Pack Write
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts johns-waterfall-generated-write --write-output --allow-large-region --max-cells 1200 --max-requests 1
+```
+
+This writes only to:
+
+```text
+public/substrate/johns-waterfall-generated/candidate-grid
+```
+
+The existing control pack remains protected:
+
+```text
+public/substrate/johns-waterfall/candidate-grid
+```
+
+## Validate John's Waterfall Generated Pack
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts validate-johns-waterfall-generated
+```
+
+`READY` means the generated pack manifest and all cell files parse. The runtime provider prefers `johns-waterfall-generated` when present and falls back to the protected `johns-waterfall` static pack if generated is missing or unavailable.
+
 ## New York Dry Run
 
 ```sh
 npx tsx scripts/substrate/run-substrate-hydration-operator.ts new-york-dry-run
 ```
 
-This is a command preview and go/no-go check only. It does not run Overpass and does not write files.
+New York-rest hydration is not the next write step. Use the John's full-route generated pack first. The later New York phase should hydrate the remaining New York coverage and reconcile it with `johns-waterfall-generated`, not copy or relabel John's static grid.
 
 ## New York Small Batch Write
 
@@ -45827,7 +45903,7 @@ The manifest lists the region, grid size, record count, cell count, bounds, payl
 
 Do not run full-US hydration. The Phase 3G operator refuses it.
 
-Do not run a New York write without a small bounded source GeoJSON and explicit bounds flags.
+Do not run a New York write without a small bounded source GeoJSON and explicit bounds flags. Do not use the existing John's static grid as New York source data.
 
 Do not point write commands at the existing John's Waterfall or South Jersey runtime packs.
 
