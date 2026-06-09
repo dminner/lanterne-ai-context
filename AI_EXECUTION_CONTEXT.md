@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3C is complete. Phase 3C.1 triages the actual John's Waterfall main-app load failure and establishes that future substrate/evidence/global-unit visualization belongs in the main app surface behind admin/dev gates, not in a new v2-review-style surface. No production hydration, production writes, RouteMap rewrite, scoring change, or rider-facing coverage UI.
+Phase 3C.1 is complete. User manual diagnostics show John's Waterfall now reaches ready but takes about 165s. Candidate cache and source fetch are fast; the bottleneck is the hidden post-prefetch build/refinement/evidence path between prefetch ready and base request start. Phase 3D instruments that gap and adds an initial-load evidence budget so long routes do not synchronously process excessive HPMS/evidence records before first paint.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15820,11 +15820,27 @@ Phase 3C.1 checkpoint:
 - Added a narrow load fix so bundled Golden Harness GPX routes build their source projection from the bundled GPX loader before any archived RWGPS/source-projection dependency.
 - Added an admin-gated main-app Test Console verification readout for John's Waterfall that reports route source, active route geometry status, expected point/tile counts, memory-only substrate dry-run counts, and substrate coverage before/after.
 - No new standalone review map, no new v2-review-style surface, and no rider-facing coverage UI were created.
-- Future substrate/evidence/global-unit visualization belongs in the main app surface behind admin/dev gates.
+- Future substrate/evidence/global-unit visualization belongs in the main app surface behind admin/dev gates, not in a new v2-review-style surface.
 - First visual layer should be tile/status coverage, not every road polyline; RouteMap is not truth, coverage UI is not route paint, and coverage UI is not scoring.
 - substrate/evidence/global-unit coverage remain separate; Global Units not required for substrate coverage.
 - No production hydration, production writes, Supabase writes, DB writes, SQL execution, active migrations, new tables, network fetches, RouteMap changes, scoring changes, heatmap changes, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
 - Arbitrary cold routes remain live-fetch capable and do not depend on the verification readout.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3D checkpoint:
+- Captured the manual John's Waterfall comparison: route point count 5,839, route distance 300,875m, candidates 320, route cells 75, source fetch about 4.95s, gateway about 69.7s, build/match/score about 160s, total engine about 165s, HPMS rows after dedupe 1,786, normalized HPMS multifield records 10,751, gateway normalized records 11,468, ownership roads 261, scoring 9ms, and heatmap 2ms.
+- Captured the Medford/Batsto comparison: route point count 1,445, route distance 102,473m, candidates 115, route cells 22, source fetch about 5.82s, gateway about 1.85s, build/match/score about 4.07s, total engine about 9.9s, HPMS rows after dedupe 199, normalized records 1,339, gateway normalized records 1,607, ownership roads 63, scoring 3ms, and heatmap 1ms.
+- Static candidate cache and source fetch were not the root cause of the 165s John's Waterfall load; the measured bottleneck is post-prefetch HPMS/evidence projection and gateway normalization before first paint.
+- Added finer V2 timing instrumentation for post-prefetch build, base request build, evidence normalization, HPMS projection, identity kernel, route-indexed speed layer, and source gateway normalization.
+- Added a pure Route Builder performance classifier that flags John's-like critical HPMS/evidence bottlenecks while leaving Medford-like timings in the ok lane.
+- Added an initial-load HPMS/evidence budget for long or dense routes using the initial bounded source budget; John's-like HPMS rows are capped before expensive projection/gateway work and the remainder is explicitly deferred after first paint.
+- Deferred HPMS/DOT evidence remains missing or deferred rather than verified, official, score input, or road identity truth.
+- Added an admin-only Test Console performance diagnostic readout behind the existing diagnostics switch; it reports bottleneck, severity, suggested action, evidence budget, HPMS rows before/after budget, deferred HPMS rows, and timing rows.
+- Added a synthetic long-route engine regression proving HPMS rows are capped before projection and the route remains paintable.
+- Focused Medford/South Jersey and John's candidate-grid regressions remain in the route-line V2/cache test pack.
+- No worker was added; the user rejected workerization as the solution.
+- No production writes, bulk warming, Supabase writes, DB writes, SQL execution, active migrations, new tables, network behavior changes, RouteMap rewrite, scoring math change, heatmap behavior change, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
+- Arbitrary cold routes remain live-fetch capable and do not depend on the John's Waterfall performance budget.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
