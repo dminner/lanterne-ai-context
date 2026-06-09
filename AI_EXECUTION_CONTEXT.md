@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3D is complete. Phase 3D.2 performs one focused runtime optimization pass before returning to cyclist substrate cache conversion: route-span HPMS candidate pruning before gateway normalization. The goal is to reduce wasted HPMS multifield expansion and gateway work without deferring score-driving traffic evidence after paint.
+Phase 3D.2 is complete and John’s Waterfall is usable enough to pause performance shaving. Phase 3E resumes cyclist substrate cache conversion by defining a unified route substrate candidate provider bridge: the current static candidate-grid JSON remains the runtime source for South Jersey and John’s Waterfall, while future `cyclist_substrate` repository and live fallback sources are represented without production storage wiring.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15865,6 +15865,15 @@ Phase 3D.2 checkpoint:
 - Added Test Console diagnostics for HPMS rows after route-span pruning, HPMS rows rejected by span pruning, and route-span rejection reasons.
 - Score-driving HPMS evidence is not deferred after paint; selected traffic/speed/lane/shoulder evidence remains available for first paint when route-span plausible.
 - No worker was added, no production writes occurred, no SQL or migrations were executed, no RouteMap rewrite/touch occurred, no scoring math changed, and no route_cache, route_history, or RXON runtime truth changed.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3E checkpoint:
+- Added a unified route substrate candidate provider bridge for V2 runtime candidate loading.
+- Static candidate-grid JSON is explicitly labeled as the current runtime bridge; South Jersey and John’s Waterfall continue to load through that bridge without removing or changing their static grids.
+- Added a future `cyclist_substrate` repository provider stub that maps compact in-memory substrate records into V2 substrate candidates, but it is not wired to production reads or writes.
+- Added a live fallback provider contract so arbitrary cold routes remain live-fetch capable when static regions are empty or unavailable.
+- Added admin-only Test Console copy for substrate provider kind, provider role, source mode, region, future repository planned/not wired state, and forbidden truth-source boundaries.
+- No production substrate writes, Supabase reads/writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, worker changes, route_cache truth, route_history truth, or RXON runtime truth changes occurred.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
