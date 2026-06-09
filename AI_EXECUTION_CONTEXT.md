@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3G is complete. Phase 3G.1 turns the next real target into the full John's Waterfall generated substrate pack: bounded Golden Harness source generation, route-envelope trimming, provenance validation, generated candidate-grid write, and runtime preference with the existing John's static pack protected as fallback/control.
+Phase 3G.1 generated John's Waterfall works in the main app. Phase 3H audits generated pack size before Western NY so a bloated pack-generation strategy is not scaled into larger hydration.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15920,6 +15920,19 @@ Phase 3G.1 checkpoint:
 - Added smoke coverage proving the generated John's pack validates and loads through the provider with the real John's GPX route without broad-bbox fallback.
 - New York-rest hydration and same-layer merge with John's generated records are deferred to the next phase; John's static grid is not copied or relabeled as New York source data.
 - No production writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, `route_cache` writes, `route_history` writes, RXON writes, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3H checkpoint:
+- Added a read-only generated substrate candidate-grid pack size audit script for pack totals, largest cells, duplicate OSM-way cell writes, geometry duplicates, highway/noise breakdown, route-use ratios, and dry-run trim simulations.
+- Audited `johns-waterfall-generated` against the protected `johns-waterfall` control pack and the real John's Waterfall GPX route.
+- Measured generated John's pack at 573 files, 572 cells, 25,130 manifest records, 30,324 validation records, and 27,065,207 bytes.
+- Measured protected John's pack at 245 files, 244 cells, 7,164 manifest records, 8,848 validation records, and 5,690,753 bytes.
+- Route-use audit found John's runtime route corridor uses 75 generated cells, fetches 4,703 cell records, finds 1,195 near-route records, keeps 468 route-aligned records, and returns 320 candidates.
+- Generated cell/byte use is about 13%; route-aligned record use is about 1.86%, so the generated full-envelope strategy is too broad to scale directly into Western NY.
+- Trim simulation shows corridor-cell-only keeps 75 cells and 4,223 deduped records while retaining 320 candidates; max-distance-to-route 115m keeps 127 cells and 1,195 records while retaining 320 candidates.
+- Recommended next trim strategy is route-corridor/distance-to-route pruning before cell packing, with duplicate cell writes monitored before larger regions.
+- Western NY hydration and merge proof remain deferred until pack-size trim is accepted.
+- No pack overwrite, production writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, `route_cache` truth, `route_history` truth, RXON runtime truth, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
@@ -45835,6 +45848,24 @@ npx tsx scripts/substrate/run-substrate-hydration-operator.ts validate-johns-wat
 ```
 
 `READY` means the generated pack manifest and all cell files parse. The runtime provider prefers `johns-waterfall-generated` when present and falls back to the protected `johns-waterfall` static pack if generated is missing or unavailable.
+
+## Pack Size Audit Before Larger Region
+
+Before Western NY or any larger generated region, audit the generated pack size and route-use ratio:
+
+```sh
+npx tsx scripts/substrate/audit-substrate-candidate-grid-pack.ts --pack public/substrate/johns-waterfall-generated/candidate-grid --route routes_incomplete/_02408_-_John_s_Waterfall_.gpx --compare-pack public/substrate/johns-waterfall/candidate-grid
+```
+
+JSON output for attaching to an execution note:
+
+```sh
+npx tsx scripts/substrate/audit-substrate-candidate-grid-pack.ts --pack public/substrate/johns-waterfall-generated/candidate-grid --route routes_incomplete/_02408_-_John_s_Waterfall_.gpx --compare-pack public/substrate/johns-waterfall/candidate-grid --json
+```
+
+This is read-only. It reports pack files/cells/records/bytes, largest cells, duplicate way writes, highway/noise breakdown, actual route-derived cells, fetched cells, near-route and route-aligned records, returned candidates, and dry-run trim simulations.
+
+Do not run Western NY until this audit is accepted. A larger region should not inherit an over-broad full-envelope pack strategy.
 
 ## New York Dry Run
 
