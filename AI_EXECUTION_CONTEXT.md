@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3G.1 generated John's Waterfall works in the main app. Phase 3H audits generated pack size before Western NY so a bloated pack-generation strategy is not scaled into larger hydration.
+Phase 3H proved John's generated pack was too broad to scale. Phase 3I adds route-corridor and route-distance trim policy, generates a trimmed John's pack, and keeps Western NY deferred until the trimmed path is accepted.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15933,6 +15933,18 @@ Phase 3H checkpoint:
 - Recommended next trim strategy is route-corridor/distance-to-route pruning before cell packing, with duplicate cell writes monitored before larger regions.
 - Western NY hydration and merge proof remain deferred until pack-size trim is accepted.
 - No pack overwrite, production writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, `route_cache` truth, `route_history` truth, RXON runtime truth, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3I checkpoint:
+- Added generated candidate-grid trim policy to `build-candidate-grid`: `--trim-mode corridor-cells`, `--trim-mode route-distance`, `--route-gpx`, `--max-distance-to-route-m`, `--preserve-route-candidates`, and `--emit-trim-report`.
+- Generated `public/substrate/johns-waterfall-generated-trimmed/candidate-grid` from the bounded John's source using route-distance 115m pruning plus route-corridor cell packing.
+- Added trim reports (`trim-report.json` and `trim-report.md`) recording original cells/records/bytes, kept cells/records/bytes, dropped reasons, candidate retention, and guardrails.
+- Trimmed John's pack is 74 manifest cells, 1,195 manifest records, 1,408 validation records, and about 1.19 MB, down from the broad generated pack's 572 cells, 25,130 manifest records, 30,324 validation records, and 27.07 MB.
+- Candidate retention remains 320/320 returned route candidates; route-aligned records remain 468.
+- Runtime substrate candidate loading now prefers `johns-waterfall-generated-trimmed`, then `johns-waterfall-generated`, then protected `johns-waterfall`, then live fallback.
+- Existing broad generated and protected John's packs remain available; South Jersey remains available.
+- Western NY hydration and merge proof remain deferred until the trimmed John's path is accepted in production/manual testing.
+- No production writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, `route_cache` writes/truth, `route_history` writes/truth, RXON runtime truth, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
@@ -45866,6 +45878,55 @@ npx tsx scripts/substrate/audit-substrate-candidate-grid-pack.ts --pack public/s
 This is read-only. It reports pack files/cells/records/bytes, largest cells, duplicate way writes, highway/noise breakdown, actual route-derived cells, fetched cells, near-route and route-aligned records, returned candidates, and dry-run trim simulations.
 
 Do not run Western NY until this audit is accepted. A larger region should not inherit an over-broad full-envelope pack strategy.
+
+## John's Waterfall Trimmed Generated Pack
+
+After the pack-size audit, regenerate the product-visible John's pack with route-corridor cells and route-distance pruning:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts johns-waterfall-generated-trimmed-write --write-output --allow-large-region --max-cells 1200 --max-requests 1
+```
+
+The lower-level builder command is:
+
+```sh
+npx tsx scripts/substrate/build-candidate-grid.ts --input .tmp/substrate/operator/johns-waterfall-full/source-regions/vault_golden_harness_01/cache-candidates-z14.geojson --out public/substrate/johns-waterfall-generated-trimmed/candidate-grid --region johns-waterfall-generated-trimmed --grid-size-deg 0.05 --mode write --generated-at 2026-06-08T00:00:00.000Z --trim-mode route-distance --route-gpx routes_incomplete/_02408_-_John_s_Waterfall_.gpx --max-distance-to-route-m 115 --preserve-route-candidates --emit-trim-report
+```
+
+This writes only to:
+
+```text
+public/substrate/johns-waterfall-generated-trimmed/candidate-grid
+```
+
+It leaves both fallback packs in place:
+
+```text
+public/substrate/johns-waterfall-generated/candidate-grid
+public/substrate/johns-waterfall/candidate-grid
+```
+
+Validate the trimmed pack:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts validate-johns-waterfall-generated-trimmed
+```
+
+Expected current trimmed result:
+
+- 74 manifest cells
+- 1,195 manifest records
+- 1,408 validation records
+- about 1.19 MB
+- 320 returned route candidates retained
+- no broad-bbox fallback in provider/V2 smoke tests
+
+Runtime fallback order is:
+
+1. `johns-waterfall-generated-trimmed`
+2. `johns-waterfall-generated`
+3. protected `johns-waterfall`
+4. live fallback
 
 ## New York Dry Run
 
