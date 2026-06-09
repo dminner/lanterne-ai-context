@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3C.1 is complete. User manual diagnostics show John's Waterfall now reaches ready but takes about 165s. Candidate cache and source fetch are fast; the bottleneck is the hidden post-prefetch build/refinement/evidence path between prefetch ready and base request start. Phase 3D instruments that gap and adds an initial-load evidence budget so long routes do not synchronously process excessive HPMS/evidence records before first paint.
+Phase 3D is complete. Phase 3D.1 generalizes the same route-aligned candidate-pruning idea that makes OSM substrate fast to HPMS evidence: HPMS rows are pruned by route geometry and ownership-span overlap before expensive normalization/projection/gateway work. This is the primary performance fix; arbitrary HPMS row caps and after-paint deferral are not the score-driving evidence strategy.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15841,6 +15841,20 @@ Phase 3D checkpoint:
 - No worker was added; the user rejected workerization as the solution.
 - No production writes, bulk warming, Supabase writes, DB writes, SQL execution, active migrations, new tables, network behavior changes, RouteMap rewrite, scoring math change, heatmap behavior change, RXON runtime loading, route_history truth promotion, or route_cache road/substrate truth promotion.
 - Arbitrary cold routes remain live-fetch capable and do not depend on the John's Waterfall performance budget.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3D.1 checkpoint:
+- Audited OSM substrate candidate pruning in `cyclist-substrate-cache.ts`: route corridor cells, route segment spatial index, near-route distance filtering, route-aligned candidate filtering, and route-window-fair selection happen before V2 consumes OSM substrate candidates.
+- Audited HPMS flow in `v2ss-current-route-production-engine.ts`: HPMS had route-windowed acquisition and fair window selection, but broad HPMS rows could still enter `normalizedRecordsFromPrefetchedResponses`, HPMS projection, and source gateway normalization before being rejected.
+- Added a pure route-aligned evidence candidate pruner for HPMS-first evidence with future candidate-kind support for DOT, shoulder, bike-infra, and surface evidence.
+- Applied HPMS route-axis pruning before the initial evidence normalization pass and before final source gateway normalization; final pruning also checks route evidence ownership-span overlap.
+- Added diagnostics for HPMS raw rows, route-pruned rows, rejected-before-normalization rows, normalized-after-pruning counts, and gateway normalized-after-pruning counts.
+- Updated the performance classifier to recommend route-aligned evidence pruning for high HPMS/evidence volume instead of treating arbitrary row caps as the primary fix.
+- Initial-load score-driving HPMS evidence is not intentionally deferred after paint; route-touching HPMS rows remain available before paint, while off-route rejected rows are diagnostic only and do not become fake truth.
+- Added pure pruner tests for route-touching HPMS survival, off-route HPMS early rejection, route-window/ownership-span pruning, John's-like row shrinkage, and source guardrails.
+- Updated the long route engine regression so John's-like HPMS rows shrink before normalization/projection by route alignment rather than by arbitrary row cap.
+- No worker was added, no production writes occurred, no SQL or migrations were executed, no new tables were created, no RouteMap rewrite/touch occurred, no scoring math changed, no heatmap behavior changed, and no route_cache, route_history, or RXON runtime truth changed.
+- Arbitrary cold routes remain live-fetch capable and do not depend on the John's Waterfall HPMS pruning path.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
