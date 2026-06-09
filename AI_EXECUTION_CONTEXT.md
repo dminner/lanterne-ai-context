@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3L correction patches substantial Western NY bootstrap pack generation to use the existing owned OSM `overpass-proxy` path (`sourceBackend: owned_osm`, `preferOwnedOsm`, `ownedOsmOnly`) instead of direct public Overpass/public endpoint modes. Generated candidate-grid packs remain bootstrap runtime artifacts for the current runtime bridge; they map toward the future `cyclist_substrate` repository but are not final canonical substrate storage.
+Phase 3M adds the production-targeted curated corpus substrate hydrator for RUSA, USBRS, and RideYrBike. The primary target is compact normalized `cyclist_substrate_records`, not static candidate-grid JSON. The operator can summarize, plan, checkpoint, resume, validate, and gate small production write batches behind owned OSM, service-role-only access, and the explicit production-write confirmation flag. Production writes still require the `cyclist_substrate_records` migration/table to exist first.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15984,6 +15984,20 @@ Phase 3L correction checkpoint:
 - Static candidate-grid JSON is documented as a bootstrap candidate-grid pack/current runtime bridge artifact that maps toward final `cyclist_substrate`; it is not final canonical substrate storage and not route truth.
 - No production writes, Supabase DB writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, worker changes, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` writes occurred.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3M checkpoint:
+- Added `scripts/substrate/run-curated-corpus-substrate-hydrator.ts` for RUSA permanents, USBRS, and RideYrBike corpus substrate planning and production-gated hydration.
+- Added a script-only production repository adapter for `cyclist_substrate_records`; it refuses missing env, refuses anon/publishable keys, requires service-role access, requires `--write-output`, and requires `--i-understand-this-writes-production-substrate`.
+- The production target row shape remains compact normalized cyclist substrate: deterministic record keys, encoded geometry, geometry checksums, retained tags, lineage/provenance JSON, diagnostics JSON, source methods, generated/refreshed timestamps, and no raw Overpass blobs.
+- The adapter reads existing rows before writes and uses deterministic upsert planning: compatible inserts, lineage merges, refreshes, keep-existing, schema conflicts, and geometry conflicts. It does not use last-write-wins.
+- Hydration source requests use the existing owned OSM proxy only: `sourceBackend=owned_osm`, `preferOwnedOsm=true`, `ownedOsmOnly=true`, and `sourceFetchMode=curated_corpus_substrate_hydration`. Public Overpass fallback is refused.
+- Route geometry is resolved only from local GPX/full geometry supplied to the operator. RWGPS/sourceUrl-only RUSA, USBRS, and RideYrBike rows are blocked as external geometry required; the operator does not fake geometry from metadata URLs.
+- Full corpus audit found 3,416 curated routes: RUSA 3,153, USBRS 260, RideYrBike 3. Current local-geometry-ready routes are RUSA 15, USBRS 0, RideYrBike 0; blocked routes are RUSA 3,138, USBRS 260, RideYrBike 3.
+- Checkpoints are written under `.tmp/substrate/corpus-hydration/<run-id>/`: hydration plan, state, errors, summary, blocked routes, written-record summaries, conflicts, and coverage report.
+- Static candidate-grid output is not the primary artifact; any future `--emit-bootstrap-pack` path is debug/export only and not final substrate storage.
+- The migration candidate for `cyclist_substrate_records` remains a non-applied SQL draft; no SQL or migrations were executed in this phase.
+- No production writes occurred during implementation. No full-US, full-state, RouteMap, scoring, heatmap, worker, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` writes/truth changes occurred.
+- Phase 3 remains partial until the production table/migration is explicitly approved/applied and a small corpus write batch is run and validated.
 
 ## Checklist
 
@@ -46225,6 +46239,139 @@ Run the 100-mile Western NY draw-route coverage triage against the current runti
 ```sh
 npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-substantial-route-coverage-triage
 ```
+
+## Curated Corpus Production Substrate Hydrator
+
+Phase 3M switches the next hydrator target from bootstrap candidate-grid packs to production `cyclist_substrate_records`.
+
+Primary target:
+
+```text
+cyclist_substrate_records
+```
+
+Static candidate-grid JSON is optional debug/export only for this operator. It is not the primary output, not production substrate storage, and not route truth.
+
+Current production readiness:
+
+- `cyclist_substrate_records` exists as a storage contract and non-applied SQL draft.
+- The table is not present in the current production schema snapshot.
+- Production writes require the migration/table to be explicitly approved and applied first.
+- The script has a production repository adapter, but it fails closed if the table/env/confirmation are missing.
+
+Owned OSM source rule:
+
+```text
+sourceBackend=owned_osm
+preferOwnedOsm=true
+ownedOsmOnly=true
+sourceFetchMode=curated_corpus_substrate_hydration
+publicOverpassFallback=false
+```
+
+Write safety rule:
+
+```text
+SUPABASE_URL or VITE_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+--write-output
+--i-understand-this-writes-production-substrate
+```
+
+Anon and publishable keys are refused for production substrate writes. Missing geometry blocks the route; metadata URLs are not treated as geometry.
+
+Show corpus summary:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts show-corpus-summary
+```
+
+Plan RUSA:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-rusa --limit 25
+```
+
+Plan USBRS:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-usbrs --limit 25
+```
+
+Plan RideYrBike:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-rideyrbike --limit 25
+```
+
+Dry-run all:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-all --limit 25
+```
+
+Hydrate small RUSA batch:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-rusa-batch --limit 10 --max-routes 10 --max-cells-per-route 150 --max-requests 200 --write-output --i-understand-this-writes-production-substrate
+```
+
+Hydrate small USBRS batch:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-usbrs-batch --limit 10 --max-routes 10 --max-cells-per-route 150 --max-requests 200 --write-output --i-understand-this-writes-production-substrate
+```
+
+Hydrate small RideYrBike batch:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-rideyrbike-batch --limit 10 --max-routes 10 --max-cells-per-route 150 --max-requests 200 --write-output --i-understand-this-writes-production-substrate
+```
+
+Resume:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts resume --run-id <run-id>
+```
+
+Validate:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts validate-corpus --run-id <run-id>
+```
+
+Coverage report:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts coverage-report --run-id <run-id>
+```
+
+Checkpoint folder:
+
+```text
+.tmp/substrate/corpus-hydration/<run-id>/
+```
+
+Expected checkpoint files:
+
+```text
+hydration-plan.json
+hydration-state.json
+hydration-errors.json
+hydration-summary.json
+blocked-routes.json
+written-records-summary.json
+conflicts.json
+coverage-report.html
+```
+
+Current corpus audit:
+
+- RUSA: 3,153 routes, 15 local-geometry-ready, 3,138 blocked.
+- USBRS: 260 routes, 0 local-geometry-ready, 260 blocked.
+- RideYrBike: 3 routes, 0 local-geometry-ready, 3 blocked.
+
+Most blocked rows have RWGPS/source URLs but no local/full route geometry. Resolve geometry first; do not guess or hydrate from metadata URLs alone.
 
 ## New York Dry Run
 
