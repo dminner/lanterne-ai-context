@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3M adds the production-targeted curated corpus substrate hydrator for RUSA, USBRS, and RideYrBike. The primary target is compact normalized `cyclist_substrate_records`, not static candidate-grid JSON. The operator can summarize, plan, checkpoint, resume, validate, and gate small production write batches behind owned OSM, service-role-only access, and the explicit production-write confirmation flag. Production writes still require the `cyclist_substrate_records` migration/table to exist first.
+Phase 3N unlocks production substrate hydration planning from existing Supabase route geometry. The curated corpus operator now resolves script-only route geometry from `imported_routes`, `external_route_catalog`, and `canonical_routes` before declaring a route blocked. RUSA samples now become seedable from `imported_routes.geometry`; USBRS and RideYrBike samples are accurately blocked on missing Supabase join rows. An active `cyclist_substrate_records` migration path exists, but this patch did not execute SQL or production writes.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15998,6 +15998,18 @@ Phase 3M checkpoint:
 - The migration candidate for `cyclist_substrate_records` remains a non-applied SQL draft; no SQL or migrations were executed in this phase.
 - No production writes occurred during implementation. No full-US, full-state, RouteMap, scoring, heatmap, worker, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` writes/truth changes occurred.
 - Phase 3 remains partial until the production table/migration is explicitly approved/applied and a small corpus write batch is run and validated.
+
+Phase 3N checkpoint:
+- Added script-only Supabase route geometry resolution for curated corpus hydration planning. Resolver joins curated routes to `imported_routes`/`external_route_catalog` by RWGPS `source_route_id`, then follows `imported_routes.canonical_route_id` to `canonical_routes` when needed.
+- RUSA permanent route numbers are not used as RWGPS route ids; RUSA joins extract the RWGPS id from `rwgps_url`, while USBRS and RideYrBike use their RWGPS route ids directly.
+- Geometry parsing supports Supabase JSON point arrays, normalized catalog geometry, GeoJSON LineString/MultiLineString, encoded polylines, and WKB/EWKB LineString/MultiLineString from canonical route geometry.
+- Geometry is validated for point count, bounds, distance, and expected-state overlap before route cells are planned. Bad joins fail closed with blockers instead of fake geometry.
+- The corpus hydrator now reports blocked-by-reason counts, geometry-source counts, and sample ready routes. Blockers distinguish missing join key, missing geometry, unsupported format, invalid geometry, state mismatch, Supabase unavailable, and max-cell limits.
+- Bounded read-only verification on Phase 3N: `plan-rusa --limit 25` returned 25 ready routes, including 24 from `imported_routes.geometry` and 1 local GPX. `plan-usbrs --limit 10` and `plan-rideyrbike --limit 3` remained blocked on missing Supabase join keys.
+- Added active migration file `supabase/migrations/20260609000100_cyclist_substrate_records.sql` for compact `cyclist_substrate_records`; no migration was applied in this patch.
+- Tiny production write/readback remains blocked until the active migration is deliberately applied and the operator is run with service-role env plus `--write-output --i-understand-this-writes-production-substrate`.
+- No production writes, bulk hydration, public Overpass calls, RouteMap changes, scoring changes, heatmap changes, worker changes, SQL execution, migration application, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` writes/truth changes occurred.
+- Phase 3 remains partial until the migration is applied and a tiny production write/readback is run and accepted.
 
 ## Checklist
 
@@ -46242,7 +46254,7 @@ npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-substan
 
 ## Curated Corpus Production Substrate Hydrator
 
-Phase 3M switches the next hydrator target from bootstrap candidate-grid packs to production `cyclist_substrate_records`.
+Phase 3N switches the next hydrator target from bootstrap candidate-grid packs to production `cyclist_substrate_records` and resolves route geometry from existing Supabase route tables before declaring curated routes blocked.
 
 Primary target:
 
@@ -46254,10 +46266,38 @@ Static candidate-grid JSON is optional debug/export only for this operator. It i
 
 Current production readiness:
 
-- `cyclist_substrate_records` exists as a storage contract and non-applied SQL draft.
+- `cyclist_substrate_records` exists as a storage contract and active migration file:
+
+```text
+supabase/migrations/20260609000100_cyclist_substrate_records.sql
+```
+
 - The table is not present in the current production schema snapshot.
 - Production writes require the migration/table to be explicitly approved and applied first.
 - The script has a production repository adapter, but it fails closed if the table/env/confirmation are missing.
+- This patch did not apply the migration and did not write production rows.
+
+Route geometry resolver:
+
+```text
+local GPX first
+imported_routes.geometry
+imported_routes.raw_json
+external_route_catalog.normalized_data
+canonical_routes.geometry
+```
+
+The resolver is script-only. It requires Supabase URL plus service-role key for live reads and refuses anon/publishable keys for production write paths. RUSA joins use the RWGPS id extracted from `rwgps_url`, not the RUSA permanent number. USBRS and RideYrBike use their RWGPS route ids directly. Source URLs alone do not become geometry.
+
+Supported geometry formats:
+
+- JSON point arrays such as `{lat, lon, ele?}`
+- normalized catalog geometry arrays
+- GeoJSON LineString and MultiLineString
+- encoded polylines
+- WKB/EWKB LineString and MultiLineString
+
+Validation fails closed on invalid point counts, invalid bounds, impossible distance, unsupported geometry format, and expected-state mismatch.
 
 Owned OSM source rule:
 
@@ -46278,7 +46318,15 @@ SUPABASE_SERVICE_ROLE_KEY
 --i-understand-this-writes-production-substrate
 ```
 
-Anon and publishable keys are refused for production substrate writes. Missing geometry blocks the route; metadata URLs are not treated as geometry.
+Anon and publishable keys are refused for production substrate writes. Missing join rows or missing geometry block the route; metadata URLs are not treated as geometry.
+
+Apply the active migration only after production approval:
+
+```sh
+supabase db push
+```
+
+If using a linked Supabase project, confirm the project id before running `supabase db push`. Do not apply this migration from a browser/runtime path.
 
 Show corpus summary:
 
@@ -46286,10 +46334,21 @@ Show corpus summary:
 npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts show-corpus-summary
 ```
 
+For large corpus runs, prefer bounded collection plans first. A full 3,416-route summary may spend significant time in Supabase route geometry reads and should be treated as an operator run, not an incidental smoke test.
+
 Plan RUSA:
 
 ```sh
 npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-rusa --limit 25
+```
+
+Phase 3N bounded verification:
+
+```text
+plan-rusa --limit 25
+routesReady=25
+geometrySourceCounts.imported_routes.geometry=24
+geometrySourceCounts.local_gpx=1
 ```
 
 Plan USBRS:
@@ -46298,10 +46357,26 @@ Plan USBRS:
 npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-usbrs --limit 25
 ```
 
+Phase 3N bounded verification:
+
+```text
+plan-usbrs --limit 10
+routesReady=0
+blocked_missing_join_key=10
+```
+
 Plan RideYrBike:
 
 ```sh
 npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-rideyrbike --limit 25
+```
+
+Phase 3N bounded verification:
+
+```text
+plan-rideyrbike --limit 3
+routesReady=0
+blocked_missing_join_key=3
 ```
 
 Dry-run all:
@@ -46315,6 +46390,21 @@ Hydrate small RUSA batch:
 ```sh
 npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-rusa-batch --limit 10 --max-routes 10 --max-cells-per-route 150 --max-requests 200 --write-output --i-understand-this-writes-production-substrate
 ```
+
+Tiny first production write/readback, after migration approval/application:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-rusa-batch --limit 1 --max-routes 1 --max-cells-per-route 150 --max-requests 25 --write-output --i-understand-this-writes-production-substrate --run-id phase3n-tiny-rusa-write
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts validate-corpus --run-id phase3n-tiny-rusa-write
+```
+
+Expected behavior:
+
+- write mode is `BLOCKED` if `cyclist_substrate_records` is missing
+- write mode is `BLOCKED` if service-role env is missing
+- write mode is `BLOCKED` if confirmation flag is missing
+- readback must report rows for planned tile keys
+- readback must report no route_cache, route_history, or RXON payloads
 
 Hydrate small USBRS batch:
 
@@ -46571,6 +46661,123 @@ No scoring formulas, constants, weights, risk math, AADT logic, heatmap threshol
 ## Recommended Next Phase
 
 15T — combine read-only owned OSM and V1 HPMS/DOT traffic adapters in the V2S+S diagnostic scoring lane for current Test Loop/Medford-style requests, still unselected and still read-only.
+
+
+---
+
+## Source File: docs/04-execution/exec-034-ready_curated_corpus_substrate_hydration_plan.md
+
+# EXEC-034 Ready Curated Corpus Substrate Hydration Plan
+
+## Purpose
+
+Phase 3N corrects the Phase 3M geometry blocker. Curated corpus substrate hydration can now resolve route geometry from existing Supabase route tables before planning substrate cells.
+
+This document is an operator handoff, not a production write log. No production writes or SQL execution happened in Phase 3N.
+
+## Current State
+
+- Active migration path exists: `supabase/migrations/20260609000100_cyclist_substrate_records.sql`.
+- Migration was not applied by this patch.
+- Production target remains `cyclist_substrate_records`.
+- Static candidate-grid packs remain bootstrap runtime artifacts only.
+- `route_cache`, `route_history`, RXON, `tile_cache`, and `hpms_tile_cache` are not substrate truth.
+
+## Geometry Resolution
+
+Resolver order:
+
+1. Local GPX, when present.
+2. `imported_routes.geometry`.
+3. `imported_routes.raw_json`.
+4. `external_route_catalog.normalized_data`.
+5. `canonical_routes.geometry`.
+
+Supported geometry:
+
+- JSON `{lat, lon, ele?}` point arrays.
+- GeoJSON LineString and MultiLineString.
+- Encoded polyline.
+- WKB/EWKB LineString and MultiLineString.
+
+Validation fails closed on invalid bounds, invalid point count, impossible distance, unsupported format, and expected-state mismatch.
+
+## Phase 3N Bounded Verification
+
+Read-only RUSA sample:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-rusa --limit 25 --run-id phase3n-readonly-rusa-25
+```
+
+Observed:
+
+- `routesReady=25`
+- `geometrySourceCounts.imported_routes.geometry=24`
+- `geometrySourceCounts.local_gpx=1`
+- `routesBlocked=0`
+
+Read-only USBRS sample:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-usbrs --limit 10 --run-id phase3n-readonly-usbrs-10
+```
+
+Observed:
+
+- `routesReady=0`
+- `blocked_missing_join_key=10`
+
+Read-only RideYrBike sample:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts plan-rideyrbike --limit 3 --run-id phase3n-readonly-rideyrbike-3
+```
+
+Observed:
+
+- `routesReady=0`
+- `blocked_missing_join_key=3`
+
+Interpretation:
+
+- RUSA production planning is no longer blocked by generic missing geometry.
+- USBRS and RideYrBike need matching Supabase route rows/imported geometry or another approved route-geometry import before production substrate hydration can proceed.
+
+## Migration Gate
+
+Apply only after confirming the intended Supabase project:
+
+```sh
+supabase db push
+```
+
+Do not run production writes until `cyclist_substrate_records` exists and RLS/write exposure has been reviewed.
+
+## Tiny Write Gate
+
+After migration approval/application and service-role env setup:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-rusa-batch --limit 1 --max-routes 1 --max-cells-per-route 150 --max-requests 25 --write-output --i-understand-this-writes-production-substrate --run-id phase3n-tiny-rusa-write
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts validate-corpus --run-id phase3n-tiny-rusa-write
+```
+
+The tiny write must remain blocked if:
+
+- `cyclist_substrate_records` is missing.
+- Supabase service-role env is missing.
+- The explicit production confirmation flag is missing.
+- Owned OSM proxy is unavailable.
+
+## Guardrails
+
+- No full-US hydration.
+- No full-state hydration by default.
+- No public Overpass fallback.
+- No production writes without explicit flags.
+- No RouteMap, scoring, or heatmap changes.
+- No `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` truth promotion.
 
 
 ---
