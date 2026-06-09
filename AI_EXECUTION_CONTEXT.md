@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3N unlocks production substrate hydration planning from existing Supabase route geometry. The curated corpus operator now resolves script-only route geometry from `imported_routes`, `external_route_catalog`, and `canonical_routes` before declaring a route blocked. RUSA samples now become seedable from `imported_routes.geometry`; USBRS and RideYrBike samples are accurately blocked on missing Supabase join rows. An active `cyclist_substrate_records` migration path exists, but this patch did not execute SQL or production writes.
+Phase 3N.1 keeps production substrate hydration operator-safe. `validate-corpus --run-id <run-id>` now validates the actual checkpointed write instead of silently rebuilding the default 25-route sample, resume targets only missing cells, and a new localhost-only hydration console wraps the existing hydrator through a strict allowlist without exposing service-role secrets to browser JS.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -16010,6 +16010,15 @@ Phase 3N checkpoint:
 - Tiny production write/readback remains blocked until the active migration is deliberately applied and the operator is run with service-role env plus `--write-output --i-understand-this-writes-production-substrate`.
 - No production writes, bulk hydration, public Overpass calls, RouteMap changes, scoring changes, heatmap changes, worker changes, SQL execution, migration application, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` writes/truth changes occurred.
 - Phase 3 remains partial until the migration is applied and a tiny production write/readback is run and accepted.
+
+Phase 3N.1 checkpoint:
+- `validate-corpus --run-id <run-id>` now loads or reconstructs the checkpointed route/tile plan for that run and validates readback against the actual run id instead of the default 25-route planning sample.
+- Validation now reports planned route ids, hydrated route ids, expected tile keys, written tile keys, expected record count when tracked, actual readback count, missing tile keys, missing record keys when tracked, schema conflicts, geometry conflicts, lineage route ids, and forbidden-payload checks.
+- Partial writes remain `PARTIAL`: if a run stops at `max_requests` and only covers a subset of planned route cells, readback can report “written records read back OK, run incomplete due to request limit” without falsely claiming generic `READY`.
+- Resume uses the checkpoint plus readback to skip already written cells and write only missing tiles; idempotent reruns do not duplicate substrate rows.
+- Added local-only hydration console entrypoint `scripts/substrate/run-substrate-hydration-console.ts`. It binds to `127.0.0.1`, exposes only a strict action allowlist, keeps service-role/env values server-side, requires the exact `WRITE PRODUCTION SUBSTRATE` phrase for writes, and blocks next-5 RUSA hydration until the tiny run validates `READY`.
+- USBRS and RideYrBike write controls remain disabled in the console with `missing_join_key`.
+- No RouteMap, scoring, heatmap, worker, public Overpass, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` changes/truth promotion occurred in this patch.
 
 ## Checklist
 
@@ -45812,7 +45821,7 @@ Traffic/AADT should remain on the Nuremberg/HPMS/DOT read-only adapter path.
 
 # EXEC-033 Substrate Hydration Operator Runbook
 
-This is the safe operator path for generated static candidate-grid packs. It is for smoke tests, tiny local writes, validation, and bounded New York preparation. It does not write production database rows.
+This is the safe operator path for generated static candidate-grid packs and bounded production `cyclist_substrate_records` hydration. It covers smoke tests, tiny local writes, guarded production substrate writes, validation, resume, and bounded New York preparation.
 
 ## Run This First
 
@@ -46403,8 +46412,10 @@ Expected behavior:
 - write mode is `BLOCKED` if `cyclist_substrate_records` is missing
 - write mode is `BLOCKED` if service-role env is missing
 - write mode is `BLOCKED` if confirmation flag is missing
-- readback must report rows for planned tile keys
+- readback must validate the checkpointed run, not the default 25-route RUSA sample
+- readback must report the checkpointed planned/hydrated routes, expected tile keys, written tile keys, expected record count when tracked, actual readback count, and any missing tile keys
 - readback must report no route_cache, route_history, or RXON payloads
+- a request-limited partial run remains `PARTIAL` until the missing cells are resumed and validated
 
 Hydrate small USBRS batch:
 
@@ -46421,8 +46432,15 @@ npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-ridey
 Resume:
 
 ```sh
-npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts resume --run-id <run-id>
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts resume --run-id <run-id> --max-requests 25 --write-output --i-understand-this-writes-production-substrate
 ```
+
+Resume behavior:
+
+- Resume reads the checkpointed run id.
+- Resume revalidates the run and requests only missing tile keys.
+- Completed tiles are skipped.
+- Existing substrate rows are preserved through deterministic upsert/reconciliation; no duplicate rows are created by resume alone.
 
 Validate:
 
@@ -46435,6 +46453,42 @@ Coverage report:
 ```sh
 npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts coverage-report --run-id <run-id>
 ```
+
+## Local Hydration Console
+
+Start the localhost-only console:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-console.ts
+```
+
+The console binds to `127.0.0.1` only. It does not expose `SUPABASE_SERVICE_ROLE_KEY` to browser JavaScript and it does not allow arbitrary shell commands from the browser.
+
+Current buttons:
+
+- Show corpus summary
+- Plan RUSA 25
+- Hydrate 1 ready RUSA route
+- Validate selected run
+- Resume selected run
+- Hydrate next 5 ready RUSA routes
+- Coverage report
+- Hydrate USBRS routes (`disabled: missing_join_key`)
+- Hydrate RideYrBike routes (`disabled: missing_join_key`)
+
+Write actions require typing the exact phrase:
+
+```text
+WRITE PRODUCTION SUBSTRATE
+```
+
+The console refuses production writes when:
+
+- service-role env is missing
+- `cyclist_substrate_records` is missing or not detectable
+- owned OSM proxy/env is unavailable
+- the tiny run `phase3n-tiny-rusa-write` does not validate `READY` and the user attempts the next-5 RUSA action
+- USBRS or RideYrBike write actions are requested
 
 Checkpoint folder:
 
@@ -46673,7 +46727,7 @@ No scoring formulas, constants, weights, risk math, AADT logic, heatmap threshol
 
 Phase 3N corrects the Phase 3M geometry blocker. Curated corpus substrate hydration can now resolve route geometry from existing Supabase route tables before planning substrate cells.
 
-This document is an operator handoff, not a production write log. No production writes or SQL execution happened in Phase 3N.
+This document is an operator handoff. Since Phase 3N, the migration has been applied manually and a tiny RUSA write has been attempted; Phase 3N.1 fixes validation/readback so that tiny run can be judged honestly before any larger RUSA hydration.
 
 ## Current State
 
@@ -46762,6 +46816,36 @@ After migration approval/application and service-role env setup:
 npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-rusa-batch --limit 1 --max-routes 1 --max-cells-per-route 150 --max-requests 25 --write-output --i-understand-this-writes-production-substrate --run-id phase3n-tiny-rusa-write
 npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts validate-corpus --run-id phase3n-tiny-rusa-write
 ```
+
+Validation must read the actual `phase3n-tiny-rusa-write` checkpoint and report:
+
+- planned routes from checkpoint
+- hydrated routes from checkpoint
+- expected tile keys and written tile keys
+- expected record count when tracked and actual readback count
+- missing tile keys and missing record keys when tracked
+- schema/geometry conflicts
+- whether the run is `READY` or `PARTIAL`
+
+If the tiny run stopped at 25/31 cells because of `max_requests`, validation must remain `PARTIAL` until resume completes the missing cells and readback proves the route is whole.
+
+Safe resume command:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts resume --run-id phase3n-tiny-rusa-write --max-requests 25 --write-output --i-understand-this-writes-production-substrate
+```
+
+Resume is expected to skip completed cells and write only missing tile keys for that run id.
+
+## Local Console
+
+Local operator console:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-console.ts
+```
+
+The console is localhost-only (`127.0.0.1`), uses a strict hydrator action allowlist, hides service-role env values from the browser, requires the exact `WRITE PRODUCTION SUBSTRATE` phrase for writes, and blocks next-5 RUSA hydration until `phase3n-tiny-rusa-write` validates `READY`.
 
 The tiny write must remain blocked if:
 
