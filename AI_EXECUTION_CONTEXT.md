@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3H proved John's generated pack was too broad to scale. Phase 3I adds route-corridor and route-distance trim policy, generates a trimmed John's pack, and keeps Western NY deferred until the trimmed path is accepted.
+Phase 3I accepted the trimmed John's generated pack. Phase 3J adds a bounded Western NY proving region, generates a small real-source candidate-grid pack from bounded OSM geometry, and adds merge/coverage reporting against John's trimmed pack without full New York, full-US hydration, production writes, SQL, RouteMap, scoring, or heatmap changes.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15945,6 +15945,21 @@ Phase 3I checkpoint:
 - Existing broad generated and protected John's packs remain available; South Jersey remains available.
 - Western NY hydration and merge proof remain deferred until the trimmed John's path is accepted in production/manual testing.
 - No production writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, `route_cache` writes/truth, `route_history` writes/truth, RXON runtime truth, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3J checkpoint:
+- Added bounded Western NY proving region `western-ny-generated-trimmed` with bounds south 43.03, west -77.18, north 43.12, east -77.10.
+- The region is explicitly a proving region, not full New York, not NYC/eastern New York, not full-US hydration, and not a rollout-priority claim.
+- Generated the Western NY source from the bounded OSM source pipeline, not by copying or relabeling John's static or generated packs.
+- Bounded source generation produced 3,242 OSM API map ways, 180 z14 source features, and a candidate audit of 163 candidate ways, 21 corridors, and 3,079 rejected input ways.
+- Added operator modes for `western-ny-dry-run`, `western-ny-write-small-batch`, `validate-western-ny`, `western-ny-merge-preview`, and `western-ny-coverage-report`.
+- Generated `public/substrate/western-ny-generated-trimmed/candidate-grid`: 9 cells, 180 manifest records, 238 validation records including duplicate cell writes, 10 files, and about 200 KB.
+- Runtime substrate candidate loading now prefers `johns-waterfall-generated-trimmed`, then `western-ny-generated-trimmed`, then `johns-waterfall-generated`, then protected `johns-waterfall`, then normal fallback.
+- Added merge preview against `johns-waterfall-generated-trimmed`: 6 overlapping cells, 40 shared OSM way IDs, 39 compatible duplicate records, 1 geometry checksum conflict, 0 tag conflicts, 1,155 records only in John's, and 140 records only in Western NY.
+- Merge preview reports conflicts and provider precedence without last-write-wins; John's trimmed, broad generated, protected John's, and South Jersey packs remain protected.
+- Added static HTML coverage report output at `.tmp/substrate/operator/reports/western-ny-coverage.html` with tile status legend, overlap count, conflict count, validation status, bounds, and next command.
+- Full New York and full-US hydration remain refused; Western NY write requires explicit bounded flags and a validated source.
+- No production writes, Supabase writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, worker changes, `route_cache` writes/truth, `route_history` writes/truth, RXON runtime truth, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
@@ -45924,9 +45939,124 @@ Expected current trimmed result:
 Runtime fallback order is:
 
 1. `johns-waterfall-generated-trimmed`
-2. `johns-waterfall-generated`
-3. protected `johns-waterfall`
-4. live fallback
+2. `western-ny-generated-trimmed`, when the Western NY proving pack has been generated
+3. `johns-waterfall-generated`
+4. protected `johns-waterfall`
+5. normal live fallback
+
+## Western NY Bounded Proving Region
+
+Western NY is the next proving region after the trimmed John's pack. It is bounded to Finger Lakes / Western NY overlap geography and is not full New York, not NYC/eastern New York, not full-US hydration, and not a rollout-priority claim.
+
+Current proving bounds:
+
+```text
+south 43.03
+west -77.18
+north 43.12
+east -77.10
+```
+
+Run the operator dry run first:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-dry-run
+```
+
+The dry run writes nothing. It previews the bounded source-generation command and the guarded small-batch write command.
+
+Generate the bounded source GeoJSON from OSM geometry:
+
+```sh
+LANTERNE_OSM_API_MAP_TIMEOUT_MS=60000 npx tsx scripts/substrate/build-region-substrate.ts --region western-ny-generated-trimmed-source --label 'Western NY generated trimmed proving region' --bounds '43.03,-77.18,43.12,-77.10' --out .tmp/substrate/operator/western-ny-generated-trimmed/source-region --osm-api-map
+```
+
+This writes only to:
+
+```text
+.tmp/substrate/operator/western-ny-generated-trimmed/source-region/cache-candidates-z14.geojson
+```
+
+The source must validate as bounded Western NY provenance:
+
+- `regionId: western-ny-generated-trimmed`
+- `stateCode: NY`
+- `sourceKind: bounded_western_ny_osm_api_map`
+- `sourcePipeline: build-region-substrate --osm-api-map`
+- `copiedFromStaticGrid: false`
+- `fullStateHydration: false`
+- `fullUsHydration: false`
+
+Write the bounded generated pack:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-write-small-batch --write-output --allow-large-region --max-cells 80 --max-requests 1
+```
+
+This writes only to:
+
+```text
+public/substrate/western-ny-generated-trimmed/candidate-grid
+```
+
+Validate it:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts validate-western-ny
+```
+
+Expected current result:
+
+- 9 cells
+- 180 manifest records
+- 238 validation records, including duplicate cell writes
+- 10 files
+- about 200 KB
+- no broad-bbox fallback in the Western NY provider smoke
+
+Preview same-layer overlap with John's trimmed pack:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-merge-preview
+```
+
+This writes the local JSON report:
+
+```text
+.tmp/substrate/operator/reports/western-ny-merge-preview.json
+```
+
+Expected current merge preview against `johns-waterfall-generated-trimmed`:
+
+- 6 overlapping cells
+- 40 shared OSM way IDs
+- 39 compatible duplicate records
+- 1 geometry checksum conflict
+- 0 tag conflicts
+- 1,155 records only in John's
+- 140 records only in Western NY
+
+Generate the static local coverage report:
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-coverage-report
+```
+
+This writes:
+
+```text
+.tmp/substrate/operator/reports/western-ny-coverage.html
+```
+
+The HTML report is static only. It has no backend, no RouteMap, no heatmap, no Supabase, and no production writes.
+
+Runtime fallback order after Western NY is:
+
+1. `johns-waterfall-generated-trimmed`
+2. `western-ny-generated-trimmed`
+3. `johns-waterfall-generated`
+4. protected `johns-waterfall`
+5. normal live fallback
 
 ## New York Dry Run
 
@@ -45974,6 +46104,8 @@ Use this after a bounded New York small-batch write. `READY` means the pack shap
 The operator refuses populated output folders by default. It also refuses the current runtime packs even if `--overwrite` is passed:
 
 ```text
+public/substrate/johns-waterfall-generated-trimmed/candidate-grid
+public/substrate/johns-waterfall-generated/candidate-grid
 public/substrate/johns-waterfall/candidate-grid
 public/substrate/south-jersey/candidate-grid
 ```
@@ -45993,11 +46125,13 @@ The manifest lists the region, grid size, record count, cell count, bounds, payl
 
 ## What Not To Run
 
-Do not run full-US hydration. The Phase 3G operator refuses it.
+Do not run full-US hydration. The operator refuses it.
+
+Do not run full New York hydration. The Western NY path is bounded and full New York is refused in this phase.
 
 Do not run a New York write without a small bounded source GeoJSON and explicit bounds flags. Do not use the existing John's static grid as New York source data.
 
-Do not point write commands at the existing John's Waterfall or South Jersey runtime packs.
+Do not point write commands at the existing John's Waterfall generated, protected John's Waterfall, or South Jersey runtime packs.
 
 ## Why Full-US Is Refused
 
