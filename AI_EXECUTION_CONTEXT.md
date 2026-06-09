@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3E is complete. Phase 3F proves one tiny generated candidate-grid pack works end-to-end before any larger hydration: generator dry-run/write mode, generated smoke-test public pack, pack validation, provider loading, and a production-shaped Route Builder smoke without production writes or broad hydration.
+Phase 3F is complete. Phase 3G makes substrate candidate-grid hydration operator-safe before New York or any larger hydration: one wrapper command path, go/no-go validation, overwrite protection, bounded New York gates, full-US refusal, and a Derek-facing runbook without production writes or broad hydration.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -15896,6 +15896,18 @@ Phase 3F checkpoint:
   `npx tsx scripts/substrate/plan-golden-harness-region-hydration.ts --route _02408_-_John_s_Waterfall_.gpx --out .tmp/substrate/new-york-stage1-hydration-plan.json --out-root .tmp/substrate/new-york-stage1 --generated-at 2026-06-08T00:00:00.000Z --no-overpass`
 - Exact New York one-region real-run command, not executed in Phase 3F and requiring explicit approval before use:
   `npx tsx scripts/substrate/plan-golden-harness-region-hydration.ts --route _02408_-_John_s_Waterfall_.gpx --out .tmp/substrate/new-york-stage1-hydration-plan.json --out-root .tmp/substrate/new-york-stage1 --generated-at 2026-06-08T00:00:00.000Z --run-first-region`
+- Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
+
+Phase 3G checkpoint:
+- Added `scripts/substrate/run-substrate-hydration-operator.ts` as the single operator-safe wrapper for generated candidate-grid smoke tests, tiny local writes, validation, resume, and bounded New York preparation.
+- Added go/no-go summaries with `READY`, `BLOCKED`, `PARTIAL`, and `FAILED`, including region id, output folder, cell counts, completed/failed/skipped cells, record count, manifest/cell-file validity, provider/V2 smoke fields, broad-fallback flag, overwrite risk, and safe-to-continue status.
+- Added `docs/04-execution/exec-033-substrate_hydration_operator_runbook.md` with Derek-facing copy/paste commands for smoke test, John's local dry-run, John's local write, validation, New York dry-run, New York small-batch write, resume, and New York validation.
+- Dry-run remains the safe default path; write modes require explicit `--write-output`.
+- Existing John's Waterfall and South Jersey static runtime packs are protected and cannot be overwritten by the operator.
+- New York write is blocked unless `--write-output`, `--allow-large-region`, `--max-cells`, `--max-requests`, and an already bounded source GeoJSON are present.
+- Full-US hydration is refused in this phase no matter what flags are supplied.
+- Generated smoke-test, John's Waterfall, and South Jersey pack/provider tests remain the validation path; arbitrary cold routes remain live-fetch capable when no substrate exists.
+- No production writes, SQL execution, migrations, active production tables, RouteMap changes, scoring changes, heatmap changes, `route_cache` writes, `route_history` writes, RXON writes, `tile_cache` writes, or `hpms_tile_cache` writes occurred.
 - Phase 3 remains partial until production-safe multi-region hydration and verification are accepted.
 
 ## Checklist
@@ -45691,6 +45703,144 @@ No scoring formulas, constants, weights, risk math, AADT logic, shoulder logic, 
 15S — use the read-only owned OSM V1 source adapter in the V2S+S diagnostic scoring lane for current Test Loop/Medford route requests, still unselected and still read-only.
 
 Traffic/AADT should remain on the Nuremberg/HPMS/DOT read-only adapter path.
+
+
+---
+
+## Source File: docs/04-execution/exec-033-substrate_hydration_operator_runbook.md
+
+# EXEC-033 Substrate Hydration Operator Runbook
+
+This is the safe operator path for generated static candidate-grid packs. It is for smoke tests, tiny local writes, validation, and bounded New York preparation. It does not write production database rows.
+
+## Run This First
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts smoke-test
+```
+
+If it says `READY`, the existing generated smoke pack, provider bridge, John's Waterfall bridge test, and South Jersey bridge/cache tests are still healthy.
+
+If it says `BLOCKED` or `FAILED`, stop and read the blockers.
+
+## John's Local Dry Run
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts johns-local-dry-run
+```
+
+This uses the tiny John-adjacent smoke-test GeoJSON and prints the lower-level candidate-grid dry-run result. It writes no output.
+
+## John's Local Write
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts johns-local-write --write-output
+```
+
+This writes only to:
+
+```text
+.tmp/substrate/operator/johns-local/candidate-grid
+```
+
+It does not touch:
+
+```text
+public/substrate/johns-waterfall/candidate-grid
+public/substrate/south-jersey/candidate-grid
+```
+
+If the local output already exists, the operator blocks. Use `--overwrite` only when you are intentionally regenerating this local sandbox output.
+
+## Validate John's Local
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts validate-johns-local
+```
+
+`READY` means the manifest exists, all cell files exist, records parse, geometry and bounds are valid, and no raw Overpass/truth-source blobs were found.
+
+## New York Dry Run
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts new-york-dry-run
+```
+
+This is a command preview and go/no-go check only. It does not run Overpass and does not write files.
+
+## New York Small Batch Write
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts new-york-write-small-batch --input .tmp/substrate/operator/new-york-small-batch/cache-candidates-z14.geojson --out public/substrate/new-york-small-batch/candidate-grid --region new-york-small-batch --write-output --allow-large-region --max-cells 4 --max-requests 1
+```
+
+This is intentionally bounded. It blocks unless all of these are true:
+
+- `--write-output` is present.
+- `--allow-large-region` is present.
+- `--max-cells` is present and small.
+- `--max-requests` is present and small.
+- The bounded source GeoJSON already exists.
+- The output folder is not already populated, unless `--overwrite` is explicitly passed.
+
+This command is not a full New York hydration. It only builds a small generated candidate-grid pack from an already bounded source GeoJSON.
+
+## Resume New York
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts resume --out public/substrate/new-york-small-batch/candidate-grid
+```
+
+Resume validates the existing manifest and cell files. Valid completed cells are counted as skipped. Missing or invalid cells are reported as blockers/partial state.
+
+## Validate New York
+
+```sh
+npx tsx scripts/substrate/run-substrate-hydration-operator.ts validate-new-york
+```
+
+Use this after a bounded New York small-batch write. `READY` means the pack shape is valid.
+
+## How To Avoid Overwriting
+
+The operator refuses populated output folders by default. It also refuses the current runtime packs even if `--overwrite` is passed:
+
+```text
+public/substrate/johns-waterfall/candidate-grid
+public/substrate/south-jersey/candidate-grid
+```
+
+Use `--overwrite` only for a known sandbox or bounded generated output that you intend to replace.
+
+## What Files Should Appear
+
+A valid candidate-grid folder has:
+
+```text
+manifest.json
+<cell-id>.json
+```
+
+The manifest lists the region, grid size, record count, cell count, bounds, payload type, and cell files.
+
+## What Not To Run
+
+Do not run full-US hydration. The Phase 3G operator refuses it.
+
+Do not run a New York write without a small bounded source GeoJSON and explicit bounds flags.
+
+Do not point write commands at the existing John's Waterfall or South Jersey runtime packs.
+
+## Why Full-US Is Refused
+
+Phase 3G is an operator-safety phase. Its job is to make the tiny and bounded path boringly repeatable before any large hydration. Full-US hydration needs separate planning, quotas, checkpoints, monitoring, and rollback rules.
+
+## What This Does Not Touch
+
+- No production Supabase rows.
+- No SQL or migrations.
+- No `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` writes.
+- No RouteMap, scoring, or heatmap changes.
 
 
 ---
