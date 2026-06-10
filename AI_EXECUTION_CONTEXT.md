@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3N.1 keeps production substrate hydration operator-safe. `validate-corpus --run-id <run-id>` now validates the actual checkpointed write instead of silently rebuilding the default 25-route sample, resume targets only missing cells, and a new localhost-only hydration console wraps the existing hydrator through a strict allowlist without exposing service-role secrets to browser JS.
+Phase 3N.2 keeps production substrate hydration operator-safe at larger scale. The localhost hydration console now drives a one-route-at-a-time slow-drip RUSA queue with bounded per-route requests, cooldowns, retries, validation, pause-on-unhealthy behavior, and simple progress UI instead of the old aggressive “next 5” push.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -16018,6 +16018,15 @@ Phase 3N.1 checkpoint:
 - Resume uses the checkpoint plus readback to skip already written cells and write only missing tiles; idempotent reruns do not duplicate substrate rows.
 - Added local-only hydration console entrypoint `scripts/substrate/run-substrate-hydration-console.ts`. It binds to `127.0.0.1`, exposes only a strict action allowlist, keeps service-role/env values server-side, requires the exact `WRITE PRODUCTION SUBSTRATE` phrase for writes, and blocks next-5 RUSA hydration until the tiny run validates `READY`.
 - USBRS and RideYrBike write controls remain disabled in the console with `missing_join_key`.
+- No RouteMap, scoring, heatmap, worker, public Overpass, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` changes/truth promotion occurred in this patch.
+
+Phase 3N.2 checkpoint:
+- Added a slow-drip RUSA queue wrapper around the existing hydrator modes: `queue-rusa-slow-drip`, `resume-rusa-slow-drip`, `status-rusa-slow-drip`, `pause-rusa-slow-drip`, and `validate-rusa-slow-drip`.
+- The queue plans bounded ready RUSA routes, hydrates exactly one route at a time, validates each route before moving on, and resumes the same route after `max_requests` partial progress instead of starting a new one.
+- Queue runs write durable queue state under the existing corpus hydration checkpoint root and preserve completed-route progress across resume/restart.
+- Transient `read_existing_rows_failed` and production readback failures now pause the queue instead of snowballing into broad multi-route write pressure; queue status stays operator-readable and resumable.
+- Added slow-drip controls to the localhost hydration console: Start queue, Pause queue, Resume queue, Queue status, and Validate queue. The old “Hydrate next 5 ready RUSA routes” action is removed.
+- Console output remains compact browser-safe progress only; raw JSON stays behind the existing details/download path and service-role secrets remain server-side.
 - No RouteMap, scoring, heatmap, worker, public Overpass, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` changes/truth promotion occurred in this patch.
 
 ## Checklist
