@@ -15623,7 +15623,7 @@ The critical behavioral success condition is:
 
 ## Current Execution Note
 
-Phase 3N.2 keeps production substrate hydration operator-safe at larger scale. The localhost hydration console now drives a one-route-at-a-time slow-drip RUSA queue with bounded per-route requests, cooldowns, retries, validation, pause-on-unhealthy behavior, and simple progress UI instead of the old aggressive “next 5” push.
+Phase 3N.3 pivots cyclist substrate runtime storage toward the owned Nuremberg spatial store. Supabase `cyclist_substrate_records` remains the current app-facing proving cache until the existing rows are ported and verified in Nuremberg; the runtime read proxy now prefers Nuremberg when configured and falls back to Supabase/static/live sources without exposing Nuremberg tokens to the browser.
 
 ## Product-Visible Map Intelligence Plan
 
@@ -16027,6 +16027,15 @@ Phase 3N.2 checkpoint:
 - Transient `read_existing_rows_failed` and production readback failures now pause the queue instead of snowballing into broad multi-route write pressure; queue status stays operator-readable and resumable.
 - Added slow-drip controls to the localhost hydration console: Start queue, Pause queue, Resume queue, Queue status, and Validate queue. The old “Hydrate next 5 ready RUSA routes” action is removed.
 - Console output remains compact browser-safe progress only; raw JSON stays behind the existing details/download path and service-role secrets remain server-side.
+- No RouteMap, scoring, heatmap, worker, public Overpass, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` changes/truth promotion occurred in this patch.
+
+Phase 3N.3 checkpoint:
+- Added a Nuremberg-first runtime substrate read path behind the existing `cyclist-substrate-read-proxy`; browser code still calls the same server-side proxy, so Nuremberg read tokens stay server-side.
+- Added a Supabase-to-Nuremberg port command for existing `cyclist_substrate_records` rows. It exports Supabase rows into local chunks, imports them to Nuremberg only with explicit Nuremberg write confirmation, and verifies sample tile readback.
+- The route substrate provider now labels Nuremberg-owned spatial reads separately from Supabase reads while preserving the same route-relevant candidate pruning and the same “candidate roads only, not route truth” guardrails.
+- Supabase `cyclist_substrate_records` is described as the current app-facing proving cache, not the intended long-term bulk substrate warehouse.
+- Lanterne Global Unit evidence lineage is explicitly kept out of the road-cache row contract; road substrate remains road/path candidate geometry and tags, not evidence-unit history.
+- Residential roads were not pruned. No broad service/footway pruning was added in this patch.
 - No RouteMap, scoring, heatmap, worker, public Overpass, `route_cache`, `route_history`, RXON, `tile_cache`, or `hpms_tile_cache` changes/truth promotion occurred in this patch.
 
 ## Checklist
@@ -46274,6 +46283,8 @@ npx tsx scripts/substrate/run-substrate-hydration-operator.ts western-ny-substan
 
 Phase 3N switches the next hydrator target from bootstrap candidate-grid packs to production `cyclist_substrate_records` and resolves route geometry from existing Supabase route tables before declaring curated routes blocked.
 
+Phase 3N.3 starts the storage pivot toward the owned Nuremberg spatial store. Existing Supabase `cyclist_substrate_records` rows should be ported to Nuremberg, not regenerated from OSM, so the already-extracted route substrate can be preserved and verified.
+
 Primary target:
 
 ```text
@@ -46290,10 +46301,11 @@ Current production readiness:
 supabase/migrations/20260609000100_cyclist_substrate_records.sql
 ```
 
-- The table is not present in the current production schema snapshot.
-- Production writes require the migration/table to be explicitly approved and applied first.
-- The script has a production repository adapter, but it fails closed if the table/env/confirmation are missing.
-- This patch did not apply the migration and did not write production rows.
+- The table has been used as the app-facing proving cache for early RUSA hydration.
+- It is not intended to be the long-term bulk substrate warehouse.
+- The Nuremberg-owned spatial store is the preferred long-term substrate store once the existing rows are ported and validated.
+- Runtime reads now go through the same server-side proxy: Nuremberg first when configured, Supabase proving cache second, static candidate-grid packs third, live fallback last.
+- Browser code must not receive Nuremberg read/write tokens.
 
 Route geometry resolver:
 
@@ -46337,6 +46349,48 @@ SUPABASE_SERVICE_ROLE_KEY
 ```
 
 Anon and publishable keys are refused for production substrate writes. Missing join rows or missing geometry block the route; metadata URLs are not treated as geometry.
+
+Port existing Supabase substrate rows to Nuremberg:
+
+```sh
+npx tsx scripts/substrate/port-cyclist-substrate-to-nuremberg.ts plan --run-id nuremberg-cyclist-substrate-port
+```
+
+Export the existing Supabase rows into local chunks:
+
+```sh
+npx tsx scripts/substrate/port-cyclist-substrate-to-nuremberg.ts export --run-id nuremberg-cyclist-substrate-port
+```
+
+Import the exported chunks into Nuremberg. This writes to the owned Nuremberg substrate store, not Supabase:
+
+```sh
+npx tsx scripts/substrate/port-cyclist-substrate-to-nuremberg.ts import --run-id nuremberg-cyclist-substrate-port --i-understand-this-writes-nuremberg-substrate
+```
+
+Verify Nuremberg readback:
+
+```sh
+npx tsx scripts/substrate/port-cyclist-substrate-to-nuremberg.ts verify --run-id nuremberg-cyclist-substrate-port
+```
+
+Required Nuremberg environment:
+
+```text
+NUREMBERG_SUBSTRATE_BASE_URL
+NUREMBERG_SUBSTRATE_READ_TOKEN
+NUREMBERG_SUBSTRATE_WRITE_TOKEN
+NUREMBERG_SUBSTRATE_READ_ENABLED=1
+```
+
+Optional endpoint overrides:
+
+```text
+NUREMBERG_SUBSTRATE_QUERY_PATH=/substrate/cyclist-substrate/query
+NUREMBERG_SUBSTRATE_IMPORT_PATH=/substrate/cyclist-substrate/import-batch
+```
+
+Road substrate rows should not store Lanterne Global Unit lineage. Global Unit evidence history belongs in the future evidence/unit store; road substrate remains candidate road/path geometry, tags, freshness, and compact source provenance. Residential roads remain in scope. No broad service-road or footway pruning is added by this port.
 
 Apply the active migration only after production approval:
 
