@@ -51720,6 +51720,343 @@ The architecture should make it hard for any button, drawer, map click, or debug
 
 ---
 
+## Source File: docs/04-execution/exec-047-dev-panel-inventory.md
+
+# exec-047 - Dev Panel Inventory And Cleanup Recommendations
+
+Date: 2026-06-12
+
+## Scope
+
+This inventory covers the admin-only `dev` handle, which opens `DevTuningPanel` and renders `DebugControlCenter`.
+
+Primary source files:
+
+- `src/components/DevTuningPanel.tsx`
+- `src/components/DebugControlCenter.tsx`
+- `src/lib/debug-registry.ts`
+- `src/lib/debug-flags.ts`
+- `src/pages/Index.tsx`
+- `src/components/RouteMap.tsx`
+
+Adjacent admin surfaces are included only where they are tightly coupled to the dev panel:
+
+- The `test` handle opens `MainAppShadowTestDrawer`, not the dev panel. It is inventoried in an appendix because it contains road-source truth readouts and stale shadow props that affect cleanup decisions.
+- The `roads`, `candidates`, `raw`, and `fragments` handles are separate drawers made visible by dev-panel switches. ***i dont' think i need roads/candidates/raw/fragments anymore***
+
+## Recommendation Summary
+
+The dev panel is carrying three different eras at once:
+
+1. Current route-builder/evidence debug surfaces that are worth keeping.
+2. Legacy mutable analysis switches that can change route truth and are no longer the right debugging model.
+3. Stale controls and presets that exist in settings or registry code but do not map cleanly to current behavior.
+
+Recommendation:
+
+- Keep read-only evidence/debug surfaces: Route Experience Diagnostics, Candidate Hints, HPMS, Hazards, Builder -> Evidence -> Display.
+- Keep route-source truth, HPMS, hazard, bike/shoulder/traffic verification, and source-cache diagnostics as the core dev/debug product.
+- Move or delete any switch that changes route truth from the main dev panel. Production behavior should be fixed by code and tests, not toggleable in the live admin drawer.
+- Quarantine legacy boundary/course-marker controls. They are the highest risk for confusing v1 breadcrumbs with v2 route-line topology.
+- Replace the old hazard-specific switches with the newer generalized Hazard Debug surface.
+- Delete dead preset code or render it intentionally. Hidden presets are maintenance debt.
+- Keep Test Console as a readout-only route-builder status panel, but remove unused props and obsolete static fixture language.
+
+## Recommendation Legend
+
+| Recommendation | Meaning |
+|---|---|
+| Keep | Still useful as-is. |
+| Keep, rename | Useful, but the label/copy should reflect current behavior more clearly. |
+| Keep, move | Useful, but belongs in a narrower debug/review surface. |
+| Fold | Keep the capability, but merge it into a newer panel or model. |
+| Delete | Remove from UI and code after confirming no tests depend on it. |
+| Quarantine | Hide from normal dev workflow until the underlying legacy path is removed or renamed. |
+
+## Dev Panel Shell
+
+| Item | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `DevTuningPanel` shell | Admin-only right drawer titled `Debug Control Center`. | Gives admins one place to inspect and mutate debug settings. | Keeps debug controls discoverable and out of rider UI. | None, unless replaced by a full admin workspace. | Keep. |
+| Admin gate | `if (!isAdmin) return null`. | Prevents debug controls from appearing to riders. | Critical safety boundary. | None. | Keep. |
+| Local storage persistence | Saves `lanterne-dev-tuning`, `lanterne-force-poi-cache-miss`, and part of `DEBUG_FLAGS`. | Makes debug state survive reloads. | Useful during multi-route investigations. | Hidden persisted state can make screenshots and bug reports misleading. | Keep, but add visible active-state summary/reset warnings. |
+| Reset button | Restores `DEV_TUNING_DEFAULTS`. | Fast recovery from confusing debug state. | Essential with this many controls. | None. | Keep. |
+| Desktop/mobile dual shell | Drawer renders as fixed desktop panel or mobile sheet. | Admin tools are available on both viewports. | Useful for field/mobile QA. | More surface area to test. | Keep. |
+
+## Registry-Driven Switch Sections
+
+These sections are rendered from `DEBUG_REGISTRY` through `CategorySection`.
+
+### Verification Overlays
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `overlayBikeInfra` - Bike infrastructure overlay | Colors visible roads by bike facility classification. | Debugs whether OSM/source tags become painted lane, buffered lane, protected lane/cycleway, sharrow, none, or unknown. | Directly useful for Beech/Main style bugs and attached-vs-separated facility checks. | Removing it makes bike-infra misclassification much harder to inspect. | Keep. |
+| `overlayShoulder` - Shoulder overlay | Colors visible roads by shoulder truth. | Shows shoulder availability separate from heatmap scoring. | Useful for score/evidence QA and road-source coverage. | Could be folded into evidence filters, but still useful standalone. | Keep. |
+| `overlayTrafficProvenance` - Traffic provenance overlay | Colors roads by traffic source/provenance. | Shows whether traffic came from DOT/HPMS/direct/inferred/proxy/unknown. | Helps diagnose authority/fallback problems without opening every record. | Removing it slows HPMS/AADT debugging. | Keep. |
+| `routeSpeedPostedOnly` - Route speed posted-only | Shows selected-route speed coverage only where direct OSM-posted speed exists. | Separates posted truth from inferred/resolved speed. | Useful coverage diagnostic. | Can confuse users if it looks like the normal speed layer. | Keep, rename to `Posted speed coverage`. |
+
+### Caching
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `skipCache` - Skip RouteExperience cache<br /><br />***Cache*** | Bypasses local RouteExperienceArtifact promotion. | Forces a fresh v2 route-builder/refinement path. | Essential when debugging stale route artifacts. | Fresh runs are slower, but deletion would hide cache bugs. | Keep. |
+| `skipCorridorCache` - Skip corridor cache<br /><br />***Skip Corridor Cache*** | Forces fresh direct road corridor reads instead of cached corridor tiles. | Originally isolated stale OSM/Overpass tile behavior. | Useful only while old direct OSM fallback remains. | Removes a lever that encourages old OSM direct debugging instead of road-cache-first debugging. | Keep, move behind "legacy direct OSM fallback" or delete after road cache cutover is complete. |
+| `forcePoiCacheMiss` - Skip POI cache<br /><br />***Cache*** | Bypasses POI cache. | Verifies missing/stale POI results. | Still useful because POIs are user-facing and cache-backed. | Makes POI fetch more expensive. | Keep. |
+| Dynamic `skipV2SubstrateCache` - Skip substrate cache<br /><br />***Skip Road Cache*** | UI-only synthetic switch, not in `DevTuningSettings`; inverses `v2CandidateSourcePlanEnabled`. | Lets admins bypass Cyclist Substrate Cache - Route View. | Useful for proving whether route candidate issues are caused by cache source narrowing. | High risk if it makes normal route-source truth ambiguous. | Keep, rename to `Bypass road-cache candidate source` and pair with road-source truth readout. |
+
+### Performance / Logging
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `CORRIDOR_DEBUG` - Corridor fetch logs | Enables corridor fetch strategy/timing logs. | Debugs request strategy, batching, backoff, and slow road loading. | Useful when old direct fetch fallback is active. | Less useful in road-cache-first mode; console noise. | Keep, move under legacy/fallback diagnostics. |
+
+### Road Matching
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `useWindowMatcher` - Window segment matcher | Experimental 7-point sliding-window matcher. | Reduced per-point flicker in the old matcher. | Can still reproduce old bug classes. | Lets admins change route truth from the panel; conflicts with v2 route-line topology expectations. | Quarantine in a legacy matcher lab, not main dev panel.<br /><br />***delete*** |
+| `disableContinuity` - Disable continuity signal | Removes continuity bias from matching. | Isolates sticky road identity bugs. | Useful for root-cause experiments. | Again mutates route truth and can create non-production behavior. | Quarantine.<br /><br />***delete*** |
+| `useCoarseBoundaries` - Use coarse boundaries | Disables boundary refinement. | Compared coarse vs refined boundary placement in the old pipeline. | Occasionally useful for archaeology. | Reinforces old course-boundary model and can make current screenshots misleading. | Delete from main dev panel; keep only in archived legacy harness if needed.<br /><br />***delete*** |
+| `enableBoundarySnapping` - Boundary snapping | Snaps transitions to nearby junctions/intersections/turns. | Made old geometry matching seams look more logical. | Might be useful as a diagnostic of the stale boundary system. | In v2, boundary correctness should come from route-line topology, not post-hoc seam snapping. | Delete or quarantine; do not leave as normal route-truth switch.<br />***delete*** |
+| `collapseSameRoadBoundaries` - Collapse same-road boundaries | Suppresses visible boundaries with same road name. | Reduced clutter caused by matcher splits. | Still useful as a display-level diagnostic if clearly labeled. | Can hide conflicting evidence like incorrect route-road stickiness. | Keep only as visual display filter; ensure it cannot change truth.<br /><br />***delete*** |
+| `ROUTE_LINE_OWNERSHIP_SHADOW` - Legacy route-line comparison | Runs older route-line interval ownership prototype beside current matcher. | Historical comparison harness. | Useful only for regression archaeology. | High cost and easy to confuse with the v2 builder. | Delete after confirming no current route-line review tests depend on it. ***yes*** |
+| `ROUTE_LINE_V2_MAIN_APP_SHADOW` - V2 route builder diagnostics | Runs v2 construction/diagnostics during normal route loads. | Was the bridge from shadow mode to current Route Builder. | Still gates some Test Console visibility and readouts. | Once v2 is the active path, "shadow" wording is stale and confusing. | Keep, rename to `Route Builder diagnostics enabled`; remove "shadow" naming.<br /><br />***Agree but need to know what test console stuff it controls*** |
+
+### Boundary / Apex
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `showCoarseMarkers` - Coarse boundary markers | Master switch for old `truthBoundaryDebug` markers: coarse, refined, fallback, connector. | Debugged v1/v1.5 course-marker boundary refinement. | Still exposes stale boundary drift when investigating bad seams. | Current implementation renders all marker types under one switch, and the payload can be stale relative to v2 topology. | Quarantine and rename to `Legacy boundary debug markers` until replaced. ***yes. read only not behavior impacting*** |
+| `showRefinedMarkers` - Refined boundary markers | Still exists in settings/defaults and props. | Older separate control for refined markers. | None in current code; `RouteMap` does not use it independently. | Removes dead state and false affordance. | Delete. ***yes*** |
+| `showConnectorLines` - Connector lines | Still exists in settings/defaults and props. | Older separate control for coarse-to-refined connector lines. | None in current code; `RouteMap` does not use it independently. | Removes dead state and false affordance. | Delete. ***yes*** |
+| `showTransitionGreenNodes` - Green nodes | Shows transition-chain OSM intersection candidates. | Debugs candidate snap targets. | Useful for topology/crossing investigations if tied to current v2 source. | Can look authoritative even when fed by old payloads. | Keep, move under topology debug and label source. ***yes*** |
+| `showTransitionCyanNodes` - Cyan nodes | Shows corrected boundary points. | Verifies transition-chain correction output. | Useful for comparing candidate vs correction. | Same stale-payload risk. | Keep, move under topology debug and label source. ***yes*** |
+| `showTransitionYellowNodes` - Yellow nodes | Shows rendered color transition points. | Explains where paint changes, separate from truth. | Useful when paint and evidence diverge. | Low if retained as visual-only. | Keep, rename to `Rendered paint seams`. ***yes*** |
+| `showRouteCornerDots` - White route-corner dots | Pure GPX geometry corner markers. | Provides route geometry baseline independent of matching. | Good sanity check for apex vs course-boundary bugs. | Visual clutter only. | Keep. ***RouteBuilder Boundaries*** |
+| `apexInspectorOnly` - Apex inspector only | Loads route/apex candidates without full route analysis. | Fast apex detector review. | Useful for route-line geometry tuning. | It bypasses normal analysis and can confuse active-route expectations. | Keep, move to `/v2-review` or a route-geometry lab. no v2 naming anywhere...yes to ***RouteBuilder Boundaries*** |
+| `routeLineV2OwnershipReviewOnly` - robustBuilder review only | Runs route-line worker review without full route analysis. | Reviews ordered v2 topology, apexes, and road names. | Useful, but should not live as a production map toggle. | Reduces live-panel complexity. | Move to `/v2-review`; remove from main dev panel. ***delete*** |
+| `showRouteLineApexCandidates` - Route-line apex candidates | Shows clustered route-line apexes. | Validates physical route turns before ownership spans. | Current and useful. | None beyond clutter. | Keep, preferably in route-geometry debug surface.<br />***RouteBuilder Boundaries*** |
+| `showSuppressedRouteLineApexCandidates` - Suppressed apexes | Shows hidden micro-jog/noise apexes. | Tunes apex detector thresholds. | Useful for algorithm work. | Too noisy for routine dev. | Keep, move behind advanced route-geometry disclosure. ***RouteBuilder Boundaries*** |
+| `showRouteLineShadowBoundaries` - Legacy comparison boundaries | Draws V1/V2 comparison report boundaries. | Visualizes old comparison reports. | Useful only for legacy regressions. | High visual confusion with current v2. | Delete after preserving any needed fixtures. ***Delete*** |
+| `showRouteLineV2AuditMarkers` - V2 audit markers | Shows name breaks/missing-name review points. | Lightweight route-line correctness review. | Useful if fed by current route builder. | Low. | Keep, rename to source-specific current v2 wording. ***name breaks*** in ***RouteBuilder Boundaries*** |
+| `showRouteLineV2SpanNames` - V2 span names | Labels V2 road-name spans. | Explains span ownership. | Useful for road identity bugs. | Can clutter map. | Keep. ***Labels in RouteBuilder Boundaries*** |
+| `showRouteLineV2OwnershipSpans` - V2 ownership spans | Draws v2 ownership prototype span lines. | Reviews assigned road/path ownership. | Very useful for Main/Beech style issues. | Can imply prototype truth. | Keep, rename if prototype is now production route-builder output. ***Ownership Span Lines in RouteBuilder Boundaries*** |
+| `showRouteLineV2OwnershipUnresolvedOnly` - V2 unresolved spans only | Filter for unresolved ownership spans. | Focuses review on weak/missing evidence. | Useful. | None. | Keep.***RouteBuilder Boundaries*** |
+| `showRouteLineV2OwnershipInferredOnly` - V2 inferred transitions only | Filter for inferred straight-line transitions. | Reviews non-turn name handoffs. | Useful for Medford-style continuous road-name transitions. | None. | Keep.***RouteBuilder Boundaries*** |
+| `showRouteLineV2OwnershipLabels` - V2 ownership labels | Midpoint labels for ownership overlay. | Makes span ownership readable. | Useful; default currently true. | Clutter. | Keep. ***RouteBuilder Boundaries*** |
+
+### Heatmap / Seams
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `heatmapFlowIntensity` - Heatmap flow intensity | Slider 0-10 for heatmap stroke intensity. | Lets admins inspect basemap vs route paint. | Useful and harmless. | None. | Keep. |
+| `highContrastDebug` - High-contrast debug mode | Thick categorical route paint with halo/dim basemap. | Makes segment boundaries obvious. | Useful for screenshot/debug. | Visual clutter only. | Keep. |
+| `alternatingSegmentColors` - Alternating segment colors | Alternating cyan/pink segments. | Makes segmentation boundaries obvious independent of score. | Useful for segmentation bugs. | Visual clutter only. | Keep. |
+| `substrateFoundationHeatmapOnly` - Substrate foundation heatmap only | Renders bounded DS-035 substrate/profile roads through heatmap paint without a loaded route. | Validates substrate viewport/cache rendering. | Useful for road-cache first-paint QA. | Can be mistaken for route truth if not labeled loudly. | Keep, rename to `Road-cache viewport paint QA`. |
+| `renderRawTruth` - Render raw truth segments | Bypasses display merging and renders raw truth segments. | Distinguishes matcher truth from display merging. | Useful for display-vs-truth bugs. | Can expose stale truth semantics in v2. | Keep, rename to `Render raw route evidence spans`. |
+| `disablePoiRendering` - Disable POI rendering | Hides POI markers while POI data still computes. | De-clutters boundary/heatmap analysis. | Useful when POIs obscure route debug. | None. | Keep. |
+
+### Cue Debugging
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `enableTurnAudit` - Turn-point audit mode | Makes turn markers clickable and opens turn audit details. | Debugs turn classification. | Useful for cue quality. | If based on old turn math, can distract from v2 cue presentation. | Keep, but route through current v2 cue model. |
+| `enableSequenceAudit` - Road sequence audit | Shows per-point road identity markers and exposes the `roads` drawer. | Debugs cue entries from raw road transitions. | Useful for cue-sheet bugs. | Can reinforce per-point v1 thinking if not tied to v2 ownership spans. | Keep, rename to `Route identity sequence audit`. |
+| `showTopCandidates` - Show top 3 candidates | Shows top candidate roads near selected audit point. | Explains why matcher chose a road. | Useful for root cause. | Heavy and old-matcher-specific. | Keep, move under candidate audit drawer rather than cue section. |
+
+### Inspector / Road Facts
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `enableCandidateAudit` - Candidate road audit | Enables click-any-route-point candidate scoring drawer. | Deep road-matching investigation. | Useful for exact mismatch diagnosis. | Expensive and old matcher-specific if not using v2 candidate source. | Keep, but adapt to v2 source/evidence candidates. |
+| `enableRawNearbyAudit` - Raw nearby roads audit | Enables click-any-route-point raw fetched road drawer. | Shows whether roads were not fetched or filtered out. | Useful for road-cache vs fetch bugs. | Expensive; can over-focus on direct OSM fetch. | Keep, relabel as `Fetched/source roads audit`. |
+| `showHpmsOverlay` - HPMS pink lines | Legacy HPMS source overlay toggle. | Visual alignment of HPMS source geometry. | Still useful, but superseded by HPMS Debug surface. | Reduces duplicated HPMS controls. | Fold into HPMS Debug section.<br /><br />***Delete - redundant to HPMS debug section below*** |
+| `inspectHpmsOverlay` - Inspect HPMS overlay | Makes HPMS overlay clickable/opaque. | Separates visual comparison from source-record inspection. | Useful until HPMS Debug surface fully covers selection. | Reduces duplicated controls. | Fold into HPMS Debug section.<br />***Delete - redundant to HPMS debug section below*** |
+| `showInspectReceipts` - Show Inspect Receipts | Adds clicked-span safety receipt to Inspect. | Validates scoreTrace/source confidence/paint agreement. | Useful when debugging score receipts. | Extra compute and more Inspector complexity. | Keep, but ensure score-bearing vs non-score hazards remain clear. ***keep because turning off allows me to simulate true first paint timing as non-admins would see it*** |
+
+### Hazards
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `debugMetalGrateBridges` - Debug metal grate bridges | Old targeted hazard overlay for metal grate bridges. | Originally validated bridge hazard detection. | Useful only for old bridge detector troubleshooting. | Replaced by generalized Hazard Debug surface with accepted/rejected/hidden states. | Fold into Hazard Debug; then delete. ***delete*** |
+| `debugLeftTurns` - Debug left turns | Old left-turn marker/table debug. | Validated left-turn bearing/classification. | Useful for conflict-point scoring work. | Left turns are score-driving conflict events, not rider hazard toggles; this can confuse hazard category semantics. | Move to conflict/scoring debug, not Hazards.***delete*** |
+
+### Detour Routing
+
+| Switch | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `anchorDistanceMi` - Anchor distance | Slider for detour bookend anchors around a waypoint. | Tunes detour rejoin behavior. | Useful for detour development. | Not related to route evidence; dev panel scope bloat. | Keep, move to detour-edit debug section or separate drawer. |
+| `handleIntervalOverrideMi` - Handle interval | Slider for fixed detour handle spacing. | Tests detour handle density. | Useful for detour UX/debug. | Scope bloat. | Keep, move to detour-edit debug section. |
+
+## Freeform Dev Panel Controls
+
+| Control | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `God Filter` | Freeform OSM tag query overlay. | Lets admins visualize roads matching a raw tag expression, e.g. `highway=service`. | Powerful exploratory tool. | Dangerous if it "bypasses speed suppressions" without a clear source/authority label. | Keep, rename to `Raw OSM tag filter`, show result count/source, and keep it visual-only. ***OSM Tag Filter*** |
+
+## Read-Only Debug Surface Sections
+
+These are rendered when `v2DebugSurfaceState` is present. They are closer to the direction the dev panel should go: inspectable, read-only, and source-labeled.
+
+| Section | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| Route Experience Diagnostics | Read-only route-builder runtime panel with worker progress, summary, cyclist substrate route view, evidence overlays, future viewport layers, and guardrails. | Shows whether v2 route-builder/evidence handoff is healthy without mutating truth. | Strong current surface; aligns with road-cache-first debugging. | Removing it would hide the most useful production diagnostics. | Keep, tighten labels and separate route view vs viewport view. |
+| Worker progress | Readout for status, lane, phase, units, percent, window, source, elapsed, candidates, named, request, events, and message. | Shows whether worker/runtime execution is blocked or slow. | Useful. | None. | Keep. |
+| Runtime summary | Readout for spans, strictness, unresolved, unqueried gaps, direct evidence, route path, path handoffs/blockers, coverage, usable any. | Summarizes route-builder output quality. | Useful. | None. | Keep. |
+| Cyclist Substrate Cache - Route View | Readout for route candidate source status, region, tile source, zoom band, rendered, candidates, corridors, ways, merge reduction, message. | Shows whether route-source narrowing came from road cache and how much it merged. | Essential for road-cache-first investigations. | None. | Keep, rename to `Road Cache - Route Candidate Source`. |
+| Evidence overlays runtime panel | Readout for selected/viewport evidence counts and provider diagnostics. | Maintains separation between route-indexed evidence and viewport context. | Useful for avoiding false authority. | None. | Keep. |
+| Cyclist Substrate Cache - Viewport View | Readout for viewport substrate status, gate/load, zoom/region, grid cells, candidates/roads, joined/fallback, requested/capped/dropped/rollups, families, connectors, missing/privacy, raw signal exposure, guardrails. | Shows whether viewport source cache is healthy. | Useful for map QA and first-paint source debugging. | Could overwhelm route-specific debugging. | Keep, but visually separate from route-source truth. |
+| Future viewport layers | Lists viewport overlay registry items and `productionEligible` values. | Documents upcoming viewport evidence layers. | Useful for source policy planning. | Not useful for route debugging. | Keep, move to collapsible advanced section. |
+| Guardrails | Readout for `canDriveTruth`, `canDriveScore`, `canMutateEvidence`, `routeMapOwnsToggleState`. | Makes source authority boundaries explicit. | Very useful. | None. | Keep. |
+
+## Candidate Hints Section
+
+| Layer/readout | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| Candidate Hints section | Visualizes noncanonical candidate hints used to narrow route-builder source acquisition. | Debugs route candidate source before truth selection. | Important for road-cache/source-cache bugs. | Removing it makes accepted/rejected source candidates opaque. | Keep. |
+| Accepted ways | Draws ways accepted by ownership handoff. | Confirms what route builder accepted. | Useful. | None. | Keep. |
+| Rejected ways | Draws candidate/cache ways available but not selected. | Explains blue/rejected-bucket issues. | Very useful for Kersey Kick/HPMS-like source diagnostics. | None. | Keep. |
+| Show nodes | Draws chosen/not-chosen/shared/coordinate-derived candidate nodes. | Debugs topology proof. | Useful. | Visual clutter. | Keep. |
+| Show blockers | Draws path blockers and connector-present-but-not-admitted diagnostics. | Explains why route source continuity failed. | Useful. | None. | Keep. |
+| Continuity deficit windows | Draws bounded windows where candidate continuity was incomplete. | Localizes source acquisition gaps. | Useful. | None. | Keep. |
+| Show all candidates | Heavy layer for every candidate way in scope. | Exhaustive review. | Useful for deep debugging. | Heavy and noisy. | Keep, advanced/off by default. |
+| Legend | Explains route line, accepted/rejected ways, blockers, candidate nodes, shared OSM nodes, coordinate-derived nodes. | Makes the overlay interpretable. | Useful. | None. | Keep. |
+| Stats | Counts source/provider/accepted nodes, route overlap, corridor source ways, merged corridors, merge reasons. | Quantifies route-cache/corridor behavior. | Useful for source-cache tuning. | None. | Keep, rename fields from "substrate" to "road cache" where appropriate. |
+
+## HPMS Debug Section
+
+| Layer/readout | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| HPMS section | Route-applied HPMS evidence overlays with inspectable source details. | Debugs traffic/speed/lane/shoulder evidence selection and rejection. | Core for AADT and evidence authority work. | Removing it would blind HPMS debugging. | Keep. |
+| Source geometry | Projected HPMS source geometry. | Checks route alignment. | Useful. | None. | Keep. |
+| Traffic | AADT candidates and selected route spans. | Debugs traffic evidence. | Essential. | None. | Keep. |
+| Speed limit | HPMS speed candidates/spans. | Debugs speed evidence. | Useful. | None. | Keep. |
+| Lane count | HPMS through-lane candidates. | Debugs lane interpretation. | Useful. | None. | Keep. |
+| Shoulder type | Explicit shoulder evidence. | Debugs shoulder policy. | Useful. | None. | Keep. |
+| Selected records | HPMS rows selected into route evidence. | Shows accepted truth. | Essential. | None. | Keep. |
+| Rejected records | HPMS candidates with rejection reasons. | Explains good-looking source rows left out. | Essential. | None. | Keep. |
+| Propagated spans | Route spans receiving propagated HPMS evidence. | Explains propagated facts. | Useful. | None. | Keep. |
+| Surface diagnostic | HPMS surface route-reality diagnostic only. | Useful context, explicitly non-score. | Useful. | Could confuse scoring. | Keep with strong "diagnostic-only" label. |
+| Pavement diagnostic | IRI/rutting/cracking diagnostic only. | Future surface evidence context. | Useful. | Could confuse scoring. | Keep with strong "diagnostic-only" label. |
+| Functional class | HPMS functional class context. | Helps explain traffic/source behavior without overwriting OSM identity. | Useful. | None. | Keep. |
+| Legend | Explains candidate/selected/rejected/propagated/diagnostic colors. | Makes overlay usable. | Useful. | None. | Keep. |
+
+## Hazard Debug Section
+
+| Layer/readout | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| Hazards section | v2 hazard debug model overlays for accepted, rejected, and hidden candidates. | Debugs hazard detection without feeding score math. | Core current hazard surface. | Removing it would recreate the original hazard invisibility problem. | Keep. |
+| Accepted hazards | Hazards attached to route distance and eligible for map/cue surfaces. | Confirms rider-visible hazards. | Essential. | None. | Keep. |
+| Rejected candidates | Hazards suppressed by geometry, grade separation, parallel rail, etc. | Explains false negatives/positives. | Essential. | None. | Keep. |
+| Hidden by toggles | Accepted hazards suppressed by category/child toggle state. | Proves toggle behavior. | Essential for category/child hazard UI. | None. | Keep. |
+| Railroad | Rail candidates with angle/topology/bridge/tunnel/layer/same-level diagnostics. | Debugs RR false positives and missing angles. | Essential. | None. | Keep. |
+| Fords / cattle guards | Water crossings and cattle-grid hazards. | Debugs the known dam-ride missing hazard class. | Essential. | None. | Keep. |
+| Metal / structures | Metal bridge/plate/covered bridge/underpass/pinch diagnostics. | Covers metal surface and pinch point hazards. | Useful. | None. | Keep. |
+| Conflict controls | Stop/signal/left-turn conflict debug rows. | Debugs score-driving conflict events. | Useful, but semantically distinct from non-scoring hazards. | Reduces hazard/score confusion. | Keep, move or label as `Conflict events`. |
+| Topology confirmed | Rows backed by shared OSM node or direct route-way proof. | Shows confidence/proof class. | Essential. | None. | Keep. |
+| Grade separated | Rejected rail/structure candidates due to bridge/tunnel/layer evidence. | Explains false positives. | Essential. | None. | Keep. |
+| Near parallel | Rejected rail candidates suppressed as nearby parallel rail. | Explains 0-degree/non-crossing suppression. | Essential. | None. | Keep. |
+| Legend | Accepted/rejected/hidden/selected colors. | Makes hazard overlay readable. | Useful. | None. | Keep. |
+
+## Route Evidence Map Section
+
+| Section/readout | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| Builder -> Evidence -> Display | Read-only contract map for quickBuilder/robustBuilder handoff into evidenceBuilder, scoreBuilder, and displayBuilder. | Shows accepted source truth and handoff readiness. | Core current architecture. | None. | Keep. |
+| Handoff values | Builder, stage, contract, source budget, route km, identity/profile spans, source contributions, accepted ways, display status, first loss. | Compact pipeline health. | Useful. | None. | Keep. |
+| Readiness gates | Evidence handoff, scoring handoff, can drive truth, can drive score. | Makes authority explicit. | Essential. | None. | Keep. |
+| Evidence overlays | Route-indexed evidence ladder grouped by DS-029 source tier. | Shows what current display feed can prove. | Essential. | None. | Keep. |
+| Field coverage | Rows per evidence field, record counts, source types, score-bearing/diagnostic status. | Explains missing/available fields. | Useful. | None. | Keep. |
+| Evidence value filter | Select filter for all/speed/traffic/shoulder/bike lane/lanes. | Narrows evidence overlay by field. | Useful. | None. | Keep. |
+| Source filters | Hide/all/source-type filters with zero-count sources visible. | Makes provenance and gaps obvious. | Useful. | None. | Keep. |
+| Attached/missing/unavailable counts | Layer count rollups. | Summarizes evidence gaps. | Useful. | None. | Keep. |
+| Contract blockers/warnings | Lists blockers and contract warnings. | Explains why handoff cannot drive truth/score. | Essential. | None. | Keep. |
+
+## Route Builder Review Link
+
+| Item | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| Route Builder Review diagnostics link | DEV-only link to `/v2-review`. | Opens standalone topology/source/evidence review surface. | Good escape hatch for deeper route-builder review. | Reduces drawer clutter, but makes review harder to discover. | Keep, rename to `Open Route Builder Review`. |
+
+## Hidden Or Stale Dev Panel Inventory ***delete***
+
+| Item | Current state | Why it matters | Recommendation |
+|---|---|---|---|
+| `DEBUG_PRESETS` | Defined in `debug-registry.ts`, but `DebugControlCenter` does not render presets. | Dead preset code suggests workflows that do not exist. | Delete or render intentionally. Prefer delete until a new preset design is needed. |
+| `showRefinedMarkers` | In settings/defaults/RouteMap props; not independently used in RouteMap rendering. | False switch semantics. | Delete from settings, props, presets, and tests. |
+| `showConnectorLines` | In settings/defaults/RouteMap props; not independently used in RouteMap rendering. | False switch semantics. | Delete from settings, props, presets, and tests. |
+| `debug-flags.ts` flags not surfaced in dev panel | Many localStorage-only flags exist outside the registry. | Hidden state can explain behavior that the panel does not reveal. | Add a read-only "active debug flags" drawer row or remove dead flags incrementally. |
+| Persisted `ROUTE_LINE_V2_MAIN_APP_SHADOW` | Can be set through dev panel and `DEBUG_FLAGS`; label says "shadow" even though Route Builder is now active path. | Confusing branch-era language. | Rename and migrate persisted key if practical. |
+
+## Right Handle Drawers Exposed By Dev Switches ***no clue how you access these so whatever we keep needs wayyyyy better instructions***
+
+## *
+
+| Handle | What it is | Trigger | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| `roads` | Matched road sequence panel. | Visible when `enableSequenceAudit` is true. | Useful for identity/cue debugging. | Separate surface increases admin UI sprawl. | Keep, but link from Route Evidence/ownership debug. |
+| `candidates` | Candidate road audit drawer. | Visible when `enableCandidateAudit` is true. | Useful for matching/root-cause work. | Heavy old-matcher connotation. | Keep, adapt to v2 candidate source. |
+| `raw` | Raw nearby roads drawer. | Visible when `enableRawNearbyAudit` is true. | Useful to determine fetch-vs-filter problems. | Can over-emphasize direct OSM instead of road cache. | Keep, rename to `source roads`. |
+| `fragments` | Fragment drawer. | Visible when candidate or raw nearby audit is enabled. | Useful for road-fragment inspection. | Can distract from current topology model. | Keep if backed by v2 ownership/source fragments; otherwise quarantine. |
+
+## Adjacent Test Console Appendix
+
+The `test` side handle opens `MainAppShadowTestDrawer`, not `DevTuningPanel`. It is still relevant because it now contains the most explicit road-source truth readout. ***Test drawer is awesome, has some redundancy inside of it that can be elimiated and formatting can be improved tho***
+
+### Test Console Sections
+
+| Section/control | What it is | Why it is there | Benefits of keeping | Benefits of deleting | Recommendation |
+|---|---|---|---|---|---|
+| Test Console shell | Admin-only right drawer titled `Test Console`. | Route Builder diagnostics for uploaded GPX routes. | Useful as readout-only status panel. | Reduces right-rail complexity. | Keep, but keep it readout-first. |
+| Route Builder section | Readout for active route path, Cyclist Substrate Cache - Route View, source plan, route experience, source hydration budget, HPMS pruning/budget/window stats. | Shows current route-builder source/hydration status. | Useful. | Duplicates Route Experience Diagnostics. | Keep, but consolidate wording with dev panel. |
+| Road Source | Readout for `New road cache`, `Old OSM direct`, `South Jersey fixture`, `Static fixture`, `Pending road source`, or `Legacy route path`; includes provider, source mode, region, status, candidates, table, storage, fallback, fixtures. | Answers the current "what source is this route actually using?" question. | Essential. | None. | Keep and consider moving/copying into main dev Route Experience Diagnostics. |
+| Source Timing | V1/V2 timing summary plus timing table. | Performance/debug readout. | Useful. | Could duplicate performance diagnostic. | Keep. |
+| Builder timing breakdown switch | Only visible Test Console switch; toggles long v2 timing breakdown/trace. | Avoids rendering long timing table by default. | Useful. | None. | Keep. |
+| Builder Runtime Trace | Optional event trace when timing breakdown is on. | Shows route-load event deltas. | Useful for performance/root-cause work. | Noisy. | Keep behind switch. |
+| Legacy / Builder comparison | Readout and actions for pair/audit/copy/download JSON. | Memory-only artifact comparison. | Useful during migration. | Less relevant after v2 cutover. | Keep until v1 parity work closes, then archive. ***delete*** |
+| Readiness | Readout for diagnostics enabled, active route path, route loaded, builder status, route experience, persistence/lookup/reload/cache/substrate truth guardrails. | Migration guardrail status. | Useful. | Some rows are now permanently false and feel stale. | Keep only active rows; archive old migration guardrails. |
+| Builder handoff diagnostic | Controlled cutover diagnostic snapshot. | Historical migration guardrail. | Useful as audit trail. | Stale once route-builder path is current. | Delete after controlled cutover docs/tests are retired. |
+| Cache/API diagnostics | Readout for route_cache, candidate cache, tile_cache, live road fetch, HPMS, DOT, outcome, admin readout, warnings, guardrails. | Explains degraded route loads. | Useful. | Duplicates some route-source/readiness details. | Keep, but ensure road-cache-first labels. |
+| Builder performance diagnostic | Bottleneck/severity/suggested action plus HPMS budget/pruning/deferred rows and timings. | Finds slow route-builder stages and initial-load budget effects. | Useful. | Noisy. | Keep, collapsible. |
+| Boundary guardrail chips | Static chips like `no route_cache`, `no hpms-proxy`, `no service-role`, `existing scorer`. | Migration-era reminder of blocked systems. | Very limited current value. | Removes stale migration smell. | Delete or move to historical cutover doc. ***delete*** |
+| Receipts note | Says left drawer Receipts tab remains receipt surface. | Prevents duplicate receipt UI. | Useful if Test Console remains. | Low. | Keep. |
+
+### Test Console Stale Props 
+
+| Prop/state | Current state | Why it matters | Recommendation |
+|---|---|---|---|
+| `baselineEnabled`, `substrateHintsEnabled`, `earlySubstratePrefilterEnabled`, `earlyStandaloneProofEnabled`, `preBroadEarlySourceProofEnabled`, `topologyBridgeProbeEnabled` | Passed into `MainAppShadowTestDrawer`, but not rendered as switches there. Some still affect route load logic in `Index.tsx`. | Hidden switches/state create debugging ambiguity. | Either render them in an explicit advanced section or remove from drawer props. |
+| `shadowEnabled` | Not rendered as its own Test Console switch; controlled by dev panel `ROUTE_LINE_V2_MAIN_APP_SHADOW` and used for diagnostic visibility/readiness. | "Shadow" language is stale. | Rename to `builderDiagnosticsEnabled` across UI/model. |
+| John's Waterfall static fixture | Tests assert it is not rendered anymore. | Good cleanup direction; avoid reintroducing static fixture readouts as truth. | Keep retired. |
+
+## Cleanup Order
+
+1. Delete dead controls: `showRefinedMarkers`, `showConnectorLines`, and unused `DEBUG_PRESETS` if no caller depends on them.
+2. Rename road-source and route-builder labels away from "shadow" and "substrate" where they mean current road-cache route candidate source.
+3. Quarantine old matcher/boundary mutators: `useWindowMatcher`, `disableContinuity`, `useCoarseBoundaries`, `enableBoundarySnapping`, legacy route-line shadow controls.
+4. Fold HPMS legacy toggles into HPMS Debug and fold old hazard-specific toggles into Hazard Debug.
+5. Promote Road Source truth into the main dev panel so every route immediately says whether it is using new road cache, old OSM direct, South Jersey fixture, static fixture, or pending.
+6. Split the remaining panel into three clear zones:
+   - Source/evidence truth: read-only, current production diagnostics.
+   - Visual QA overlays: map-only debug rendering.
+   - Legacy/advanced labs: old matcher/boundary tools, hidden by default or moved to `/v2-review`.
+
+## Target End State
+
+The dev panel should answer five questions without forcing admins to remember implementation history:
+
+1. What source is this route using right now?
+2. What evidence made it into route truth, display, score, hazards, cues, and inspect?
+3. What evidence was rejected or hidden, and why?
+4. Which map overlays are only visual QA?
+5. Which old migration tools are intentionally archived or removed?
+
+That shape keeps the panel useful while cutting away the old toggle jungle.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
