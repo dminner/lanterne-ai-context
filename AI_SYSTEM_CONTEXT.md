@@ -40199,6 +40199,7 @@ Warnings and repairs are separate downstream layers:
 5. Presentation simplification may happen only after the precise identity receipt exists.
 6. Cue simplification must not rewrite inspector or receipt truth.
 7. Repair options must be explicit and reversible. They are not silent corrections to the canonical identity cut.
+8. Bike-unknown or bike-prohibited footways, pedestrian ways, stairs, and tunnels may be literal route identity, but they must remain unknown/other safety semantics unless bicycle access or facility tags prove safe-path treatment.
 
 ------
 
@@ -40254,7 +40255,7 @@ The route-line v2 topology builder should:
 - keep strict ownership admission enabled by default
 - retain strong route-overlap candidates even when they are anonymous non-motor features
 - protect route-aligned non-motor geometry from nearby named motor-road candidates
+- keep non-bikeable and bike-unknown non-motor spans grey/unknown rather than blue safe-path
 - attach access and facility warnings to ownership spans without changing span identity
 - keep tiny-gap smoothing as a presentation or continuity aid, not as ownership rescue
-
 
