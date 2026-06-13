@@ -3457,6 +3457,8 @@ Route Safety Score must remain:
 | DS-049 | First-Paint Worker Handoff and Route Experience Artifact Boundary | DS-029, DS-031, DS-032, DS-044, DS-046, DS-047, DS-048 | Draft |
 | DS-050 | Substrate Signal Registry | DS-028, DS-029, DS-034, DS-035, DS-046, DS-047, DS-048, DS-049 | Draft |
 | DS-051 | Personal Coverage Ledger and History Heatmap | DS-029, DS-031, DS-045, DS-048, DS-050 | Draft |
+| DS-052 | Lanterne Route Units, Route Analysis Summary, Global Units, and Viewport Index | ADR-045, ADR-049, ADR-051, ADR-052, DS-031, DS-047, DS-048, DS-050, DS-051 | Draft |
+| DS-053 | Local Prediction Builder | DS-015, DS-017, DS-022, DS-029, DS-031, DS-043, DS-046, DS-048 | Draft |
 
 ---
 
@@ -15975,7 +15977,7 @@ The hazard subsystem is considered healthy when:
 **Status:** Draft, partially implemented  
 **Date:** 2026-05-05  
 **Filename:** `ds-029-provenance_precedence_confidence_and_traceability_spec.md`  
-**Related:** [DS-015](./ds-015-safety_scoring_model.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-020](./ds-020-confidence_model_and_tracing.md), [DS-022](./ds-022-speed_prior_and_area_baseline_policy_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-030](./ds-030-route_analysis_contract.md)
+**Related:** [DS-015](./ds-015-safety_scoring_model.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md), [DS-020](./ds-020-confidence_model_and_tracing.md), [DS-022](./ds-022-speed_prior_and_area_baseline_policy_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-030](./ds-030-route_analysis_contract.md), [DS-053](./ds-053-local_prediction_builder_spec.md)
 
 ## 1. Purpose
 
@@ -16419,8 +16421,9 @@ family rather than inventing symmetry where none exists.
   - `authoritative_posted`
 - `relationship_inferred`
   - `authoritative_inferred`
+- `predicted`
+  - `local_area_predicted`
 - `baseline`
-  - `highway_area_baseline`
   - `highway_baseline`
 - `unknown`
 
@@ -16430,7 +16433,7 @@ Implementation note:
 - those are not rider-facing semantic families
 - they must map through this spec before presentation, receipts, or score trace export
 - `observed`, `admin_approved`, OpenStreetMap sources, `user_observation`,
-  `local_area_predicted`, and `regional_prior` are not active traffic ladder
+  `regional_prior`, and `highway_area_baseline` are not active traffic ladder
   rungs in the current canonical model even though several remain global source
   types in the master source table
 
@@ -16538,7 +16541,8 @@ table makes implementation and audit faster.
 | Speed | `baseline` | `regional_prior`, `highway_area_baseline`, `highway_baseline` | yes | yes | exact default mph from the selected row/table | retain exact lookup key, table/version, default mph, source document link, concrete lookup path |
 | Traffic | `official_imported` | `authoritative_posted` | no | yes | exact AADT/lane or exact AADT total + lane count | retain exact AADT total, AADT/lane, lane count, factor math, agency/feed link |
 | Traffic | `relationship_inferred` | `authoritative_inferred` | no | yes | official total AADT with inferred lane basis or carried official traffic | retain exact AADT inputs, lane inference basis, propagation path, factor math |
-| Traffic | `baseline` | `highway_area_baseline`, `highway_baseline` | no | yes | class-proxy AADT/lane and resulting factor | retain class-proxy AADT/lane, area/highway lookup key, factor math, governing table/document link |
+| Traffic | `predicted` | `local_area_predicted` | yes | yes | nearby same-class AADT average converted to right-lane AADT and factor | retain contributor roads, source AADT values, radius, lane-count basis, aggregation math, fallback reasons |
+| Traffic | `baseline` | `highway_baseline` | no | yes | generic class-proxy AADT/lane and resulting factor | retain class-proxy AADT/lane, highway lookup key, factor math, governing table/document link |
 | Bike lane / facility | `observed` | `observed`, `admin_approved` | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain exact facility class, side context if relevant, source or Street View verification link |
 | Bike lane / facility | `official_imported` | authoritative imported facility truth | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain exact facility class and source link |
 | Bike lane / facility | `geometry_derived` | explicit mapped OSM / geometry-linked facility truth | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain exact facility class, tag basis, OSM or lat/lon link |
@@ -16558,6 +16562,11 @@ table makes implementation and audit faster.
 ## 7. Explicit Math Contracts
 
 This section is intentionally prescriptive. It exists to replace ambiguous prose with explicit calculation contracts.
+
+Reusable `local_area_predicted` builder mechanics, contributor caps,
+field-specific aggregation, and field-specific rounding live in
+[DS-053](./ds-053-local_prediction_builder_spec.md). This section records the
+DS-029 provenance and trace contract that the builder must satisfy.
 
 ### 7.1 `local_area_predicted` speed
 
@@ -16591,9 +16600,9 @@ Computation:
 
 ```text
 broadClass = highwayType with `_link` stripped
-contributors = eligible nearby speed readings within radius
-rawMean = average(contributor speeds)
-valueFinal = round(rawMean to nearest 5 mph)
+contributors = nearest eligible nearby speed readings within radius, capped by DS-053 field config
+valueRaw = appropriateAggregate(contributor speeds)
+valueFinal = roundToLocalUnit(valueRaw)
 ```
 
 Confidence anchor:
@@ -16643,8 +16652,8 @@ Computation:
 
 ```text
 broadClass = highwayType with `_link` stripped
-contributors = eligible nearby total AADT readings within radius
-expectedAADTTotal = round(average(contributor AADT totals))
+contributors = nearest eligible nearby total AADT readings within radius, capped by DS-053 field config
+expectedAADTTotal = roundToLocalUnit(appropriateAggregate(contributor AADT totals))
 lanes = known lane count if available, else inferred lane count
 aadtPerLane = expectedAADTTotal / lanes
 trafficFactor = ds015TrafficFactorFromAADTPerLane(aadtPerLane)
@@ -16699,9 +16708,14 @@ else:
 Traffic math:
 
 ```text
-classProxyAadtPerLane = DS015 highway-type + area-context proxy table(highwayType, urbanicity)
-trafficFactor = ds015TrafficFactorFromAADTPerLane(classProxyAadtPerLane)
+not currently active for traffic unless a real highway-type + area-context AADT table exists
 ```
+
+Current traffic fallback uses `local_area_predicted` for nearby same-class AADT
+averaging and `highway_baseline` for the generic DS-015 highway-type class
+proxy. Do not label nearby AADT averaging as `highway_area_baseline`, and do
+not emit `highway_area_baseline` for traffic from the generic class-proxy table
+alone.
 
 Required trace:
 
@@ -16730,8 +16744,9 @@ classProxyAadtPerLane = DS015 highway-type proxy table(highwayType)
 trafficFactor = ds015TrafficFactorFromAADTPerLane(classProxyAadtPerLane)
 ```
 
-For traffic, `highway_baseline` is weaker than `highway_area_baseline` and is
-used only when area context cannot defend a more specific class proxy.
+For traffic, `highway_baseline` is the active generic class-proxy fallback. It
+is used only when no authoritative posted, authoritative inferred, or
+local-area predicted traffic value can be defended.
 
 Required trace:
 
@@ -17270,8 +17285,8 @@ for a given field in the current model.
 | Field | Source type / truth form | Status | Notes |
 | --- | --- | --- | --- |
 | Speed | `admin_approved`, `authoritative_posted`, `osm_posted`, `user_observation`, `authoritative_inferred`, `osm_inferred`, `observation_inferred`, `local_area_predicted`, `regional_prior`, `highway_area_baseline`, `highway_baseline`, `unknown` | active | full ladder |
-| Traffic | `authoritative_posted`, `authoritative_inferred`, `highway_area_baseline`, `highway_baseline`, `unknown` | active | compact traffic ladder |
-| Traffic | `observed`, `admin_approved`, `osm_posted`, `user_observation`, `osm_inferred`, `observation_inferred`, `local_area_predicted`, `regional_prior` | inactive | retained globally but not active traffic rungs |
+| Traffic | `authoritative_posted`, `authoritative_inferred`, `local_area_predicted`, `highway_baseline`, `unknown` | active | compact traffic ladder |
+| Traffic | `observed`, `admin_approved`, `osm_posted`, `user_observation`, `osm_inferred`, `observation_inferred`, `regional_prior`, `highway_area_baseline` | inactive | retained globally but not active traffic rungs |
 | Bike lane / facility | `observed`, `admin_approved`, authoritative imported facility, geometry-derived mapped facility, continuity-carried facility, `unknown` | active | no predicted/baseline |
 | Shoulder | `observed`, `admin_approved`, authoritative imported shoulder, geometry-derived shoulder, continuity-carried shoulder, `unknown` | active | no predicted/baseline |
 | Crossing control | `observed`, `admin_approved`, authoritative imported control, geometry-derived control, `unknown` | active | no relationship_inferred |
@@ -17364,10 +17379,11 @@ For `highway_area_baseline` speed:
 
 For traffic baseline:
 
-1. use the DS-015 highway-type + area-context class proxy AADT/lane table as `highway_area_baseline`
-2. if area context is unavailable, use the DS-015 highway-type class proxy AADT/lane table as `highway_baseline`
-3. derive factor from canonical DS-015 traffic-factor math
-4. if no class proxy exists, fall to `unknown`
+1. use `local_area_predicted` when eligible nearby same-class AADT contributors satisfy section 7.2
+2. otherwise use the DS-015 highway-type class proxy AADT/lane table as `highway_baseline`
+3. do not emit `highway_area_baseline` for traffic unless a separate highway-type + area-context AADT table exists and is documented
+4. derive factor from canonical DS-015 traffic-factor math
+5. if no class proxy exists, fall to `unknown`
 
 All baseline lookups must carry table identity, version, and source document
 link.
@@ -29592,6 +29608,441 @@ Any implementation based on this spec must preserve these rules:
 - `route_cache` remains fenced
 - `route_history` reload remains geometry-first
 - client-side analysis remains the default scaling model
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-053-local_prediction_builder_spec.md
+
+# DS-053 - Local Prediction Builder Spec
+
+**Status:** Draft for implementation planning
+**Date:** 2026-06-13
+**Related:** DS-015, DS-017, DS-022, DS-029, DS-031, DS-043, DS-046, DS-048
+
+---
+
+## 1. Purpose
+
+This specification defines `LocalPredictionBuilder`, the reusable policy engine
+for `local_area_predicted` values.
+
+The builder exists so Lanterne does not create one-off prediction rules for
+traffic, speed, surface, or future road-condition fields. It defines:
+
+- the bounded candidate pool used for local predictions
+- field-specific contributor eligibility
+- minimum and maximum contributor counts
+- optional target contributor counts for early-stop fields
+- field-specific aggregation and rounding
+- required trace payloads
+- the separation between predicted output provenance and contributor source
+
+`LocalPredictionBuilder` produces a predicted value. It does not fetch new
+source data by itself, and it does not change source precedence. DS-029 remains
+the canonical provenance and precedence spec.
+
+---
+
+## 2. Core Formula
+
+The generic contract is:
+
+```text
+predicted(data) =
+  roundToLocalUnit(
+    appropriateAggregate(
+      nearestEligibleCandidates(data, minCount, maxCount)
+    )
+  )
+```
+
+Terms:
+
+| Term | Meaning |
+| --- | --- |
+| `data` | Candidate records already available to the route/evidence pipeline. |
+| `nearestEligibleCandidates` | Candidate values that pass source, field, value, geometry, class, context, and distance checks, sorted by distance/quality/recency and capped at `maxCount`. |
+| `minCount` | Minimum accepted contributors required before a prediction may be emitted. |
+| `maxCount` | Maximum contributors used after sorting, to keep dense places bounded. |
+| `targetCount` | Optional contributor count at which a field may stop early after sorting, while still recording omitted eligible contributors. |
+| `appropriateAggregate` | Field-specific aggregation function, such as mean, median, mode, trimmed mean, or weighted categorical score. |
+| `roundToLocalUnit` | Field- and locale-specific rounding function. |
+
+`maxCount` is a contributor cap after eligibility sorting, not a cap on raw
+records fetched from a source. It prevents places such as New York City or Los
+Angeles from letting thousands of same-class candidates dominate runtime and
+trace payloads.
+
+`targetCount` is also not a fetch cap. It is an optional post-sort early-stop
+threshold for fields where the nearest few contributors are enough to defend a
+prediction. When used, the builder must still record how many eligible
+contributors were omitted because of the early stop.
+
+---
+
+## 3. Candidate Pool Policy
+
+The builder consumes a bounded candidate pool that was already fetched for route
+analysis or evidence hydration.
+
+It must not synchronously perform:
+
+- a new raw HPMS/DOT/OpenStreetMap search around every missing segment
+- a true 360-degree 5-mile source fetch during route load
+- a second blocking route-load round trip after discovering missing values
+
+For traffic/AADT, the preferred launch pool is:
+
+```text
+HPMS/DOT candidate records already polled for the route
+  -> records with valid positive AADT
+  -> records with usable geometry
+  -> not necessarily selected for a route span
+```
+
+This is intentionally broader than cue-sheet-only values and narrower than a
+fresh 5-mile world fetch.
+
+Current cue-sheet-derived AADT readings are an interim fallback only. They are
+not the target architecture, because they ignore useful HPMS/DOT candidates that
+were fetched but not selected for the route.
+
+For speed, the preferred short-term launch pool is different:
+
+```text
+cyclist substrate candidate-grid / road-skeleton cache
+  -> compact road records with retained OSM maxspeed tags
+  -> parsed into SpeedRoad.speedLimit when maxspeed is usable
+  -> source type mapped as osm_posted for parseable OSM maxspeed
+  -> not accepted as direct route truth without RouteLine ownership proof
+```
+
+This is the best near-term option for the RUSA route corpus before a separate
+evidence cache exists. The candidate-grid cache is already broad local road
+fabric rather than cue-sheet-only context, and current cache projection retains
+`maxspeed` as an allowlisted tag.
+
+Speed may use a true local 360-degree search when that search is backed by
+bounded candidate-grid / road-skeleton cache cell reads around the target
+window or radius. This is allowed because the cache is precomputed road fabric,
+not a raw runtime source scan. Reads must still be bounded by cell keys, region,
+timeout, max cell count, max road count, and contributor caps.
+
+`viewport_speed` profile-cache rows are also an allowed contributor pool when
+they exist, and they should outrank candidate-grid `maxspeed` fallback because
+they represent already-resolved speed/provenance facts. However, this DS must
+not assume national `viewport_speed` coverage until the deployment can prove
+profile row counts and geographic coverage. The current repo proves the table,
+reader, writer plan, and upsert boundary exist; it does not by itself prove that
+national `viewport_speed` rows are populated.
+
+The speed cache path must still avoid raw runtime source scans. It may read
+candidate-grid / road-skeleton cache cells or materialized `viewport_speed`
+profile-cache records around a target window or radius, but it must not call raw
+OpenStreetMap, Overpass, HPMS, or DOT APIs to fill each missing speed span
+during route load.
+
+When the candidate-grid cache and profile cache are unavailable, speed may fall
+back to already available route-indexed contributors and explicitly provided
+surrounding-speed evidence. That fallback is less complete than cache-backed
+local search and must be clear in trace.
+
+Current implementation proof points:
+
+- `projectRawRoadToCyclistSubstrateRecord` retains `maxspeed` in cyclist
+  substrate records.
+- `compactRecordToSpeedRoad` parses retained `tags.maxspeed` into
+  `SpeedRoad.speedLimit` and marks parseable values as `source: posted`.
+- `loadLocalSubstrateCandidateRoadsForBounds` reads bounded candidate-grid
+  cells and returns these speed-bearing `SpeedRoad` records.
+- Local checkout sample on 2026-06-13:
+  `public/substrate/**/candidate-grid/*.json` contains 635,006 candidate
+  records, including 135,128 parseable `maxspeed` values.
+
+Future evidence cache work may provide an indexed local aggregate pool. When it
+does, `LocalPredictionBuilder` may consume that cache instead of raw candidate
+records, as long as the cache preserves enough trace to explain source family,
+field, candidate count, area/class context, aggregate function, and source
+freshness.
+
+---
+
+## 4. Provenance Semantics
+
+Prediction output provenance and contributor provenance are separate.
+
+Example:
+
+```text
+output source type: local_area_predicted
+contributor source: authoritative_posted
+field: traffic_aadt
+```
+
+or:
+
+```text
+output source type: local_area_predicted
+contributor source: osm_posted
+field: speed_limit
+```
+
+The builder must never relabel contributor data as if it directly applies to the
+target segment. A predicted value remains `local_area_predicted`, even when all
+contributors are authoritative.
+
+Contributor values may only come from source types allowed by that field's
+configuration. Inferred, predicted, baseline, unknown, and unavailable values
+must not contribute unless a future DS explicitly allows them for a field.
+
+---
+
+## 5. Eligibility Pipeline
+
+The builder applies filters in this order:
+
+1. **Field support:** candidate contains the requested field.
+2. **Source support:** candidate source type is allowed for the field.
+3. **Value validity:** candidate value parses, is non-null, and passes field-specific validity.
+4. **Geometry usability:** candidate has enough geometry or anchor position to compute distance.
+5. **Context compatibility:** candidate matches configured road class, urbanicity, route domain, or other field-specific context.
+6. **Distance limit:** candidate lies within the configured local search distance.
+7. **Deduplication:** duplicate source records or duplicate route projections are collapsed according to field config.
+8. **Sorting:** candidates are sorted by distance, then source quality, then recency when available.
+9. **Contributor cap:** the sorted list is truncated to `maxCount`.
+10. **Minimum count:** prediction emits only when accepted contributors are at least `minCount`.
+
+If fewer than `minCount` contributors survive, the builder must emit no
+prediction and must retain rejection diagnostics when possible.
+
+---
+
+## 6. Generic Builder Output
+
+`LocalPredictionBuilder` returns either `null` or:
+
+```ts
+interface LocalPredictionResult<TValue> {
+  field: string;
+  sourceType: 'local_area_predicted';
+  contributorSourceTypes: string[];
+  valueRaw: TValue;
+  valueFinal: TValue;
+  units: string;
+  aggregateMethod: string;
+  roundingRule: string;
+  confidence: 'medium' | 'low';
+  contributorsUsed: LocalPredictionContributor[];
+  rejectedCandidates: LocalPredictionRejectedCandidate[];
+  minCount: number;
+  targetCount?: number;
+  maxCount: number;
+  candidateCountBeforeCap: number;
+  candidateCountAfterCap: number;
+  searchRadiusM: number;
+  trace: LocalPredictionTrace;
+}
+```
+
+The exact TypeScript names may differ, but the persisted trace must preserve the
+same concepts.
+
+---
+
+## 7. Trace Requirements
+
+Every emitted prediction must retain:
+
+- field id
+- output source type: `local_area_predicted`
+- contributor source type(s)
+- candidate pool identity, such as `hpms_route_candidate_pool`
+- route/evidence profile version when available
+- target road class and normalized class
+- target area or urbanicity context when available
+- search radius
+- `minCount`
+- `targetCount` when used
+- `maxCount`
+- accepted contributor count before cap
+- accepted contributor count after cap
+- accepted contributor ids, values, distances, classes, and source labels
+- values ignored because of `maxCount`
+- values omitted because of `targetCount` early stop
+- rejected candidate reasons
+- aggregate function
+- raw aggregate result
+- rounding rule
+- final predicted value
+- reasons stronger sources did not win when available
+
+Trace payloads should cap verbose rejected candidates, but the cap must be
+visible in trace.
+
+---
+
+## 8. Field Configurations
+
+### 8.1 Traffic AADT
+
+Launch configuration:
+
+```ts
+{
+  field: 'traffic_aadt',
+  contributorSources: ['authoritative_posted'],
+  sourcePool: 'hpms_dot_route_candidate_pool',
+  minCount: 2,
+  maxCount: 10,
+  maxDistanceM: 8047,
+  context: ['same_broad_highway_class', 'same_urbanicity_when_available'],
+  aggregate: 'appropriate_aadt_aggregate',
+  initialAggregate: 'mean',
+  roundToLocalUnit: 'nearest_100_aadt',
+}
+```
+
+Rules:
+
+- Use positive numeric AADT only.
+- Prefer HPMS/DOT candidates already fetched for the route.
+- Candidates do not need to be selected for a route span.
+- Candidates rejected for missing, zero, invalid, or unusable geometry must not contribute.
+- Same broad highway class is required.
+- Urbanicity must match when both target and candidate have it.
+- At least 2 contributors are required.
+- Use at most the nearest 10 eligible contributors.
+- Initial aggregation may be mean, but the field config owns the aggregate so a later trimmed mean can replace it without changing builder semantics.
+- Convert total AADT to DS-015 effective right-lane AADT using known or inferred lane count after prediction.
+
+Output:
+
+```text
+sourceType = local_area_predicted
+family = predicted
+contributor source = authoritative_posted
+```
+
+### 8.2 Speed
+
+Launch configuration:
+
+```ts
+{
+  field: 'speed_limit',
+  contributorSources: ['osm_posted', 'authoritative_posted', 'admin_approved'],
+  sourcePool: 'cyclist_substrate_candidate_grid_or_viewport_speed_profile_cache',
+  minCount: 2,
+  targetCount: 3,
+  maxCount: 5,
+  maxDistanceM: 8047,
+  context: ['compatible_through_road_class', 'same_urbanicity_when_available'],
+  aggregate: 'appropriate_speed_aggregate',
+  initialAggregate: 'mean',
+  roundToLocalUnit: 'nearest_5_mph_us',
+}
+```
+
+Rules:
+
+- Use directly posted speed values only.
+- Do not use inferred, predicted, baseline, or unknown speed values as contributors.
+- Prefer resolved `viewport_speed` profile-cache contributors when available and
+  coverage is proven for the target area.
+- Otherwise prefer bounded cyclist substrate candidate-grid / road-skeleton
+  contributors with parseable OSM `maxspeed`.
+- The cache-backed speed provider may search around the target in all directions,
+  provided the read is bounded to cached cells/profile tiles and not raw source APIs.
+- Route-indexed speed spans and explicitly provided surrounding-speed evidence
+  remain valid fallback contributor pools when profile-cache hydration is absent.
+- Use compatible through-road class rules from DS-022 unless superseded here.
+- At least 2 contributors are required.
+- Prefer the nearest/best 3 contributors after sorting by precedence,
+  compatibility, proximity, and freshness.
+- Use at most 5 eligible contributors for the initial implementation.
+- Speed should round to the local posted increment: nearest 5 mph in US contexts, nearest 10 km/h where metric speed limits are active.
+- The trace must identify whether contributors came from OpenStreetMap Posted, Authoritative Posted, or Admin Approved.
+- The trace must identify whether contributors came from route-indexed spans,
+  surrounding-speed evidence, cyclist substrate candidate-grid cache, or
+  `viewport_speed` profile-cache hydration.
+
+Output:
+
+```text
+sourceType = local_area_predicted
+family = predicted
+contributor source = osm_posted / authoritative_posted / admin_approved
+```
+
+### 8.3 Surface / Gravel Index Future Field
+
+Future configuration:
+
+```ts
+{
+  field: 'surface_gravel_index',
+  contributorSources: ['osm_posted', 'authoritative_posted', 'admin_approved'],
+  sourcePool: 'route_candidate_pool_or_evidence_cache',
+  minCount: 2,
+  maxCount: 15,
+  maxDistanceM: 8047,
+  context: ['same_broad_highway_class', 'similar_route_domain'],
+  aggregate: 'appropriate_surface_aggregate',
+  initialAggregate: 'mode_or_weighted_categorical_score',
+  roundToLocalUnit: 'surface_bucket',
+}
+```
+
+Surface is categorical, so it must not average raw labels. It should convert
+source attributes such as `surface`, `smoothness`, `tracktype`, or authoritative
+pavement condition into a numeric or ordinal gravel/roughness index, aggregate
+that value, then map back to a rider-facing bucket.
+
+---
+
+## 9. Confidence
+
+Default confidence:
+
+- `medium` when contributor count is at least 3 and spread is low by field config
+- `low` when contributor count is exactly 2 or spread is high
+
+The builder must expose the spread metric used by each field. Examples:
+
+- AADT: coefficient of variation, interquartile spread, or trimmed spread
+- speed: disagreement count after local rounding
+- surface: category entropy or dominant-category share
+
+`local_area_predicted` keeps DS-029's source-type confidence anchor unless the
+field config supplies a lower field-specific cap.
+
+---
+
+## 10. Non-Goals
+
+This DS does not:
+
+- implement evidence cache
+- require a blocking second fetch for missing route values
+- require a true 360-degree 5-mile raw source query at route load
+- replace DS-029 source precedence
+- allow predicted values to contribute to other predicted values
+- allow baseline values to contribute to predictions
+- define UI copy beyond trace facts needed for explainers
+
+---
+
+## 11. Implementation Notes
+
+Initial implementation should:
+
+1. Add a pure `LocalPredictionBuilder` module.
+2. Add field configs for `traffic_aadt` and speed.
+3. Feed traffic AADT from the HPMS/DOT route candidate pool, not just cue-sheet selected values.
+4. Keep cue-sheet-derived readings as a fallback only when the richer candidate pool is unavailable.
+5. Update DS-029 trace references to point to this DS for builder mechanics.
+6. Update receipt and inspector details to expose candidate cap, aggregate method, min/max contributor values, and accepted/rejected contributor counts.
 
 
 ---

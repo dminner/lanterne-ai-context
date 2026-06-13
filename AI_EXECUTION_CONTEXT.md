@@ -52057,6 +52057,200 @@ That shape keeps the panel useful while cutting away the old toggle jungle.
 
 ---
 
+## Source File: docs/04-execution/exec-048-data-source-explainer.md
+
+# EXEC-048 - Data Source Explainer
+
+Date: 2026-06-13
+
+## Purpose
+
+Document the basis for Source Precedence / Data Source Explainer copy.
+
+Prediction-builder mechanics for `Local Area Predicted` live in [DS-053](../02-architecture/design/ds-053-local_prediction_builder_spec.md). This execution note records the current copy and the HPMS/DOT count basis behind the explainer.
+
+The UI copy uses the 2024 FHWA HPMS spatial table for roadway-section record scale, and uses both the 2024 spatial table and the 2020 data-item table for risk-relevant fact scale. This note records where those numbers came from and what they mean.
+
+Do not combine the 2024 and 2020 row counts as a single "source records" denominator. They have different grains:
+
+- 2024 `HPMS Spatial All Sections` is section-shaped: one row can carry many roadway attributes.
+- 2020 `HPMS Roadway Sections` is data-item-shaped: one row is already one `Data_Item` fact for a route interval.
+
+## Authoritative Posted
+
+What: Official roadway data published by government transportation agencies.
+
+How: Lanterne ingests official roadway records from the Federal Highway Administration and roughly 35 state DOT datasets: currently 19.6 million section records and about 106.4 million risk-relevant data points across traffic, speed, lane count, shoulder, surface, and pavement-condition fields. We then match those records to the route.
+
+## Authoritative Inferred
+
+What: Official government speed or traffic data carried from its measured span across the applicable roadway.
+
+How: Government readings are often assigned to very short roadway spans, sometimes around 100 ft. Unless a different posted record supersedes it, Lanterne carries that official reading along the same roadway until a major intersection, road transition, or other break could plausibly change the speed rule or traffic flow.
+
+Traffic-specific variant:
+
+What: Official government traffic data carried from its measured span across the applicable roadway.
+
+How: Government readings are often assigned to very short roadway spans, sometimes around 100 ft. Unless a different posted record supersedes it, Lanterne carries that official reading along the same roadway until a major intersection, road transition, or other break could plausibly change the traffic flow.
+
+Policy meaning:
+
+- the value originates from an official government source such as FHWA HPMS or a state DOT dataset
+- the direct source record does not cover the exact route span being explained
+- route ownership and road identity support carrying the value along the same roadway
+- no stronger direct `authoritative_posted` row is selected for that exact span
+
+Do not use `authoritative_inferred` to make official data jump across:
+
+- major intersections where traffic can materially change
+- road-name or ownership breaks
+- ramps, connectors, or path transitions
+- spans with contradictory stronger evidence
+- unrelated nearby roads
+
+Copy note: use "carried" or "extended" rather than "spread" in rider-facing UI. "Spread" is understandable internally, but "carried across the same roadway" better communicates that the system is constrained by road identity and stopping rules.
+
+## Local Area Predicted
+
+What: A traffic estimate derived from nearby source-backed AADT readings on comparable roads.
+
+How: When a route segment does not have its own authoritative traffic record, Lanterne looks for nearby direct AADT readings on roads of the same broad type, such as tertiary roads near other tertiary roads. If enough eligible contributors are found, Lanterne averages those real readings, applies the known or inferred lane count, and converts the result into rider-facing AADT and cars-per-minute values.
+
+Policy meaning:
+
+- the value is estimated for this segment, not posted directly to it
+- contributors must be direct source-backed traffic readings, not inferred, predicted, baseline, or unknown traffic values
+- contributors must be comparable by broad road type and local context
+- at least 2 eligible nearby contributors are required
+- the receipt should retain contributor roads, source AADT values, search radius, lane-count basis, averaging math, and fallback reasons
+
+Traffic ladder placement: below `authoritative_inferred` because the value is not directly official for the span, but above `highway_baseline` because it is built from nearby real traffic readings rather than a generic road-class proxy.
+
+## Highway Baseline
+
+What: A last-resort estimate based only on the kind of road.
+
+How: Used only when no direct, carried, local, regional, or area-context source can defend the value. Lanterne falls back to the generic road class so the route can still be scored, but the receipt should make clear that this is not a posted record or nearby measurement.
+
+Traffic-specific variant:
+
+What: A last-resort traffic estimate based only on the road class.
+
+How: No direct, propagated, or local-area predicted AADT was available, so traffic fell back to the highway-class proxy.
+
+## Traffic Source Ladder Update
+
+Traffic source precedence should be:
+
+1. `authoritative_posted`
+2. `authoritative_inferred`
+3. `local_area_predicted`
+4. `highway_baseline`
+5. `unknown`
+
+`highway_area_baseline` is not active for traffic until Lanterne has a real highway-type + area-context AADT lookup table. Nearby same-type AADT averaging is `local_area_predicted`, not `highway_area_baseline`. The generic highway-class proxy is `highway_baseline`.
+
+## Source Tables
+
+Official Data.gov/FHWA catalog entries:
+
+- 2024: `HPMS Spatial All Sections - 2024`
+  - Data.gov page: `https://catalog.data.gov/dataset/hpms-spatial-all-sections-2024`
+  - Socrata dataset id: `42um-tgh5`
+  - API base: `https://data.transportation.gov/resource/42um-tgh5.json`
+- 2020: `HPMS Roadway Sections 2020`
+  - Data.gov page: `https://catalog.data.gov/dataset/hpms-roadway-sections-2020`
+  - Socrata dataset id: `q8hw-cdnd`
+  - API base: `https://data.transportation.gov/resource/q8hw-cdnd.json`
+
+The FHWA ArcGIS FeatureServer endpoints were returning backend 500 errors during this audit, so the counts used the official DOT Socrata tables linked from Data.gov.
+
+## Record Counts
+
+| Table | Raw rows | Interpretation |
+| --- | ---: |
+| 2024 HPMS Spatial All Sections | 19,573,739 | roadway section records |
+| 2020 HPMS Roadway Sections | 78,216,734 | data-item rows, not roadway section records |
+
+Rounded UI language for records: about 19.6 million official roadway section records.
+
+Rejected wording: "about 98 million official source records." That adds 2024 section rows to 2020 data-item rows and implies an average of only about 1.1 data points per record, which is not a coherent denominator.
+
+## Risk-Relevant Data Points
+
+The data-point count is a conservative count of non-null, non-zero values across fields Lanterne uses or presents for route risk evidence:
+
+- traffic: `AADT`, `AADT_SINGLE_UNIT`, `AADT_COMBINATION`
+- speed: `SPEED_LIMIT`
+- lanes: `THROUGH_LANES`, `DIR_THROUGH_LANES`, `LANE_WIDTH`
+- shoulder: `SHOULDER_WIDTH_R`, `SHOULDER_WIDTH_L`, `SHOULDER_TYPE`
+- surface and pavement condition: `SURFACE_TYPE`, `IRI`, `RUTTING`, `FAULTING`, `CRACKING_PERCENT`
+
+| Table | Non-empty risk-relevant data points |
+| --- | ---: |
+| 2024 HPMS Spatial All Sections | 78,039,116 |
+| 2020 HPMS Roadway Sections | 28,391,585 |
+| Combined | 106,430,701 |
+
+Rounded UI language:
+
+- 2024 table: about 78 million non-empty risk-relevant attributes.
+- 2020 table: another about 28 million comparable risk-relevant data-item facts.
+
+These can be discussed together as about 106 million non-empty risk-relevant data points, but only if the copy does not imply they all sit on the same section-record denominator.
+
+## Counting Rules
+
+For this copy, a value counted only if it was:
+
+- not null
+- not numeric zero
+- not text `NULL`
+- not a text zero variant such as `0`, `0.0`, `0.00`, or `0.000`
+
+This intentionally excludes zeros to avoid inflating the marketing/explainer number with missing-like payload values. Caveat: in some HPMS fields, zero can carry real meaning, for example `CRACKING_PERCENT = 0` can mean no cracking. The UI phrase therefore says non-empty data points, not all facts or all valid facts.
+
+## Aggregate Query Shape
+
+2024 row count:
+
+```sql
+select count(*) from "42um-tgh5";
+```
+
+2024 useful field count pattern:
+
+```sql
+select count(*)
+from "42um-tgh5"
+where aadt is not null and aadt != 0;
+```
+
+2020 row count:
+
+```sql
+select count(*) from "q8hw-cdnd";
+```
+
+2020 useful field count pattern:
+
+```sql
+select count(*)
+from "q8hw-cdnd"
+where data_item = 'AADT'
+  and (
+    (value_numeric is not null and value_numeric != 0)
+    or (value_text is not null and upper(value_text) != 'NULL' and value_text not in ('0', '0.0', '0.00', '0.000'))
+    or value_date is not null
+  );
+```
+
+The actual audit summed that pattern across the risk-relevant field list above.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
