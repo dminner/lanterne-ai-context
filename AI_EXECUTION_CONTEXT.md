@@ -52251,6 +52251,109 @@ The actual audit summed that pattern across the risk-relevant field list above.
 
 ---
 
+## Source File: docs/04-execution/exec-049-route-pruned-nuremberg-substrate-read.md
+
+# EXEC-049 Route-Pruned Nuremberg Substrate Read
+
+Date: 2026-06-13
+
+## Context
+
+Route Builder should use the cyclist substrate as a broad, reusable candidate source without returning every road-cache row in every intersecting tile. The previous Nuremberg cyclist substrate read contract accepted only `tileKeys`, so a route-sized read could return tens of thousands of storage rows to the Supabase Edge proxy before the app had enough context to prune them.
+
+The Silver Lake to Hueneme fixture exposed the failure mode:
+
+- route: `03576 - Silver Lake to Hueneme`
+- tile keys: 30
+- previous behavior: full-tile Nuremberg read attempted to return the tile universe and could exhaust the Supabase Edge worker
+- desired behavior: app sends sampled route geometry, Nuremberg prunes candidate rows at source, and the Edge proxy fails closed if source-side pruning is not confirmed
+
+## Implemented Contract
+
+Route Builder now sends bounded route geometry with production cyclist substrate reads:
+
+- `tileKeys`
+- `routePoints`, sampled to at most 700 points
+- `routeFingerprint`
+- `routeName`
+
+The Supabase `cyclist-substrate-read-proxy` validates that route geometry and forwards a `routePrune` block to Nuremberg:
+
+```json
+{
+  "schemaVersion": "cyclist-substrate-route-prune.v1",
+  "routePoints": [],
+  "distanceMeters": 140,
+  "candidateLayer": "route_relevant_substrate",
+  "pruneAtSource": true,
+  "fallbackToFullTiles": false
+}
+```
+
+When route pruning is requested, the proxy requires Nuremberg diagnostics confirming that pruning happened. If Nuremberg ignores the contract or falls back to full-tile rows, the proxy returns a failed read rather than quietly reintroducing the large payload.
+
+Accepted confirmation diagnostics:
+
+- `cyclist_substrate_route_prune_applied=true`
+- `nuremberg_cyclist_substrate_route_pruned_read=true`
+- `route_prune_applied=true`
+
+## Nuremberg Deployment
+
+The live Nuremberg service at `/root/lanterne-osm-api/server.js` was updated and restarted under PM2.
+
+The `/substrate/cyclist-substrate/query` endpoint now:
+
+- validates `routePrune`
+- builds an indexed representation of the sampled route geometry
+- queries tile rows locally from `public.cyclist_substrate_records`
+- decodes stored polylines inside the Nuremberg process
+- keeps rows whose geometry is within the route corridor or directionally aligned near the route
+- returns pruning diagnostics with raw/read/drop counts
+
+This is source-side pruning, not Edge-side cleanup. The large full-tile payload no longer crosses the Nuremberg-to-Supabase boundary.
+
+## Smoke Result
+
+Silver Lake to Hueneme smoke through the deployed Supabase function:
+
+- route points: 7,313
+- sampled route points: 700
+- tile keys: 30
+- Supabase Edge elapsed time: about 4.1s
+- status: `ready`
+- Nuremberg raw rows read locally: 93,095
+- rows returned after source-side pruning: 5,882
+- rows dropped at source: 87,213
+- route prune confirmed: yes
+
+Direct Nuremberg smoke:
+
+- elapsed time: about 2.6s
+- same 93,095 raw rows to 5,882 pruned rows
+
+## Remaining Performance Work
+
+This fix removes the costly network payload and Edge worker failure mode. It does not yet make Nuremberg read only spatially indexed rows from Postgres.
+
+The next hardening step is to add source-side geometry or bounds indexing to `public.cyclist_substrate_records`, then make `/substrate/cyclist-substrate/query` use the index before decoding polylines.
+
+Preferred path:
+
+- add a generated or materialized geometry/bounds representation for each substrate row
+- backfill existing rows
+- index the geometry/bounds with PostGIS GiST or a practical tile-plus-bounds strategy
+- query `tileKeys + route corridor` before Node-level exact pruning
+
+Long-term route-load path remains RXON:
+
+- store the route-pruned candidate set or equivalent route experience artifact by route fingerprint
+- use Nuremberg source reads for cold/new route hydration
+- use RXON for repeated route loads and first paint
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
