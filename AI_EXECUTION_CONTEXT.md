@@ -29152,7 +29152,7 @@ Important current surfaces:
 | Road class / highway | `corridor.ts` `tags.highway`; `score-domain.ts` `classifyScoreDomainType`; truth-run highway/domain export | Road object tags, cue/truth-run modal highway | Speed baseline, traffic class proxy, domain, safe-path invariant, display | Accepted-way identity/domain layer | `move_as_is` for classifier, `adapt_to_route_indexed_spans` for attachment | Low | Small | The classifier can move as-is. Attachment should be per accepted way/span. |
 | Hazards: railroad crossings | `hazards.ts` `detectHazardsFromElements` / `detectHazardsFromRoads`; `route-analysis.ts` route crossing filtering and clustering | Explicit OSM node, rail/road geometry intersection, nearest route point, matched/on-route road IDs | Crossing events, route score, overlays, inspector | Route-distance point/span event layer tied to handoffs and accepted route geometry | `improve_with_v2_route_indexed_model` | High | Medium | V2 real-node handoffs can improve event placement and dedupe. |
 | Hazards: bridges, metal surfaces, dismount, covered, no-shoulder | `hazards.ts` bridge/surface/tag rules; `route-analysis.ts` bridge hazard export | Road-way tags, bridge outlines, route proximity, matched route roads | Hazard penalties/display, route receipt, overlays | Route-indexed hazard event/span layer keyed by accepted source way and route overlap | `adapt_to_route_indexed_spans` | Medium | Medium | Do not attach bridge hazards from nearby corridor roads that are not route-owned. |
-| Hazards: underpasses / cattle guards / fords | `hazards.ts` `isSingleLaneUnderpass`, node/way barrier and ford rules; route snapping in `route-analysis.ts` | Explicit OSM node or road-way tag, route proximity, matched road IDs | Hazard penalties/display, receipt | Route-distance event layer | `adapt_to_route_indexed_spans` | Medium | Medium | Explicit nodes should join by real OSM node where available, then route-distance snap. |
+| Hazards: underpasses / cattle grids / fords | `hazards.ts` `isSingleLaneUnderpass`, node/way barrier and ford rules; route snapping in `route-analysis.ts` | Explicit OSM node or road-way tag, route proximity, matched road IDs | Hazard penalties/display, receipt | Route-distance event layer | `adapt_to_route_indexed_spans` | Medium | Medium | Explicit nodes should join by real OSM node where available, then route-distance snap. |
 | Time-of-day traffic multiplier | `traffic-time.ts` `getTrafficMultiplier`, `estimateArrivalHour`, `estimateTrafficFlow`, `formatTrafficAtTime` | Cue distance and rider start time / planned speed | Rider-facing traffic flow display | Contextual ride-time presentation layer on top of stable route traffic evidence | `move_as_is` for formatter, `defer` for score-driving use | Low | None | Contextual, not stable route identity. Do not bake into route truth. |
 | Heatmap risk fields | `route-analysis.ts` truth-run `rawRisk`, `normalizedRisk`, `riskLevel`; `heatmap/builder.ts` `buildTruthSegments` | Truth-run route point index bounds and road identity | Route paint, heatmap, inspector, risk display | V2S+S scored truth-run adapter after scoring fields exist | `adapt_to_route_indexed_spans` | Medium | Medium | Heatmap builder can consume the same contract after V2 scoring. It must not be topology truth. |
 | Cue generation inputs | `route-analysis.ts` cue sheet build; optional `topology-cues.ts`; left-turn/controlled/path crossing event logic | Sample index, road transition, route distance, truth-run boundary, handoff context | Cue sheet, crossing scoring, route receipt | V2 handoff summary plus route-distance cue event layer | `improve_with_v2_route_indexed_model` | Medium | Medium | V2 real-node handoffs should simplify transition cues and reduce sample-index fragility. |
@@ -29181,7 +29181,7 @@ These should attach to V2 ownership spans by accepted OSM way ID, real node hand
 - Surface.
 - Lane count.
 - Highway/road class attachment.
-- Bridge/underpass/cattle guard/ford hazard events.
+- Bridge/underpass/cattle grid/ford hazard events.
 - Heatmap risk field export.
 
 ### C. improve_with_v2_route_indexed_model
@@ -29302,7 +29302,7 @@ Phase C: AADT/traffic attachment
 
 Phase D: hazard attachment
 
-- Attach railroad crossings, bridges, underpasses, cattle guards, fords, controlled crossings, and path/road crossing events as route-distance point/span events.
+- Attach railroad crossings, bridges, underpasses, cattle grids, fords, controlled crossings, and path/road crossing events as route-distance point/span events.
 - Prefer real OSM node/event identity when available.
 - Use V2 handoffs to improve event placement and dedupe.
 
@@ -29956,7 +29956,7 @@ Recommended route profiles:
 - `route_evidence_core_v1`: highway/domain/source lineage/node refs and basic source tags.
 - `route_evidence_scoring_v1`: score-driving fields needed by the scoring worker.
 - `route_traffic_v1`: AADT/traffic fields when split profile size/freshness makes that useful.
-- `route_hazard_events_v1`: point/span events, crossings, bridges, underpasses, cattle guards, and hazard flags.
+- `route_hazard_events_v1`: point/span events, crossings, bridges, underpasses, cattle grids, and hazard flags.
 
 Route distance remains the V2S+S join key. Accepted OSM way ids and source refs are metadata and hydration keys, not the final route join surface.
 
@@ -51951,7 +51951,7 @@ These are rendered when `v2DebugSurfaceState` is present. They are closer to the
 | Rejected candidates | Hazards suppressed by geometry, grade separation, parallel rail, etc. | Explains false negatives/positives. | Essential. | None. | Keep. |
 | Hidden by toggles | Accepted hazards suppressed by category/child toggle state. | Proves toggle behavior. | Essential for category/child hazard UI. | None. | Keep. |
 | Railroad | Rail candidates with angle/topology/bridge/tunnel/layer/same-level diagnostics. | Debugs RR false positives and missing angles. | Essential. | None. | Keep. |
-| Fords / cattle guards | Water crossings and cattle-grid hazards. | Debugs the known dam-ride missing hazard class. | Essential. | None. | Keep. |
+| Fords / cattle grids | Water crossings and cattle-grid hazards. | Debugs the known dam-ride missing hazard class. | Essential. | None. | Keep. |
 | Metal / structures | Metal bridge/plate/covered bridge/underpass/pinch diagnostics. | Covers metal surface and pinch point hazards. | Useful. | None. | Keep. |
 | Conflict controls | Stop/signal/left-turn conflict debug rows. | Debugs score-driving conflict events. | Useful, but semantically distinct from non-scoring hazards. | Reduces hazard/score confusion. | Keep, move or label as `Conflict events`. |
 | Topology confirmed | Rows backed by shared OSM node or direct route-way proof. | Shows confidence/proof class. | Essential. | None. | Keep. |
