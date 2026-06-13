@@ -40140,3 +40140,121 @@ Schema and scaffold references:
 - `canonical_segments`
 - `way_intelligence_rollups`
 
+
+---
+
+## Source File: docs/03-adrs/adr-053-geometry_first_route_reality_cut.md
+
+# ADR-053 - Geometry-First Route Reality Cut
+
+Status: Accepted
+Date: 2026-06-13
+Related: ADR-019, ADR-026, ADR-037, ADR-045, ADR-048, ADR-052
+
+------
+
+## Context
+
+The route-line engine is moving away from v1-style "nearest plausible road" behavior toward a v2 architecture where the initial route identity is a faithful read of the submitted geometry.
+
+That distinction matters when a GPX line follows awkward or newly changed infrastructure:
+
+- a pedestrian-only footway
+- a no-bicycles path
+- steps
+- a tunnel
+- a separated bike path that wanders away from the adjacent road
+- an imperfect topology handoff to the next road
+
+In these cases the old behavior could rescue the route to a nearby motor road, or to a road that looked more plausible for cycling, even when that road did not share the route geometry. This made the route easier to score, but it also hid the thing the rider or route owner actually submitted.
+
+The Silver Lake to Hueneme route near Marvin's Beach Bike Path and Roosevelt Tunnel is the reference failure. The current GPX geometry follows a sequence of footway/path/steps/tunnel features before reaching West Channel Road. A nearby tertiary link and Pacific Coast Highway are plausible motor-road candidates, but they are not the route reality in that window.
+
+Alaska separated-path routes show the same architectural problem from the opposite direction: the GPX can alternate between road and path because the separated path winds away from the road. The initial cut must say that clearly instead of smoothing it into one assumed intent.
+
+------
+
+## Decision
+
+Lanterne's initial route identity cut will be geometry-first and non-rescuing.
+
+The route-line engine must identify the physical OSM geometry that the submitted route actually follows, even when that geometry is undesirable, illegal for bicycles, pedestrian-only, stair-stepped, unnamed, or inconsistent with normal cycling intent.
+
+The initial cut must not silently replace that reality with a nearby plausible motor road, safer bike route, or cleaner cue narrative.
+
+Warnings and repairs are separate downstream layers:
+
+- The identity layer says what the geometry follows.
+- The warning layer says what may be unsafe, illegal, discontinuous, or operationally suspect.
+- The repair layer proposes explicit alternate transformations, such as keeping the route on legal roads or snapping a corridor onto separated paths.
+
+------
+
+## Required Invariants
+
+1. Exact or strongly route-aligned geometry wins over nearby plausible ownership.
+2. Named motor roads do not steal ownership from route-aligned footways, paths, steps, pedestrian ways, tunnels, or separated paths unless the motor-road fit is materially and locally better.
+3. The initial cut may include no-bicycle paths, pedestrian footways, stairs, tunnels, and mixed road/path/road alternation.
+4. The engine must preserve source way IDs and node IDs for the reality cut so receipts can explain what happened.
+5. Presentation simplification may happen only after the precise identity receipt exists.
+6. Cue simplification must not rewrite inspector or receipt truth.
+7. Repair options must be explicit and reversible. They are not silent corrections to the canonical identity cut.
+
+------
+
+## Silver Lake Reference Behavior
+
+For route `03576 - Silver Lake to Hueneme`, in the window from approximately `34.02831, -118.52036` to `34.02848, -118.51905`, the expected identity sequence is:
+
+1. Marvin's Beach Bike Path into OSM way `1486400598`, a footway marked `bicycle=no`.
+2. OSM way `68083900`, a path.
+3. OSM way `701188645`, steps.
+4. Roosevelt Tunnel, OSM way `67975205`, a footway tunnel.
+5. An imperfect transition toward West Channel Road.
+
+The initial cut should not identify this window as Pacific Coast Highway or OSM way `42379843`, even though those roads are nearby and more plausible for scoring.
+
+The product should instead surface warnings such as:
+
+- route may enter a no-bicycles path
+- route includes steps
+- route includes a pedestrian tunnel
+- transition to the next road is imperfect or unresolved
+
+Repair can then offer an explicit "keep this on legal roads" option.
+
+------
+
+## Alaska Reference Behavior
+
+For separated-path corridors where a GPX alternates between the road and a parallel path, the initial cut should preserve that alternation when the geometry shows it.
+
+The warning layer can then say the GPX switches between roadway and path. Repair can offer choices such as:
+
+- snap the whole corridor to the separated path
+- keep the whole corridor on the road
+- preserve the submitted mixed geometry
+
+------
+
+## Consequences
+
+This decision makes some first-pass route identities look messier. That is intentional. Messy truth is preferable to a clean but false road identity.
+
+Scoring, warnings, receipts, and repair UX must tolerate route-owned spans that are anonymous connectors, footways, paths, stairs, tunnels, or unresolved gaps.
+
+Future performance work should optimize this architecture rather than collapsing back to broad nearest-road rescue. Route load efficiency should be measured against the number of candidates loaded, retained, and rejected, with diagnostics that distinguish raw nearby-road load from canonical route-aligned candidates.
+
+------
+
+## Implementation Notes
+
+The route-line v2 topology builder should:
+
+- keep strict ownership admission enabled by default
+- retain strong route-overlap candidates even when they are anonymous non-motor features
+- protect route-aligned non-motor geometry from nearby named motor-road candidates
+- attach access and facility warnings to ownership spans without changing span identity
+- keep tiny-gap smoothing as a presentation or continuity aid, not as ownership rescue
+
+
