@@ -9913,45 +9913,38 @@ Examples:
 - DOT speed sensors
 - traffic loop detectors
 
-Characteristics:
-
-- objective
-- repeatable
-- time-aware
-- often high-volume
-
 Notes:
 
 - measured data is valuable evidence, but measured vehicle behavior is not the same as posted speed or official traffic truth
-- operating-speed and pass-frequency samples can be biased by where riders happen to use radar or sensors
-- measured data must remain outside canonical score truth until a future DS defines its source category, sampling thresholds, bias controls, aggregation method, and provenance/confidence rules
+- measured data must remain outside canonical score truth until a future DS defines sampling thresholds, bias controls, aggregation method, and provenance/confidence rules
 
 ------
 
-### 1. observed (admin / validated)
+### Legacy. observed
 
-Observed values are manually confirmed by a trusted source.
+`observed` is a legacy/internal alias for directly validated observation. New audited route truth should use `admin_approved`.
+
+------
+
+### 1. admin_approved
+
+Audited admin-approved truth.
 
 Examples:
 
-- founder/admin overrides
-- validated field observations
-
-Characteristics:
-
-- high confidence
-- sparse
-- static snapshot
+- manually verified speed sign
+- field-reviewed facility or shoulder correction
+- source-backed override approved by an admin
 
 Notes:
 
-- used when we explicitly know something is true
-- overrides all posted and inferred data
-- raw rider submissions do not qualify; observed truth must be administrator-verified and approved before it enters the canonical resolver
+- strongest active source type
+- must retain approval trace and supporting verification
+- raw rider submissions do not qualify until reviewed or promoted
 
 ------
 
-### 2. authoritative_posted (DOT / HPMS)
+### 2. authoritative_posted
 
 Official posted values from government or authoritative datasets.
 
@@ -9959,117 +9952,110 @@ Examples:
 
 - DOT speed limits
 - HPMS-derived posted values
-
-Characteristics:
-
-- structured
-- reliable
-- occasionally outdated or generalized
+- authoritative traffic AADT rows
 
 Notes:
 
-- considered stronger than OSM
-- may not reflect real-world driving behavior
+- stronger than mapped community data
+- may be outdated or generalized, but carries official source trace
 
 ------
 
-### 3. osm_posted
+### 3. osm_posted (OpenStreetMap Posted)
 
-Posted values derived from OpenStreetMap tags.
+Posted values derived directly from OpenStreetMap tags.
 
 Examples:
 
 - `maxspeed=35`
-- `maxspeed=25 mph`
-
-Characteristics:
-
-- community-maintained
-- widely available
-- variable accuracy
+- mapped lane/facility attributes
 
 Notes:
 
-- often correct, but not guaranteed
-- can lag real-world changes
+- often useful and inspectable
+- must retain OpenStreetMap way/tag trace when available
 
 ------
 
-### 4. observation_inferred
+### 4. user_observation
 
-Values propagated from nearby **observed or admin-approved segments**.
+User-submitted direct observation.
 
 Examples:
 
-- a confirmed 45 mph segment extends across a continuous road
-
-Characteristics:
-
-- derived from high-confidence evidence
-- not directly observed on the segment itself
+- rider-reported speed sign
+- rider-reported shoulder or facility state
 
 Notes:
 
-- carries strong signal, but weaker than direct observation
-- must be clearly labeled as inferred
+- weaker than posted authoritative or OpenStreetMap truth
+- may support admin review
+- field policy decides whether it is display-only or score-admitted
 
 ------
 
 ### 5. authoritative_inferred
 
-Values inferred from authoritative datasets.
+Values inferred, carried, or derived from authoritative datasets.
 
 Examples:
 
+- official AADT carried through a same-road span
 - DOT functional class implying typical speed
 - HPMS-based estimates
 
-Characteristics:
-
-- structured inference
-- consistent but generalized
-
 Notes:
 
-- stronger than OSM inference
-- weaker than direct posted values
+- grounded in official source context
+- weaker than direct posted authoritative values
 
 ------
 
-### 6. osm_inferred
+### 6. osm_inferred (OpenStreetMap Inferred)
 
-Values inferred from OSM attributes.
+Values inferred from OpenStreetMap attributes.
 
 Examples:
 
-- highway type → estimated speed
-- lane count → inferred traffic behavior
-
-Characteristics:
-
-- heuristic-based
-- widely applicable
-- often inaccurate in edge cases
+- highway type inferred speed
+- mapped road attributes used to infer facility or shoulder continuity
 
 Notes:
 
-- fallback when no better data exists
+- weaker than direct OpenStreetMap posted/tagged truth
+- must explain the inference or continuity path
 
 ------
 
-### 7. regional_prior
+### 7. observation_inferred
+
+Values propagated from nearby verified observations.
+
+Examples:
+
+- an approved 45 mph segment extends across a continuous road
+
+Notes:
+
+- not directly observed on the segment itself
+- must be labeled as inferred and retain anchor trace
+
+------
+
+### 8. local_area_predicted
+
+Predicted values from nearby direct source-backed contributors.
+
+Notes:
+
+- only used when stronger direct and inferred sources are absent
+- must retain contributors, rejection reasons, and aggregation math
+
+------
+
+### 9. regional_prior
 
 Regionally derived baseline values.
-
-Examples:
-
-- typical residential speed in New Jersey suburbs
-- state-level speed norms
-
-Characteristics:
-
-- aggregated from known data
-- improves baseline realism
 
 Notes:
 
@@ -10079,22 +10065,9 @@ Notes:
 
 ------
 
-### 8. highway_area_baseline
+### 10. highway_area_baseline
 
-Baseline derived from:
-
-- highway classification
-- urbanicity (rural / suburban / urban)
-
-Examples:
-
-- suburban arterial → 35 mph
-- rural secondary → 45 mph
-
-Characteristics:
-
-- structured but generic
-- context-aware
+Fallback derived from highway classification and area context.
 
 Notes:
 
@@ -10104,25 +10077,24 @@ Notes:
 
 ------
 
-### 9. highway_baseline
+### 11. highway_baseline
 
 Pure highway-type-based default.
 
-Examples:
+Notes:
 
-- residential → 25 mph
-- primary → 45 mph
+- used only when no stronger or area-specific source exists
+- considered last-resort non-null input
 
-Characteristics:
+------
 
-- simple
-- universal
-- lowest fidelity
+### 12. unknown
+
+Explicit missing or unavailable truth.
 
 Notes:
 
-- used only when no better information exists
-- considered last-resort input
+- used when no allowed source can defend a value
 
 ------
 
@@ -10425,7 +10397,7 @@ Propagation carries value, not source.
 
 When a value propagates from a segment with direct evidence:
 
-- the originating segment retains its source (e.g. observed, DOT posted, OSM posted)
+- the originating segment retains its source (e.g. admin-approved, DOT posted, OpenStreetMap posted)
 - downstream segments are labeled as inferred from that source
 
 Examples:
@@ -10458,7 +10430,7 @@ Each dimension behaves differently. This is intentional.
 - assumed constant across named road segments
 - only breaks on:
   - road name change
-  - stronger evidence (DOT/OSM posted)
+  - stronger evidence (DOT/OpenStreetMap posted)
   - explicit override
 
 ------
@@ -12978,12 +12950,13 @@ This document is intentionally prescriptive. It is meant to reduce implementatio
 
 They may influence speed only when all stronger sources are absent:
 
-1. `observed`
+1. `admin_approved`
 2. `authoritative_posted`
 3. `osm_posted`
-4. `observation_inferred`
+4. `user_observation`
 5. `authoritative_inferred`
 6. `osm_inferred`
+7. `observation_inferred`
 
 They must not override:
 
@@ -13469,7 +13442,7 @@ No implementation convenience may weaken the guardrails in this spec without an 
 
 The speed source label may remain short:
 
-- `OSM posted`
+- `OpenStreetMap posted`
 - `Government posted`
 - `Regional prior`
 - `Area baseline`
@@ -13552,8 +13525,8 @@ Expected tooltip shape:
 
 Expected tooltip shape:
 
-- label: `OSM posted`
-- descriptor: `Matched OSM maxspeed tag`
+- label: `OpenStreetMap posted`
+- descriptor: `Matched OpenStreetMap maxspeed tag`
 - citation: way id may appear later, but no fake legal citation
 - caveat: `OSM tag quality depends on mapper accuracy.`
 
@@ -13569,8 +13542,8 @@ Expected tooltip shape:
 
 Expected tooltip shape:
 
-- label: `OSM inferred`
-- descriptor: `Derived from matched OSM road attributes`
+- label: `OpenStreetMap inferred`
+- descriptor: `Derived from matched OpenStreetMap road attributes`
 - caveat: `Estimated from road tags because no posted speed was available.`
 
 #### `local_area_predicted`
@@ -16114,17 +16087,23 @@ These are the only canonical DS-015 provenance families for score-bearing truth:
 
 The following table is authoritative for source-type semantics, precedence, confidence anchors, and trace requirements.
 
-### 4.1 Score-bearing source types
+### 4.1 Active source types
+
+This table defines source order, labels, confidence anchors, and trace
+requirements. Field policy may still exclude a source type from a specific
+score path. For example, raw `user_observation` can appear in the source ladder
+and review surfaces while a field resolver requires admin promotion before it
+affects canonical score truth.
 
 | Precedence | Source type | Family | Launch source-confidence anchor | Canonical confidence band | Trace requirements |
 | ---: | --- | --- | ---: | --- | --- |
-| 1 | `observed` | `observed` | 100 | `very_high` | observation id, observer class, timestamp or audit ref, anchor segment, source links when available |
-| 2 | `admin_approved` | `observed` | 100 | `very_high` | admin identity, timestamp, approval ref, supporting verification links; for speed, include the Street View link used to verify the sign |
-| 3 | `authoritative_posted` | `official_imported` | 100 | `very_high` | agency, feed id, record id or statute ref, public source URL when available |
-| 4 | `osm_posted` | `geometry_derived` | 95 | `very_high` | OSM way id, tag key/value, matched road identity, OSM or lat/lon link |
-| 5 | `observation_inferred` | `relationship_inferred` | 90 | `high` | anchor source identity, propagation path, continuity reason, decay / distance context, source links when available |
-| 6 | `authoritative_inferred` | `relationship_inferred` | 90 | `high` | agency/feed id, propagation path, continuity reason, decay / distance context, source links when available |
-| 7 | `osm_inferred` | `relationship_inferred` | 85 | `high` | matched road identity or anchor source identity, propagation / derivation path, continuity or inference reason, decay / distance context, OSM or lat/lon link |
+| 1 | `admin_approved` | `observed` | 100 | `very_high` | admin identity, timestamp, approval ref, supporting verification links; for speed, include the Street View link used to verify the sign |
+| 2 | `authoritative_posted` | `official_imported` | 100 | `very_high` | agency, feed id, record id or statute ref, public source URL when available |
+| 3 | `osm_posted` | `geometry_derived` | 95 | `very_high` | OpenStreetMap way id, tag key/value, matched road identity, OpenStreetMap or lat/lon link |
+| 4 | `user_observation` | `observed` | 90 | `high` | observation id, observer class, timestamp, anchor segment, source links when available |
+| 5 | `authoritative_inferred` | `relationship_inferred` | 90 | `high` | agency/feed id, propagation path, continuity reason, decay / distance context, source links when available |
+| 6 | `osm_inferred` | `relationship_inferred` | 85 | `high` | matched road identity or anchor source identity, propagation / derivation path, continuity or inference reason, decay / distance context, OpenStreetMap or lat/lon link |
+| 7 | `observation_inferred` | `relationship_inferred` | 85 | `high` | anchor source identity, propagation path, continuity reason, decay / distance context, source links when available |
 | 8 | `local_area_predicted` | `predicted` | 80 | `high` | source trace, contributors, aggregation math, rejection reasons, fallback reasons, source links for contributors when available |
 | 9 | `regional_prior` | `baseline` | 65 | `medium` | agency, dataset row id or lookup key, jurisdiction, context selectors, default value, source document link |
 | 10 | `highway_area_baseline` | `baseline` | 55 | `low_medium` | agency or governing table identity, lookup dimensions, table/version key, exact row or generic context rule, source document link |
@@ -16138,8 +16117,8 @@ These may exist operationally, but they are not currently canonical score-bearin
 | Source type | Status | Notes |
 | --- | --- | --- |
 | `measured` | reserved future category | Valuable sensor/radar/loop evidence, but not yet canonical truth; future promotion must address sampling bias, aggregation, provenance, and whether measured values remain separate from posted/official truth |
+| `observed` | legacy alias | Older internals may still emit direct validated observation as `observed`; new audited route truth should use `admin_approved` |
 | `community_reported` | reserved / pending policy | If later promoted, it must receive its own family mapping, precedence, confidence anchor, and trace requirements rather than being folded into `geometry_derived` |
-| `user_observation` | presentation-only / session-only | Raw observations may support admin review, but only an audited approval such as `admin_approved` may enter canonical score truth |
 
 ### 4.2.1 `admin_approved` scope
 
@@ -16415,16 +16394,17 @@ family rather than inventing symmetry where none exists.
 ### 6.1 Speed
 
 - `observed`
-  - `observed`
   - `admin_approved`
 - `official_imported`
   - `authoritative_posted`
 - `geometry_derived`
-  - `osm_posted`
+  - `osm_posted` (OpenStreetMap Posted)
+- `observed`
+  - `user_observation`
 - `relationship_inferred`
-  - `observation_inferred`
   - `authoritative_inferred`
-  - `osm_inferred`
+  - `osm_inferred` (OpenStreetMap Inferred)
+  - `observation_inferred`
 - `predicted`
   - `local_area_predicted`
 - `baseline`
@@ -16435,19 +16415,13 @@ family rather than inventing symmetry where none exists.
 
 ### 6.2 Traffic
 
-- `observed`
-  - `observed`
-  - `admin_approved`
 - `official_imported`
-  - direct official AADT per lane
-  - official total AADT plus known lane count
+  - `authoritative_posted`
 - `relationship_inferred`
-  - official total AADT plus relationship-inferred lane count
-  - relationship-inferred total AADT from nearby stronger truth through corridor continuity
-- `predicted`
-  - `local_area_predicted`
+  - `authoritative_inferred`
 - `baseline`
-  - `highway_area_baseline` via class proxy / generic class traffic fallback
+  - `highway_area_baseline`
+  - `highway_baseline`
 - `unknown`
 
 Implementation note:
@@ -16455,9 +16429,10 @@ Implementation note:
 - the traffic truth object may still carry internal confidence labels such as `official_per_lane` or `class_proxy`
 - those are not rider-facing semantic families
 - they must map through this spec before presentation, receipts, or score trace export
-- `regional_prior` and `highway_baseline` are not active traffic ladder rungs
-  in the current canonical model even though they remain global source types in
-  the master source table
+- `observed`, `admin_approved`, OpenStreetMap sources, `user_observation`,
+  `local_area_predicted`, and `regional_prior` are not active traffic ladder
+  rungs in the current canonical model even though several remain global source
+  types in the master source table
 
 ### 6.3 Bike Lane / Facility
 
@@ -16555,17 +16530,15 @@ table makes implementation and audit faster.
 
 | Field | Family rung | Concrete source types / truth forms | Predicted allowed? | Baseline allowed? | Resolved options / classification | Precision and trace expectations |
 | --- | --- | --- | --- | --- | --- | --- |
-| Speed | `observed` | `observed`, `admin_approved` | yes | yes | exact posted or observed mph | retain exact mph; trace source link; for admin-approved speed, retain Street View verification link |
+| Speed | `observed` | `admin_approved`, `user_observation` | yes | yes | exact posted or observed mph | retain exact mph; trace source link; for admin-approved speed, retain Street View verification link |
 | Speed | `official_imported` | `authoritative_posted` | yes | yes | exact posted mph | retain exact mph plus agency/feed/statute link |
-| Speed | `geometry_derived` | `osm_posted` | yes | yes | exact mapped maxspeed mph | retain exact mph plus OSM way/tag and OSM or lat/lon link |
-| Speed | `relationship_inferred` | `observation_inferred`, `authoritative_inferred`, `osm_inferred` | yes | yes | exact carried or inferred mph | retain exact mph plus propagation/derivation path, continuity reason, decay/distance context |
+| Speed | `geometry_derived` | `osm_posted` (OpenStreetMap Posted) | yes | yes | exact mapped maxspeed mph | retain exact mph plus OpenStreetMap way/tag and OpenStreetMap or lat/lon link |
+| Speed | `relationship_inferred` | `authoritative_inferred`, `osm_inferred` (OpenStreetMap Inferred), `observation_inferred` | yes | yes | exact carried or inferred mph | retain exact mph plus propagation/derivation path, continuity reason, decay/distance context |
 | Speed | `predicted` | `local_area_predicted` | yes | yes | exact predicted mph, rounded to nearest 5 only where the method requires it | retain exact mph, contributors, radius, aggregation math, rounding, fallback reasons |
 | Speed | `baseline` | `regional_prior`, `highway_area_baseline`, `highway_baseline` | yes | yes | exact default mph from the selected row/table | retain exact lookup key, table/version, default mph, source document link, concrete lookup path |
-| Traffic | `observed` | `observed`, `admin_approved` | yes | yes | exact AADT total and AADT/lane when known | retain exact AADT, lane basis, factor math, and verification/source links |
-| Traffic | `official_imported` | direct official AADT/lane; official total AADT + known lane count | yes | yes | exact AADT/lane or exact AADT total + lane count | retain exact AADT total, AADT/lane, lane count, factor math, agency/feed link |
-| Traffic | `relationship_inferred` | official total AADT + relationship-inferred lane count; corridor-carried AADT | yes | yes | exact carried AADT total and derived AADT/lane | retain exact AADT inputs, lane inference basis, propagation path, factor math |
-| Traffic | `predicted` | `local_area_predicted` | yes | yes | exact predicted AADT total and derived AADT/lane | retain exact predicted AADT total, derived AADT/lane, contributor set, radius, aggregation math |
-| Traffic | `baseline` | class proxy via `highway_area_baseline` | yes | yes | exact class-proxy AADT/lane and resulting factor | retain class-proxy AADT/lane, factor math, governing table/document link |
+| Traffic | `official_imported` | `authoritative_posted` | no | yes | exact AADT/lane or exact AADT total + lane count | retain exact AADT total, AADT/lane, lane count, factor math, agency/feed link |
+| Traffic | `relationship_inferred` | `authoritative_inferred` | no | yes | official total AADT with inferred lane basis or carried official traffic | retain exact AADT inputs, lane inference basis, propagation path, factor math |
+| Traffic | `baseline` | `highway_area_baseline`, `highway_baseline` | no | yes | class-proxy AADT/lane and resulting factor | retain class-proxy AADT/lane, area/highway lookup key, factor math, governing table/document link |
 | Bike lane / facility | `observed` | `observed`, `admin_approved` | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain exact facility class, side context if relevant, source or Street View verification link |
 | Bike lane / facility | `official_imported` | authoritative imported facility truth | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain exact facility class and source link |
 | Bike lane / facility | `geometry_derived` | explicit mapped OSM / geometry-linked facility truth | no | no | `path / MUP`, `protected`, `buffered`, `painted`, `shared`, `none` | retain exact facility class, tag basis, OSM or lat/lon link |
@@ -16726,7 +16699,7 @@ else:
 Traffic math:
 
 ```text
-classProxyAadtPerLane = DS015 highway-type proxy table(highwayType)
+classProxyAadtPerLane = DS015 highway-type + area-context proxy table(highwayType, urbanicity)
 trafficFactor = ds015TrafficFactorFromAADTPerLane(classProxyAadtPerLane)
 ```
 
@@ -16752,7 +16725,13 @@ valueFinal = generic highway-class baseline(highwayType)
 
 Traffic math:
 
-`highway_baseline` does not currently have a distinct active traffic ladder step. Traffic falls from class proxy to `unknown` under the present DS-015 contract. If a separate highway-baseline traffic layer is introduced later, it must be specified here first.
+```text
+classProxyAadtPerLane = DS015 highway-type proxy table(highwayType)
+trafficFactor = ds015TrafficFactorFromAADTPerLane(classProxyAadtPerLane)
+```
+
+For traffic, `highway_baseline` is weaker than `highway_area_baseline` and is
+used only when area context cannot defend a more specific class proxy.
 
 Required trace:
 
@@ -16794,13 +16773,13 @@ These levels must link to each other:
 
 | Source type | Minimum stored trace |
 | --- | --- |
-| `observed` | conditions, anchor observation ref, who/what observed it, where it applies, source links when available |
 | `admin_approved` | conditions, admin identity, timestamp, approval ref, supporting verification links; for speed, include the Street View verification link |
 | `authoritative_posted` | conditions, agency/feed/statute ref, matched segment or record id, source URL if public |
-| `osm_posted` | conditions, OSM way id plus tag key/value, OSM or lat/lon link |
-| `observation_inferred` | conditions, anchor source identity, propagation path, continuity reason, decay / distance context |
+| `osm_posted` | conditions, OpenStreetMap way id plus tag key/value, OpenStreetMap or lat/lon link |
+| `user_observation` | conditions, anchor observation ref, who/what observed it, where it applies, source links when available |
 | `authoritative_inferred` | conditions, agency/feed id, propagation path, continuity reason, decay / distance context, source links when available |
-| `osm_inferred` | conditions, matched road or anchor source identity, propagation / derivation path, continuity or inference reason, decay / distance context, OSM or lat/lon link |
+| `osm_inferred` | conditions, matched road or anchor source identity, propagation / derivation path, continuity or inference reason, decay / distance context, OpenStreetMap or lat/lon link |
+| `observation_inferred` | conditions, anchor source identity, propagation path, continuity reason, decay / distance context |
 | `local_area_predicted` | conditions, contributor list, radius, aggregation, rounding, rejection reasons, fallback reasons, source links for contributors |
 | `regional_prior` | conditions, dataset row / lookup key, agency, matched context, default value, source document link |
 | `highway_area_baseline` | conditions, governing table / context row, matched dimensions, exact lookup used, source document link |
@@ -17093,10 +17072,13 @@ This section defines the intended execution scope for the next implementation pa
 Required outcomes:
 
 - traffic and speed align to the same family/source model
-- local-area traffic maps to `local_area_predicted`
 - speed gains the same local-area predicted layer
 - precedence and confidence stay monotonic
-- traffic and speed remain symmetrical in both risk and confidence treatment
+- traffic uses its compact ladder: `authoritative_posted`,
+  `authoritative_inferred`, `highway_area_baseline`, `highway_baseline`,
+  `unknown`
+- speed and traffic remain comparable through shared families and confidence
+  treatment without requiring identical source ladders
 
 ### 12.2 Route-analysis and artifact layer
 
@@ -17287,9 +17269,9 @@ for a given field in the current model.
 
 | Field | Source type / truth form | Status | Notes |
 | --- | --- | --- | --- |
-| Speed | `observed`, `admin_approved`, `authoritative_posted`, `osm_posted`, `observation_inferred`, `authoritative_inferred`, `osm_inferred`, `local_area_predicted`, `regional_prior`, `highway_area_baseline`, `highway_baseline`, `unknown` | active | full ladder |
-| Traffic | `observed`, `admin_approved`, official AADT variants, corridor-carried AADT, `local_area_predicted`, `highway_area_baseline`, `unknown` | active | canonical traffic ladder |
-| Traffic | `regional_prior`, `highway_baseline` | inactive | retained globally but not active traffic rungs |
+| Speed | `admin_approved`, `authoritative_posted`, `osm_posted`, `user_observation`, `authoritative_inferred`, `osm_inferred`, `observation_inferred`, `local_area_predicted`, `regional_prior`, `highway_area_baseline`, `highway_baseline`, `unknown` | active | full ladder |
+| Traffic | `authoritative_posted`, `authoritative_inferred`, `highway_area_baseline`, `highway_baseline`, `unknown` | active | compact traffic ladder |
+| Traffic | `observed`, `admin_approved`, `osm_posted`, `user_observation`, `osm_inferred`, `observation_inferred`, `local_area_predicted`, `regional_prior` | inactive | retained globally but not active traffic rungs |
 | Bike lane / facility | `observed`, `admin_approved`, authoritative imported facility, geometry-derived mapped facility, continuity-carried facility, `unknown` | active | no predicted/baseline |
 | Shoulder | `observed`, `admin_approved`, authoritative imported shoulder, geometry-derived shoulder, continuity-carried shoulder, `unknown` | active | no predicted/baseline |
 | Crossing control | `observed`, `admin_approved`, authoritative imported control, geometry-derived control, `unknown` | active | no relationship_inferred |
@@ -17382,9 +17364,10 @@ For `highway_area_baseline` speed:
 
 For traffic baseline:
 
-1. use the DS-015 highway-type class proxy AADT/lane table
-2. derive factor from canonical DS-015 traffic-factor math
-3. if no class proxy exists, fall to `unknown`
+1. use the DS-015 highway-type + area-context class proxy AADT/lane table as `highway_area_baseline`
+2. if area context is unavailable, use the DS-015 highway-type class proxy AADT/lane table as `highway_baseline`
+3. derive factor from canonical DS-015 traffic-factor math
+4. if no class proxy exists, fall to `unknown`
 
 All baseline lookups must carry table identity, version, and source document
 link.
@@ -17396,7 +17379,7 @@ link.
 | `observed` | optional when a stable external reference exists |
 | `admin_approved` | required supporting verification link when one exists; audit-only refs may remain internal |
 | `authoritative_posted` / `authoritative_inferred` | required when a stable public or internal authoritative link exists |
-| `osm_posted` / `osm_inferred` | generated OSM object link or lat/lon link |
+| `osm_posted` / `osm_inferred` | generated OpenStreetMap object link or lat/lon link |
 | `local_area_predicted` | contributor links when available |
 | `regional_prior` / `highway_area_baseline` / `highway_baseline` | source document or governing table link required |
 
@@ -26392,13 +26375,13 @@ Core source types:
 
 | Source type | Family | Expected use |
 | --- | --- | --- |
-| `observed` | observed | Direct validated observation. |
 | `admin_approved` | observed | Audited admin approval. |
 | `authoritative_posted` | official_imported | HPMS, DOT, USDOT, agency-posted data. |
-| `osm_posted` | geometry_derived | Explicit OSM tag evidence. |
-| `observation_inferred` | relationship_inferred | Inferred from observation through documented continuity. |
+| `osm_posted` | geometry_derived | Explicit OpenStreetMap tag evidence. |
+| `user_observation` | observed | User-submitted direct observation. |
 | `authoritative_inferred` | relationship_inferred | Inferred from authoritative source through documented continuity. |
-| `osm_inferred` | relationship_inferred | Inferred from OSM source through documented continuity. |
+| `osm_inferred` | relationship_inferred | Inferred from OpenStreetMap source through documented continuity. |
+| `observation_inferred` | relationship_inferred | Inferred from observation through documented continuity. |
 | `local_area_predicted` | predicted | Local area estimate. |
 | `viewport_area_predicted` | predicted | Viewport-only diagnostic context, not route truth. |
 | `regional_prior` | baseline | Regional fallback prior. |
@@ -26412,10 +26395,20 @@ When legacy source types appear, the registry may normalize them. For example:
 
 ```text
 measured -> observed
-user_observation -> observed
+observed -> admin_approved for new audited truth; older traces may retain observed
 ```
 
 The normalization is a compatibility bridge. It is not permission to bypass DS-029.
+
+Field-specific active ladders are intentionally not symmetric:
+
+- speed uses the full active ladder: `admin_approved`, `authoritative_posted`,
+  `osm_posted`, `user_observation`, `authoritative_inferred`,
+  `osm_inferred`, `observation_inferred`, `local_area_predicted`,
+  `regional_prior`, `highway_area_baseline`, `highway_baseline`, `unknown`
+- traffic uses the compact traffic ladder: `authoritative_posted`,
+  `authoritative_inferred`, `highway_area_baseline`, `highway_baseline`,
+  `unknown`
 
 ## 7. Layer-to-Field Mapping
 
@@ -26684,12 +26677,12 @@ Handoff tests:
 - quickBuilder and robustBuilder produce equivalent evidenceBuilder input shape for the same accepted route interval
 - source overlay rows are derived from selected evidence, not raw provider records
 - HPMS speed, traffic, lane, and shoulder records classify consistently
-- OSM posted fields classify consistently
+- OpenStreetMap posted fields classify consistently
 - baseline and predicted fields remain explicit and visible
 
 Golden route tests:
 
-- Medford-Tabernacle: OSM 25 mph direct evidence blocks HPMS 45 mph spillover.
+- Medford-Tabernacle: OpenStreetMap 25 mph direct evidence blocks HPMS 45 mph spillover.
 - Carranza: caddy-corner HPMS evidence does not attach without true route overlap.
 - Blue Diamond: crossing tracks/side streets do not steal identity or evidence.
 - Dam Ride: cycleway/path intervals render safe path semantics without road speed/traffic leakage.
@@ -36220,15 +36213,18 @@ Raw user-submitted observations are **not canonical truth**. Administrator-appro
 
 When multiple sources exist:  
 
-1. observed (founder/admin)
+1. admin_approved
 2. authoritative_posted (DOT / HPMS)
-3. osm_posted
-4. observation_inferred
+3. osm_posted (OpenStreetMap Posted)
+4. user_observation
 5. authoritative_inferred
-6. osm_inferred
-7. regional_prior
-8. highway_area_baseline
-9. highway_baseline
+6. osm_inferred (OpenStreetMap Inferred)
+7. observation_inferred
+8. local_area_predicted
+9. regional_prior
+10. highway_area_baseline
+11. highway_baseline
+12. unknown
 
 Lower-confidence sources must not overwrite higher-confidence ones.
 
