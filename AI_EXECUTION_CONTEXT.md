@@ -52354,6 +52354,38 @@ Long-term route-load path remains RXON:
 
 ---
 
+## Source File: docs/04-execution/exec-050-non-bike-path-identity-admission.md
+
+# Exec 050 - Non-Bike Path Identity Admission
+
+Date: 2026-06-13
+
+## Context
+
+Route-line v2 should identify what the route geometry actually traverses, but "geometry-first" cannot mean every nearby path-like OSM way gets equal ownership rights. The Tuckerton regression exposed the failure mode: a GPX line that stays on Tuckerton Road could be overtaken by nearby `highway=footway` ways with no bike-friendly tags, making the route look like a safe-path segment even though the road is the better geometric and semantic match.
+
+Silver Lake is the counterexample that must keep working. There, the route geometry actually enters no-bike pedestrian space, steps, and the Roosevelt Tunnel. Those spans should remain literal route reality, with warnings/diagnostics, instead of being stolen by Pacific Coast Highway or an unrelated motor link.
+
+## Rule
+
+Bike-friendly paths and cycleways can still win when they are route-aligned.
+
+Footway, pedestrian, path, steps, or bridleway records that are not classified as bike-safe are treated as route-reality candidates, not safe-path evidence. They only become ownership candidates when they are close and heading-compatible enough to prove the route is really on them. They do not get to suppress a named motor-road candidate that is at least as plausible as the path.
+
+If the geometry suggests the rider may have left the road but the non-bike path proof is weak, the path should remain diagnostic context. It should not become blue/green safe-path identity.
+
+## Implementation Notes
+
+- Candidate admission now applies stricter distance/heading gates to `other`-domain non-motor ways.
+- Non-bike path candidates no longer receive connector protection when a plausible named motor road is present.
+- Display spans no longer infer safe-path styling from path-like label text when the ownership domain is explicitly `other`.
+- Tuckerton regression covers footways `1214149715` and `1214149713` near a route-aligned Tuckerton Road span.
+- Silver Lake regression remains the guardrail for exact connected pedestrian/tunnel geometry.
+
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
