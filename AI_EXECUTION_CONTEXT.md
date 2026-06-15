@@ -46929,6 +46929,394 @@ The tiny write must remain blocked if:
 
 ---
 
+## Source File: docs/04-execution/exec-035-admin_cache_cell_visualizer_execution_plan.md
+
+# EXEC-035 Admin Cache Cell Visualizer Execution Plan
+
+**Status:** Phase A/B/C admin map shell started
+**Date:** 2026-06-15
+**Related:** DS-054, DS-034, DS-035, DS-050, DS-052, EXEC-026
+
+---
+
+## 1. Goal
+
+Build an admin-only cache cell visualizer that lets Derek inspect road-cache coverage on a map and generate safe terminal commands for selected cell blocks.
+
+Day-one scope is the road cache / cyclist substrate layer.
+
+Plain-English goal:
+
+- see cache cells on a map
+- color cells by live, missing, partial, blocked, failed, stale, verified-empty, or unknown
+- drag a box over many cells to multi-select them
+- inspect cell metadata in a side panel
+- generate a copyable terminal command that hydrates the selected cells until complete
+- keep all production write secrets server-side or terminal-side
+- do not make the browser execute production writes
+
+## 2. Non-Goals
+
+- Do not change RouteMap.
+- Do not change route paint.
+- Do not change scoring.
+- Do not change heatmap rendering.
+- Do not add rider-facing raw evidence overlays.
+- Do not promote route_cache, route_history, or RXON to truth.
+- Do not make static candidate-grid packs canonical storage.
+- Do not expose Nuremberg credentials, Supabase service-role keys, or private source tokens to the browser.
+- Do not execute hydration directly from the browser in v1.
+- Do not add evidence-cache or Lanterne Global Unit layers in v1.
+- Do not run full-state or full-country hydration as part of the UI build.
+
+## 3. Architecture Summary
+
+```text
+Admin page
+  -> read-only cache-cell API
+  -> Nuremberg road-cache status summary
+  -> map cells colored by normalized status
+  -> drag-box cell selection
+  -> selection manifest / command generator
+  -> operator pastes terminal command
+  -> terminal hydrator writes selected cells
+```
+
+The admin page observes and generates commands. The terminal hydrator performs guarded writes.
+
+## 4. Phase A - Read-Only Road Cache Map
+
+### Checklist
+
+- [x] Add admin route `/admin/cache-cells`.
+- [x] Add link from `/admin`.
+- [x] Build a standalone admin map component, separate from RouteMap.
+- [x] Render road-cache cells with normalized status colors.
+- [x] Add status legend and basic filters.
+- [x] Add cell click side panel.
+- [x] Keep browser read-only with no production writes.
+- [x] Keep credentials out of browser payloads.
+- [ ] Replace demo/read-model cells with backend road-cache status endpoint.
+
+### Scope
+
+- Add admin route, proposed:
+
+```text
+/admin/cache-cells
+```
+
+- Add link from:
+
+```text
+/admin
+```
+
+- Build a standalone admin map component, separate from RouteMap.
+- Fetch road-cache cell status from a backend endpoint.
+- Render cell rectangles/polygons by bounds.
+- Add status legend and basic filters.
+- Add cell click side panel.
+
+### Backend API
+
+Suggested read endpoints:
+
+```text
+GET /admin/cache-cells/api/summary
+GET /admin/cache-cells/api/cells?layer=road_cache&bbox=...&status=...
+GET /admin/cache-cells/api/cell/road_cache/:cellKey
+```
+
+### Required Status Fields
+
+Each cell response should include:
+
+- cell key
+- bounds
+- status
+- completeness percent
+- record count
+- blocker count
+- source store
+- last hydrated timestamp
+- last validated timestamp
+- diagnostics
+
+### Acceptance
+
+- Admin-only page loads.
+- Map renders road-cache cells.
+- Cells are colored by normalized status.
+- Clicking a cell opens metadata/details.
+- No write button exists.
+- No credentials are sent to the browser.
+
+## 5. Phase B - Drag-Box Multi-Select
+
+### Checklist
+
+- [x] Click a cell to inspect it.
+- [x] Toggle individual cells into or out of the selection.
+- [x] Drag a rectangle to select many cells at once.
+- [x] Add clear-selection control.
+- [x] Add select missing cells in viewport.
+- [x] Add select partial/blocked cells in viewport.
+- [x] Show selected-cell status summary.
+- [x] Keep selection read-only; no hydration starts from selection.
+
+### Scope
+
+Add cell selection mechanics:
+
+- click a cell to inspect it
+- shift-click or cmd-click to add/remove individual cells
+- click-drag a rectangle to select many cells at once
+- optional later lasso/freeform polygon selection
+- clear selection
+- select all missing cells in viewport
+- select all partial/blocked cells in viewport
+
+Rectangle drag is required for v1 because individual clicks are not reasonable for state-scale cell work.
+
+### Selection Summary
+
+The UI should show:
+
+- selected cells
+- live selected cells
+- missing selected cells
+- partial selected cells
+- blocked/failed selected cells
+- estimated request count
+- source store
+
+### Acceptance
+
+- Dragging a rectangle selects every visible/intersecting road-cache cell in the box.
+- Selection can be filtered to missing/partial/blocked cells.
+- Selection summary updates immediately.
+- Selecting cells does not trigger hydration.
+
+## 6. Phase C - Selected Cell Command Generator
+
+### Checklist
+
+- [x] Generate selected-cell command from cell keys.
+- [ ] Prefer selection manifest command for large selections.
+- [x] Keep generated command cell-specific, not RUSA-route-specific.
+- [x] Include production write guardrail flag in terminal command.
+- [x] Add copy-to-clipboard affordance.
+- [x] Do not execute the command from browser.
+- [x] Do not expose write credentials.
+
+### Scope
+
+Generate a manifest and copyable terminal command for selected cells.
+
+The generated command must be cell-specific, not RUSA-route-specific.
+
+Suggested hydrator mode:
+
+```text
+hydrate-selected-road-cache-cells-until-complete
+```
+
+Suggested terminal command:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-selected-road-cache-cells-until-complete \
+  --selection-file .tmp/substrate/cache-cell-selections/<selection-id>.json \
+  --run-id selected-road-cells-<selection-id> \
+  --max-requests-per-pass 200 \
+  --max-passes 20 \
+  --sleep-ms-between-passes 3000 \
+  --write-output \
+  --i-understand-this-writes-production-substrate
+```
+
+For tiny selections, explicit cell keys may be supported:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-selected-road-cache-cells-until-complete \
+  --cell-keys -2474_780,-2474_781,-2475_781 \
+  --run-id selected-road-cells-california-coast-gap \
+  --max-requests-per-pass 200 \
+  --max-passes 20 \
+  --sleep-ms-between-passes 3000 \
+  --write-output \
+  --i-understand-this-writes-production-substrate
+```
+
+Prefer `--selection-file` for anything beyond a handful of cells.
+
+### Manifest Shape
+
+The selected-cell manifest should include:
+
+- manifest version
+- selection id
+- layer
+- source store
+- selection source
+- selected cell keys
+- selected bounds
+- status filter
+- excluded live cells
+- included missing cells
+- included partial cells
+- included blocked cells
+- guardrails
+
+Suggested local path:
+
+```text
+.tmp/substrate/cache-cell-selections/<selection-id>.json
+```
+
+### Acceptance
+
+- User can select cells and click "Copy hydrate command."
+- Generated command references only the selected cell block.
+- Generated command is not based on RUSA run IDs or RUSA route lists.
+- Generated command includes write confirmation guardrails.
+- Browser does not execute the command.
+
+## 7. Phase D - Terminal Selected-Cell Hydrator
+
+### Checklist
+
+- [ ] Add terminal mode for selected cell keys.
+- [ ] Add terminal mode for selected-cell manifest file.
+- [ ] Dedupe cell keys before hydration.
+- [ ] Subtract live cells before each pass.
+- [ ] Treat verified-empty cells as complete coverage.
+- [ ] Preserve blockers per cell.
+- [ ] Loop until complete, blocked, or max passes reached.
+- [ ] Emit machine-readable progress JSON.
+- [ ] Report `READY` only when selected cells are live or verified-empty.
+- [ ] Avoid RUSA route-list dependency.
+
+### Scope
+
+Add a terminal hydrator mode for selected cells.
+
+The mode should:
+
+- read `--selection-file` or `--cell-keys`
+- dedupe cell keys before work starts
+- subtract live cells before every pass
+- hydrate only missing/partial/eligible blocked cells
+- treat verified-empty as complete coverage
+- preserve blockers per cell
+- loop until complete, blocked, or max passes reached
+- emit machine-readable progress JSON
+- report `READY` only when every selected cell is live or verified-empty
+- report `PARTIAL` when retryable cells remain after max passes
+- report `BLOCKED` for non-retryable guardrail/source failures
+
+### Output Summary
+
+Expected output shape:
+
+```json
+{
+  "mode": "hydrate-selected-road-cache-cells-until-complete",
+  "selectionId": "california-coast-gap-001",
+  "status": "PARTIAL",
+  "cellsSelected": 180,
+  "cellsLive": 120,
+  "cellsVerifiedEmpty": 4,
+  "cellsMissing": 56,
+  "cellsBlocked": 0,
+  "passesRun": 3,
+  "recordsWritten": 12345,
+  "nextRecommendedCommand": "..."
+}
+```
+
+### Acceptance
+
+- Selected-cell terminal command can hydrate arbitrary cell blocks without route geometry.
+- It never depends on RUSA route lists.
+- It can resume from live-cell subtraction.
+- It does not rehydrate already-live cells.
+- It keeps looping through selected missing cells until complete or bounded.
+
+## 8. Test Plan
+
+### Frontend/Admin Tests
+
+- admin route is guarded
+- status legend maps statuses to colors
+- cells render from backend payload
+- click opens detail panel
+- drag-box selects multiple cells
+- status filters affect selection
+- command block is generated from selected cells
+- command block excludes live cells when configured
+- command block contains no service-role key or Nuremberg secret
+
+### Backend/API Tests
+
+- bbox query returns bounded cell features
+- detail endpoint returns sanitized metadata
+- source store is labeled
+- blockers are sanitized
+- selection command endpoint writes/returns a manifest
+- selection command endpoint refuses oversized unbounded selections
+- no browser endpoint performs production writes
+
+### Hydrator Tests
+
+- selected-cell mode parses `--selection-file`
+- selected-cell mode parses `--cell-keys`
+- live cells are subtracted before hydration
+- verified-empty counts as complete
+- retryable failures remain partial
+- non-retryable guardrails block
+- command emits progress JSON
+- no RUSA route list is required
+- no route_cache, route_history, RXON, RouteMap, scoring, or heatmap coupling
+
+## 9. Guardrails
+
+- Browser may read status and generate commands only.
+- Terminal command remains the write boundary.
+- Nuremberg tokens and Supabase service-role keys stay server-side or terminal-side.
+- Public Overpass fallback remains refused for production substrate hydration.
+- Cache status is operational coverage, not route truth.
+- Cell live status is not safety score readiness.
+- Verified-empty cells are coverage proof, not road candidates.
+- RouteMap, heatmap, display segments, SegmentInspector, route_cache, route_history, and RXON are not cache-status sources.
+
+## 10. Suggested Build Order
+
+1. Add backend read model for road-cache cells.
+2. Add admin route and map shell.
+3. Render cells and legend.
+4. Add click side panel.
+5. Add drag-box multi-select.
+6. Add selected-cell summary.
+7. Add selection manifest and copyable terminal command generation.
+8. Add terminal selected-cell hydrator mode.
+9. Add smoke tests with a tiny local selection.
+10. Add docs/runbook for operator usage.
+
+## 11. Done Criteria
+
+- Admin can view road-cache cells on a map.
+- Admin can drag-select many cells.
+- Admin can inspect a cell.
+- Admin can generate a copyable terminal command for selected cells.
+- The command hydrates only those selected road-cache cells until complete.
+- Browser does not perform production writes.
+- No credentials leak to the browser.
+- No RouteMap, scoring, heatmap, route_cache, route_history, or RXON behavior changes.
+
+
+---
+
 ## Source File: docs/04-execution/exec-035-phase-15t-combined-source-backed-diagnostic-smoke.md
 
 # EXEC-035 Phase 15T — Combined Source-Backed V2S+S Diagnostic Smoke

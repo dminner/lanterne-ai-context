@@ -3459,6 +3459,7 @@ Route Safety Score must remain:
 | DS-051 | Personal Coverage Ledger and History Heatmap | DS-029, DS-031, DS-045, DS-048, DS-050 | Draft |
 | DS-052 | Lanterne Route Units, Route Analysis Summary, Global Units, and Viewport Index | ADR-045, ADR-049, ADR-051, ADR-052, DS-031, DS-047, DS-048, DS-050, DS-051 | Draft |
 | DS-053 | Local Prediction Builder | DS-015, DS-017, DS-022, DS-029, DS-031, DS-043, DS-046, DS-048 | Draft |
+| DS-054 | Admin Cache Cell Visualizer | DS-031, DS-034, DS-035, DS-050, DS-052, DS-053 | Draft |
 
 ---
 
@@ -30043,6 +30044,530 @@ Initial implementation should:
 4. Keep cue-sheet-derived readings as a fallback only when the richer candidate pool is unavailable.
 5. Update DS-029 trace references to point to this DS for builder mechanics.
 6. Update receipt and inspector details to expose candidate cap, aggregate method, min/max contributor values, and accepted/rejected contributor counts.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-054-admin_cache_cell_visualizer_spec.md
+
+# DS-054 - Admin Cache Cell Visualizer Spec
+
+**Status:** Draft for implementation planning
+**Date:** 2026-06-15
+**Related:** DS-031, DS-034, DS-035, DS-050, DS-052, DS-053, EXEC-026
+
+---
+
+## 1. Purpose
+
+This specification defines an admin-only cache cell visualization tool for Lanterne.
+
+The tool shows geographic cache cells on a map, colored by readiness/status, with click-through metadata in a side panel. Day one focuses on the road cache / cyclist substrate layer. The same surface should later support evidence cache layers and Lanterne Global Unit cache layers without rewriting the interaction model.
+
+The visualizer is an operational observability tool. It is not route truth, not route paint, not scoring input, and not a rider-facing evidence overlay.
+
+## 2. Goals
+
+- Show road-cache cell coverage across the United States and future international regions.
+- Color cells by status so operators can quickly see live, partial, missing, blocked, stale, and failed areas.
+- Let an admin click a cell to inspect metadata, source lineage, route/corpus associations, blocker text, counts, timestamps, and freshness.
+- Support multiple cache layers through one common map interaction contract.
+- Provide enough visibility to debug hydration gaps, stuck tiles, duplicate work, verified-empty cells, and broad region readiness.
+- Keep the tool in the admin console backend, with service credentials remaining server-side.
+- Let an admin select specific high-return cells/blocks and generate a copy/paste terminal hydration command for those cells.
+- Avoid raw JSON dumps as the primary UI.
+- Keep current RouteMap, scoring, heatmap, route_cache, route_history, and RXON behavior untouched.
+
+## 3. Non-Goals
+
+- No rider-facing raw evidence overlay.
+- No score or heatmap cutover.
+- No RouteMap rewrite.
+- No route_cache, route_history, or RXON promotion to truth.
+- No production writes directly from the map view itself in the initial design.
+- No browser-executed bulk hydration trigger from clicking a map cell; selected-cell hydration is command-generation only until a later execution phase explicitly adds a server-side operator action.
+- No direct browser access to Nuremberg credentials, Supabase service-role credentials, or private source endpoints.
+- No claim that a cache cell being live means a route is fully analyzable or scored.
+
+## 4. Layer Model
+
+The visualizer uses one map shell with selectable cache layers.
+
+| Layer | Day | Meaning | Primary Source | Notes |
+| --- | --- | --- | --- | --- |
+| Road cache | 1 | Cyclist substrate / road-candidate cell coverage | Nuremberg cyclist substrate store, with legacy/proving summaries as fallback diagnostics | First implementation target. |
+| Evidence cache | Later | HPMS, DOT, speed, shoulder, lane, surface, hazards, or other evidence-cell readiness | Evidence cache repositories | Must distinguish evidence categories and vintages. |
+| Lanterne Global Unit cache | Later | Global-unit coverage and evidence-stable intervals | Global Unit repository / viewport index | Must support route-independent road/evidence units. |
+
+Layer switching changes the data source, status legend, and detail panel schema. It does not change the base map interaction.
+
+## 5. Cell Status Contract
+
+Every visible cell should normalize into a common status envelope.
+
+```ts
+export type AdminCacheCellLayer =
+  | 'road_cache'
+  | 'evidence_cache'
+  | 'lanterne_global_unit_cache';
+
+export type AdminCacheCellStatus =
+  | 'live'
+  | 'partial'
+  | 'missing'
+  | 'blocked'
+  | 'failed'
+  | 'stale'
+  | 'verified_empty'
+  | 'unknown';
+
+export interface AdminCacheCellFeature {
+  layer: AdminCacheCellLayer;
+  cellKey: string;
+  bounds: {
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+  };
+  status: AdminCacheCellStatus;
+  completenessPct: number;
+  recordCount: number;
+  routeCount?: number;
+  blockerCount: number;
+  lastHydratedAt?: string;
+  lastValidatedAt?: string;
+  sourceStore: 'nuremberg' | 'supabase_legacy' | 'static_pack' | 'local_checkpoint' | 'unknown';
+  diagnostics: readonly string[];
+}
+```
+
+Status meaning:
+
+| Status | Meaning |
+| --- | --- |
+| `live` | Cell has validated cache coverage for the selected layer. |
+| `partial` | Some expected coverage exists, but one or more expected records, subcells, or route assignments are missing. |
+| `missing` | Cell is expected by a selected route/corpus/region but no live record exists. |
+| `blocked` | Hydration or validation cannot proceed until an explicit blocker is resolved. |
+| `failed` | Last attempt failed and is not known to be safely resumable. |
+| `stale` | Coverage exists but is past the layer freshness policy. |
+| `verified_empty` | Source was queried successfully and no relevant records exist for this cell. |
+| `unknown` | The visualizer cannot classify this cell yet. |
+
+`verified_empty` is a first-class success state for operational coverage. It must not be displayed as a road candidate.
+
+## 6. Color Policy
+
+The first legend should be simple and stable.
+
+| Status | Color Intent |
+| --- | --- |
+| `live` | Green |
+| `partial` | Yellow/amber |
+| `missing` | Gray |
+| `blocked` | Orange |
+| `failed` | Red |
+| `stale` | Blue-gray |
+| `verified_empty` | Pale blue |
+| `unknown` | Dark gray |
+
+The map must support opacity and zoom-dependent thinning so dense regions do not become unreadable.
+
+Color is status-only. It must not imply safety, comfort, scoring, official source quality, traffic risk, or route truth.
+
+## 7. Admin UI Shape
+
+The page should live under the admin console, for example:
+
+```text
+/admin/cache-cells
+```
+
+The admin landing page should link to it near the route corpus / road-cache operator surfaces.
+
+Primary layout:
+
+- full-viewport map
+- top toolbar with layer selector, status filters, corpus/region filter, search, and refresh
+- right side detail panel
+- bottom optional summary strip
+
+Required controls:
+
+- layer selector: Road cache, Evidence cache, Global Unit cache
+- status filter checkboxes
+- corpus filter, initially All / RUSA / selected run bucket / selected state
+- state/region filter
+- freshness filter
+- "show only expected cells" toggle
+- "show live cells" toggle
+- "show blockers" toggle
+- selection mode: click cells, draw rectangle/lasso, clear selection
+- "copy hydrate selected cells command" button
+- selected cell count and estimated request count
+- refresh button
+
+The tool should avoid explanatory wall text in the working interface. Short labels, tooltips, and a compact legend are enough.
+
+## 8. Detail Panel
+
+Clicking a cell opens a side panel.
+
+Day-one road-cache fields:
+
+- cell key
+- status
+- bounds
+- source store
+- record count
+- compact candidate count if available
+- route associations
+- RUSA bucket/run associations if available
+- expected route count
+- live route count
+- missing route count
+- last hydrated timestamp
+- last validated timestamp
+- hydration run IDs
+- source lineage summary
+- blocker list
+- diagnostics
+- verified-empty marker, if applicable
+
+Future evidence-cache fields:
+
+- evidence type
+- provider/source
+- vintage
+- record count
+- route-projection count
+- rejected/off-route count
+- stale reason
+- confidence/freshness diagnostics
+
+Future Global Unit fields:
+
+- global unit count
+- families/corridors represented
+- evidence-stable intervals
+- version/fingerprint
+- dependent evidence layers
+- freshness and invalidation status
+
+## 9. Backend Contract
+
+The browser should call an admin backend endpoint. The browser must not call Nuremberg, Supabase service-role endpoints, or raw storage credentials directly.
+
+Suggested read endpoints:
+
+```text
+GET /admin/cache-cells/api/summary
+GET /admin/cache-cells/api/cells?layer=road_cache&bbox=...&status=...
+GET /admin/cache-cells/api/cell/:layer/:cellKey
+POST /admin/cache-cells/api/selection-command
+```
+
+The backend adapter should:
+
+- query only bounded bbox/tile ranges
+- page or stream large responses
+- return compact GeoJSON or vector-tile-compatible features
+- sanitize blockers and diagnostics
+- cap detail payloads
+- expose raw JSON only through explicit download/debug affordances
+- include data-generation timestamp and source-store diagnostics
+- generate selected-cell manifests and terminal command blocks without executing the write
+
+## 10. Selected Cell Hydration Command Generator
+
+The visualizer should support a selected-cell workflow for filling high-return gaps outside curated route corridors.
+
+This workflow is intentionally cell/block-specific, not RUSA-route-specific. It is meant for:
+
+- filling gaps for viewport heatmapping
+- warming likely GPX upload/draw/route-to areas
+- covering state corridors that are not yet touched by RUSA routes
+- debugging isolated missing/blocked cells
+- proving a selected region before broader state/country hydration
+
+The admin selects cells on the map. The backend converts that selection into a durable selection manifest and a terminal command.
+
+The browser does not hydrate the cells directly.
+
+### 10.1 Selection Input
+
+Supported selection sources:
+
+- individual clicked cells
+- rectangle/bbox selection
+- lasso/polygon selection
+- current viewport missing cells
+- current filter result, capped by an explicit max cell count
+
+The UI must show:
+
+- selected cell count
+- already-live cells
+- missing cells
+- partial cells
+- blocked/failed cells
+- estimated request count
+- source store
+- command guardrails
+
+### 10.2 Selection Manifest
+
+The backend should write or download a manifest with explicit cells.
+
+```ts
+export interface AdminCacheCellHydrationSelectionManifest {
+  manifestVersion: 'admin-cache-cell-selection.v1';
+  createdAt: string;
+  layer: 'road_cache';
+  selectionId: string;
+  sourceStore: 'nuremberg';
+  selectionSource: 'clicked_cells' | 'bbox' | 'lasso' | 'viewport_filter' | 'imported_manifest';
+  cellKeys: readonly string[];
+  bounds?: {
+    south: number;
+    west: number;
+    north: number;
+    east: number;
+  };
+  statusFilter?: readonly AdminCacheCellStatus[];
+  excludedLiveCells: readonly string[];
+  includedMissingCells: readonly string[];
+  includedPartialCells: readonly string[];
+  includedBlockedCells: readonly string[];
+  guardrails: {
+    browserExecutedWrites: false;
+    terminalCommandRequired: true;
+    publicOverpassFallback: false;
+    routeCacheTruth: false;
+    routeHistoryTruth: false;
+    rxonRuntimeTruth: false;
+  };
+}
+```
+
+For local admin-console use, the manifest can live under:
+
+```text
+.tmp/substrate/cache-cell-selections/<selection-id>.json
+```
+
+For production admin-console use, the page can instead offer a downloaded manifest and a command that references the downloaded path after the operator moves it into the repo.
+
+### 10.3 Proposed Terminal Command
+
+The generated command should be equivalent to the RUSA cell-delta loop, but keyed by cell manifest.
+
+Suggested mode:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-selected-road-cache-cells-until-complete \
+  --selection-file .tmp/substrate/cache-cell-selections/<selection-id>.json \
+  --run-id selected-road-cells-<selection-id> \
+  --max-requests-per-pass 200 \
+  --max-passes 20 \
+  --sleep-ms-between-passes 3000 \
+  --write-output \
+  --i-understand-this-writes-production-substrate
+```
+
+If the selection is small enough, the command may support explicit keys:
+
+```sh
+npx tsx scripts/substrate/run-curated-corpus-substrate-hydrator.ts hydrate-selected-road-cache-cells-until-complete \
+  --cell-keys -2474_780,-2474_781,-2475_781 \
+  --run-id selected-road-cells-california-coast-gap \
+  --max-requests-per-pass 200 \
+  --max-passes 20 \
+  --sleep-ms-between-passes 3000 \
+  --write-output \
+  --i-understand-this-writes-production-substrate
+```
+
+For anything larger than a handful of cells, prefer `--selection-file` to avoid fragile shell commands.
+
+### 10.4 Loop Semantics
+
+The selected-cell hydrator should:
+
+- dedupe selected cell keys before work starts
+- subtract live cells before each pass
+- hydrate only missing/partial/eligible blocked cells
+- treat `verified_empty` as complete coverage
+- preserve blockers per cell
+- keep looping until all selected cells are live/verified-empty, blocked, or max passes are exhausted
+- report `READY` only when every selected cell is live or verified-empty
+- report `PARTIAL` when max passes end with remaining retryable cells
+- report `BLOCKED` only for non-retryable guardrail/source failures
+- never depend on RUSA route lists, route geometry, route checkpoint state, route_cache, route_history, or RXON
+
+### 10.5 Command Output
+
+The terminal command should emit machine-readable progress similar to the cell-delta controller:
+
+```json
+{
+  "mode": "hydrate-selected-road-cache-cells-until-complete",
+  "selectionId": "california-coast-gap-001",
+  "status": "PARTIAL",
+  "cellsSelected": 180,
+  "cellsLive": 120,
+  "cellsVerifiedEmpty": 4,
+  "cellsMissing": 56,
+  "cellsBlocked": 0,
+  "passesRun": 3,
+  "recordsWritten": 12345,
+  "nextRecommendedCommand": "..."
+}
+```
+
+The admin UI can paste this command into a copyable code block but should not execute it from the browser.
+
+## 11. Data Sources
+
+Day-one road-cache source priority:
+
+1. Nuremberg cyclist substrate cell summary/readback endpoint.
+2. Local checkpoint summaries for operator-only reconciliation diagnostics.
+3. Legacy Supabase `cyclist_substrate_records` only as a migration/proving fallback if still configured.
+4. Static bootstrap candidate-grid packs only as bootstrap artifact diagnostics.
+
+Static candidate-grid packs are bootstrap runtime artifacts. They are not final canonical substrate storage.
+
+The admin visualizer must label source store clearly:
+
+- `nuremberg`
+- `supabase_legacy`
+- `static_pack`
+- `local_checkpoint`
+- `unknown`
+
+## 12. Map Implementation
+
+The map should be separate from RouteMap.
+
+Preferred implementation:
+
+- use a standalone admin map component
+- use Leaflet only if it matches existing admin stack and is cheap to wire
+- use MapLibre/vector tiles later if cell counts become too large for GeoJSON
+- render cells as rectangles/polygons from bounds
+- update cells by bbox and zoom
+- keep detail panel state in the admin page only
+
+Do not source cell status from RouteMap, heatmap layers, display segments, SegmentInspector payloads, route_cache, route_history, or RXON.
+
+## 13. Scale Strategy
+
+Initial RUSA-scale GeoJSON can be simple if bounded:
+
+- request viewport cells only
+- cap max features returned per request
+- aggregate at low zoom
+- expand to individual cells at higher zoom
+- cache admin API responses server-side briefly if useful
+
+Country-scale/global-scale path:
+
+- use precomputed tile status summaries
+- serve vector tiles or quadkey buckets
+- aggregate by zoom
+- keep detail lookup cell-specific
+
+## 14. Metadata And Freshness
+
+Each cell should support:
+
+- `cellKey`
+- `layer`
+- `status`
+- `sourceStore`
+- `schemaVersion`
+- `dataVersion`
+- `hydrationRunIds`
+- `lineageMethods`
+- `recordCount`
+- `candidateCount`
+- `verifiedEmpty`
+- `freshnessDays`
+- `lastHydratedAt`
+- `lastValidatedAt`
+- `blockers`
+- `diagnostics`
+
+Freshness should be layer-specific. Road-cache geometry may age differently than HPMS/DOT/evidence records or Global Unit validity.
+
+## 15. Guardrails
+
+The visualizer must preserve these boundaries:
+
+- route_cache remains completed-output cache only
+- route_history remains geometry/history context only
+- RXON remains receipt/export material only
+- RouteMap remains a consumer, not a cache-status source
+- heatmap remains a consumer, not a cache-status source
+- scoring is not called by the visualizer
+- no writes from day-one map interactions
+- selected-cell hydration requires an explicit terminal command and production write confirmation
+- no raw service credentials in browser
+- no public Overpass fallback from the admin page
+- cache-cell status does not imply safety, success paint, route intelligence completeness, or official evidence quality
+
+## 16. First Implementation Slice
+
+Phase A: read-only road-cache coverage map
+
+- add admin route `/admin/cache-cells`
+- add admin link from `/admin`
+- implement backend read endpoint for road-cache cell status
+- query Nuremberg cell summary/readback by bbox
+- render cells colored by status
+- add legend and filters
+- add click detail panel
+- add tests for auth, sanitization, status mapping, and source-store labels
+
+Phase B: route/corpus overlays
+
+- add RUSA bucket / route filter
+- show expected cells for selected corpus
+- show missing cells for selected corpus
+- support "unprocessed left / live right" style lists only as summaries, not map truth
+
+Phase C: selected-cell command generator
+
+- add cell selection mode
+- add selection manifest generation
+- add copyable terminal command block
+- add selected-cell status summary
+- add source/guardrail labels
+- do not execute writes in the browser
+
+Phase D: evidence and Global Unit expansion
+
+- add evidence-cache layer contract
+- add Global Unit cache layer contract
+- add zoom aggregation
+- add vector tile option if GeoJSON becomes too heavy
+
+## 17. Acceptance Criteria
+
+- Admin-only route exists.
+- Road-cache cells render on a map.
+- Cells are colored by normalized status.
+- Clicking a cell opens a metadata/detail panel.
+- Source store is labeled.
+- Nuremberg-backed road-cache status can be shown without exposing credentials.
+- Admin can select cells/blocks and generate a terminal command to hydrate those exact road-cache cells until complete.
+- Generated selected-cell commands are cell-specific and do not depend on RUSA route buckets.
+- Generated selected-cell commands use explicit guardrails and production write confirmation.
+- Static packs and local checkpoints are labeled as diagnostics/proving artifacts, not canonical storage.
+- No RouteMap, scoring, heatmap, route_cache, route_history, or RXON behavior changes.
+- Future evidence-cache and Global Unit cache layers can reuse the same cell/status/detail shell.
 
 
 ---
