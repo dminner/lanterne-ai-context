@@ -46933,7 +46933,7 @@ The tiny write must remain blocked if:
 
 # EXEC-035 Admin Cache Cell Visualizer Execution Plan
 
-**Status:** Phase A/B/C admin map shell started; Phase D explicit cell-key hydrator started; local read-only cell endpoint added
+**Status:** Phase A/B/C admin map shell started; Phase D selected-cell hydrator started; local read-only cell endpoint added
 **Date:** 2026-06-15
 **Related:** DS-054, DS-034, DS-035, DS-050, DS-052, EXEC-026
 
@@ -47103,7 +47103,7 @@ The UI should show:
 ### Checklist
 
 - [x] Generate selected-cell command from cell keys.
-- [ ] Prefer selection manifest command for large selections.
+- [x] Prefer selection manifest command for large selections.
 - [x] Keep generated command cell-specific, not RUSA-route-specific.
 - [x] Include production write guardrail flag in terminal command.
 - [x] Add copy-to-clipboard affordance.
@@ -47187,7 +47187,7 @@ Suggested local path:
 ### Checklist
 
 - [x] Add terminal mode for selected cell keys.
-- [ ] Add terminal mode for selected-cell manifest file.
+- [x] Add terminal mode for selected-cell manifest file.
 - [x] Dedupe cell keys before hydration.
 - [x] Subtract live cells before each pass.
 - [x] Treat verified-empty cells as complete coverage.
