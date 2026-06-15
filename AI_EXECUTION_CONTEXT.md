@@ -46933,7 +46933,7 @@ The tiny write must remain blocked if:
 
 # EXEC-035 Admin Cache Cell Visualizer Execution Plan
 
-**Status:** Phase A/B/C admin map shell started; Phase D selected-cell hydrator started; local read-only cell endpoint added
+**Status:** Phase A/B/C admin map shell started; Phase D selected-cell hydrator started; local read-only cell endpoint added; operator read-model controls added
 **Date:** 2026-06-15
 **Related:** DS-054, DS-034, DS-035, DS-050, DS-052, EXEC-026
 
@@ -46997,6 +46997,7 @@ The admin page observes and generates commands. The terminal hydrator performs g
 - [x] Keep browser read-only with no production writes.
 - [x] Keep credentials out of browser payloads.
 - [x] Replace demo/read-model cells with local-console road-cache status endpoint.
+- [x] Add bucket/full-corpus read-model controls instead of hardcoded `rusa-slow-drip-001`.
 
 ### Scope
 
@@ -47315,6 +47316,23 @@ Expected output shape:
 - Browser does not perform production writes.
 - No credentials leak to the browser.
 - No RouteMap, scoring, heatmap, route_cache, route_history, or RXON behavior changes.
+
+## 12. Operator Read-Model Controls
+
+### Checklist
+
+- [x] Expose local console URL in the admin map.
+- [x] Expose read-model run id.
+- [x] Expose target-route count.
+- [x] Expose returned-cell limit.
+- [x] Add quick preset for `rusa-slow-drip-001`.
+- [x] Add quick preset for full RUSA corpus read model.
+- [x] Show whether returned cells are real local-console cells or demo fallback.
+- [x] Keep the map read-only; hydration remains terminal-side.
+
+### Notes
+
+The admin map should not be locked to the first 100-route bucket. Operators can use the `rusa-slow-drip-001` preset for focused debugging, or the full-corpus preset to inspect the broader road-cache footprint. Large full-corpus reads can still be slow and are read-only.
 
 
 ---
