@@ -46998,6 +46998,7 @@ The admin page observes and generates commands. The terminal hydrator performs g
 - [x] Keep credentials out of browser payloads.
 - [x] Replace demo/read-model cells with local-console road-cache status endpoint.
 - [x] Add bucket/full-corpus read-model controls instead of hardcoded `rusa-slow-drip-001`.
+- [x] Add route-independent viewport grid read mode for national/state hydration work.
 
 ### Scope
 
@@ -47333,6 +47334,22 @@ Expected output shape:
 ### Notes
 
 The admin map should not be locked to the first 100-route bucket. Operators can use the `rusa-slow-drip-001` preset for focused debugging, or the full-corpus preset to inspect the broader road-cache footprint. Large full-corpus reads can still be slow and are read-only.
+
+Route-corpus mode is an overlay, not the national cache universe. For state and national hydration, the map must support a route-independent grid mode where cells come from the selected bbox/viewport and read their status from the road-cache store.
+
+The scalable long-term read model should be a lightweight cell-status index/summary, ideally owned by the Nuremberg spatial cache:
+
+- `cell_key`
+- bounds and state/country metadata
+- normalized status
+- record count
+- route/reference count when relevant
+- blocker summary
+- last hydrated timestamp
+- last validated timestamp
+- updated timestamp
+
+The admin map should use this index for broad state/national heatmaps, then fetch detailed substrate records only for clicked cells or selected hydration blocks.
 
 
 ---
