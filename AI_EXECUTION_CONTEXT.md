@@ -46933,7 +46933,7 @@ The tiny write must remain blocked if:
 
 # EXEC-035 Admin Cache Cell Visualizer Execution Plan
 
-**Status:** Phase A/B/C admin map shell started; Phase D explicit cell-key hydrator started
+**Status:** Phase A/B/C admin map shell started; Phase D explicit cell-key hydrator started; local read-only cell endpoint added
 **Date:** 2026-06-15
 **Related:** DS-054, DS-034, DS-035, DS-050, DS-052, EXEC-026
 
@@ -46996,7 +46996,7 @@ The admin page observes and generates commands. The terminal hydrator performs g
 - [x] Add cell click side panel.
 - [x] Keep browser read-only with no production writes.
 - [x] Keep credentials out of browser payloads.
-- [ ] Replace demo/read-model cells with backend road-cache status endpoint.
+- [x] Replace demo/read-model cells with local-console road-cache status endpoint.
 
 ### Scope
 
@@ -47196,6 +47196,7 @@ Suggested local path:
 - [x] Emit machine-readable progress JSON.
 - [x] Report `READY` only when selected cells are live or verified-empty.
 - [x] Avoid RUSA route-list dependency.
+- [x] Keep selected-cell writes terminal-side only.
 
 ### Scope
 
@@ -47260,6 +47261,7 @@ Expected output shape:
 ### Backend/API Tests
 
 - bbox query returns bounded cell features
+- local-console cache-cell query returns bounded read-only cell features
 - detail endpoint returns sanitized metadata
 - source store is labeled
 - blockers are sanitized
