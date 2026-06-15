@@ -46933,7 +46933,7 @@ The tiny write must remain blocked if:
 
 # EXEC-035 Admin Cache Cell Visualizer Execution Plan
 
-**Status:** Phase A/B/C admin map shell started
+**Status:** Phase A/B/C admin map shell started; Phase D explicit cell-key hydrator started
 **Date:** 2026-06-15
 **Related:** DS-054, DS-034, DS-035, DS-050, DS-052, EXEC-026
 
@@ -47186,16 +47186,16 @@ Suggested local path:
 
 ### Checklist
 
-- [ ] Add terminal mode for selected cell keys.
+- [x] Add terminal mode for selected cell keys.
 - [ ] Add terminal mode for selected-cell manifest file.
-- [ ] Dedupe cell keys before hydration.
-- [ ] Subtract live cells before each pass.
-- [ ] Treat verified-empty cells as complete coverage.
-- [ ] Preserve blockers per cell.
-- [ ] Loop until complete, blocked, or max passes reached.
-- [ ] Emit machine-readable progress JSON.
-- [ ] Report `READY` only when selected cells are live or verified-empty.
-- [ ] Avoid RUSA route-list dependency.
+- [x] Dedupe cell keys before hydration.
+- [x] Subtract live cells before each pass.
+- [x] Treat verified-empty cells as complete coverage.
+- [x] Preserve blockers per cell.
+- [x] Loop until complete, blocked, or max passes reached.
+- [x] Emit machine-readable progress JSON.
+- [x] Report `READY` only when selected cells are live or verified-empty.
+- [x] Avoid RUSA route-list dependency.
 
 ### Scope
 
