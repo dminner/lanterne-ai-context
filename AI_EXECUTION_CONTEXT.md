@@ -46999,6 +46999,8 @@ The admin page observes and generates commands. The terminal hydrator performs g
 - [x] Replace demo/read-model cells with local-console road-cache status endpoint.
 - [x] Add bucket/full-corpus read-model controls instead of hardcoded `rusa-slow-drip-001`.
 - [x] Add route-independent viewport grid read mode for national/state hydration work.
+- [x] Disable cache-cell auto-load on admin page open.
+- [x] Block oversized route-corpus cell reads; national/state coverage must use grid/status-index mode.
 
 ### Scope
 
@@ -47350,6 +47352,8 @@ The scalable long-term read model should be a lightweight cell-status index/summ
 - updated timestamp
 
 The admin map should use this index for broad state/national heatmaps, then fetch detailed substrate records only for clicked cells or selected hydration blocks.
+
+Safety rule: opening `/admin/cache-cells` must not issue a heavy cache read. Operators must explicitly choose `Viewport grid`, a small route bucket, or a future indexed state summary. Route-corpus overlays are capped and remain verification overlays, not the national hydration source.
 
 
 ---
