@@ -56232,7 +56232,7 @@ The old marker-aware completed-analysis cache write plan is paused. Existing pur
 
 Date: 2026-06-17
 
-Related: ADR-055, DS-056, ADR-006, ADR-045, ADR-054, DS-015, DS-031, DS-055, exec-052, exec-053
+Related: ADR-055, ADR-056, DS-056, DS-057, DS-058, ADR-006, ADR-045, ADR-054, DS-015, DS-031, DS-055, exec-052, exec-053, exec-055
 
 ## Purpose
 
@@ -56362,23 +56362,47 @@ docs/04-execution/reports/exec-054-phase-2-scenario-domain-adapter-registry.md
 
 ## Phase 3 - Temporal Traffic And Safety Split
 
-- [ ] Define `TrafficTemporalVolumeProfile`.
-- [ ] Define `TemporalMotorVehicleRiskContext`.
-- [ ] Document traffic volume and time safety context as separate.
-- [ ] Add `urban_suburban_commute_v1` as POC assumption if approved.
-- [ ] Add `rural_distributed_v1` as POC assumption if approved.
-- [ ] Add calibration gate for night/fatigue/intoxication coefficients.
-- [ ] Do not change production scoring.
-- [ ] Do not claim live or observed traffic.
+- [x] Define `TrafficTemporalVolumeProfile`.
+- [x] Define `TemporalMotorVehicleRiskContext`.
+- [x] Document traffic volume and time safety context as separate.
+- [x] Add `urban_suburban_commute_v1` as POC assumption if approved.
+- [x] Add `rural_distributed_v1` as POC assumption if approved.
+- [x] Add calibration gate for night/fatigue/intoxication coefficients.
+- [x] Do not change production scoring.
+- [x] Do not claim live or observed traffic.
+
+Deliverable:
+
+```text
+docs/04-execution/reports/exec-054-phase-3-temporal-traffic-and-safety-split.md
+```
+
+Hardening:
+
+- ADR-056, DS-057, and exec-055 may introduce POC modeled-unvalidated nighttime motor-vehicle risk coefficients inside the Phase 3 split.
+- Those coefficients remain scenario-only and must not mutate Baseline Safety Score, stable route truth, `RouteIndexedTruthCache`, `route_cache`, or `route_history`.
+- Planned-risk use remains gated by double-counting audit and Phase 4 planned-score contract.
 
 ## Phase 4 - Planned Ride Safety Score Contract
 
-- [ ] Define Baseline Safety Score versus Planned Ride Safety Score.
-- [ ] Define segment/slice-level recomputation preference.
-- [ ] Define receipts, deltas, and explanations.
-- [ ] Define guardrail against opaque final-score multiplier.
-- [ ] Define how a POC simplified factor could be allowed only with warning.
-- [ ] Require calibration/research gate for non-neutral temporal motor-vehicle risk coefficients.
+- [x] Define Baseline Safety Score versus Planned Ride Safety Score.
+- [x] Define segment/slice-level recomputation preference.
+- [x] Define receipts, deltas, and explanations.
+- [x] Define guardrail against opaque final-score multiplier.
+- [x] Define how a POC simplified factor could be allowed only with warning.
+- [x] Require calibration/research gate for non-neutral temporal motor-vehicle risk coefficients.
+
+Deliverable:
+
+```text
+docs/04-execution/reports/exec-054-phase-4-planned-ride-safety-score-contract.md
+```
+
+Contract:
+
+```text
+docs/02-architecture/design/ds-058-planned_ride_safety_score_contract.md
+```
 
 ## Phase 5 - Scenario Objective Adapter Contract
 
@@ -56521,6 +56545,335 @@ The first implementation slice may stop at scenario view construction. However, 
 - Planned Ride Safety Score or a clearly labeled planned ride risk preview can reflect that scenario delta
 - Baseline Safety Score remains unchanged
 - all deltas carry assumptions and receipts
+
+
+---
+
+## Source File: docs/04-execution/exec-055-temporal-traffic-volume-and-nighttime-risk-context-implementation-plan.md
+
+# EXEC-055 — Temporal Traffic Volume and Nighttime Risk Context Implementation Plan
+
+**Status:** Draft execution plan
+**Date:** 2026-06-17
+**Related:** ADR-056, DS-057, ADR-055, DS-056, EXEC-054, DS-015, DS-031, ADR-045
+
+---
+
+## 1. Purpose
+
+Implement the first POC slice of temporal planned-ride motor-vehicle risk.
+
+The work plugs into the Ride Plan Scenario Engine. It does not replace the steady-state safety model.
+
+The implementation must show that changing planned start time changes planned traffic exposure and nighttime motor-vehicle risk context while leaving Baseline Safety Score and stable route truth unchanged.
+
+---
+
+## 2. Scope
+
+Build:
+
+1. traffic temporal volume projection using exactly two default profiles:
+   - `urban_suburban_commute_v1`
+   - `rural_distributed_v1`
+
+2. nighttime motor-vehicle risk context projection using POC factors:
+   - daylight neutral
+   - twilight transition
+   - late-evening night
+   - early-morning night
+
+3. planned ride risk preview or Planned Ride Safety Score integration only after the planned-score contract accepts the output.
+
+---
+
+## 3. Non-Goals
+
+Do not:
+
+- change Baseline Safety Score.
+- mutate stable route truth.
+- write to `RouteIndexedTruthCache`.
+- write to old `route_cache`.
+- write scenario truth to `route_history`.
+- claim live traffic.
+- claim observed hourly traffic.
+- claim production-calibrated nighttime coefficients.
+- infer time-specific vehicle speed.
+- infer crash cause.
+- infer driver intoxication or rider intoxication for a specific scenario.
+- make RouteMap compute scenario outputs.
+- make cue sheet own scenario context.
+- implement route geometry optimization.
+- implement rerouting.
+
+---
+
+## 4. Phase 0 — Research and Contract Freeze
+
+Deliverables:
+
+- ADR-056 accepted or revised.
+- DS-057 accepted or revised.
+- research notes attached for:
+  - IIHS / FARS fatality timing
+  - Twisk and Reurings 2013
+  - Wessel 2022
+  - Beckers / Flanders 2024
+- explicit statement that the nighttime factor is a combined nighttime motor-vehicle risk context, not a pure darkness factor.
+
+Acceptance:
+
+- every non-neutral temporal factor has a receipt.
+- every factor is marked POC / modeled-unvalidated.
+- no factor is marked production calibrated.
+
+---
+
+## 5. Phase 1 — Profile Registry
+
+Implement a registry for `TrafficTemporalVolumeProfile`.
+
+Required profiles:
+
+- `urban_suburban_commute_v1`
+- `rural_distributed_v1`
+
+Acceptance:
+
+- each profile has 24 hourly shares.
+- shares sum to 1.0.
+- each profile exposes hourly share and multiplier versus average hour.
+- profiles are immutable constants for the POC.
+- no live source call exists.
+
+---
+
+## 6. Phase 2 — Profile Selection
+
+Implement profile selection from stable route context.
+
+Inputs:
+
+- urbanicity band when available.
+- road class / highway type.
+- settlement or built-up context if available.
+- intersection / local-network density if available.
+- fallback road-class logic.
+
+Acceptance:
+
+- profile selection produces a reason.
+- profile selection produces confidence.
+- unknown/mixed cases emit warnings.
+- selected profile is included in receipts.
+
+---
+
+## 7. Phase 3 — Route-Time Binding Consumption
+
+Consume existing `RouteTimeBinding`.
+
+Rules:
+
+- use local planned arrival time from sealed scenario context.
+- do not derive local hour from browser local date APIs.
+- do not estimate arrival time inside the traffic adapter.
+- use scenario distance and canonical distance together.
+
+Acceptance:
+
+- changing start time changes projected local hour.
+- changing pace changes projected local hour.
+- forward route transform works.
+- reverse / start offset can remain future unless already available from scenario engine.
+- timezone and DST ambiguity warnings are emitted where applicable.
+
+---
+
+## 8. Phase 4 — ScenarioTrafficProjection
+
+Generate traffic projection spans or samples over the scenario route.
+
+Minimum POC:
+
+- one output per scoring slice, or
+- one output per route-time binding sample that can be adapted to scoring slices.
+
+Acceptance:
+
+- output includes AADT, profile id, local hour, hourly share, vehicles per hour, vehicles per minute, volume multiplier, confidence, assumptions, and receipts.
+- output labels vehicle-rate basis as total two-way road volume, rider-direction estimate, right-lane/pass-opportunity display estimate, or another explicit POC assumption.
+- any two-way-to-one-direction conversion is named, versioned, receipt-backed, and labeled POC/default-prior unless directional source data supports it.
+- output is not durable truth.
+- output is not live traffic.
+
+---
+
+## 9. Phase 5 — TemporalMotorVehicleRiskContext Projection
+
+Generate temporal motor-vehicle risk context by slice.
+
+This phase implements factor lookup as projection only. It does not mutate scores.
+
+Acceptance:
+
+- output includes local arrival time, light/night window, factor id, factor value, confidence, model version, source basis, assumptions, and receipts.
+- output includes calibration status.
+- output includes warnings and diagnostics.
+- late evening night and early morning night are separate.
+- factor is called nighttime motor-vehicle risk context, not darkness-only risk.
+- factor is independent of traffic volume.
+- output is not durable truth.
+- all non-neutral factors are marked POC / modeled-unvalidated.
+- unknown light state uses `unknown_light_state_v1` with unresolved warning, not safe or low-risk copy.
+
+---
+
+## 10. Phase 6 — Double-Counting Audit
+
+Audit current `traffic-time.ts` and any existing time-of-day scoring behavior.
+
+Decision required before planned-risk integration:
+
+- neutralize legacy time-of-day traffic adjustment for scenario planned-risk preview, or
+- compute planned traffic component directly from stable AADT and stable road factors, or
+- prove no double-counting exists.
+
+Acceptance:
+
+- test route shows exactly one traffic-volume time adjustment.
+- test receipt states where the time-volume factor was applied.
+- no planned ride output stacks old `traffic-time.ts` with new profile multiplier.
+
+---
+
+## 11. Phase 7 — Planned Risk Preview Integration
+
+Only after Phase 6, integrate with a planned ride risk preview.
+
+This phase also requires the planned-score contract to say whether the output is a preview or Planned Ride Safety Score.
+
+Preferred:
+
+- recompute at slice level.
+- apply traffic volume multiplier to the traffic exposure component.
+- apply nighttime context factor to the motor-vehicle collision/injury component.
+- roll up with documented planned score policy.
+
+Allowed POC approximation:
+
+- apply both factors to stable motor-vehicle slice risk.
+- label approximation.
+- emit receipt warning.
+
+Acceptance:
+
+- Baseline Safety Score stays unchanged.
+- planned risk changes by start time.
+- planned risk can show midday lower than rush hour if the traffic profile says so.
+- planned risk can show nighttime risk rising despite lower traffic because nighttime context factor applies.
+- outputs carry deltas, assumptions, and warnings.
+- outputs identify whether component-level separation or POC approximation was used.
+- outputs prove no legacy `traffic-time.ts` traffic adjustment was stacked with `TrafficTemporalVolumeProfile`.
+
+---
+
+## 12. Phase 8 — Scenario Sweeps
+
+Add optional sweep support only after single-scenario output works.
+
+Initial sweeps:
+
+- start times every 60 minutes.
+- then every 30 minutes if budgets allow.
+- 15-minute sweep is future after performance confirmation.
+
+Acceptance:
+
+- sweep results stay in memory or local ephemeral cache.
+- no durable route analyses are written.
+- results rank safest and riskiest windows.
+- output explains whether differences come from traffic volume, nighttime context, or both.
+
+---
+
+## 13. Phase 9 — Test Routes
+
+Required fixtures:
+
+1. Urban/suburban commuter route
+   - expected: AM/PM peak higher than midday.
+   - expected: overnight traffic much lower than rush hour.
+   - expected: nighttime context factor can partially or fully offset lower traffic.
+
+2. Rural arterial route
+   - expected: flatter traffic curve.
+   - expected: night traffic does not collapse as deeply as urban/suburban profile.
+   - expected: late-night rural risk can remain elevated.
+
+3. Long-distance brevet-style route
+   - expected: risk profile changes along route by arrival time.
+   - expected: same route has different planned risk for different start times.
+   - expected: Baseline Safety Score unchanged.
+
+4. Loop route later
+   - expected: start offset changes route-time binding and planned risk distribution.
+
+---
+
+## 14. Required Tests
+
+- `urban_suburban_commute_v1` sums to 1.0.
+- `rural_distributed_v1` sums to 1.0.
+- hourly multiplier equals hourly share divided by 1/24.
+- profile selection returns reason and confidence.
+- RouteTimeBinding changes with planned start time.
+- traffic projection does not read RouteMap state.
+- temporal risk projection does not read RouteMap state.
+- cue sheet can edit scenario draft but not own sealed context.
+- Baseline Safety Score unchanged.
+- stable route truth unchanged.
+- `RouteIndexedTruthCache` unchanged.
+- no scenario output writes to `route_cache`.
+- no scenario output writes to `route_history`.
+- traffic and temporal motor-vehicle risk context remain separate.
+- unknown light state does not silently become safe.
+- no double-counting with legacy `traffic-time.ts`.
+
+---
+
+## 15. Implementation Readiness Gate
+
+Proceed to implementation only when:
+
+- DS-057 is accepted.
+- ADR-056 is accepted.
+- exec-054 Phase 7 readiness criteria are satisfied or explicitly updated.
+- double-counting decision is documented.
+- the planned score contract says whether this is a preview or a Planned Ride Safety Score.
+- RouteTimeBinding has fixed timezone / offset tests.
+- UI copy labels output as modeled planned ride risk, not live observed risk.
+
+Decision outcomes:
+
+- proceed_to_profile_registry
+- proceed_to_single_scenario_projection
+- proceed_to_planned_risk_preview
+- keep_docs_only_and_fix_blockers
+- defer_until_double_counting_audit
+- defer_until_planned_score_contract
+- defer_until_temporal_risk_calibration_gate
+
+---
+
+## 16. Handoff Summary
+
+The first implementation thread should build only this:
+
+RidePlanScenarioContext plus RouteTimeBinding plus TrafficTemporalVolumeProfile plus TemporalMotorVehicleRiskContext produces a receipt-backed planned risk preview.
+
+Everything else waits.
 
 
 ---
