@@ -56232,7 +56232,7 @@ The old marker-aware completed-analysis cache write plan is paused. Existing pur
 
 Date: 2026-06-17
 
-Related: ADR-055, ADR-056, DS-056, DS-057, DS-058, ADR-006, ADR-045, ADR-054, DS-015, DS-031, DS-055, exec-052, exec-053, exec-055
+Related: ADR-055, ADR-056, DS-056, DS-057, DS-058, DS-059, ADR-006, ADR-045, ADR-054, DS-015, DS-031, DS-055, exec-052, exec-053, exec-055
 
 ## Purpose
 
@@ -56406,16 +56406,28 @@ docs/02-architecture/design/ds-058-planned_ride_safety_score_contract.md
 
 ## Phase 5 - Scenario Objective Adapter Contract
 
-- [ ] Define objective adapter shape.
-- [ ] Include `optimize_safety`.
-- [ ] Include `optimize_access_rail`.
-- [ ] Include `optimize_access_air`.
-- [ ] Include `optimize_service_gap_early`.
-- [ ] Include `optimize_climbing_early`.
-- [ ] Support hard constraints.
-- [ ] Support soft preferences.
-- [ ] Support tie-breakers.
-- [ ] Do not implement objective runtime.
+- [x] Define objective adapter shape.
+- [x] Include `optimize_safety`.
+- [x] Include `optimize_access_rail`.
+- [x] Include `optimize_access_air`.
+- [x] Include `optimize_service_gap_early`.
+- [x] Include `optimize_climbing_early`.
+- [x] Support hard constraints.
+- [x] Support soft preferences.
+- [x] Support tie-breakers.
+- [x] Do not implement objective runtime.
+
+Deliverable:
+
+```text
+docs/04-execution/reports/exec-054-phase-5-scenario-objective-adapter-contract.md
+```
+
+Contract:
+
+```text
+docs/02-architecture/design/ds-059-scenario_objective_adapter_contract.md
+```
 
 ## Phase 6 - Scenario Sweep Contract
 

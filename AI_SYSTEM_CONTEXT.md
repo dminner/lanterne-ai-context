@@ -3352,7 +3352,7 @@ Route Safety Score must remain:
 
 # Lanterne Design Document Index
 
-**Status:** Current as of 2026-03-24
+**Status:** Current as of 2026-06-17
 **Maintained by:** Derek
 
 ---
@@ -3463,9 +3463,10 @@ Route Safety Score must remain:
 | DS-053 | Local Prediction Builder | DS-015, DS-017, DS-022, DS-029, DS-031, DS-043, DS-046, DS-048 | Draft |
 | DS-054 | Admin Cache Cell Visualizer | DS-031, DS-034, DS-035, DS-050, DS-052, DS-053 | Draft |
 | DS-055 | RouteIndexedEvidenceLedger No-Leak Spec | ADR-054, DS-031, DS-043, DS-044, DS-047 | Draft |
-| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058 | Draft |
+| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059 | Draft |
 | DS-057 | Temporal Traffic Volume and Nighttime Motor-Vehicle Risk Context Spec | ADR-056, ADR-055, DS-056, DS-015, DS-031 | Draft |
 | DS-058 | Planned Ride Safety Score Contract | ADR-055, ADR-056, DS-015, DS-031, DS-056, DS-057 | Draft |
+| DS-059 | Scenario Objective Adapter Contract | ADR-055, DS-056, DS-058 | Draft |
 
 ---
 
@@ -30932,7 +30933,7 @@ Tests should treat violations as architecture failures, not product polish issue
 **Status:** Draft for planning
 **Date:** 2026-06-17
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
-**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, exec-052, exec-053, exec-054
+**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, exec-052, exec-053, exec-054
 
 ---
 
@@ -31359,17 +31360,27 @@ Rules:
 
 `ScenarioObjectiveAdapter` ranks scenario outputs for a chosen planning objective.
 
-Each objective declares:
+The canonical objective adapter contract is DS-059:
+
+```text
+docs/02-architecture/design/ds-059-scenario_objective_adapter_contract.md
+```
+
+Each objective declares, at minimum:
 
 - `objectiveId`
 - `objectiveFamily`
-- `allowedVariables`
+- `allowedScenarioVariables`
+- `allowedCandidateGenerationRole`
 - `hardConstraints`
 - `softPreferences`
 - `tieBreakers`
 - `requiredDomainOutputs`
+- `requiredScoreOrPreviewOutputs`
 - `rankingPolicy`
 - `explanationPolicy`
+- `receiptPolicy`
+- `unknownHandlingPolicy`
 
 Allowed `objectiveFamily` values:
 
@@ -31379,6 +31390,8 @@ Allowed `objectiveFamily` values:
 - `conditions`
 - `fatigue`
 - `climbing`
+- `service_timing`
+- `bailout`
 - `custom`
 
 Examples:
@@ -31393,13 +31406,21 @@ Examples:
 
 Rules:
 
-- Objective adapters may propose and rank scenarios.
+- Objective adapters may propose candidate scenario drafts before evaluation.
+- Objective adapters may declare which scenario variables they are allowed to vary.
+- Objective adapters may rank evaluated `RidePlanScenarioView` outputs after domain outputs and planned-risk outputs are produced.
+- Objective adapters may return rankings, explanations, hard-constraint failures, soft-preference reasons, and tie-break decisions.
+- Objective adapters consume evaluated scenario outputs and output refs; they do not evaluate projections themselves.
 - Objective adapters may not mutate stable truth.
 - Objective adapters may not directly alter scoring formulas.
 - Objective adapters may not become domain projection logic.
-- Objective adapters consume scenario outputs and return rankings/explanations.
-- Objective adapters may generate candidate scenario contexts before evaluation and rank evaluated scenario views after evaluation.
+- Objective adapters may not compute `RouteTimeBinding`.
+- Objective adapters may not compute `ScenarioTrafficProjection`.
+- Objective adapters may not compute `ScenarioTemporalMotorVehicleRiskProjection`.
+- Objective adapters may not compute Planned Ride Safety Score or planned ride risk preview.
 - Objective adapters may not alter domain adapter outputs, rewrite scenario projections, or patch Planned Ride Safety Score to make a candidate rank better.
+- Objective adapters may not mutate route geometry, RouteMap state, cue-sheet state, stable route truth, route caches, or scoring formulas.
+- Phase 5 is docs-only; no runtime objective adapter is approved.
 
 Airport access is one objective adapter example. It is not a special architecture case.
 
@@ -32269,7 +32290,7 @@ Required warnings include:
 **Status:** Draft for planning
 **Date:** 2026-06-17
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
-**Related:** DS-015, DS-031, DS-056, DS-057, ADR-045, ADR-054, ADR-056, EXEC-054, EXEC-055
+**Related:** DS-015, DS-031, DS-056, DS-057, DS-059, ADR-045, ADR-054, ADR-056, EXEC-054, EXEC-055
 
 ---
 
@@ -32350,6 +32371,12 @@ Rules:
 - It must not present itself as the official headline Safety Score.
 - It must not overwrite Baseline Safety Score.
 - It must carry the same receipt and warning discipline as a planned score.
+
+### 2.4 Objective Ranking Use
+
+DS-059 defines how scenario objectives may rank planned safety outputs.
+
+Objective adapters may consume an approved planned safety score or preview by reference, but they must not compute, mutate, rename, or redefine Baseline Safety Score, Planned Ride Safety Score, or planned ride risk preview.
 
 ---
 
@@ -32709,6 +32736,657 @@ Before runtime planned-score integration:
 - No scenario storage.
 - No `RouteIndexedTruthCache` write.
 - No `route_cache` write.
+- No `route_history` scenario truth.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-059-scenario_objective_adapter_contract.md
+
+# DS-059 - Scenario Objective Adapter Contract
+
+**Status:** Draft for planning
+**Date:** 2026-06-17
+**ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
+**Related:** DS-015, DS-031, DS-056, DS-057, DS-058, ADR-045, ADR-054, EXEC-054
+
+---
+
+## 1. Purpose
+
+This spec defines how `ScenarioObjectiveAdapter` contracts rank evaluated ride plan scenarios.
+
+It does not implement objective adapters. It defines the objective shape, allowed roles, constraints, preferences, tie-breakers, outputs, receipts, storage boundaries, presentation boundaries, and future test gates.
+
+Objective adapters answer:
+
+```text
+Which evaluated scenario best serves the chosen planning objective, and why?
+```
+
+They do not answer:
+
+```text
+What is this route?
+What are the domain projections for this scenario?
+What is the planned safety score?
+What route geometry should we create?
+```
+
+---
+
+## 2. Architecture Boundary
+
+Stable route truth answers:
+
+```text
+What is this route?
+```
+
+`RidePlanScenario` answers:
+
+```text
+What happens if the rider rides this same route from this start point,
+in this direction,
+at this start time,
+at this expected pace,
+under these assumptions?
+```
+
+`ScenarioDomainAdapter` answers:
+
+```text
+What bounded scenario output exists for this sealed scenario?
+```
+
+`ScenarioSafetyScorer` or a planned-risk preview answers:
+
+```text
+What is the planned motor-vehicle safety output for this sealed scenario, if approved?
+```
+
+`ScenarioObjectiveAdapter` answers:
+
+```text
+Which evaluated scenario best serves the chosen planning objective, and why?
+```
+
+Rules:
+
+- Objective adapters are not scoring engines.
+- Objective adapters are not route geometry engines.
+- Objective adapters are not domain projection engines.
+- Objective adapters are not RouteMap controllers.
+- Objective adapters are not cue-sheet state.
+
+---
+
+## 3. ScenarioObjectiveAdapter Contract
+
+A `ScenarioObjectiveAdapter` declares the semantics needed for later implementation.
+
+Conceptual fields:
+
+- `objectiveId`
+- `displayName`
+- `objectiveFamily`
+- `lifecycleStatus`
+- `defaultEnabledForPoc`
+- `defaultEnabledForProduction`
+- `allowedScenarioVariables`
+- `allowedCandidateGenerationRole`
+- `requiredScenarioContextFields`
+- `requiredDomainOutputs`
+- `requiredScoreOrPreviewOutputs`
+- `requiredRouteRealityOutputs`
+- `requiredConditionOutputs`
+- `hardConstraints`
+- `softPreferences`
+- `tieBreakers`
+- `rankingPolicy`
+- `explanationPolicy`
+- `receiptPolicy`
+- `unknownHandlingPolicy`
+- `budgetPolicyRef`
+- `forbiddenReads`
+- `forbiddenWrites`
+- `forbiddenMutations`
+- `warnings`
+- `diagnostics`
+
+These names are conceptual. Later TypeScript names may differ, but the semantics must remain intact.
+
+---
+
+## 4. Objective Families
+
+Allowed `objectiveFamily` values:
+
+- `safety`
+- `access`
+- `logistics`
+- `conditions`
+- `fatigue`
+- `climbing`
+- `service_timing`
+- `bailout`
+- `custom`
+
+Adding another objective family requires an explicit spec update or later ADR if it changes score, source, storage, or route-geometry authority.
+
+---
+
+## 5. Lifecycle
+
+Allowed lifecycle statuses:
+
+- `registry_stub`
+- `contract_ready`
+- `poc_allowed`
+- `implementation_ready`
+- `production_allowed`
+- `deprecated`
+
+Phase 5 leaves objective adapters at `contract_ready` or `registry_stub` only.
+
+No objective adapter becomes `implementation_ready` or `production_allowed` in Phase 5.
+
+---
+
+## 6. Candidate Generation Versus Ranking
+
+Objective adapters may have two separate roles.
+
+Candidate generation role:
+
+- may propose candidate `RidePlanScenarioDraft` values before evaluation.
+- may declare which variables it is allowed to vary.
+- may suggest start-time windows, direction candidates, start offsets, or pace variants only when those variables are supported by the scenario contract.
+- may not seal scenario context as authority.
+
+Ranking role:
+
+- ranks evaluated `RidePlanScenarioView` values after scenario context, route transform, route-time binding, domain outputs, and approved planned-risk outputs are produced.
+- produces explanations, reasons, constraint failures, and tie-break decisions.
+- consumes output refs and receipts rather than recomputing domain values.
+
+Not allowed:
+
+- Objective adapters may not seal scenario context themselves as authority.
+- Objective adapters may not compute `RouteTimeBinding`.
+- Objective adapters may not call `ScenarioDomainAdapters` directly as authority.
+- Objective adapters may not fetch external sources.
+- Objective adapters may not compute `ScenarioTrafficProjection`.
+- Objective adapters may not compute `ScenarioTemporalMotorVehicleRiskProjection`.
+- Objective adapters may not compute Planned Ride Safety Score.
+- Objective adapters may not mutate evaluated domain outputs.
+- Objective adapters may not mutate planned scores or previews.
+- Objective adapters may not mutate stable route truth.
+- Objective adapters may not change route geometry.
+- Objective adapters may not reroute.
+- Objective adapters may not patch a scenario output just to improve rank.
+
+---
+
+## 7. Hard Constraints
+
+Hard constraints are pass/fail gates.
+
+Examples:
+
+- max planned motor-vehicle risk threshold.
+- no scenario with unresolved required traffic coverage above allowed threshold.
+- no scenario with missing `RouteTimeBinding`.
+- no scenario with missing clock context.
+- no scenario with blocked stable route truth.
+- no scenario with calibration blocker when objective requires planned safety.
+- no scenario with POI/service open status claimed as known when source says unknown.
+- no scenario that requires unsupported reverse/start-offset transform.
+- no scenario that requires source fetching not approved in the current phase.
+- no scenario that violates rider-specified time window.
+- no scenario that violates explicit max ride duration if provided.
+- no scenario that violates explicit minimum bailout/service confidence if provided.
+
+Rules:
+
+- Hard constraints cannot silently degrade into soft preferences.
+- Hard constraint failures must produce explanation receipts.
+- Unknown can block, warn, or degrade only according to the objective's `unknownHandlingPolicy`.
+- Missing coverage must not be treated as safe, low-risk, zero, or favorable.
+
+---
+
+## 8. Soft Preferences
+
+Soft preferences influence rank but do not automatically block.
+
+Examples:
+
+- lower planned motor-vehicle risk.
+- shorter dark exposure.
+- lower traffic-volume exposure.
+- lower nighttime motor-vehicle risk exposure.
+- earlier service access.
+- shorter distance to rail bailout.
+- lower unresolved coverage.
+- lower profile-selection uncertainty.
+- place longest service gap earlier.
+- place major climbing earlier.
+- avoid high wind exposure later.
+- prefer better POI/service confidence.
+- prefer lower access friction at start/end.
+
+Rules:
+
+- Soft preferences must be weighted or ordered by a named `rankingPolicy`.
+- Soft preference weights must be versioned if numeric.
+- Soft preferences cannot mutate source outputs.
+- Soft preferences cannot redefine Safety Score.
+
+---
+
+## 9. Tie-Breakers
+
+Tie-breakers resolve near-equal candidates.
+
+Examples:
+
+- lower unresolved distance.
+- fewer warnings.
+- higher receipt confidence.
+- shorter total elapsed time.
+- fewer unsupported/deferred assumptions.
+- earlier service access.
+- better rail/transport proximity.
+- lower route-time ambiguity.
+- simpler scenario transform.
+- lower compute cost.
+- lower number of enabled domain adapters.
+
+Tie-breakers must appear in receipts when used.
+
+---
+
+## 10. Objective Output
+
+Minimum conceptual output:
+
+- `objectiveOutputId`
+- `objectiveId`
+- `objectiveFamily`
+- `modelVersion`
+- `scenarioSetId`
+- `generatedAt`
+- `rankedScenarioIds`
+- `winningScenarioId`
+- `rejectedScenarioIds`
+- `blockedScenarioIds`
+- `rankingPolicyId`
+- `hardConstraintResults`
+- `softPreferenceScores`
+- `tieBreakerResults`
+- `requiredDomainOutputRefs`
+- `plannedSafetyOutputRef` if used
+- `routeRealityOutputRefs` if used
+- `conditionOutputRefs` if used
+- `receipts`
+- `assumptions`
+- `warnings`
+- `diagnostics`
+
+Rules:
+
+- `generatedAt` may appear in output and receipts.
+- `generatedAt` must not be part of `scenarioContextDigest` semantic equality.
+- Objective output is not durable route truth.
+- Objective output must not be written to `RouteIndexedTruthCache`, `route_cache`, or `route_history` as truth.
+- Objective output must not be presented as Baseline Safety Score.
+- Objective output must not be presented as Planned Ride Safety Score.
+
+---
+
+## 11. Per-Candidate Explanation
+
+Each ranked, rejected, or blocked candidate should explain:
+
+- `scenarioId`.
+- `scenarioContextDigest`.
+- key scenario variables: start time, direction, start offset, and pace profile.
+- required domain outputs consumed.
+- hard constraints passed or failed.
+- soft preferences contributing to rank.
+- tie-breakers used.
+- unresolved data.
+- warnings.
+- why the candidate ranked above or below alternatives.
+
+---
+
+## 12. Required Current Objectives
+
+### 12.1 `optimize_safety`
+
+Purpose:
+
+Rank evaluated scenarios by planned motor-vehicle risk.
+
+Allowed inputs:
+
+- planned ride risk preview or Planned Ride Safety Score if DS-058 permits.
+- `ScenarioTrafficProjection`.
+- `ScenarioTemporalMotorVehicleRiskProjection`.
+- Baseline Safety Score reference.
+- unresolved coverage and confidence.
+
+Rules:
+
+- Must not compute planned safety itself.
+- Must not multiply the 0-100 Safety Score.
+- Must not mutate planned ride risk preview or Planned Ride Safety Score.
+- Must preserve Baseline Safety Score.
+- May rank by `riskPlannedRidePerMile`, `plannedRideRiskPreview`, or `scorePlannedRideSafety` only if the output is approved by DS-058 and later gates.
+- If only preview exists, ranking must be labeled preview-based.
+
+Example hard constraints:
+
+- no planned-safety output missing when objective requires it.
+- no double-counting audit blocker if planned-risk output is used.
+- no production-calibration claim for POC nighttime coefficients.
+
+Example soft preferences:
+
+- lower planned risk.
+- less high-risk nighttime exposure.
+- lower unresolved traffic/risk coverage.
+
+Example tie-breakers:
+
+- fewer warnings.
+- lower unresolved distance.
+- earlier service access.
+
+### 12.2 `optimize_access_rail`
+
+Purpose:
+
+Rank scenarios by rail bailout/return-logistics usefulness.
+
+Allowed inputs:
+
+- `ScenarioAccessProjection` or future transport access output.
+- route reality/access outputs.
+- scenario time if service timing is later approved.
+- planned safety output only as constraint or secondary preference, not as access truth.
+
+Rules:
+
+- Rail access is logistics/access, not Planned Ride Safety Score input by default.
+- Do not infer train frequency or bike policy unless a prepared source input exists.
+- Unknown service/bike policy must remain unknown.
+- Do not fetch live transit data in Phase 5.
+- Do not treat rail proximity as emergency access by default.
+
+Example hard constraints:
+
+- require access projection available if objective is selected.
+- no claimed rail availability without source.
+- planned safety must remain below rider-specified threshold if provided.
+
+Example soft preferences:
+
+- shorter scenario distance/time to rail nodes.
+- more frequent bailout opportunities if modeled.
+- better confidence.
+- less unresolved access coverage.
+
+Example tie-breakers:
+
+- lower planned motor-vehicle risk.
+- earlier bailout availability.
+- fewer access warnings.
+
+### 12.3 `optimize_access_air`
+
+Purpose:
+
+Rank scenarios by start/end airport logistics friction.
+
+Allowed inputs:
+
+- `ScenarioAccessProjection`.
+- transport access outputs.
+- route start/end or scenario start-offset context.
+- planned safety output as constraint or secondary preference.
+
+Rules:
+
+- Air access is trip logistics, not roadside bailout.
+- Do not fetch live flight data.
+- Do not infer flight suitability or airline bike policy.
+- Do not mutate route geometry to reach an airport.
+- Airport access may rank scenario start offsets or directions if those scenario variables are supported.
+
+Example hard constraints:
+
+- candidate must have valid route transform.
+- candidate must satisfy planned safety threshold if provided.
+- no unsupported start-offset/direction candidate.
+
+Example soft preferences:
+
+- lower start/end access friction.
+- better rail-to-air connection if modeled.
+- lower planned risk.
+- lower unresolved logistics coverage.
+
+Example tie-breakers:
+
+- shorter transfer distance.
+- higher access confidence.
+- fewer assumptions.
+
+### 12.4 `optimize_service_gap_early`
+
+Purpose:
+
+Rank scenarios so the longest or riskiest service/resupply gap occurs earlier in scenario distance/time.
+
+Allowed inputs:
+
+- `ScenarioServiceProjection`.
+- POI likely-open status when available.
+- remoteness/service-gap outputs.
+- `RouteTimeBinding`.
+- planned safety as constraint or secondary preference.
+
+Rules:
+
+- Unknown POI open status is valid and must not be hidden.
+- Do not fetch live business status in Phase 5.
+- Do not promise actual service availability.
+- Do not treat unknown POI hours as closed or open.
+- Do not make service availability a Safety Score input by default.
+
+Example hard constraints:
+
+- no scenario that places a rider-defined critical service gap after a rider-defined latest acceptable time, if such constraint is explicitly set.
+- no claimed POI open status without source/receipt.
+
+Example soft preferences:
+
+- longest service gap earlier.
+- more service confidence before night.
+- shorter distance between reliable services.
+- lower unresolved service coverage.
+
+Example tie-breakers:
+
+- lower planned safety risk.
+- better bailout access.
+- fewer unknown POI statuses.
+
+### 12.5 `optimize_climbing_early`
+
+Purpose:
+
+Rank scenarios to place major climbing earlier in the ride.
+
+Allowed inputs:
+
+- elevation/grade/climb timing outputs.
+- `RouteTimeBinding`.
+- `ScenarioRouteTransform`.
+- condition outputs only if later approved.
+- planned safety as constraint or secondary preference.
+
+Rules:
+
+- Does not change route geometry.
+- May rank direction or start offset only if supported by `ScenarioRouteTransform`.
+- Does not create reroutes to avoid climbs.
+- Climb burden is route reality/fatigue by default, not narrow Safety Score.
+
+Example hard constraints:
+
+- required grade/elevation output must be available.
+- unsupported reverse/start-offset candidates cannot be ranked as if valid.
+
+Example soft preferences:
+
+- higher share of climbing earlier.
+- avoid major climbs after dark if light/time output exists.
+- avoid high-climb sections during worse condition windows if condition outputs are available later.
+- lower unresolved grade coverage.
+
+Example tie-breakers:
+
+- lower planned motor-vehicle risk.
+- better service access before/after climb.
+- fewer timing warnings.
+
+---
+
+## 13. Weighting Policy
+
+Rules:
+
+- Ranking policy must be named and versioned.
+- Numeric weights, if any, must be `default_prior_poc` or `modeled_unvalidated` unless later calibrated.
+- Objective ranking must not rewrite domain output values.
+- Objective ranking must not normalize unrelated domains into fake precision.
+- If using ordinal/rule-based ranking, document priority order.
+- If using weighted scoring, document units and normalization.
+- Unknown/low-confidence penalties must be explicit.
+
+Preferred POC:
+
+- Use rule-based or lexicographic ranking first.
+- Avoid fake numeric precision where domains are not calibrated together.
+
+---
+
+## 14. Unknown Handling
+
+Required behavior:
+
+- Unknown traffic coverage does not become low risk.
+- Unknown rail/service availability does not become available.
+- Unknown POI hours do not become open or closed.
+- Unknown light state remains neutral/unresolved per DS-057.
+- Unknown planned safety output blocks `optimize_safety` unless preview-free mode is explicitly allowed.
+- Unresolved coverage must appear in objective output warnings and receipts.
+- Objective adapter may rank an unresolved candidate lower, block it, or mark it inconclusive, but it must say which.
+
+---
+
+## 15. Storage And Persistence
+
+Objective outputs:
+
+- are scenario outputs, not stable route truth.
+- may be local ephemeral results.
+- may be diagnostics fixture snapshots.
+- must not be written to `RouteIndexedTruthCache`.
+- must not be written to `route_cache`.
+- must not be written to `route_history` as truth.
+- must not create durable route analyses for every candidate.
+- may support pinned ride plans in future persistence work, but not in Phase 5.
+
+---
+
+## 16. Presentation Rules
+
+This spec defines presentation constraints only. It does not implement UI.
+
+Allowed future presentation:
+
+- UI may display objective winner, ranking, reasons, hard-constraint failures, and warnings.
+- UI may show "best start window" or "best direction" only after scenario sweep contract and implementation gates.
+- UI may show objective-specific explanations.
+
+Not allowed:
+
+- RouteMap computes objective ranking.
+- Cue sheet computes objective ranking.
+- SegmentInspector computes objective ranking.
+- UI local state becomes objective authority.
+- Objective output is shown as Baseline Safety Score.
+- Objective output is shown as Planned Ride Safety Score unless it actually references approved planned safety output.
+
+---
+
+## 17. Future Test Requirements
+
+Runtime implementation must not proceed without tests proving:
+
+- objective adapter cannot mutate domain outputs.
+- objective adapter cannot mutate Planned Ride Safety Score or preview.
+- objective adapter cannot mutate Baseline Safety Score.
+- objective adapter cannot change route geometry.
+- objective adapter cannot call source fetchers.
+- objective adapter cannot compute `RouteTimeBinding`.
+- `optimize_safety` ranks lower planned risk above higher planned risk when constraints equal.
+- `optimize_safety` blocks or warns when planned-risk output is missing.
+- `optimize_access_rail` does not treat rail access as safety input.
+- `optimize_access_air` does not treat airport access as roadside bailout.
+- `optimize_service_gap_early` preserves unknown POI status.
+- `optimize_climbing_early` does not reroute.
+- hard constraints beat soft preferences.
+- tie-breakers are receipt-backed.
+- unresolved coverage is not treated as favorable.
+- objective output carries scenario ids, digests, receipts, warnings, and diagnostics.
+- no objective output writes to `RouteIndexedTruthCache`, `route_cache`, or `route_history`.
+
+---
+
+## 18. Implementation Gates
+
+Phase 5 approves only this contract.
+
+Before runtime objective implementation:
+
+- DS-059 must be accepted or revised.
+- DS-058 must remain authoritative for planned safety score semantics.
+- Phase 6 scenario sweep contract must define candidate budgets and sweep behavior.
+- Required domain outputs must have approved adapters or explicit fixture inputs.
+- Tests must prove objective adapters cannot mutate source outputs, scores, stable truth, route geometry, or storage.
+
+---
+
+## 19. Non-Goals
+
+- No runtime objective adapter implementation.
+- No scenario sweep runtime implementation.
+- No RouteMap changes.
+- No cue-sheet changes.
+- No scoring code changes.
+- No Planned Ride Safety Score runtime implementation.
+- No route geometry optimization.
+- No rerouting.
+- No source fetching for rail, air, services, POI hours, weather, UV, wind, or live traffic.
+- No Supabase migration.
+- No `RouteIndexedTruthCache` writes.
+- No `route_cache` writes.
 - No `route_history` scenario truth.
 
 
