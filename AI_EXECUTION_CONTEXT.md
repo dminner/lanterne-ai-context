@@ -52815,6 +52815,3710 @@ If the geometry suggests the rider may have left the road but the non-bike path 
 
 ---
 
+## Source File: docs/04-execution/exec-051-phase-3-1-traffic-parity-divergence-report.md
+
+# EXEC-051 Phase 3.1 - Traffic Parity And Divergence Report
+
+Status: interval-level report harness ready; real route captures pending.
+
+Purpose: compare the route-indexed traffic ledger POC against existing traffic display/scoring inputs without cutting over traffic, changing scoring, changing heatmap output, changing presentation, writing cache/history payloads, or treating legacy truth as V2 evidence.
+
+Phase 3.1 is not a verdict. It is evidence for the Phase 3.2 verdict.
+
+The audit shape is:
+
+```text
+Existing production analysis output
+  -> LegacyTrafficComparisonSnapshot
+
+Route-indexed traffic POC
+  -> ActiveTruthView
+  -> PocTrafficComparisonSnapshot
+
+LegacyTrafficComparisonSnapshot
+  + PocTrafficComparisonSnapshot
+  -> TrafficParityDivergenceReport
+```
+
+## Selected Routes
+
+| Route | Route file | RWGPS route id | Reason |
+| --- | --- | ---: | --- |
+| 02408 - John s Waterfall | `routes_incomplete/_02408_-_John_s_Waterfall_.gpx` | 36642262 | Golden Harness route with documented HPMS row coverage in prior execution notes. |
+| 04880 - Medford Batsto | `routes_incomplete/_04880_-_Medford_Batsto.gpx` | 44888837 | Golden Harness route with documented HPMS row coverage and existing traffic/AADT diagnostics. |
+
+## Report Contract
+
+The report harness lives in `src/lib/route-indexed-traffic-ledger-poc/parity`.
+
+Modules:
+
+- `legacy-traffic-comparison-snapshot.ts`
+- `poc-traffic-comparison-snapshot.ts`
+- `traffic-parity-comparator.ts`
+- `traffic-parity-fixtures.ts`
+- `traffic-parity-report.ts`
+
+The report compares:
+
+- captured existing production traffic snapshots, labeled comparison-only
+- POC stable traffic truth from `ActiveTruthView`
+- POC planned temporal exposure from `ActiveTruthView`
+- optional POC actual-adjusted temporal exposure from `ActiveTruthView`
+
+The comparator atomizes intervals by route distance. It does not compare by truth-run index, heatmap segment index, presentation segment index, raw GPX index, sampled matcher index, or HPMS row id.
+
+Each interval-level row answers:
+
+- legacy says X here
+- POC stable says Y here
+- POC temporal says Z here
+- likely cause is source/projection/selection/timezone/span-boundary/legacy-fallback/new-capability/unknown
+- receipts and legacy comparison refs are attached
+
+It does not import or run production route analysis, scoring, heatmap, presentation, source projection, baseline selection, temporal projection, cache writes, route history writes, or persistence.
+
+Legacy `truthRunId`, `truthRunIndex`, and `heatmapSegmentId` may appear only as legacy comparison refs. They are not accepted into the ledger, selected truth, temporal projection, or ActiveTruthView.
+
+## Current Findings
+
+No parity claim is made yet.
+
+The selected route targets are known. The pure report builder can classify interval-level matches, divergences, missing captures, span-boundary differences, fallback/unresolved differences, planned temporal differences, and actual-adjusted new capability. The real-route comparison remains blocked until both sides are captured:
+
+- existing traffic display/scoring input snapshot for each route
+- POC planned `ActiveTruthView` for each route
+- optional POC actual-adjusted `ActiveTruthView` for each route
+
+Synthetic fixtures cover:
+
+- stable AADT exact match
+- stable AADT delta
+- legacy fallback versus POC unresolved
+- POC conflict versus legacy selected
+- planned 2 AM versus 8 AM temporal exposure
+- actual-adjusted temporal exposure
+- atomized interval boundaries
+- legacy truth-run refs as comparison-only data
+
+## Guardrails
+
+- No production scoring change.
+- No production heatmap change.
+- No presentation read-path change.
+- No route cache write-shape change.
+- No route history write-shape change.
+- No legacy truth run laundering into evidence.
+- No cutover decision in Phase 3.1.
+- No bug-fix pass in Phase 3.1.
+- No HPMS re-projection in Phase 3.1.
+- No selector or temporal projector rerun in Phase 3.1.
+
+Phase 3.2 owns the cutover/no-cutover decision.
+
+
+---
+
+## Source File: docs/04-execution/exec-051-phase-3-2-traffic-cutover-decision-gate.md
+
+# EXEC-051 Phase 3.2 - Traffic Ledger Cutover Decision
+
+Status: typed decision process ready; current decision is keep shadow-only until real captures, rollback, and cache/versioning evidence are attached.
+
+Purpose: produce a written, typed, evidence-backed cutover/no-cutover decision for the traffic RouteIndexedEvidenceLedger POC.
+
+Phase 3.2 decides whether we are allowed to write the hard-cutover plan. It does not perform the hard cutover.
+
+## Decision Contract
+
+The decision code lives in:
+
+- `src/lib/route-indexed-traffic-ledger-poc/cutover/traffic-cutover-decision-gate.ts`
+
+The primary record is:
+
+- `TrafficLedgerCutoverDecisionRecord`
+- `decisionKind = traffic_ledger_cutover_decision`
+- `phase = 3.2`
+
+The only top-level decisions are:
+
+- `proceed_to_traffic_only_hard_cutover_plan`
+- `keep_shadow_only_and_fix_blockers`
+- `redesign_poc_boundary`
+
+`proceed_to_traffic_only_hard_cutover_plan` means only that a separate exec may be written. It does not approve an operational switch.
+
+## Explicit Scope
+
+Traffic cutover is not one blob.
+
+The decision must separately record:
+
+- stable traffic AADT baseline as canonical traffic truth
+- stable traffic AADT baseline as production scoring input
+- temporal traffic exposure as planning overlay
+- temporal traffic exposure as production Safety Score input
+- `ActiveTruthView` as presentation traffic read model
+- legacy traffic path removal
+
+Default stance:
+
+- stable selected HPMS AADT truth may be considered for hard cutover once evidence passes
+- temporal traffic exposure may be a planning/view overlay
+- temporal traffic exposure is no-go for production Safety Score input in this gate
+- legacy path removal is no-go in this gate
+
+## Gate Matrix
+
+The typed gate matrix includes:
+
+- `stable_baseline_inspectability`
+- `stable_baseline_route_partition`
+- `stable_baseline_receipts`
+- `source_projection_cleanliness`
+- `truth_selection_cleanliness`
+- `temporal_session_scoping`
+- `active_truth_view_completeness`
+- `presentation_no_leak`
+- `legacy_truthrun_no_laundering`
+- `raw_hpms_no_leak`
+- `feature_flag_rollback`
+- `parity_divergence_review`
+- `unresolved_conflict_policy`
+- `timezone_policy`
+- `immutability`
+- `performance_budget`
+- `cache_versioning_plan`
+- `typed_diagnostics`
+- `test_coverage`
+- `typescript_health`
+
+Any hard blocker prevents a proceed decision.
+
+Foundational boundary blockers require `redesign_poc_boundary`.
+
+## Required Inputs
+
+Phase 3.2 consumes:
+
+- Phase 3.1 `TrafficParityDivergenceReport`
+- no-leak assessment
+- presentation readiness assessment
+- rollback assessment
+- cache/versioning assessment
+- focused test results
+- TypeScript and lint results when available
+
+If the Phase 3.1 report is missing, 3.2 must not proceed.
+
+## Current Result
+
+Current decision is not proceed.
+
+Reasons:
+
+- real-route captures are still pending
+- future production cutover flag is not defined
+- cache/versioning plan is not ready
+- route history compatibility plan is not ready
+
+The current correct decision is:
+
+- stable traffic baseline as canonical truth: blocked
+- stable baseline as production scoring input: blocked
+- temporal traffic exposure as planning overlay: go as view/session evidence
+- temporal traffic exposure as Safety Score input: no-go
+- `ActiveTruthView` as presentation read model: blocked until presentation readiness is attached
+- legacy path removal: no-go
+
+## Next Actions
+
+- Capture legacy + POC snapshots for `04880 - Medford Batsto`.
+- Capture legacy + POC snapshots for `02408 - John s Waterfall` if the first route is ambiguous.
+- Rerun Phase 3.1 parity on captured data.
+- Attach rollback evidence proving the debug POC flag is not the production cutover flag.
+- Define a future default-off production cutover flag in the hard-cutover plan, not in 3.2.
+- Define cache/versioning requirements in the hard-cutover plan.
+- Rerun Phase 3.2.
+
+## Non-Actions
+
+Phase 3.2 does not:
+
+- cut over traffic
+- change Safety Score
+- change heatmap
+- change RouteMap
+- wire `ActiveTruthView` into production presentation
+- write Supabase
+- change `route_cache`
+- change `route_history`
+- modify HPMS projection
+- modify baseline selector
+- modify temporal projector
+- modify `RideContextTemporalLedger`
+- modify `ActiveTruthView`
+- remove legacy traffic path
+- begin speed, bike, shoulder, or ownership migration
+
+## Tests
+
+The focused tests prove:
+
+- no proceed without a Phase 3.1 report
+- no proceed with no-leak blockers
+- foundational leaks trigger `redesign_poc_boundary`
+- no proceed with missing receipts
+- no proceed with invalid stable partition
+- no proceed with dirty rollback or cache/versioning
+- proceed only means writing a separate hard-cutover plan
+- temporal planning overlay is separate from temporal Safety Score input
+- the debug POC flag is not treated as a production cutover flag
+- markdown contains non-decisions
+
+
+---
+
+## Source File: docs/04-execution/exec-051-phase-3-2a-traffic-cutover-blocker-closure-plan.md
+
+# exec-051 Phase 3.2a - Traffic Cutover Blocker Closure Plan
+
+Date: 2026-06-16
+
+Related: exec-051, Phase 3.1, Phase 3.2, ADR-054, DS-055
+
+## Purpose
+
+Close the blockers that prevented Phase 3.2 from allowing a traffic-only hard-cutover plan.
+
+This phase still does not cut over traffic. It exists to gather the missing proof for a later decision.
+
+Initial gate state: `keep_shadow_only_and_fix_blockers`.
+
+Rerun gate state after blocker closure: `ready_to_write_exec_052`.
+
+Target closure state: `ready_to_write_exec_052`, meaning we are allowed to write the traffic-only hard-cutover plan. It does not mean the hard cutover has been implemented.
+
+## Non-Actions
+
+- [x] Do not perform cutover.
+- [x] Do not change production scoring.
+- [x] Do not change production heatmap behavior.
+- [x] Do not change presentation behavior.
+- [x] Do not write `route_cache`.
+- [x] Do not write `route_history`.
+- [x] Do not use `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER` as the production cutover flag.
+- [x] Do not create `exec-052` until real captures, rollback, and cache/versioning are closed.
+
+Completion note: `exec-052` was created only after the real-capture Phase 3.1 rerun and Phase 3.2 rerun returned `proceed_to_traffic_only_hard_cutover_plan`. It is a plan skeleton only; no cutover implementation was performed.
+
+## Closure Status Model
+
+- `blocked`: required real snapshots are missing.
+- `ready_to_rerun_3_1`: required real snapshots are attached; parity report needs to be regenerated.
+- `ready_to_rerun_3_2`: real parity report exists and rollback/cache blockers are closed; cutover decision gate needs rerun.
+- `ready_to_write_exec_052`: rerun Phase 3.2 allows the traffic-only hard-cutover plan to be written.
+
+Typed closure artifact:
+
+- `src/lib/route-indexed-traffic-ledger-poc/cutover/traffic-cutover-blocker-closure-plan.ts`
+
+## 1. Real Capture Closure
+
+Goal: turn synthetic parity confidence into real route evidence.
+
+Required routes:
+
+| Fixture | Route | Route file | RWGPS route id | Required |
+| --- | --- | --- | --- | --- |
+| `real-medford-batsto-known-hpms-backed` | `04880 - Medford Batsto` | `routes_incomplete/_04880_-_Medford_Batsto.gpx` | `44888837` | yes |
+| `real-johns-waterfall-known-hpms-backed` | `02408 - John s Waterfall` | `routes_incomplete/_02408_-_John_s_Waterfall_.gpx` | `36642262` | yes |
+
+Checklist:
+
+- [x] Capture legacy comparison-only traffic snapshot for `04880 - Medford Batsto`, including visible source claim and details-panel source label.
+- [x] Capture POC `ActiveTruthView`-derived traffic snapshot for `04880 - Medford Batsto`.
+- [x] Capture legacy comparison-only traffic snapshot for `02408 - John s Waterfall`, including visible source claim and details-panel source label.
+- [x] Capture POC `ActiveTruthView`-derived traffic snapshot for `02408 - John s Waterfall`.
+- [x] Attach snapshot evidence refs to the closure artifact.
+- [x] Rerun Phase 3.1 parity/divergence report with the real snapshots.
+- [x] Confirm every report interval says what legacy says, what POC stable truth says, what POC temporal view says, why they differ, and which receipts support the claim.
+- [x] Confirm intervals where legacy claims `US DOT` or `NJ DOT` while details show `Fallback Traffic Estimate` are classified as `legacy_source_claim_detail_mismatch`.
+- [x] Confirm selected, unresolved, and conflict spans partition each route with no silent holes.
+- [x] Confirm real-route receipts exist for selected stable AADT intervals.
+
+Evidence refs:
+
+- `docs/04-execution/reports/fixtures/traffic-parity/04880-medford-batsto/`
+- `docs/04-execution/reports/fixtures/traffic-parity/04880-medford-batsto/clean-hpms-source-records.json`
+- `docs/04-execution/reports/fixtures/traffic-parity/02408-johns-waterfall/`
+- `docs/04-execution/reports/fixtures/traffic-parity/02408-johns-waterfall/clean-hpms-source-records.json`
+- `docs/04-execution/reports/traffic-ledger-parity-real-capture-rerun-2026-06-16.md`
+- `docs/04-execution/reports/traffic-ledger-parity-real-capture-rerun-2026-06-16.json`
+
+Exit criteria:
+
+- [x] Closure artifact reaches `ready_to_rerun_3_1`.
+- [x] Generated Phase 3.1 real-route report exists.
+
+## 2. Rollback Closure
+
+Goal: prove the POC can be kept shadow-only or disabled without surgery.
+
+Required posture:
+
+- Debug flag remains `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER`.
+- Production cutover flag: `USE_ROUTE_INDEXED_TRAFFIC_TRUTH`.
+- The debug flag is a peephole only.
+- The production flag is default-off.
+- Flag-off behavior uses the existing legacy traffic path.
+- Rollback does not require a schema migration.
+- Scope remains traffic-only.
+- Temporal traffic exposure remains no-go for production Safety Score until a separate scoring gate.
+
+Checklist:
+
+- [x] Define the production cutover flag separately from the debug flag.
+- [x] Prove production cutover flag default is off.
+- [x] Prove flag-off uses legacy traffic behavior.
+- [x] Prove disabling the flag does not require schema rollback.
+- [x] Prove rollout scope is traffic-only: no ownership, speed, bike-infra, shoulder, route scoring, or heatmap cutover.
+- [x] Keep temporal traffic exposure out of production Safety Score.
+- [x] Add rollback test evidence to the closure artifact.
+
+Evidence refs:
+
+- `docs/04-execution/decisions/traffic-ledger-rollback-flag-proof-2026-06-16.md`
+- `docs/04-execution/decisions/traffic-ledger-rollback-flag-proof-2026-06-16.json`
+- `src/lib/route-indexed-traffic-ledger-poc/cutover/traffic-cutover-rollback-proof.ts`
+- `src/lib/route-indexed-traffic-ledger-poc/cutover/traffic-cutover-blocker-close-rerun.test.ts`
+
+Exit criteria:
+
+- [x] Closure artifact marks rollback plan `satisfied`.
+
+## 3. Cache And Versioning Closure
+
+Goal: prevent stale legacy output from masquerading as selected route-indexed traffic truth.
+
+Required posture:
+
+- Route-indexed traffic output gets a distinct analysis/version marker.
+- Legacy traffic and route-indexed selected traffic have distinct traffic truth engine markers.
+- Flag-off reads legacy-compatible cache identity.
+- Flag-on cannot reuse legacy cache identity for selected route-indexed traffic truth.
+- Route history reload remains geometry-first and traffic-truth-marker aware.
+- Cache invalidation is a marker/version change, not an implicit mutation of old rows.
+
+Suggested markers:
+
+- analysis/version marker: `traffic-ledger-aadt-baseline-v1`
+- legacy traffic truth engine marker: `legacy_v1`
+- route-indexed traffic truth engine marker: `route_indexed_traffic_v1`
+
+Checklist:
+
+- [x] Define the analysis/version marker.
+- [x] Define the legacy traffic truth engine marker.
+- [x] Define the route-indexed traffic truth engine marker.
+- [x] Prove legacy cached results remain safe when the production flag is off.
+- [x] Prove route-indexed traffic outputs cannot share legacy cache identity when the flag is on.
+- [x] Prove stale legacy cache entries cannot be presented as selected route-indexed traffic truth.
+- [x] Prove `route_history` reload remains geometry-first and does not become a truth evidence source.
+- [x] Document cache invalidation recipe for traffic-only cutover.
+- [x] Attach cache/versioning evidence refs to the closure artifact.
+
+Evidence refs:
+
+- `docs/04-execution/decisions/traffic-ledger-cache-versioning-decision-2026-06-16.md`
+- `docs/04-execution/decisions/traffic-ledger-cache-versioning-decision-2026-06-16.json`
+- `src/lib/route-indexed-traffic-ledger-poc/cutover/traffic-cutover-cache-versioning-decision.ts`
+- `src/lib/route-indexed-traffic-ledger-poc/cutover/traffic-cutover-blocker-close-rerun.test.ts`
+
+Exit criteria:
+
+- [x] Closure artifact marks cache/versioning plan `satisfied`.
+
+## 4. Decision Rerun
+
+Goal: rerun the verdict after the missing proof exists.
+
+Checklist:
+
+- [x] Rerun Phase 3.1 after real captures.
+- [x] Rerun Phase 3.2 after real parity, rollback, and cache/versioning closure.
+- [x] Attach rerun decision evidence ref.
+- [x] Confirm `stableTrafficAadtBaselineAsCanonicalTrafficTruth` is `go`.
+- [x] Confirm `ActiveTruthViewAsPresentationTrafficReadModel` is `go` or explicit warning.
+- [x] Confirm `temporalTrafficExposureAsPlanningOverlay` is `go`.
+- [x] Confirm `temporalTrafficExposureAsProductionSafetyScoreInput` remains `no_go`.
+- [x] Confirm `legacyTrafficPathRemoval` remains `no_go`.
+- [x] Confirm the decision recommends writing `exec-052`.
+
+Evidence refs:
+
+- `docs/04-execution/decisions/traffic-ledger-cutover-decision-rerun-2026-06-16.md`
+- `docs/04-execution/decisions/traffic-ledger-cutover-decision-rerun-2026-06-16.json`
+- `docs/04-execution/exec-052-route-indexed-traffic-hard-cutover-plan.md`
+
+Exit criteria:
+
+- [x] Closure artifact reaches `ready_to_write_exec_052`.
+- [x] Only then write `exec-052`.
+
+## Verification
+
+Focused checks:
+
+```bash
+npx vitest run src/lib/route-indexed-traffic-ledger-poc/cutover
+npx vitest run src/lib/route-architecture/route-intelligence-architecture.test.ts
+npx tsc -p tsconfig.json --noEmit --pretty false --incremental false
+```
+
+
+---
+
+## Source File: docs/04-execution/exec-051-route-indexed-traffic-ledger-poc.md
+
+# exec-051 - Route-Indexed Traffic Ledger POC Execution Plan
+
+Date: 2026-06-16
+
+Related: ADR-054, DS-055, DS-031, DS-043, DS-044, DS-047
+
+## Purpose
+
+Build a shadow/additive proof of concept for route-indexed traffic architecture before any hard cutover.
+
+Traffic is the first layer because it has a clear authoritative source path through HPMS AADT and a natural split between stable route truth and dynamic ride-context exposure.
+
+This execution plan is intentionally conservative about boundaries:
+
+```text
+Route inputs
+  -> RouteAxis / LinearRef
+  -> Source Projection Workers
+  -> RouteIndexedEvidenceLedger
+  -> Truth Selection / stable selected traffic baseline
+  -> RouteSurfaceTruthBundle-compatible stable snapshot
+  -> RideContextTemporalLedger
+  -> Temporal Projector
+  -> ActiveTruthView
+  -> Presentation
+```
+
+## Non-Negotiable Invariants
+
+- [ ] Route distance is the canonical join key: `distM`, `startDistM`, `endDistM`.
+- [ ] Raw GPX point index, sampled matcher index, OSM way id, HPMS row id, presentation segment index, and heatmap segment index are metadata only.
+- [ ] `RouteIndexedEvidenceLedger` is the only upstream source boundary for route-indexed evidence.
+- [ ] Stable HPMS AADT baseline is selected route truth after truth selection.
+- [ ] Temporal traffic exposure is session/view evidence, not durable HPMS truth.
+- [ ] `RouteSurfaceTruthBundle` or compatible stable snapshot does not contain mutable GPS progress, live ETA drift, or durable current traffic multipliers.
+- [ ] Presentation reads `ActiveTruthView` only, except explicit debug links.
+- [ ] Presentation does not query raw HPMS, inspect legacy `truthRuns` as evidence, recalculate traffic multipliers independently, rematch ownership, reinterpret candidates, or promote evidence candidates.
+- [ ] Existing production route analysis and heatmap behavior do not change unless the feature flag is enabled.
+
+## Existing Phase 1 Foundation
+
+These files are the current foundation and should be hardened rather than bypassed:
+
+- `src/lib/route-evidence/ledger.ts`
+- `src/lib/route-evidence/layer-registry.ts`
+- `src/lib/route-evidence/traffic-aadt.ts`
+- `src/lib/source-projection/hpms-traffic-aadt.ts`
+- `src/lib/truth-selection/traffic-baseline-selector.ts`
+- `src/lib/route-time/route-time-binding.ts`
+- `src/lib/route-architecture/route-intelligence-architecture.ts`
+- `docs/03-adrs/adr-054-route_indexed_evidence_ledger_no_leak_architecture.md`
+- `docs/02-architecture/design/ds-055-route_indexed_evidence_ledger_no_leak_spec.md`
+
+## Phase 1.1 - Ledger Contract Hardening
+
+Goal: make the ledger shape stable enough that Phase 2 cannot tunnel around it.
+
+- [x] Confirm layer naming policy:
+  - ledger source layer remains `traffic_aadt`
+  - selected truth output may be named `traffic_aadt_baseline`
+  - temporal/session output may be named `traffic_temporal_exposure`
+- [x] Add or confirm `RouteMeasure` alias for route-distance meters where useful.
+- [x] Confirm all route-indexed evidence spans are half-open `[startDistM, endDistM)`.
+- [x] Keep `TrafficAadtEvidenceValue` in `src/lib/route-evidence`, not in source projection or truth selection.
+- [x] Add ledger diagnostics for unresolved route gaps if missing coverage is not emitted as spans.
+- [x] Add tests proving invalid zero-length/inverted spans fail fast.
+- [x] Add tests proving external IDs are preserved as metadata only.
+- [x] Add tests proving legacy `truthRuns` are not accepted as V2 source evidence.
+
+Exit criteria:
+
+- [x] Ledger package does not import source projection, truth selection, route-surface-truth, ActiveTruthView, or presentation packages.
+- [x] Focused ledger tests pass.
+
+## Phase 1.2 - HPMS AADT Source Projection
+
+Goal: prove official HPMS AADT can become candidate route-distance evidence without selection or presentation leakage.
+
+- [x] Harden `src/lib/source-projection/hpms-traffic-aadt.ts`.
+- [x] Support route-window-provided HPMS records.
+- [x] Support geometry-projected HPMS records.
+- [x] Preserve HPMS row/object/route IDs as metadata only.
+- [x] Emit unresolved spans or diagnostics for uncovered route distances.
+- [x] Do not infer missing AADT from road class.
+- [x] Do not convert missing/unparseable AADT into zero or low traffic.
+- [x] Keep source lineage and provenance separate:
+  - source lineage: operational origin such as `government_feed`, `cache`
+  - provenance: why it may drive score/explanation such as `official_imported`, `unknown`
+- [x] Add fixture-style tests for:
+  - one HPMS span plus unresolved gap
+  - geometry projection
+  - missing AADT
+  - external ID metadata only
+
+Exit criteria:
+
+- [x] Projection output is `RouteIndexedSpan<TrafficAadtEvidenceValue>[]`.
+- [x] Projection does not select truth.
+- [x] Projection does not call presentation, scoring, heatmap, or legacy truth-run code.
+
+Tightening addendum:
+
+- [x] Projection is pure records-in / route-distance-spans-out.
+- [x] Route-window membership, HPMS row IDs, OSM/matched road IDs, and road-name matches are not evidence without route-axis projection.
+- [x] HPMS traffic projection does not decide road/path ownership.
+- [x] `TrafficAadtEvidenceValue` contains traffic-domain facts only; external IDs live in source/diagnostic metadata.
+- [x] Missing, blank, negative, or unparseable AADT emits unresolved route-indexed evidence.
+- [x] Exact duplicate HPMS records dedupe; overlapping conflicts remain candidate evidence for Phase 1.3 selection.
+- [x] Projection report includes rejected candidates, unresolved gaps, coverage percentage, unresolved distance, duplicate count, conflict count, and projection method traces.
+- [x] False-positive geometry fixtures cover perpendicular crossings, nearby offset parallel roads, partial overlaps, duplicates, and conflicts.
+- [x] `source-projection/hpms-traffic-aadt.ts` is the canonical POC HPMS projection path; route-evidence remains types/contracts only.
+
+## Phase 1.3 - Stable Traffic Baseline Selection
+
+Goal: select a stable traffic baseline from the ledger while keeping selected truth separate from candidate evidence.
+
+- [x] Harden `src/lib/truth-selection/traffic-baseline-selector.ts`.
+- [x] Define or refine `StableTrafficBaselineSnapshot`.
+- [x] Snapshot selected HPMS AADT spans only.
+- [x] Preserve unresolved distance and diagnostics.
+- [x] Preserve selected baseline span ids for future receipts.
+- [x] Preserve rejected/candidate refs where available without promoting them.
+- [x] Add tests proving unresolved baseline spans remain unresolved and non-score-bearing.
+- [x] Add tests proving baseline selection consumes ledger only.
+
+Exit criteria:
+
+- [x] `truth-selection` imports ledger/evidence contracts only, not source projection internals.
+- [x] Selected stable snapshot can be carried by a future `RouteSurfaceTruthBundle`.
+
+Selector policy note:
+
+- [x] Select only official, score-eligible HPMS `traffic_aadt` candidates from the ledger.
+- [x] Emit a complete `[0,totalDistM)` partition of selected, unresolved, and conflict `traffic_aadt_baseline` spans.
+- [x] Carry unresolved spans forward as non-score-bearing selected truth.
+- [x] Emit conflict spans for overlapping non-equivalent candidates instead of choosing a winner.
+- [x] Emit typed receipts for every selected truth interval.
+- [x] Preserve unselected/rejected candidate references without promoting them.
+- [x] Deduplicate exact equivalent candidates only, preserving duplicate refs in receipts.
+
+## Phase 1.4 - RouteSurfaceTruthBundle-Compatible Stable Output
+
+Goal: create a stable bridge without rewriting the full truth bundle.
+
+- [x] Decide Phase 1.4 uses a traffic-only `RouteSurfaceTruthBundle`-compatible stable output, not a full `RouteSurfaceTruthBundle`.
+- [x] Use a traffic-only `RouteSurfaceTruthBundle`-compatible stable output for Phase 1.4:
+  - implemented in `src/lib/route-surface-truth/stable-traffic-output.ts`
+  - consumes `StableTrafficBaselineSnapshot` only
+  - does not import ledger, source projection, HPMS projection, route-time, temporal projection, scoring, heatmap, or presentation modules
+  - declares `artifactKind = route_surface_stable_traffic_output`
+  - declares `completeness.scope = partial_layer_output`
+  - declares `isCompleteRouteTruthBundle = false`
+- [x] Document the fields that will later map into `RouteSurfaceTruthBundle`.
+- [x] Include stable output fields:
+  - [x] selected HPMS AADT baseline spans
+  - [x] coverage percentage
+  - [x] unresolved distance and conflict distance
+  - [x] source/provenance/confidence summaries
+  - [x] selected, rejected, competing conflict, and unresolved evidence refs where available
+  - [x] receipt summaries and receipt pointers
+- [x] Do not include:
+  - [x] planned start time
+  - [x] current rider speed
+  - [x] actual GPS progress
+  - [x] live ETA drift
+  - [x] temporal traffic multiplier as durable route truth
+
+Exit criteria:
+
+- [x] Stable output has enough information for scoring/presentation adapters later.
+- [x] Stable output has no mutable ride-session state.
+
+Stable output mapping:
+
+- `stable.trafficAadtBaseline.spans` carries the full `[0,totalDistM)` selected/unresolved/conflict partition.
+- `selectedEvidenceSnapshots` carries selected value snapshots for traffic AADT baseline truth.
+- `unresolvedSpans` and `conflictSpans` carry non-score-bearing intervals forward.
+- `stable.trafficAadtBaseline.coverage` carries selected, unresolved, conflict, score-eligible distance, and coverage percentage.
+- `rejectedEvidenceRefs` carries rejected refs where available; candidate and competing refs remain on selected evidence snapshots and receipt traces.
+- `receiptTraces` preserves typed selector decisions without reopening source selection.
+- `futureBundleMapping` documents how this partial artifact will map into the future full truth bundle.
+
+## Phase 2.1 - Route Time Binding
+
+Goal: build session-scoped route-distance-to-time binding without touching stable truth.
+
+- [x] Expand `src/lib/route-time/route-time-binding.ts`.
+- [x] Define:
+  - [x] `RouteTimeBinding`
+  - [x] `RouteTimeBindingPoint`
+  - [x] `RouteTimeBindingBasis = 'planned' | 'actual_adjusted' | 'observed'`
+  - [x] `RouteTimeBasisSpan`
+  - [x] `RouteClockContext`
+  - [x] `RouteTimeSpeedModel`
+  - [x] `RouteActualProgress`
+  - [x] `RouteTimeBindingUpdatePolicy`
+- [x] Implement `buildPlannedRouteTimeBinding(input)`.
+- [x] Implement `updateRouteTimeBindingFromActualProgress(previousBinding, actualProgress, policy)`.
+- [x] Implement helper functions for Phase 2.2:
+  - [x] `estimateElapsedSecAtDistM(binding, distM)`
+  - [x] `estimateClockTimeIsoAtDistM(binding, distM)`
+  - [x] `getRouteTimeBasisAtDistM(binding, distM)`
+- [x] Implement typed update decision:
+  - [x] `shouldUpdateRouteTimeBinding(previousBinding, actualProgress, policy)`
+- [x] Use a simple POC speed model:
+  - [x] constant elapsed speed in canonical `speedKph`
+  - [x] optional explicitly labeled constant moving speed in canonical `speedKph`
+  - [x] no rider physiology
+- [x] Use canonical route-time fields:
+  - [x] `totalDistM`
+  - [x] `distM`
+  - [x] `elapsedSec`
+  - [x] `estimatedClockTimeIso`
+  - [x] `speedKph`
+- [x] Use explicit route/session timezone or ISO offset; do not silently depend on environment-local `Date.getHours()`.
+- [x] Add throttling policy defaults:
+  - [x] update when `currentDistM` changes by at least 250 m
+  - [x] or ETA drift changes by at least 5 minutes
+  - [x] or elapsed time since last update is at least 60 seconds
+- [x] Support future projection modes:
+  - [x] `planned_pace_plus_observed_drift`
+  - [x] `observed_average_pace`
+- [x] Lock or mark past/current route-time points as `observed`.
+- [x] Adjust future route-time points as `actual_adjusted`.
+- [x] Validate route-time binding point order and basis-span partition.
+
+Tests:
+
+- [x] Planned route distance maps to expected arrival time.
+- [x] Changing planned start time changes arrival times.
+- [x] Slower actual progress shifts future arrival estimates later.
+- [x] Faster actual progress shifts future arrival estimates earlier.
+- [x] Observed-average-pace mode works and falls back when insufficient progress exists.
+- [x] Stopped/paused elapsed time can age future ETA even with little distance movement.
+- [x] Past observed points do not get rewritten as planned.
+- [x] Update throttling suppresses meaningless GPS-tick churn.
+- [x] Non-monotonic route progress does not move observed horizon backwards.
+- [x] Validation catches malformed route-time bindings.
+
+Exit criteria:
+
+- [x] Route-time binding is session-scoped and writable.
+- [x] Updating route-time binding does not mutate upstream evidence, ledger, or stable baseline snapshots.
+
+Implementation note:
+
+- Route-time binding owns only `distM -> clock time` for a ride context.
+- Planned bindings are built from `RouteAxisForTimeBinding`, explicit `RouteClockContext`, absolute `plannedStartTimeIso`, and a metric `RouteTimeSpeedModel`.
+- Actual progress is already route-aligned; this module does not read GPS, snap coordinates, detect off-route state, or solve loop ambiguity.
+- Actual progress updates create new immutable binding revisions, preserve locked observed coverage, adjust future points, and suppress low-value GPS tick churn by policy.
+- `src/lib/route-time` does not import route evidence, source projection, truth selection, stable traffic output, traffic-time, scoring, heatmap, ActiveTruthView, presentation modules, React, Supabase, or legacy `truthRuns`.
+
+## Phase 2.2 - Temporal Traffic Projector
+
+Goal: derive dynamic traffic exposure from selected baseline and route-time binding.
+
+- [x] Add `src/lib/route-time/temporal-traffic-projector.ts` or `src/lib/temporal-projection/traffic-temporal-exposure.ts`.
+- [x] Input:
+  - `StableTrafficBaselineSnapshot` or `RouteSurfaceStableTrafficOutput`
+  - `RouteTimeBinding`
+  - `TrafficTimeMultiplierModel`
+  - optional `TrafficTemporalProjectionPolicy`
+- [x] Output:
+  - `TrafficTemporalExposureProjection`
+  - `TrafficTemporalExposureSpan[]`
+  - route-indexed half-open `[startDistM, endDistM)` temporal spans
+  - intentionally not a route-version evidence-ledger layer
+- [x] Define pure traffic-time multiplier adapter:
+  - `src/lib/temporal-projection/traffic-time-multiplier.ts`
+  - explicit local hour input
+  - no Date objects or environment-local timezone dependency
+- [x] Define `TrafficTemporalExposureValue` with:
+  - `valueKind = traffic_temporal_exposure`
+  - status: computed, unresolved baseline, conflict baseline, missing time binding, or missing multiplier
+  - baseline selected truth snapshot and source refs
+  - route-time arrival start, end, representative time, basis, speed assumption, and progress adjustment
+  - explicit local clock bucket
+  - traffic-time model id/version/multiplier
+  - `aadtEquivalent`, not durable effective AADT
+  - view-only score use policy
+  - derived confidence
+  - warnings
+- [x] Define `TrafficTemporalExposureReceipt` with:
+  - selected baseline span id
+  - baseline AADT source
+  - source/provenance/confidence
+  - arrival start, end, and representative clock time
+  - local-hour bucket
+  - basis
+  - multiplier
+  - AADT-equivalent exposure
+  - speed assumption
+  - progress adjustment
+  - derived-model source/provenance
+  - warnings
+- [x] Split spans on:
+  - baseline span boundaries
+  - unresolved/conflict baseline boundaries
+  - route-time basis boundaries
+  - route-time point boundaries where needed
+  - local-hour or multiplier bucket changes
+- [x] Preserve baseline span references.
+- [x] Unresolved baseline creates unresolved temporal exposure.
+- [x] Conflict baseline creates conflict temporal exposure.
+- [x] Never mutate baseline AADT.
+- [x] Temporal span source/provenance is derived model, not HPMS.
+- [x] Add deterministic `contentDigest` that excludes `generatedAt`.
+- [x] Reject raw candidate `traffic_aadt` spans and require selected stable traffic truth.
+- [x] Ban local-time APIs in temporal projection modules.
+
+Tests:
+
+- [x] Same HPMS AADT produces different temporal exposure at 2 AM versus 8 AM.
+- [x] Stable snapshot and stable output inputs are both accepted.
+- [x] Raw candidate spans are rejected.
+- [x] Temporal spans use derived-model source/provenance while baseline refs preserve HPMS lineage.
+- [x] Baseline AADT remains unchanged after projection.
+- [x] Unresolved baseline remains unresolved and non-score-bearing.
+- [x] Conflict baseline remains conflict and non-score-bearing.
+- [x] Output spans partition `[0,totalDistM)` without hidden holes.
+- [x] Future spans change after slower actual progress.
+- [x] Past observed spans remain observed.
+- [x] Receipts include baseline, route-time, local clock, multiplier, and output details.
+- [x] Projection output is immutable from later input mutation according to repo clone style.
+- [x] `contentDigest` is deterministic and changes with real inputs.
+- [x] Temporal projection modules do not use `Date.getHours()`, `Date.getDay()`, or `getTimezoneOffset()`.
+
+Exit criteria:
+
+- [x] Temporal projection is downstream of stable baseline selection.
+- [x] Temporal projection does not query raw HPMS or inspect legacy `truthRuns`.
+- [x] Temporal projection does not mutate stable traffic truth or RouteTimeBinding.
+- [x] Temporal projection does not output production scoring, heatmap, or presentation fields.
+
+Implementation note:
+
+- Phase 2.2 lives in `src/lib/temporal-projection/traffic-temporal-exposure.ts`.
+- It consumes `StableTrafficBaselineSnapshot` or `RouteSurfaceStableTrafficOutput`, `RouteTimeBinding`, and `TrafficTimeMultiplierModel`.
+- It does not import `RouteIndexedEvidenceLedger`, ledger construction helpers, source projection workers, HPMS projection, truth selection runtime selectors, ActiveTruthView, RideContextTemporalLedger, scoring, heatmap, presentation, React, Supabase, browser GPS APIs, or legacy `truthRuns`.
+- `traffic_temporal_exposure` is a route-indexed temporal/context overlay layer, not a durable route-version evidence ledger layer.
+- `aadtEquivalent` is a time-adjusted AADT-equivalent view estimate; it is not stable AADT truth.
+
+## Phase 2.3 - RideContextTemporalLedger
+
+Goal: create the writable session ledger for dynamic route-context evidence.
+
+- [x] Add `src/lib/ride-context/ride-context-temporal-ledger.ts`.
+  - not under `src/lib/route-time`, so route-time remains traffic-agnostic
+- [x] Define `RideContextTemporalLedger` with:
+  - ledger id/kind/version
+  - session id
+  - route id/version/hash
+  - route axis id/revision
+  - `totalDistM` and half-open interval semantics
+  - ledger revision and lifecycle
+  - stable truth refs by artifact id/digest only
+  - planned `RouteTimeBinding`
+  - current actual-adjusted `RouteTimeBinding`
+  - binding history
+  - observed route-distance timing summaries
+  - `traffic_temporal_exposure` layer state
+  - temporal exposure spans, receipts, coverage, projection id/digest refs, and selected stable artifact refs
+  - typed event log
+  - diagnostics
+  - budgets for event log, binding history, observed timing summaries, spans, receipts, and diagnostics
+- [x] Implement reducer-style functions only:
+  - [x] `createRideContextTemporalLedger(input)`
+  - [x] `applyRouteTimeBindingRevision(ledger, newBinding, options)`
+  - [x] `acceptTrafficTemporalExposureProjection(ledger, projection, options)`
+  - [x] `markTemporalLayerStale(ledger, layerId, options)`
+  - [x] `recordObservedTiming(ledger, observedTiming, options)`
+  - [x] `validateRideContextTemporalLedger(ledger)`
+- [x] Enforce the transition contract:
+  - [x] planned binding is created first
+  - [x] temporal projector emits pure `TrafficTemporalExposureProjection`
+  - [x] ledger accepts a projection only after route axis, total distance, stable artifact id/digest, current binding id, and current binding revision match
+  - [x] actual progress creates a new `RouteTimeBinding` revision outside the ledger
+  - [x] ledger accepts that binding revision and marks dependent temporal traffic layer stale
+  - [x] projector recomputes against the current binding
+  - [x] ledger accepts the recomputed projection only if the revision still matches
+- [x] Writes are allowed here only through reducer functions.
+- [x] Writes must not mutate:
+  - `RouteIndexedEvidenceLedger`
+  - stable traffic baseline snapshot
+  - `RouteSurfaceTruthBundle`
+  - `RouteSurfaceStableTrafficOutput`
+  - `RouteTimeBinding`
+  - `TrafficTemporalExposureProjection`
+- [x] Reject stale route-time binding revisions.
+- [x] Reject stale temporal projections.
+- [x] Reject stable artifact id/digest mismatches.
+- [x] Reject hidden route-distance holes and missing temporal receipts.
+- [x] Reject raw HPMS, legacy `truthRuns`, scoring, presentation, raw GPS coordinate, and route-point-index payloads.
+- [x] Add tests proving temporal projection acceptance replaces session view evidence instead of appending projection history.
+- [x] Add tests proving observed timing is route-distance keyed only.
+- [x] Add tests proving budget caps are deterministic and diagnostic.
+- [x] Add architecture guard proving ride-context ledger does not reach backward to raw evidence, HPMS projection, truth selection, stable truth output, scoring, heatmap, presentation, React, Supabase, or legacy `truthRuns`.
+
+Exit criteria:
+
+- [x] Temporal writes are isolated to session ledger state.
+- [x] Stable truth remains immutable in tests.
+- [x] Stale projection cannot silently become current overlay evidence.
+- [x] Current temporal traffic layer is either empty/current/stale/invalid with explicit diagnostics; there are no hidden session-state holes.
+
+Implementation note:
+
+- Phase 2.3 is writable session/context state, not stable route truth.
+- `createRideContextTemporalLedger` initializes planned/current route-time binding state, empty temporal layer state, stable truth refs, diagnostics, budgets, and an event log.
+- `applyRouteTimeBindingRevision` accepts only valid non-stale route-time revisions, stores the current binding revision, and marks dependent temporal layers stale without recomputing them.
+- `acceptTrafficTemporalExposureProjection` is the only reducer that can make `traffic_temporal_exposure` current. It rejects projections whose route axis, route distance, stable artifact id/digest, current binding id, or binding revision do not match the ledger.
+- `recordObservedTiming` stores route-distance keyed timing summaries only; it rejects raw GPS coordinate or route-point-index payloads.
+- The ledger stores stable traffic artifact IDs/digests and temporal projection refs; it does not own or mutate stable selected traffic truth.
+- `src/lib/ride-context` consumes only `RouteTimeBinding` and `TrafficTemporalExposureProjection` contracts.
+
+## Phase 2.4 - ActiveTruthView Composition
+
+Goal: provide the presentation firewall for the POC.
+
+- [x] Add `src/lib/active-truth/active-truth-view.ts`.
+- [x] Define `ActiveTruthView` as a sealed read model, not a convenience utility.
+- [x] Input:
+  - [x] `RouteSurfaceStableTrafficOutput`
+  - [x] current `RideContextTemporalLedger`
+  - [x] optional strict `ActiveTruthViewPolicy`
+  - [x] no raw source records
+  - [x] no source projection workers
+  - [x] no truth selectors/builders
+  - [x] no temporal projector recomputation
+- [x] Output:
+  - [x] `viewId`, `viewKind`, `schemaVersion`, `generatedAt`, and deterministic `contentDigest` that excludes `generatedAt`
+  - [x] route/session/axis metadata
+  - [x] `sources` for stable traffic, ride-context ledger, route-time binding, and accepted temporal projection
+  - [x] `stable.trafficAadtBaseline`
+  - [x] `temporal.routeTime`
+  - [x] `temporal.trafficTemporalExposure`
+  - [x] `presentation.trafficOverlay`
+  - [x] `inspection.receiptIndex`
+  - [x] `inspection.diagnostics`
+  - [x] `quality`
+  - [x] explicit capabilities showing it cannot promote, fetch raw evidence, recompute, or mutate stable truth
+- [x] ActiveTruthView validates:
+  - [x] stable artifact id/digest matches ride-context stable truth refs
+  - [x] route axis and total distance match
+  - [x] current temporal layer stable artifact id/digest matches selected stable traffic output
+  - [x] current temporal layer route-time binding id/revision matches the ledger current binding
+  - [x] presentation traffic overlay is a full route partition when paintable
+  - [x] policy budgets fail loudly instead of truncating silently
+- [x] If temporal traffic is missing, emit a stable-only overlay by default and mark temporal paint unavailable.
+- [x] If temporal traffic is stale, keep stale state inspectable but do not paint it as current temporal exposure.
+- [x] Any blocking route/source/payload/budget error seals `presentation.trafficOverlay` as invalid.
+- [x] ActiveTruthView does not fetch, project, select, mutate, promote, score, heatmap, or render.
+- [x] Presentation can paint traffic overlays from ActiveTruthView without raw evidence reads.
+
+Tests:
+
+- [x] Current stable traffic plus current temporal traffic composes into a sealed read model.
+- [x] Missing temporal traffic produces stable-only output.
+- [x] Stale temporal traffic is not painted as current.
+- [x] Route-axis mismatch fails closed.
+- [x] Stable artifact digest mismatch fails closed.
+- [x] Raw HPMS-shaped payloads are rejected and do not leak into output.
+- [x] Legacy `truthRuns`-shaped payloads are rejected and do not leak into output.
+- [x] Candidate promotion, raw-fetch, and recomputation APIs are absent.
+- [x] Receipt index is typed by family and span.
+- [x] Presentation traffic and receipt questions can be answered from the view alone.
+- [x] Scoring, heatmap, `RouteMap`, and presentation-coupled fields are absent.
+- [x] Composed view is deeply frozen.
+- [x] Content digest is deterministic across different `generatedAt` values.
+- [x] Presentation overlay is a full route partition with no holes, overlaps, or zero-length spans.
+- [x] Budget overflow fails loudly.
+- [x] Architecture guard proves ActiveTruthView does not import route evidence, source projection, HPMS projection, route-time, temporal projection, traffic-time, scoring, heatmap, presentation, React, Supabase, or legacy `truthRuns`; it may import selected-truth types only.
+
+Exit criteria:
+
+- [x] Presentation-facing POC output is complete without direct ledger/source reads.
+- [x] ActiveTruthView is the only traffic presentation boundary in the POC.
+
+Implementation note:
+
+- Phase 2.4 lives in `src/lib/active-truth/active-truth-view.ts`.
+- It consumes selected stable traffic truth and current ride-context ledger state only.
+- It emits `presentation.trafficOverlay`, not a raw ledger-backed adapter.
+- It emits `inspection.receiptIndex` and diagnostics for explainability.
+- It is stable selected truth in, session temporal state in, sealed read model out.
+- It has no fetching, recomputation, promotion, raw HPMS, legacy `truthRuns`, or `RouteMap` coupling.
+
+## Phase 2.5 - Feature Flag And Debug Summary
+
+Goal: expose a tiny diagnostic proving the POC can be observed without making it operational.
+
+Posture: the feature flag opens a peephole, not a side door. Phase 2.5 may observe an already-composed `ActiveTruthView`; it must not feed production analysis, scoring, heatmap, presentation, cache, route history, or persistence.
+
+- [x] Add feature flag through the existing debug flag pattern:
+  - [x] `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER`
+- [x] Keep default off.
+- [x] Add a structured summary first, then format a small diagnostic line block:
+
+```text
+[TRAFFIC-LEDGER]
+view=active_truth_view:...
+digest=...
+routeAxis=...
+baselineSpans=...
+baselineCoveragePct=...
+temporalSpans=...
+temporalStatus=current|stale|missing|invalid
+plannedStart=...
+basis=planned|actual_adjusted|observed|mixed|unknown
+actualProgressApplied=true|false
+changedFutureSpans=<n|n/a>
+unresolvedM=...
+conflictM=...
+receipts=...
+warnings=...
+noLeak=ok
+```
+
+- [x] Gate any runtime invocation behind the feature flag.
+- [x] Keep default-off path inert: no source projection, ledger build, baseline selection, route-time binding, temporal projection, ride-context ledger creation, ActiveTruthView composition, summary logging, cache write, history write, heatmap change, scoring change, or presentation change.
+- [x] Emit once per unique `ActiveTruthView.contentDigest`.
+- [x] Catch debug failures and emit compact failure diagnostics without breaking normal route flow.
+- [x] Do not change headline Safety Score semantics.
+- [x] Do not change production heatmap behavior.
+- [x] If existing scoring uses `traffic-time.ts`, leave it alone and compare later.
+- [x] Add no UI, no drawer, no panel, no map overlay, no toast, no route card, and no new route-analysis stage label.
+
+Tests:
+
+- [x] Feature flag off means no production behavior change.
+- [x] Feature flag off means the POC runner is not called.
+- [x] Feature flag on emits diagnostic summary.
+- [x] Diagnostic summary reads from ActiveTruthView/temporal ledger output, not raw HPMS.
+- [x] Summary handles current, stable-only/missing, stale, and invalid temporal states.
+- [x] `changedFutureSpans` is computed only from a previous `ActiveTruthView`; without one it prints `n/a`.
+- [x] Same digest logs once; changed digest logs again.
+- [x] Debug failure is isolated and does not mutate production output.
+- [x] No-leak validation rejects raw-source, presentation, and scoring fields.
+- [x] Architecture guard proves the 2.5 POC package does not import source projection, ledgers, selectors, temporal projection, traffic-time, route analysis, scoring, heatmap, presentation, React, Supabase, cache/history write paths, or forbidden boundary strings.
+
+Exit criteria:
+
+- [x] Debug POC can be run locally without changing default route analysis.
+
+Implementation note:
+
+- Phase 2.5 lives in `src/lib/route-indexed-traffic-ledger-poc`.
+- `traffic-ledger-debug-summary.ts` reads `ActiveTruthView` only and builds the structured summary/formatter/no-leak validator/deduping emitter.
+- `traffic-ledger-poc-runner.ts` is the single feature-flag gate. It emits nothing and calls no runner unless `DEBUG.ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER` is true.
+- The summary is diagnostic-only and has no imports from route analysis, scoring, heatmap, source projection, HPMS projection, or presentation code.
+
+## Phase 3.1 - Parity And Divergence Report
+
+Goal: produce typed, route-distance-keyed audit evidence comparing existing traffic behavior with the route-indexed POC without cutting over.
+
+- [x] Pick one or more known HPMS-backed routes:
+  - [x] `02408 - John s Waterfall`
+  - [x] `04880 - Medford Batsto`
+- [x] Add comparison-only legacy snapshot contract:
+  - [x] `LegacyTrafficComparisonSnapshot`
+  - [x] explicitly labeled `comparison_only_not_v2_evidence`
+  - [x] legacy truth-run and heatmap refs allowed only as comparison refs
+- [x] Add POC snapshot contract derived from `ActiveTruthView` only:
+  - [x] stable selected traffic baseline spans
+  - [x] planned temporal traffic exposure
+  - [x] optional actual-adjusted temporal traffic exposure
+  - [x] receipt ids and diagnostics
+- [x] Add pure parity/divergence report builder that consumes captured legacy snapshots and already-composed `ActiveTruthView`-derived POC snapshots.
+- [x] Atomize comparison intervals by route-distance boundaries from:
+  - [x] legacy traffic spans
+  - [x] POC stable baseline spans
+  - [x] POC planned temporal spans
+  - [x] POC actual-adjusted temporal spans
+- [x] Emit interval-level facts:
+  - [x] legacy says X
+  - [x] POC stable says Y
+  - [x] POC temporal says Z
+  - [x] likely cause
+  - [x] receipts
+- [x] Add report scaffold:
+  - [x] `docs/04-execution/exec-051-phase-3-1-traffic-parity-divergence-report.md`
+- [x] Add generated-report placeholder:
+  - [x] `docs/04-execution/reports/traffic-ledger-parity-2026-06-16.md`
+- [x] Capture existing traffic display/scoring input summaries for selected routes.
+- [x] Capture planned POC `ActiveTruthView` snapshots for selected routes.
+- [x] Capture actual-adjusted POC `ActiveTruthView` snapshots where actual progress bindings are available.
+- [x] Compare existing traffic display/scoring inputs with:
+  - stable baseline AADT
+  - planned temporal exposure
+  - actual-adjusted temporal exposure
+- [x] Document where outputs match.
+- [x] Document where outputs diverge and why.
+- [x] Do not change production scoring based on this report.
+- [x] Do not change production heatmap, presentation, route cache, route history, or persistence behavior.
+- [x] Keep Phase 3.1 diagnostic-only; Phase 3.2 owns cutover/no-cutover decision.
+- [x] Add architecture guard proving parity modules do not import raw HPMS, source projection, ledger builders, selector runtime, temporal projector runtime, traffic-time runtime, scoring, heatmap, RouteMap, React, Supabase, or cache/history writers.
+
+Exit criteria:
+
+- [x] Captured real-route report gives 3.2 enough interval-level evidence to decide cutover/no-cutover.
+
+Implementation note:
+
+- Phase 3.1 report code lives in `src/lib/route-indexed-traffic-ledger-poc/parity`.
+- `legacy-traffic-comparison-snapshot.ts` is comparison-only and may carry legacy refs.
+- `poc-traffic-comparison-snapshot.ts` reads POC values from `ActiveTruthView` only.
+- `traffic-parity-comparator.ts` atomizes intervals and classifies divergence kinds.
+- `traffic-parity-report.ts` builds the typed report, no-leak checks, recommendations, and markdown.
+- It has no imports from production route analysis, scoring, heatmap, presentation, source projection, truth selection, temporal projection, cache writes, history writes, React, or Supabase.
+- Current status: real route capture rerun complete. Phase 3.1 remains evidence for the 3.2 verdict, not the verdict.
+- Real-capture rerun report:
+  - `docs/04-execution/reports/traffic-ledger-parity-real-capture-rerun-2026-06-16.md`
+  - `docs/04-execution/reports/traffic-ledger-parity-real-capture-rerun-2026-06-16.json`
+
+## Phase 3.2 - Cutover Decision Gate
+
+Goal: decide whether traffic can become the first hard-cut route-indexed evidence layer, and whether we are allowed to write the hard-cutover plan.
+
+- [x] Add a typed traffic ledger cutover decision record that consumes the Phase 3.1 parity report plus readiness evidence:
+  - [x] `src/lib/route-indexed-traffic-ledger-poc/cutover/traffic-cutover-decision-gate.ts`
+- [x] Define top-level decisions:
+  - [x] `proceed_to_traffic_only_hard_cutover_plan`
+  - [x] `keep_shadow_only_and_fix_blockers`
+  - [x] `redesign_poc_boundary`
+- [x] Define explicit scope decisions:
+  - [x] stable traffic AADT baseline as canonical traffic truth
+  - [x] stable traffic AADT baseline as production scoring input
+  - [x] temporal traffic exposure as planning overlay
+  - [x] temporal traffic exposure as production Safety Score input
+  - [x] `ActiveTruthView` as presentation traffic read model
+  - [x] legacy traffic path removal
+- [x] Gate output explicitly does not:
+  - [x] change production scoring
+  - [x] change production heatmap
+  - [x] change presentation
+  - [x] write `route_cache`
+  - [x] write `route_history`
+  - [x] perform operational cutover
+- [x] Add Phase 3.2 scaffold:
+  - [x] `docs/04-execution/exec-051-phase-3-2-traffic-cutover-decision-gate.md`
+- [x] Add written cutover/no-cutover decision:
+  - [x] `docs/04-execution/decisions/traffic-ledger-cutover-decision-2026-06-16.md`
+- [x] Current scoped decision:
+  - [x] stable traffic baseline as canonical truth: blocked until real captures
+  - [x] stable baseline as scoring input: blocked until real captures/cache plan
+  - [x] temporal traffic exposure as planning overlay: go as view/session evidence
+  - [x] temporal traffic exposure as Safety Score input: no-go
+  - [x] `ActiveTruthView` as presentation read model: blocked until presentation readiness is attached
+  - [x] legacy traffic path removal: no-go
+- [x] Confirm stable HPMS baseline is more inspectable than the existing path.
+- [x] Confirm ActiveTruthView can satisfy presentation without leakage.
+- [x] Confirm temporal exposure is session-scoped and does not mutate stable truth.
+- [x] Confirm receipts are sufficient for inspector/debug.
+- [x] Confirm feature flag rollback is clean.
+- [x] Identify any remaining presentation paths that read raw HPMS or legacy `truthRuns` as evidence.
+- [x] Capture real legacy + POC snapshots for at least one known HPMS-backed route.
+- [x] Run Phase 3.1 parity report on real captured route snapshots.
+- [x] Run Phase 3.2 cutover decision gate on that real parity report.
+- [x] Decide one of:
+  - proceed to traffic-only hard cutover plan
+  - keep POC shadow-only and fix blockers
+  - redesign the POC boundary
+
+Exit criteria:
+
+- [x] Written cutover/no-cutover decision.
+- [x] Rerun decision after blocker closure permits writing the traffic-only hard cutover plan.
+
+Implementation note:
+
+- Phase 3.2 is downstream of the Phase 3.1 parity report.
+- It does not import ActiveTruthView, raw HPMS, source projection, evidence ledger, selectors, temporal projectors, traffic-time, route analysis, scoring, heatmap, RouteMap, React, Supabase, or cache/history writers.
+- Initial status: `keep_shadow_only_and_fix_blockers`.
+- Rerun status after Phase 3.2a: `proceed_to_traffic_only_hard_cutover_plan`.
+- `exec-052` was created only after the rerun decision permitted it, and remains a plan-only artifact.
+
+## Phase 3.2a - Traffic Cutover Blocker Closure
+
+Goal: close the remaining blockers from the Phase 3.2 decision without implementing cutover.
+
+- [x] Add closure checklist:
+  - [x] `docs/04-execution/exec-051-phase-3-2a-traffic-cutover-blocker-closure-plan.md`
+- [x] Add typed closure artifact:
+  - [x] `src/lib/route-indexed-traffic-ledger-poc/cutover/traffic-cutover-blocker-closure-plan.ts`
+- [x] Model closure states:
+  - [x] `blocked`
+  - [x] `ready_to_rerun_3_1`
+  - [x] `ready_to_rerun_3_2`
+  - [x] `ready_to_write_exec_052`
+- [x] Require real captures for:
+  - [x] `04880 - Medford Batsto`
+  - [x] `02408 - John s Waterfall`
+- [x] Require legacy captures to preserve visible source claim and details-panel source label so DOT-looking fallback can be audited.
+- [x] Require separate production cutover flag; debug flag is not sufficient.
+- [x] Require analysis/version and traffic-truth-engine marker plan.
+- [x] Capture real legacy + POC snapshots for both required routes.
+- [x] Rerun Phase 3.1 with real captures.
+- [x] Close rollback proof.
+- [x] Close cache/versioning proof.
+- [x] Rerun Phase 3.2 against the real report and closed blockers.
+
+Exit criteria:
+
+- [x] Closure artifact reaches `ready_to_write_exec_052`.
+- [x] Only then write `exec-052`.
+
+Evidence refs:
+
+- `docs/04-execution/reports/fixtures/traffic-parity/04880-medford-batsto/`
+- `docs/04-execution/reports/fixtures/traffic-parity/04880-medford-batsto/clean-hpms-source-records.json`
+- `docs/04-execution/reports/fixtures/traffic-parity/02408-johns-waterfall/`
+- `docs/04-execution/reports/fixtures/traffic-parity/02408-johns-waterfall/clean-hpms-source-records.json`
+- `docs/04-execution/reports/traffic-ledger-parity-real-capture-rerun-2026-06-16.md`
+- `docs/04-execution/decisions/traffic-ledger-rollback-flag-proof-2026-06-16.md`
+- `docs/04-execution/decisions/traffic-ledger-cache-versioning-decision-2026-06-16.md`
+- `docs/04-execution/decisions/traffic-ledger-cutover-decision-rerun-2026-06-16.md`
+- `docs/04-execution/exec-052-route-indexed-traffic-hard-cutover-plan.md`
+
+## Phase 4.1 - Speed Evidence Layer Transition
+
+Goal: after traffic is stable, migrate speed limit evidence into the same ledger-first architecture.
+
+Speed should be the next layer because it is already central to scoring, receipts, and inspection, but it has multiple source families and stronger provenance nuance than traffic.
+
+- [ ] Inventory current speed sources:
+  - OSM posted `maxspeed`
+  - HPMS speed where policy-eligible
+  - local/regional priors
+  - existing fallback/baseline speed behavior
+- [ ] Define stable ledger source layer:
+  - `speed_limit`
+  - route-distance spans only
+  - source lineage separate from provenance
+  - posted/official/imported/derived/baseline states explicit
+- [ ] Project accepted speed source facts into `RouteIndexedEvidenceLedger`.
+- [ ] Preserve OSM way IDs, HPMS row IDs, and source row IDs as metadata only.
+- [ ] Select stable speed truth from the ledger.
+- [ ] Preserve rejected speed refs and unresolved speed spans.
+- [ ] Keep local priors/fallbacks explicit as baseline fallback, not authoritative posted truth.
+- [ ] Add typed speed receipts.
+- [ ] Keep existing scoring and presentation behavior unchanged until a speed-specific cutover flag/gate.
+
+Tests:
+
+- [ ] Posted OSM speed wins over weaker fallback for the same route-distance interval.
+- [ ] HPMS speed can be candidate evidence without overwriting route identity.
+- [ ] Missing speed remains unresolved or baseline fallback according to policy.
+- [ ] Presentation can read selected speed from ActiveTruthView-compatible output only.
+- [ ] Legacy truth-run speed is not accepted as source evidence.
+
+Exit criteria:
+
+- [ ] Speed has the same candidate -> selected truth -> receipt shape as traffic.
+- [ ] Remaining scoring differences are documented before any hard cutover.
+
+## Phase 4.2 - Speed Cutover Decision Gate
+
+Goal: decide whether speed can move from shadow/additive output to the active route truth/scoring path.
+
+- [ ] Compare selected speed truth against existing production speed behavior on golden routes.
+- [ ] Document divergences:
+  - source precedence changes
+  - fallback/baseline changes
+  - unresolved spans
+  - score-impacting differences
+- [ ] Confirm inspector receipts explain every selected speed value.
+- [ ] Confirm rollback flag/gate exists.
+- [ ] Decide one of:
+  - cut over speed
+  - keep speed shadow-only and fix blockers
+  - redesign speed provenance/selection policy
+
+Exit criteria:
+
+- [ ] Written speed cutover/no-cutover decision.
+
+## Phase 5.1 - Bike Infrastructure Evidence Layer Transition
+
+Goal: migrate bike lanes and bikeway/facility evidence into the ledger-first architecture after traffic and speed are stable.
+
+Bike infrastructure should follow speed because its selected truth mitigates exposure but is more semantically complex than traffic or speed.
+
+- [ ] Inventory current bike infrastructure sources:
+  - OSM `cycleway*`
+  - bicycle-designated paths
+  - protected tracks / lanes / buffered lanes / shared lanes
+  - separated-path ownership semantics
+  - current safe-path classification behavior
+- [ ] Define stable ledger source layer:
+  - `bike_infra`
+  - route-distance spans only
+  - explicit facility type and side where available
+  - explicit confidence and provenance
+- [ ] Keep road/path ownership separate from bike-infra evidence.
+- [ ] Do not let bike-infra evidence rewrite geometry-first route identity.
+- [ ] Project accepted bike-infra source facts into `RouteIndexedEvidenceLedger`.
+- [ ] Preserve OSM way IDs and tag references as metadata only.
+- [ ] Select stable bike-infra truth from the ledger.
+- [ ] Preserve rejected refs and unresolved spans.
+- [ ] Add typed bike-infra receipts.
+
+Tests:
+
+- [ ] A protected lane/tagged facility selects into bike-infra truth for the correct route-distance interval.
+- [ ] Unknown bike infra remains unknown/unresolved rather than silently becoming `none`.
+- [ ] Sidewalk/path ownership does not become safe bike infrastructure without explicit bicycle/facility evidence.
+- [ ] Bike-infra selection consumes ledger only.
+- [ ] Presentation reads selected bike-infra from ActiveTruthView-compatible output only.
+
+Exit criteria:
+
+- [ ] Bike-infra selected truth is route-distance keyed, inspectable, and separate from ownership.
+
+## Phase 5.2 - Bike Infrastructure Cutover Decision Gate
+
+Goal: decide whether bike-infra selected truth can drive active scoring/presentation.
+
+- [ ] Compare selected bike-infra truth against current production behavior on golden routes.
+- [ ] Include routes with:
+  - painted lanes
+  - protected lanes/cycletracks
+  - no bike infra
+  - bicycle-designated paths
+  - ambiguous/unknown tags
+  - geometry-first path/footway edge cases
+- [ ] Confirm no safe-path/bike-infra leakage from ownership alone.
+- [ ] Confirm receipts explain selected, rejected, and unresolved cases.
+- [ ] Decide one of:
+  - cut over bike-infra
+  - keep bike-infra shadow-only and fix blockers
+  - redesign bike-infra source normalization/selection
+
+Exit criteria:
+
+- [ ] Written bike-infra cutover/no-cutover decision.
+
+## Phase 6.1 - Shoulder Evidence Layer Transition
+
+Goal: migrate shoulder evidence into the ledger-first architecture after traffic, speed, and bike-infra foundations are stable.
+
+Shoulder should follow bike-infra because shoulder selection often interacts with lane count, road class, HPMS/DOT fields, and explicit no-shoulder evidence.
+
+- [ ] Inventory current shoulder sources:
+  - HPMS shoulder type/width fields
+  - OSM shoulder tags
+  - state/DOT shoulder fields where available
+  - current explicit no-shoulder hazard logic
+  - current fallback/unknown behavior
+- [ ] Define stable ledger source layer:
+  - `shoulder`
+  - route-distance spans only
+  - side/width/type where available
+  - explicit unknown/unresolved/no-shoulder semantics
+- [ ] Do not infer missing shoulder as no shoulder.
+- [ ] Do not treat diagnostic bridge/no-shoulder hazards as canonical shoulder source evidence unless separately projected and selected.
+- [ ] Project accepted shoulder source facts into `RouteIndexedEvidenceLedger`.
+- [ ] Preserve source row IDs as metadata only.
+- [ ] Select stable shoulder truth from the ledger.
+- [ ] Add typed shoulder receipts.
+
+Tests:
+
+- [ ] Explicit shoulder width/type selects correctly.
+- [ ] Missing shoulder fields remain unresolved/unknown.
+- [ ] Explicit no-shoulder evidence is distinguishable from unknown.
+- [ ] Shoulder selection consumes ledger only.
+- [ ] Presentation reads selected shoulder from ActiveTruthView-compatible output only.
+
+Exit criteria:
+
+- [ ] Shoulder selected truth is route-distance keyed, inspectable, and does not rely on silent inference.
+
+## Phase 6.2 - Shoulder Cutover Decision Gate
+
+Goal: decide whether shoulder selected truth can drive active scoring/presentation.
+
+- [ ] Compare selected shoulder truth against existing production behavior on golden routes.
+- [ ] Include routes with:
+  - explicit shoulder
+  - explicit no shoulder
+  - unknown shoulder
+  - bridge/narrow-road edge cases
+  - HPMS/DOT shoulder fields
+- [ ] Confirm no missing-source field is treated as no shoulder.
+- [ ] Confirm receipts explain selected, rejected, unknown, and unresolved cases.
+- [ ] Decide one of:
+  - cut over shoulder
+  - keep shoulder shadow-only and fix blockers
+  - redesign shoulder source normalization/selection
+
+Exit criteria:
+
+- [ ] Written shoulder cutover/no-cutover decision.
+
+## Known Concerns To Watch
+
+- [ ] Do not register selected `traffic_aadt_baseline` as a source ledger layer unless explicitly modeling selected-truth snapshots. Source evidence and selected truth are different layers of architecture.
+- [ ] Do not let `traffic_temporal_exposure` enter the route-version evidence ledger. It belongs to session/context state or ActiveTruthView.
+- [ ] Do not leave receipts as `unknown[]`; typed receipts are part of the proof.
+- [ ] Do not rely on browser/system-local timezone for arrival-hour logic.
+- [ ] Do not split temporal spans per GPS tick.
+- [ ] Do not add presentation reads from the ledger as a shortcut.
+- [ ] Do not treat debug HPMS overlays as production presentation authority.
+- [ ] Do not touch ownership, broad scoring, or production heatmap behavior in this POC.
+
+## Verification Commands
+
+Use the repo's actual commands:
+
+```bash
+npm test
+npx tsc -p tsconfig.json --noEmit --pretty false --incremental false
+```
+
+If repo-wide TypeScript is already red from unrelated existing errors, also run focused checks for touched modules and document the repo-wide blockers.
+
+## Running Checklist
+
+Phase 1:
+
+- [x] 1.1 Ledger contract hardening complete
+- [x] 1.2 HPMS AADT source projection complete
+- [x] 1.3 Stable traffic baseline selection complete
+- [x] 1.4 RouteSurfaceTruthBundle-compatible stable output complete
+
+Phase 2:
+
+- [x] 2.1 Route time binding complete
+- [x] 2.2 Temporal traffic projector complete
+- [x] 2.3 RideContextTemporalLedger complete
+- [x] 2.4 ActiveTruthView composition complete
+- [x] 2.5 Feature flag and debug summary complete
+
+Phase 3:
+
+- [ ] 3.1 Parity/divergence report complete
+- [x] 3.2 Cutover decision gate complete; decision is `keep_shadow_only_and_fix_blockers`
+- [ ] 3.2a Traffic cutover blocker closure complete
+
+Phase 4:
+
+- [ ] 4.1 Speed evidence layer transition complete
+- [ ] 4.2 Speed cutover decision gate complete
+
+Phase 5:
+
+- [ ] 5.1 Bike infrastructure evidence layer transition complete
+- [ ] 5.2 Bike infrastructure cutover decision gate complete
+
+Phase 6:
+
+- [ ] 6.1 Shoulder evidence layer transition complete
+- [ ] 6.2 Shoulder cutover decision gate complete
+
+
+---
+
+## Source File: docs/04-execution/exec-052-route-indexed-traffic-hard-cutover-plan.md
+
+# exec-052 - Route-Indexed Traffic Hard Cutover Plan
+
+Date: 2026-06-16
+
+Related: exec-051, ADR-054, DS-055
+
+## Trigger
+
+Phase 3.2 rerun decision: `proceed_to_traffic_only_hard_cutover_plan`.
+
+This file is allowed because the rerun decision explicitly returned `proceed_to_traffic_only_hard_cutover_plan`.
+
+## Purpose
+
+Plan a default-off traffic-only hard cutover from legacy traffic behavior to selected route-indexed traffic truth.
+
+This exec is a plan. It does not implement the cutover by itself.
+
+Exec-052 exists to make the traffic cutover implementable without leaking around the RouteIndexedEvidenceLedger architecture. It is intentionally severe: traffic moves first, and only stable selected AADT truth moves.
+
+## Non-Negotiable Cutover Invariants
+
+- Route distance is the canonical join key: `distM`, `startDistM`, `endDistM`.
+- Legacy `truthRuns` are comparison/compatibility only. They must never become `RouteIndexedEvidenceLedger` source evidence.
+- `RouteIndexedEvidenceLedger.traffic_aadt` is the upstream source/candidate evidence boundary.
+- Stable traffic truth is `traffic_aadt_baseline` selected from the ledger.
+- `traffic_temporal_exposure` is session/view evidence only.
+- The cue-sheet start-time input may seed route-time binding only as session ride-context state.
+- A cue-sheet `HH:mm` value must be normalized to an absolute `plannedStartTimeIso` plus route clock context before temporal projection.
+- `traffic_temporal_exposure` must not enter the route-version `RouteIndexedEvidenceLedger`.
+- `traffic_temporal_exposure` must not become production Safety Score input in exec-052.
+- `ActiveTruthView` is the presentation read model for traffic.
+- Presentation may not query raw HPMS.
+- Presentation may not inspect legacy `truthRuns` as traffic evidence.
+- Presentation may not recompute traffic multipliers.
+- Presentation may not promote candidates.
+- Presentation may not reach into `RouteIndexedEvidenceLedger` candidates as rider-facing truth.
+- `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` is the production cutover flag.
+- `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER` remains debug/shadow only.
+- A flag-off rollback must restore legacy traffic behavior without schema rollback.
+
+## Non-Actions For This Plan
+
+- [x] No production scoring change in this redline pass.
+- [x] No heatmap behavior change in this redline pass.
+- [x] No RouteMap change in this redline pass.
+- [x] No cache schema change in this redline pass.
+- [x] No saved-route schema change in this redline pass.
+- [x] No migration code in this redline pass.
+- [x] No deployment in this redline pass.
+- [x] No legacy path removal in exec-052.
+
+## Hard Non-Goals
+
+Exec-052 does not:
+
+- change temporal traffic exposure into Safety Score input
+- remove the legacy traffic path
+- migrate speed
+- migrate bike infrastructure
+- migrate shoulder
+- migrate ownership
+- change Safety Score weights
+- change score calibration
+- change heatmap risk buckets
+- change RouteMap visual behavior except through a future flag-gated adapter
+- change `route_history` schema
+- change Supabase schema
+- write database migrations
+- persist raw `RouteIndexedEvidenceLedger` candidate/source objects into `route_cache` production payloads
+- allow debug flags to become production behavior flags
+- make route-indexed traffic default-on
+
+## Forbidden Shortcuts
+
+- Do not use `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER` as the production flag.
+- Do not feed `StableTrafficBaselineSnapshot` directly into RouteMap.
+- Do not feed `RouteIndexedEvidenceLedger` directly into RouteMap.
+- Do not feed `RouteIndexedEvidenceLedger` directly into scoring.
+- Do not adapt legacy `truthRuns` into route-indexed traffic truth.
+- Do not call HPMS from presentation.
+- Do not call `traffic-time.ts` from presentation.
+- Do not call the temporal projector from scoring.
+- Do not store temporal exposure in `route_cache` as durable traffic truth.
+- Do not mark unresolved AADT as zero.
+- Do not infer missing AADT from road class during cutover.
+- Do not remove the legacy traffic path in exec-052.
+- Do not make default-on behavior in exec-052.
+
+## Preflight Evidence
+
+- [x] Real capture fixtures: `docs/04-execution/reports/fixtures/traffic-parity/`
+- [x] Clean HPMS source-record fixtures:
+  - `docs/04-execution/reports/fixtures/traffic-parity/04880-medford-batsto/clean-hpms-source-records.json`
+  - `docs/04-execution/reports/fixtures/traffic-parity/02408-johns-waterfall/clean-hpms-source-records.json`
+- [x] Phase 3.1 rerun report: `docs/04-execution/reports/traffic-ledger-parity-real-capture-rerun-2026-06-16.md`
+- [x] Rollback/flag proof: `docs/04-execution/decisions/traffic-ledger-rollback-flag-proof-2026-06-16.md`
+- [x] Cache/versioning decision: `docs/04-execution/decisions/traffic-ledger-cache-versioning-decision-2026-06-16.md`
+- [x] Phase 3.2 rerun decision: `docs/04-execution/decisions/traffic-ledger-cutover-decision-rerun-2026-06-16.md`
+
+## Cutover Scope
+
+Allowed to plan:
+
+- [ ] Stable selected HPMS AADT baseline as canonical traffic truth.
+- [ ] Stable selected HPMS AADT baseline as traffic input to production scoring behind `USE_ROUTE_INDEXED_TRAFFIC_TRUTH`.
+- [ ] ActiveTruthView as the traffic presentation read model behind `USE_ROUTE_INDEXED_TRAFFIC_TRUTH`.
+- [ ] Traffic-only cache/version marker handling.
+- [ ] Rollback by turning `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` off.
+
+Not allowed in this exec without separate gates:
+
+- [ ] Temporal traffic exposure as production Safety Score input.
+- [ ] Legacy traffic path removal.
+- [ ] Speed, bike-infra, shoulder, ownership, or broad scoring migration.
+- [ ] Default-on rollout.
+
+## Approval Boundary
+
+This exec may approve:
+
+- [ ] local/dev route-indexed traffic cutover behind a default-off flag
+- [ ] internal dogfood behind an explicit written decision
+- [ ] continued legacy fallback
+
+This exec may not approve:
+
+- [ ] default-on route-indexed traffic
+- [ ] legacy path removal
+- [ ] temporal traffic in Safety Score
+- [ ] migration of speed, bike infrastructure, or shoulder
+- [ ] schema migration without a separate gate
+
+Default-on requires a future exec after dogfood evidence.
+
+## Failure Policy
+
+Route-indexed traffic mode must fail closed. It must log diagnostics, avoid route-indexed cache writes, and avoid inventing traffic truth.
+
+Optional fallback to legacy is allowed only when the output is explicitly marked `legacy_v1`, not `route_indexed_traffic_v1`.
+
+| Failure | Required behavior |
+| --- | --- |
+| stable traffic artifact missing | fail closed with diagnostic; no route-indexed cache write |
+| stable artifact digest mismatch | reject route-indexed path; no silent legacy-as-route-indexed output |
+| `ActiveTruthView` missing | presentation falls back only under explicit legacy policy |
+| adapter cannot partition route | block route-indexed output; do not patch holes with low traffic |
+| unresolved distance exceeds threshold | block or emit explicit unresolved policy result |
+| conflict distance exceeds threshold | block or emit explicit conflict policy result |
+| receipts missing | block route-indexed output for affected spans |
+| cache marker mismatch | reject, recompute, or safe legacy fallback as `legacy_v1` only |
+| route axis mismatch | reject route-indexed traffic output |
+| traffic adapter throws | flag-off unaffected; flag-on follows defined failure policy; no cache pollution |
+
+## Required Implementation Phases
+
+### Phase 0 - Cutover Surface Inventory
+
+Purpose: before touching code, inventory every current traffic consumer and classify each surface.
+
+Classifications:
+
+- `legacy production traffic authority`
+- `compatibility adapter consumer`
+- `presentation-only consumer`
+- `debug/comparison consumer`
+- `cache/history consumer`
+- `should not participate in cutover`
+
+Required inspection targets:
+
+- route-analysis traffic fields
+- safety-scoring traffic inputs
+- `traffic-time.ts` usage
+- heatmap builder traffic fields
+- RouteMap traffic props and road cards
+- SegmentInspector and receipt panels
+- route score explanation
+- `route_cache` serialization and rehydration
+- `route_history` save/load payloads
+- debug drawers and audit panels
+- HPMS debug overlays and special HPMS debug details drawer
+- POC parity fixtures
+
+Inventory table:
+
+| surface | file/module | current traffic source | future route-indexed source | flag behavior | rollback behavior | allowed in exec-052 | notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| route-analysis traffic authority | `src/lib/route-analysis.ts`; helpers `src/lib/hpms.ts`, `src/lib/dot-enrichment.ts`, `src/lib/evidence/*`, `src/lib/evidence/local-area-predicted.ts` | live/cache HPMS and DOT enrichment, local-area priors, highway-class fallback, truth-run AADT propagation, `resolveCanonicalTraffic` | `TrafficTruthArtifactProvider` plus `ProductionTrafficTruthAdapter` output | production flag switches the traffic authority before scoring/heatmap compatibility output | flag off restores full legacy route-analysis traffic behavior | yes | legacy production traffic authority; no scoring formula, weight, route matching, or fallback-ladder changes |
+| safety-scoring traffic inputs | `src/lib/safety-scoring.ts`, `src/shared/scoring/ds015-contract.ts`, `src/shared/scoring/safety-constants.ts`, callers in `src/lib/route-analysis.ts` | `SegmentInput.aadtValue`, `laneCount`, `dataSource`, `isAADTInferred`, `localAreaPredictedAADT`; DS-015 resolver | adapter-emitted stable AADT compatibility fields only | production flag changes traffic input source only | flag off exact legacy score behavior | yes | compatibility adapter consumer; no DS-015 calibration, bucket, or contribution changes |
+| heatmap builder traffic fields | `src/lib/heatmap/types.ts`, `src/lib/heatmap/builder.ts`, `src/lib/heatmap/index.ts`, `src/lib/route-line-v2/route-unit-heatmap-adapter.ts` | legacy `TruthRunInput` and `HeatmapSegment` fields such as `aadtValue`, `trafficDataSource`, `resolvedAADT*`, `resolvedTraffic*` | legacy-shaped traffic compatibility fields after scoring input cutover | production flag may affect traffic source only, not paint/risk bucket logic | flag off legacy heatmap behavior | yes | compatibility adapter consumer; no risk bucket or rendering semantics changes |
+| RouteMap traffic props and road cards | `src/components/RouteMap.tsx`, `src/pages/Index.tsx`, `src/lib/route-line-v2/v2ss-route-paint-contract.ts` | `activeGpxAnalysis`, `truthRuns`, `heatmapOutput`, HPMS debug overlays, clicked `HeatmapSegment` props | `ActiveTruthView`-derived presentation adapter props only | flag on receives presentation-ready traffic overlay/card props; no local truth branching | flag off legacy props | yes | presentation-only consumer; no direct ledger, raw HPMS, stable artifact, or selected-candidate access |
+| SegmentInspector / inspection drawer | `src/components/SegmentInspector.tsx`, `src/components/SegmentInspectorDrawer.tsx`, `src/components/inspection/InspectionPanel.tsx`, `src/components/inspection/TrafficProvenanceAudit.tsx`, `src/components/inspection/TruthSection.tsx`, `src/components/inspection/SectionReceiptSection.tsx` | clicked `HeatmapSegment`, resolved traffic fields, canonical score trace, admin-only provenance audit | `ActiveTruthView` receipt/presentation adapter output | flag on displays route-indexed receipts from sealed read model | flag off legacy trace/display | yes | presentation-only consumer; no recompute, no raw ledger candidates, no HPMS fetching |
+| route score explanation and analyze receipts | `src/domain/routeScoreExplanation.ts`, `src/components/RouteScoreExplanationPanel.tsx`, `src/domain/analyze/receipts/buildReceiptsViewModel.ts`, `src/domain/analyze/method/buildMethodViewModel.ts`, `src/domain/analyze/scorecard/buildScorecardViewModel.ts` | `SafetyResult`, canonical score trace, heatmap segments, receipt view models | score trace with `trafficTruthEngine`, selected baseline refs, and receipt refs | flag on emits distinguishable route-indexed traffic trace | flag off legacy trace intact | yes | compatibility/presentation trace consumer; must not reconstruct traffic truth from `truthRuns` |
+| `route_cache` serialization / rehydration | `src/lib/v1-route-analysis-cache.ts`, `src/lib/route-cache.ts`, route-cache usage in `src/lib/route-analysis.ts` | completed `SafetyResult` payload keyed by route hash and `CURRENT_DATA_VERSION`; rehydrates `truthRuns` for legacy compatibility | traffic truth engine marker plus selected traffic snapshot/adapter output allowed by cache decision | flag determines accepted marker family | flag off ignores route-indexed entries and reads/writes legacy-compatible entries only | yes | cache/history consumer; no schema migration, no raw ledger candidates, no temporal exposure |
+| `route_history` save/load payloads | `src/lib/route-persistence.ts`, `src/components/RouteHistory.tsx`, `src/pages/Index.tsx`, `supabase/migrations/20260313_baseline.sql`, `supabase/migrations/006_project_local_schema_reconciliation.sql`, `supabase/migrations/20260426_route_history_public_share_policy.sql` | saved `full_analysis`, encoded polyline, route hash, score summary, legacy history reload fallback | geometry-first reload with traffic truth mode reevaluation; saved legacy analysis remains compatibility only | flag does not make history authoritative | no saved-route schema rollback required because no schema change is allowed | yes | cache/history consumer; saved `truthRuns` are not evidence and must not seed ledger truth |
+| cue-sheet start-time temporal input | `src/lib/cueBuilder.ts` `startTimeStr` / `trafficStartTime`, `src/components/CueSheet.tsx`, `src/components/RouteAndAnalysisDrawer.tsx` | cue-sheet display time and current traffic-rate presentation input | interim session input to `RouteTimeBinding.plannedStartTimeIso` after absolute-time normalization | production flag must not let cue sheet own selected truth or scoring | flag off unchanged | yes | ride-context input only; changing start time marks temporal layer stale and triggers projector/ledger recompute before ActiveTruthView reads it |
+| temporal traffic utilities | `src/lib/traffic-time.ts`, `src/lib/temporal-projection/traffic-time-multiplier.ts`, `src/lib/temporal-projection/traffic-temporal-exposure.ts`, temporal callers in `src/lib/cueBuilder.ts`, `src/lib/presentation/inspectable-field-presentation.ts`, `src/components/inspection/TruthSection.tsx` | legacy time-of-day display helpers and POC session temporal exposure | unchanged session/view overlay only | production flag must not route temporal exposure into scoring | flag off unchanged | no | documented exclusion; temporal traffic remains view/session-scoped and is not Safety Score input in exec-052 |
+| ActiveTruthView POC read model | `src/lib/active-truth/active-truth-view.ts`, `src/lib/route-indexed-traffic-ledger-poc/traffic-ledger-poc-runner.ts`, `src/lib/route-indexed-traffic-ledger-poc/traffic-ledger-debug-summary.ts` | POC selected stable traffic plus session temporal ledger composed into sealed view | production presentation firewall for traffic after Phase 6 adapter | production flag may allow presentation adapter to read sealed view only | flag off legacy presentation | yes | allowed boundary; no fetching, recompute, promotion, raw HPMS, or ledger candidate reads |
+| debug drawers / audit panels | `src/components/MainAppShadowTestDrawer.tsx`, HPMS debug handoff in `src/pages/Index.tsx`, `src/lib/route-line-v2/v2ss-hpms-debug-overlay-model.ts`, `src/lib/heatmap/admin-verification-overlays.ts` | debug summaries, HPMS overlay/fallback-miss details, cache diagnostics, comparison refs | compact cutover diagnostics and opaque receipt ids | debug flag controls diagnostics only | production flag off means no production mutation | yes | debug/comparison consumer; debug flag is a peephole, not production behavior |
+| HPMS debug overlays and detail drawer | `src/lib/route-line-v2/v2ss-hpms-debug-overlay-model.ts`, `src/pages/Index.tsx` `buildHpmsInspectDetail` / `selectedDebugFeatureDetail`, `src/components/SegmentInspectorDrawer.tsx` `debugFeatureRef`, `src/lib/route-line-v2/v2ss-debug-surface-contract.ts` | selected/rejected/propagated HPMS overlay features, fallback-miss records, raw HPMS debug payloads displayed through the special debug feature drawer | debug/comparison receipts and opaque refs only; not production traffic truth | debug flag only; production flag must not make this drawer an authority | flag off leaves debug overlays non-authoritative | yes | special debug-only surface; may inspect raw HPMS for diagnostics, but never feeds scoring, cache, presentation truth, or candidate promotion |
+| POC parity and cutover decision fixtures | `src/lib/route-indexed-traffic-ledger-poc/parity/*`, `src/lib/route-indexed-traffic-ledger-poc/cutover/*`, `docs/04-execution/reports/fixtures/traffic-parity/*` | comparison-only legacy snapshots and `ActiveTruthView`-derived POC snapshots | golden fixtures and blocker evidence for regression only | not production behavior | not rollback path | yes | debug/comparison consumer; may read legacy snapshots only inside explicit comparison boundaries |
+| route-line V2 traffic evidence adapters | `src/lib/route-line-v2/v2ss-v1-traffic-aadt-source-adapter.ts`, `src/lib/route-line-v2/v2ss-hpms-multifield-hydrator.ts`, `src/lib/route-line-v2/evidence-registry.ts` | read-only V1 HPMS/DOT traffic AADT source adapter and debug evidence registry | source projection/ledger input proof only, not production presentation/scoring authority | remains outside production traffic cutover unless called by approved provider/projection worker | flag off unchanged | yes | source/projection support boundary; route_cache/completed-analysis/truthRuns-shaped inputs stay rejected as evidence |
+| offline pipeline scorer | `pipeline/src/osm-facts.ts`, `pipeline/src/slice-scorer.ts`, `pipeline/src/slice-builder.ts`, `pipeline/src/route-rollup.ts` | batch/offline AADT fields and traffic index scoring | none in exec-052 | production flag must not touch pipeline behavior | unchanged | no | documented exclusion; migrate separately if pipeline cutover is ever requested |
+
+Documented exclusions:
+
+- `traffic_temporal_exposure` is not production Safety Score input in exec-052.
+- `pipeline/src/*` traffic scoring is out of scope for this client-side hard cutover plan.
+- Saved `route_history.full_analysis.truthRuns` and `route_cache.safety_result.truthRuns` are compatibility payloads, not selected traffic evidence.
+- Debug HPMS overlays may inspect raw source/debug records only under debug/comparison surfaces; they must not become presentation truth.
+- The HPMS debug details drawer may display raw HPMS/debug payloads for admin diagnosis only; it must not become an ActiveTruthView adapter, scoring adapter, cache writer, or source projection shortcut.
+- Cue-sheet start time may set the dynamic temporal variable for planning overlays only; it must not write stable truth, `route_cache` durable truth, Safety Score inputs, or route-version ledger evidence.
+
+Interim cue-sheet temporal binding rule:
+
+- [ ] Treat cue-sheet `startTimeStr` as a UI input to ride-context/session state, not evidence.
+- [ ] Convert `startTimeStr` to an absolute `plannedStartTimeIso` with explicit route clock context before calling temporal projection.
+- [ ] Store the resulting binding in the ride-context temporal ledger, not the route-version evidence ledger.
+- [ ] Changing cue-sheet start time marks `traffic_temporal_exposure` stale.
+- [ ] The temporal projector recomputes from selected stable baseline plus the new route-time binding.
+- [ ] The temporal ledger accepts the recomputed projection only when the binding revision matches.
+- [ ] `ActiveTruthView` reads current temporal state later; presentation does not call the projector or `traffic-time.ts` directly.
+- [ ] GPS-active actual progress may replace future estimates through the same binding revision path; it does not mutate stable selected AADT truth.
+
+Acceptance:
+
+- [x] This inventory is verified against concrete files before cutover code begins.
+- [x] Every traffic consumer is classified.
+- [x] Every allowed surface has an owner adapter or explicit no-change decision.
+- [x] Every disallowed surface has a guardrail test or documented exclusion.
+
+Phase 0 exception note:
+
+- Phase 1 created a non-operational flag boundary before all future cutover code exists.
+- This is allowed only because the boundary is pure, inert, and not wired into production behavior.
+- No scoring, heatmap, cache, `route_history`, RouteMap, or presentation integration may proceed until Phase 0 inventory remains verified against the implementation phase being attempted.
+
+### Phase 1 - Flag Governance And Kill Switch
+
+Purpose: own production traffic truth mode in one typed boundary.
+
+Implemented boundary:
+
+```text
+src/lib/traffic-truth/traffic-truth-mode.ts
+```
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-1-flag-governance-handoff.md
+```
+
+Requirements:
+
+- [x] `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` defaults off.
+- [x] `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER` remains debug/shadow only.
+- [x] The debug flag cannot enable production scoring, heatmap, cache, or presentation changes.
+- [x] The production flag cannot run without cache/version marker policy.
+- [x] A single typed function owns production traffic cutover state:
+
+```ts
+function getTrafficTruthMode(flags: TrafficTruthFlags): 'legacy_v1' | 'route_indexed_traffic_v1';
+```
+
+- [x] A separate runtime decision owns operational eligibility:
+
+```ts
+function getTrafficTruthRuntimeDecision(input: TrafficTruthRuntimeDecisionInput): TrafficTruthRuntimeDecision;
+```
+
+- [x] No scattered flag checks.
+- [x] No component-level interpretation of traffic truth mode.
+- [x] No RouteMap-specific flag logic.
+- [x] No scoring-specific ad hoc flag logic.
+- [ ] `deferred_to_phase_3_stable_traffic_adapter`: production flag-on traffic reads through the approved stable traffic adapter only.
+
+Flag matrix:
+
+| `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER` | `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` | Behavior |
+| --- | --- | --- |
+| false | false | legacy production, no POC diagnostics |
+| true | false | legacy production, POC diagnostics allowed |
+| false | true | route-indexed cutover mode requested; operational use blocked until runtime preconditions are ready |
+| true | true | route-indexed cutover mode requested plus debug diagnostics; operational use blocked until runtime preconditions are ready |
+
+Runtime gate:
+
+- [x] `getTrafficTruthMode(...)` returns requested mode only; it does not prove route-indexed traffic is operational.
+- [x] `getTrafficTruthRuntimeDecision(...)` returns `operationalDecision=blocked_route_indexed_missing_cache_policy` when `USE_ROUTE_INDEXED_TRAFFIC_TRUTH=true` but `cacheMarkerPolicyReady` is not true.
+- [x] The gate does not silently fall back and pretend route-indexed truth exists.
+- [x] Adapter and marker-policy readiness are required explicit preconditions before route-indexed mode can become operational.
+- [x] Later cache/provider/adapter phases must satisfy this gate before route-indexed mode becomes operational.
+- [x] Adapter and marker-policy blockers are typed and active but not claimed complete in Phase 1.
+
+Acceptance tests:
+
+- [x] Debug flag on alone does not mutate production analysis output.
+- [x] Production flag off uses legacy traffic.
+- [x] Production flag on requests route-indexed mode but cannot run route-indexed traffic without cache marker readiness.
+- [x] Disabling production flag restores legacy behavior.
+- [x] Static source scan keeps the production flag out of runtime consumers.
+- [x] The traffic truth mode boundary does not import debug flag runtime state or read local/global state directly.
+- [x] No schema rollback is required.
+
+### Phase 2 - Cache Identity And Analysis Versioning
+
+Purpose: prevent semantic cache poisoning.
+
+Implemented boundary:
+
+```text
+src/lib/traffic-truth/traffic-truth-cache-policy.ts
+```
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-2-cache-identity-handoff.md
+```
+
+Phase 2 implementation status:
+
+- [x] Pure marker and acceptance policy exists.
+- [x] Policy is exported from `src/lib/traffic-truth/index.ts`.
+- [x] Policy does not import production `route_cache`, Supabase, browser storage, or global runtime state.
+- [x] Policy tests prove intended cache semantics.
+- [x] Production cache readers/writers are not wired to this policy yet.
+
+Required marker shape:
+
+```ts
+interface TrafficTruthEngineMarker {
+  trafficTruthEngine: 'legacy_v1' | 'route_indexed_traffic_v1';
+  trafficTruthEngineVersion: string;
+  analysisVersion: number;
+  dataVersion?: number;
+  fallbackPolicy?:
+    | 'none'
+    | 'full_route_legacy_fallback'
+    | 'explicit_unresolved_non_score_bearing'
+    | 'blocked';
+
+  routeIndexedEvidenceLedgerVersion?: string;
+  stableTrafficArtifactId?: string;
+  stableTrafficArtifactDigest?: string;
+  activeTruthViewDigest?: string;
+
+  generatedAt: string;
+}
+```
+
+Rules:
+
+- [x] Flag off accepts only `legacy_v1` or unmarked legacy-compatible cache entries.
+- [x] Flag on accepts only `route_indexed_traffic_v1` entries that match marker/version/digest policy.
+- [x] Flag on must not serve legacy traffic cache as if it were route-indexed truth.
+- [x] Flag off must ignore route-indexed cache entries.
+- [x] Same `route_hash` plus same `data_version` must not carry ambiguous traffic semantics.
+- [x] If existing `route_cache` schema cannot store marker safely, use version bump / payload marker strategy.
+- [x] Do not add schema migration in exec-052 unless explicitly added as a later gated phase.
+- [x] If marker requires schema change, stop and create a blocker rather than sneaking it in.
+
+Phase 2 marker storage decision:
+
+- Use future payload marker field `trafficTruthEngineMarker` inside the canonical cache payload.
+- Do not add a `route_cache` schema column in Phase 2.
+- Treat missing marker as legacy-compatible only when the production cutover flag is off and the caller has identified the payload as legacy-compatible.
+- Treat missing marker as reject/recompute in route-indexed mode.
+- Route-indexed payload acceptance requires stable traffic artifact id/digest and matching marker/version policy.
+- Full-route legacy fallback must be marked `legacy_v1`; it may not hide inside `route_indexed_traffic_v1`.
+
+Allowed in `route_cache` for exec-052:
+
+- [x] `TrafficTruthEngineMarker`
+- [x] stable selected traffic artifact id/digest
+- [x] selected traffic baseline value snapshots required by scoring
+- [x] compact receipt refs or selected receipt snapshots
+- [x] adapter output needed to rehydrate scoring safely
+- [x] `ActiveTruthView` digest/reference if needed
+
+Forbidden in `route_cache` for exec-052:
+
+- [x] raw HPMS rows
+- [x] HPMS tile/window source records
+- [x] raw `RouteIndexedEvidenceLedger` candidate spans
+- [x] rejected candidate objects except compact refs
+- [x] `traffic_temporal_exposure` as durable traffic truth
+- [x] debug parity fixtures
+- [x] giant receipt/source dumps
+
+`route_history` rule:
+
+- [x] `route_history` remains compatible.
+- [x] Saved route payloads must not require schema rollback.
+- [x] `route_history` may reference cached analysis but must not become authority for traffic truth semantics.
+
+Acceptance:
+
+- [x] Tests prove legacy and route-indexed cache entries are not interchangeable.
+- [x] Tests prove rollback ignores route-indexed cache entries.
+- [x] Tests prove cache marker survives canonicalization/rehydration if stored.
+- [x] Tests prove stale marker mismatch forces recompute or safe legacy fallback.
+- [x] Policy validator rejects route-indexed cache payloads containing raw source evidence.
+- [x] Policy requires selected route-indexed traffic artifact id/digest so future cache payloads can rehydrate without reopening HPMS/source projection.
+- [x] Route-indexed cache payload cannot be mistaken for legacy traffic semantics.
+- [x] Route-indexed cache payload cannot be mistaken for temporal/session evidence.
+
+Phase 2 non-wiring statement:
+
+- [x] No production cache read path calls `evaluateTrafficTruthCacheEntry(...)` yet.
+- [x] No production cache write path attaches `trafficTruthEngineMarker` yet.
+- [x] No `route_cache` schema change or migration was added.
+- [x] No `route_history` schema change or migration was added.
+- [x] No scoring, heatmap, RouteMap, or presentation behavior was changed.
+
+### Phase 2.5 - Traffic Truth Artifact Provider
+
+Purpose: provide one approved production boundary that returns the selected stable traffic artifact for the current route/mode.
+
+Implemented boundary:
+
+```text
+src/lib/traffic-truth/traffic-truth-artifact-provider.ts
+```
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-2-5-traffic-truth-artifact-provider-handoff.md
+```
+
+Phase 2.5 implementation status:
+
+- [x] Pure provider boundary exists.
+- [x] Provider interprets traffic truth mode through `getTrafficTruthRuntimeDecision(...)`.
+- [x] Provider attaches `TrafficTruthEngineMarker` to successful artifact results.
+- [x] Provider can return marked `legacy_v1` artifacts.
+- [x] Provider can return marked `route_indexed_traffic_v1` stable artifacts when runtime preconditions pass.
+- [x] Provider fails closed when route-indexed runtime preconditions or stable artifacts are missing.
+- [x] Provider supports full-route legacy fallback only as an explicitly marked `legacy_v1` result.
+- [x] Provider is not wired into production scoring, heatmap, RouteMap, cache, route history, or presentation.
+
+Contract:
+
+```text
+getTrafficTruthArtifact(input, trafficTruthMode)
+  -> legacy_v1 artifact reference/output
+  OR route_indexed_traffic_v1 stable artifact/output
+```
+
+Suggested result:
+
+```ts
+interface TrafficTruthArtifactProviderResult {
+  trafficTruthEngine: 'legacy_v1' | 'route_indexed_traffic_v1';
+  marker: TrafficTruthEngineMarker;
+
+  routeAxisId?: string;
+  routeAxisRevision?: string;
+
+  stableTrafficArtifact?:
+    | StableTrafficBaselineSnapshot
+    | RouteSurfaceStableTrafficOutput;
+
+  legacyTrafficArtifact?: LegacyTrafficComparisonSnapshot | unknown;
+
+  diagnostics: TrafficTruthProviderDiagnostic[];
+}
+```
+
+Rules:
+
+- [x] This provider is the only approved cutover orchestration point allowed to decide legacy vs route-indexed traffic truth mode.
+- [x] It may receive an approved route-indexed stable traffic artifact when the production flag is on and runtime gates pass.
+- [x] It may return legacy-compatible traffic source when the production flag is off.
+- [x] It must not let scoring, heatmap, RouteMap, or presentation instantiate `RouteIndexedEvidenceLedger`.
+- [x] It must not let scoring, heatmap, RouteMap, or presentation call source projection.
+- [x] It must not let scoring, heatmap, RouteMap, or presentation call the traffic baseline selector.
+- [x] It must not let scoring, heatmap, RouteMap, or presentation fetch HPMS directly.
+- [x] Successful artifact results must attach `TrafficTruthEngineMarker`.
+- [x] Route-indexed artifact results must return route-axis identity and digest metadata.
+- [x] It must fail closed if route-indexed artifact generation fails or has not supplied a stable artifact.
+- [x] Optional fallback to legacy is allowed only if the returned artifact is explicitly marked `legacy_v1`, never `route_indexed_traffic_v1`.
+
+Acceptance:
+
+- [ ] `deferred_to_phase_4_scoring_input_cutover`: scoring receives traffic truth through provider plus adapter only.
+- [ ] `deferred_to_phase_5_heatmap_cutover`: heatmap receives traffic truth through provider plus adapter only.
+- [ ] `deferred_to_phase_6_presentation_cutover`: presentation receives traffic truth through `ActiveTruthView` only.
+- [x] Provider itself does not independently run the ledger/selector/projection stack.
+- [x] Provider itself does not fetch HPMS directly in route-indexed mode.
+
+Phase 2.5 non-wiring statement:
+
+- [x] No production scoring consumer imports `getTrafficTruthArtifact(...)` yet.
+- [x] No production heatmap consumer imports `getTrafficTruthArtifact(...)` yet.
+- [x] No RouteMap or presentation consumer imports `getTrafficTruthArtifact(...)` yet.
+- [x] No production cache read/write path imports `getTrafficTruthArtifact(...)` yet.
+- [x] No schema or migration was added.
+
+### Phase 3.5 - Road Substrate Traffic Overlay Adapter (Pulled Forward)
+
+Purpose: prove traffic can become the first presentation overlay for the new road-substrate drawing path without using the old viewport heatmap backend and without creating a side-door traffic authority.
+
+This phase is pulled forward before Phase 3 production scoring/compatibility cutover because rider-facing traffic road coloring currently has no competing production heatmap behavior. It remains presentation-only and read-only.
+
+Implemented boundary:
+
+```text
+src/lib/active-truth/substrate-traffic-overlay-adapter.ts
+```
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-3-5-road-substrate-traffic-overlay-handoff.md
+```
+
+Contract:
+
+```text
+ActiveTruthView
+  -> RoadSubstrateTrafficOverlayAdapter
+  -> semantic overlay spans
+  -> road substrate viewport renderer later
+```
+
+Adapter input:
+
+```text
+ActiveTruthView only
+```
+
+Adapter output:
+
+```text
+immutable semantic route-distance overlay spans
+```
+
+Rules:
+
+- [x] The adapter reads `ActiveTruthView` only.
+- [x] The adapter does not read `RouteIndexedEvidenceLedger` directly.
+- [x] The adapter does not instantiate a ledger.
+- [x] The adapter does not call source projection.
+- [x] The adapter does not call the traffic baseline selector.
+- [x] The adapter does not call the temporal projector.
+- [x] The adapter does not fetch raw HPMS.
+- [x] The adapter does not inspect legacy `truthRuns`.
+- [x] The adapter does not call `traffic-time.ts`.
+- [x] The adapter does not import scoring, RouteMap, old heatmap backend, cache, Supabase, browser storage, or route history.
+- [x] The road substrate supplies geometry refs only.
+- [x] The road substrate does not supply traffic truth.
+- [x] The output carries `source=active_truth_view`.
+- [x] The output carries source lineage copied from the sealed view, including stable truth artifact id/digest and source ledger id when present.
+- [x] The output carries `layerId=traffic_aadt_baseline`.
+- [x] The output is frozen so presentation cannot mutate traffic truth in place.
+
+Presentation semantics:
+
+- [x] Selected stable AADT spans become semantic road-substrate traffic overlay spans.
+- [x] Unresolved spans stay unresolved.
+- [x] Conflict spans stay conflict.
+- [x] Missing traffic is never converted to zero.
+- [x] Missing traffic is never converted to low traffic.
+- [x] Labels use `vehiclesPerMinuteEquivalent = AADT / 1440`.
+- [x] Labels use daily-average wording, for example `~6 veh/min avg`.
+- [x] Labels declare `isLiveObservedTraffic=false`.
+- [x] Labels declare `isTemporalAdjusted=false`.
+- [x] Road coloring emits traffic-specific semantic token ids such as `traffic.overlay.aadt.high`.
+- [x] The adapter emits no raw colors, CSS classes, Leaflet styles, zoom paint rules, or Safety Score heatmap buckets.
+
+Non-wiring statement:
+
+- [x] No RouteMap integration was added.
+- [x] No production heatmap behavior was changed.
+- [x] No old viewport heatmap backend integration was added.
+- [x] No production scoring behavior was changed.
+- [x] No cache, `route_history`, schema, or migration was changed.
+- [x] No dev drawer or HPMS debug drawer behavior was changed.
+
+Acceptance:
+
+- [x] Adapter output partitions `[0,totalDistM)` when the ActiveTruthView stable traffic baseline partitions the route.
+- [x] Selected/unresolved/conflict spans are preserved.
+- [x] Stable selected spans preserve AADT, source family, confidence, warnings, and receipt ids.
+- [x] Temporal traffic exposure is not included in Phase 3.5.
+- [x] Geometry refs are pass-through presentation join refs only.
+- [x] Source scan proves the adapter has no side-door imports or runtime reads.
+- [x] Focused tests pass.
+
+### Phase 3 - Stable Traffic Adapter
+
+Purpose: create the adapter from route-indexed selected traffic truth to the production traffic input shape.
+
+This phase may touch traffic fields only. It must not change speed, bike infrastructure, shoulder, hazard, rail, ownership, route-time, temporal exposure, or scoring weights.
+
+Implemented boundary:
+
+```text
+src/lib/traffic-truth/production-traffic-truth-adapter.ts
+```
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-3-production-traffic-truth-adapter-handoff.md
+```
+
+Contract:
+
+```text
+StableTrafficBaselineSnapshot / RouteSurfaceStableTrafficOutput
+  -> ProductionTrafficTruthAdapter
+  -> legacy-compatible traffic fields consumed by scoring and heatmap compatibility paths only
+```
+
+Presentation must remain on this path:
+
+```text
+ActiveTruthView
+  -> ActiveTruthView-derived presentation adapter
+  -> road substrate renderer / RouteMap props
+```
+
+Suggested module:
+
+```text
+src/lib/traffic-truth/route-indexed-traffic-adapter.ts
+```
+
+Rules:
+
+- [x] Adapter consumes selected stable truth only.
+- [x] Adapter does not consume raw HPMS.
+- [x] Adapter does not consume `RouteIndexedEvidenceLedger` candidates directly.
+- [x] Adapter does not consume legacy `truthRuns` as input.
+- [x] Adapter does not call HPMS projection.
+- [x] Adapter does not call traffic baseline selector.
+- [x] Adapter does not call temporal projector.
+- [x] Adapter does not call `traffic-time.ts`.
+- [x] Adapter does not compute Safety Score.
+- [x] Adapter emits compatibility fields only.
+- [x] `ProductionTrafficTruthAdapter` is not a presentation authority.
+- [x] It exists to feed scoring/heatmap compatibility while those systems still expect legacy-shaped traffic fields.
+- [x] RouteMap and inspector surfaces must use `ActiveTruthView` or an `ActiveTruthView`-derived adapter in route-indexed mode.
+
+Suggested output:
+
+```ts
+interface ProductionTrafficTruthSpan {
+  startDistM: number;
+  endDistM: number;
+
+  source: 'route_indexed_traffic_v1';
+
+  aadt: number | null;
+  aadtPerLane?: number | null;
+
+  status:
+    | 'selected'
+    | 'unresolved'
+    | 'conflict';
+
+  scoreEligibility:
+    | 'score_driving'
+    | 'non_score_bearing_unresolved'
+    | 'non_score_bearing_conflict';
+
+  sourceFamily: 'HPMS' | 'unknown';
+
+  selectedBaselineSpanId: string | null;
+  selectedFromLedgerSpanIds: string[];
+
+  receiptIds: string[];
+  confidence: RouteEvidenceConfidence;
+  warnings: string[];
+}
+```
+
+Acceptance:
+
+- [x] Adapter output partitions `[0,totalDistM)`.
+- [x] Unresolved remains unresolved.
+- [x] Conflict remains conflict.
+- [x] Missing AADT is never converted to zero or low traffic.
+- [x] Selected values carry receipt ids.
+- [x] Adapter output can feed current scoring/heatmap compatibility path behind flag.
+- [x] Adapter output must not be passed directly to RouteMap, road cards, SegmentInspector, or rider-facing presentation as traffic truth.
+- [x] Adapter has no scoring, heatmap, or presentation imports.
+
+### Phase 4 - Scoring Input Cutover Behind Flag
+
+Purpose: switch only the traffic input source behind `USE_ROUTE_INDEXED_TRAFFIC_TRUTH`.
+
+This phase may touch traffic fields only. It must not change speed, bike infrastructure, shoulder, hazard, rail, ownership, route-time, temporal exposure, or scoring weights.
+
+Implemented boundary:
+
+```text
+src/lib/traffic-truth/traffic-scoring-input-cutover.ts
+```
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-4-scoring-input-cutover-handoff.md
+```
+
+Phase 4 current state:
+
+```text
+Phase 4 core adapter/cutover boundary implemented.
+Production scoring integration not yet wired.
+Route-analysis scoring construction seam still pending audit/insertion.
+Phase 4 is not fully complete until flag-on scoring input construction runs
+through the approved provider + adapter path.
+```
+
+#### Phase 4A - Scoring Input Adapter Boundary
+
+Status: complete.
+
+- [x] Pure scoring input cutover boundary exists.
+- [x] It consumes `TrafficTruthArtifactProviderResult`, `ProductionTrafficTruthArtifact`, and existing scoring segment inputs.
+- [x] `ProductionTrafficTruthAdapter` exists and consumes selected stable traffic truth only.
+- [x] Scoring cutover input object exists.
+- [x] Unresolved/conflict policy exists as a typed policy object.
+- [x] It does not call scoring math.
+- [x] It does not call route analysis.
+- [x] It does not call source projection, raw HPMS, selectors, temporal projectors, old heatmap, RouteMap, cache, or route history.
+- [x] It returns exact legacy scoring inputs when the provider selected `legacy_v1`.
+- [x] It applies route-indexed stable AADT to scoring traffic fields only when provider and production traffic artifact are route-indexed ready.
+- [x] It blocks route-indexed scoring input when unresolved/conflict spans exist.
+- [x] It blocks partial per-span legacy fallback.
+- [x] It emits explicit `fallbackPolicy` and `blockedReason` fields for blocked/fallback states.
+- [x] Production `route-analysis.ts` wiring was not added in this pass because no approved route-analysis handoff currently supplies `TrafficTruthArtifactProviderResult` plus `ProductionTrafficTruthArtifact`.
+
+#### Phase 4B - Scoring Input Runtime Insertion
+
+Status: implemented and hardening-audited behind `USE_ROUTE_INDEXED_TRAFFIC_TRUTH`.
+
+- [x] `route-analysis.ts` scoring input construction consumes the approved traffic truth provider path.
+- [x] `route-analysis.ts` scoring input construction consumes `ProductionTrafficTruthArtifact` through the runtime helper.
+- [x] Flag-off score construction preserves exact legacy behavior in focused real-capture fixture tests.
+- [x] Flag-on stable AADT source switch uses the approved provider + adapter + cutover path.
+- [x] No scoring formula or weight changes.
+- [x] Focused real-capture score delta coverage exists.
+- [x] Route-indexed flag-on AADT deltas are documented as typed `aadtDeltas`.
+- [x] Unresolved/conflict route-indexed inputs block or fall back full-route as explicit `legacy_v1`.
+- [x] Introduced-error audit complete: current ESLint/TypeScript diagnostics do not land inside 4B/5B changed hunk ranges.
+- [x] Exact route-analysis insertion-zone guard exists.
+- [x] Runtime seam-order guard exists.
+- [x] Runtime route-indexed cache bypass guard exists.
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-4-scoring-input-cutover-handoff.md
+```
+
+Current seam audit:
+
+- Current scoring segment assembly lives in `src/lib/route-analysis.ts` inside `analyzeRouteProgressive`, at the block beginning `// ── Build scoring segments ──`.
+- Current AADT source is `CueEntry.aadtValue`, populated earlier by the legacy route-analysis/HPMS/DOT/fallback path.
+- Current traffic bucket source is the same block's `trafficVolume` fallback ladder: safe-path low, then AADT bucket, then `highwayTypeToTrafficTier`, then low.
+- Current time multiplier source is not a Safety Score input. `traffic-time.ts` is imported by route-analysis for rider-facing flow formatting, but no temporal multiplier enters `SegmentInput` or `computeRouteSafetyScore`.
+- Route-indexed stable AADT would enter after legacy `scoringSegments` are assembled and before `computeRouteSafetyScore(scoringSegments, scoringDistanceMi, crossingConflicts)`.
+- Fields that must be preserved exactly: length, speed, safe/path domain, left-turn/crossing inputs, shoulder, bike facility, lane count, lane-known flag, highway type, curvature fields, and crossing conflict events.
+- Out of scope for Phase 4A: production insertion, score trace rewrite, heatmap behavior, RouteMap behavior, cache/history schema, temporal/contextual scoring, and changes to scoring formulas or weights.
+- `traffic-time.ts` remains unchanged because temporal exposure is a planning/presentation overlay and not a Phase 4 Safety Score input.
+
+Before scoring input cutover begins, define `TrafficUnresolvedConflictScoringPolicy`.
+
+It must answer:
+
+- What happens when selected route-indexed traffic baseline contains unresolved spans?
+- What happens when it contains conflict spans?
+- Is the whole route rejected from route-indexed traffic mode?
+- Are unresolved/conflict spans passed as non-score-bearing?
+- Is fallback to legacy allowed for the entire route?
+- Is per-span fallback allowed?
+- How is fallback marked in `TrafficTruthEngineMarker`?
+
+Default recommended policy for exec-052:
+
+- [x] Do not silently mix route-indexed selected truth with legacy per-span fallback.
+- [x] If route-indexed traffic cannot provide score-eligible traffic truth over required spans, fail closed for route-indexed scoring input.
+- [x] Never convert unresolved AADT to zero.
+- [x] Never convert unresolved AADT to low traffic.
+- [x] Never infer missing AADT from road class during cutover.
+- [x] Never hide fallback inside `route_indexed_traffic_v1` without marker disclosure.
+- [x] Default policy is `block_route_indexed_on_any_unresolved_or_conflict_v1`.
+- [x] Full-route legacy fallback is allowed only when explicitly marked `legacy_v1`.
+- [x] Route-indexed output never secretly contains legacy fallback traffic.
+
+Rules:
+
+- [x] Do not change Safety Score weights.
+- [x] Do not change traffic risk formula.
+- [x] Do not change `traffic-time.ts` behavior.
+- [x] Do not introduce temporal traffic exposure into production Safety Score.
+- [x] Do not change speed, bike infra, shoulder, hazard, or rail logic.
+- [x] Only the stable AADT source changes.
+- [x] If scoring requires legacy shape, use the approved adapter.
+- [x] If adapter cannot provide required fields, fail closed and use legacy behavior when flag off.
+
+Acceptance:
+
+- [x] Focused real-capture fixture scoring parity measured.
+- [x] Route-indexed flag-on score deltas are documented.
+- [ ] Unexplained score deltas are blockers.
+- [x] Phase 4A flag-off scoring input boundary returns exact legacy inputs when given a legacy provider marker.
+- [x] Phase 4B flag-off runtime score exactly matches legacy in focused real-capture fixture tests.
+- [x] Temporal exposure remains absent from production Safety Score input boundary.
+- [x] Unresolved/conflict policy is typed.
+- [x] Focused route-indexed scoring input tests include unresolved/conflict behavior.
+- [x] Medford/Batsto and John's Waterfall adapter-level AADT deltas are typed and explainable without computing a score.
+- [x] Score deltas caused by unresolved/conflict are blocked or full-route `legacy_v1` fallback, not mixed per span.
+- [x] No per-span legacy laundering occurs unless separately approved and explicitly marked.
+- [x] Production scoring can consume route-indexed stable AADT behind flag.
+- [x] Route-indexed runtime cache policy is named `bypass_until_marker_aware_cache_reuse`.
+
+### Phase 5 - Score Trace And Receipt Compatibility
+
+Purpose: make score traces and explanations remain inspectable.
+
+This phase may touch traffic fields only. It must not change speed, bike infrastructure, shoulder, hazard, rail, ownership, route-time, temporal exposure, or scoring weights.
+
+#### Phase 5A - Score Trace Compatibility Boundary
+
+Status: complete.
+
+Implemented boundary:
+
+```text
+src/lib/traffic-truth/traffic-score-trace-compatibility.ts
+```
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-5-score-trace-compatibility-handoff.md
+```
+
+Contract:
+
+```text
+TrafficScoringInputCutoverResult
+  + ProductionTrafficTruthArtifact / ProductionTrafficTruthSpan
+  + TrafficTruthEngineMarker
+  + selected stable traffic receipt refs
+  -> TrafficScoreTraceCompatibilityAttachment
+```
+
+Phase 5A owns:
+
+- [x] typed trace attachment model
+- [x] typed receipt index bridge
+- [x] route-indexed / legacy / blocked modes distinguishable
+- [x] route-indexed selected spans preserve `selectedBaselineSpanId`, receipt ids, confidence, and source family
+- [x] unresolved/conflict blocked cases produce typed blocked attachments
+- [x] full-route legacy fallback is marked `legacy_v1`
+- [x] no per-span legacy fallback inside `route_indexed_traffic_v1`
+- [x] no `unknown[]` receipt arrays
+- [x] temporal route-indexed exposure fields are excluded
+- [x] no runtime production scoring integration
+- [x] no UI integration
+- [x] no cache/history/schema change
+
+Phase 5A non-wiring statement:
+
+- [x] No `route-analysis.ts` wiring was added.
+- [x] No `computeRouteSafetyScore` change was added.
+- [x] No `traffic-time.ts` call or import was added.
+- [x] No heatmap, RouteMap, SegmentInspector, explanation UI, cache, route history, schema, or migration change was added.
+
+#### Phase 5B - Runtime Score Trace Insertion
+
+Status: implemented and hardening-audited behind `USE_ROUTE_INDEXED_TRAFFIC_TRUTH`.
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-5b-runtime-score-trace-insertion-handoff.md
+```
+
+Runtime insertion:
+
+- [x] Phase 5B was inserted against the real runtime route-analysis path.
+- [x] Phase 4B route-analysis scoring input insertion is implemented.
+- [x] Production scoring can receive route-indexed stable AADT before `computeRouteSafetyScore`.
+- [x] Canonical scoreTrace road slices are still rebuilt from final legacy-shaped compatibility `truthRuns`.
+- [x] Runtime trace metadata is attached as `canonicalAnalysis.scoreTrace.trafficScoreTraceCompatibility`.
+- [x] Final road-slice rebuild mutates `scoreTrace.roadSlices` and preserves the traffic compatibility attachment.
+- [x] No route-indexed `selectedBaselineSpanId` or `receiptIds` were invented.
+- [x] No cache schema or route-history schema was extended.
+- [x] Route-indexed traffic requests bypass existing route cache read/write until marker-aware cache reuse exists.
+- [x] Introduced-error audit complete: current ESLint/TypeScript diagnostics do not land inside 4B/5B changed hunk ranges.
+- [x] Canonical artifact serialization guard proves compact refs/no raw evidence/no temporal exposure.
+
+- [x] Actual score traces carry `trafficTruthEngine` when route-indexed production flag participates.
+- [x] Actual score traces carry selected baseline refs or receipt ids where traffic came from route-indexed truth.
+- [ ] Inspector/explanation wiring consumes trace payloads.
+- [ ] Legacy runtime trace remains intact when flag off.
+- [x] Route-indexed runtime trace deltas are measured in focused real-capture fixture tests.
+
+Rules:
+
+- [x] Phase 5A trace attachment identifies `trafficTruthEngine`.
+- [x] Phase 5A trace attachment carries `selectedBaselineSpanId` or `receiptIds` where traffic came from route-indexed truth.
+- [x] Phase 5B runtime score trace identifies `trafficTruthEngine`.
+- [x] Phase 5B runtime score trace carries `selectedBaselineSpanId` or `receiptIds` where traffic came from route-indexed truth.
+- [ ] Inspector should explain route-indexed traffic source through receipts after runtime/presentation wiring.
+- [x] Phase 5A legacy trace compatibility remains intact when flag off.
+- [x] Do not expose raw ledger candidates in trace compatibility attachments.
+- [ ] Debug may link to ledger refs, but not promote them.
+
+Acceptance:
+
+- [x] Phase 5A attachment can show selected AADT, source family, confidence, and receipt refs.
+- [x] Phase 5A unresolved/conflict traffic blocks have explicit typed blocked reasons.
+- [x] No `unknown[]` receipts in Phase 5A.
+- [x] Phase 5A legacy and route-indexed trace attachments are distinguishable.
+- [x] Runtime score traces carry `trafficTruthEngine` from real scoring.
+- [ ] Inspector UI explains route-indexed traffic.
+- [ ] Route score explanation UI is wired.
+
+Runtime trace authority note:
+
+- [x] `trafficScoreTraceCompatibility` explains scoring provenance.
+- [x] It is not presentation traffic authority.
+- [x] Presentation continues to use the `ActiveTruthView`-derived presentation adapter.
+- [x] SegmentInspector score-trace explanation remains a later controlled UI/data bridge.
+
+### Phase 6 - ActiveTruthView Presentation Adapter
+
+Purpose: make route-indexed stable traffic visible through `ActiveTruthView`-derived presentation data without making presentation a truth engine.
+
+This phase may touch traffic fields only. It must not change speed, bike infrastructure, shoulder, hazard, rail, ownership, route-time, temporal exposure, or scoring weights.
+
+Phase 6B was completed before Phase 4B/5B runtime insertion. Phase 6C stayed deferred until Phase 8A, Phase 9, Phase 10, Phase 11, explicit post-gate authorization, and the Phase 11 addendum. Phase 6D remains deferred until separately authorized.
+
+Allowed now:
+
+- [x] Phase 6A presentation surface audit.
+- [x] Phase 6B `ActiveTruthView` stable traffic presentation adapter.
+- [x] Stable AADT road-substrate overlay from `ActiveTruthView`.
+- [x] Semantic presentation spans.
+- [x] Receipt ids carried from `ActiveTruthView`.
+- [x] No-leak tests.
+
+Blocked, completed, or deferred:
+
+- [x] Phase 6C runtime RouteMap handoff remained deferred until explicitly authorized, then completed for local/dev sealed RouteMap handoff only after the Phase 11 addendum returned `approve_6c_for_local_only`.
+- [x] Phase 6D score-trace-dependent inspector integration remains deferred until explicitly authorized.
+- [x] Phase 6B does not read Phase 5A/5B attachments as presentation authority.
+- [x] Phase 6B does not claim score trace provenance in UI.
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-6-active-truth-presentation-adapter-handoff.md
+```
+
+#### Phase 6A - Presentation Surface Audit
+
+Status: complete for Phase 6B planning.
+
+| surface | file/module | current data source | future ActiveTruthView-derived source | depends on Phase 5B | allowed in Phase 6B | notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| RouteMap traffic props | `src/components/RouteMap.tsx`, `src/pages/Index.tsx` | legacy analysis, truthRuns, heatmap output, debug overlays | presentation-ready props produced upstream | no for stable overlay, yes for score-trace claims | no | runtime handoff deferred to 6C; RouteMap stays dumb |
+| road substrate traffic overlay | `src/lib/active-truth/substrate-traffic-overlay-adapter.ts` | `ActiveTruthView` stable traffic baseline | same, downstream of Phase 6B semantic layer or direct stable overlay | no | yes | already under `active-truth`; no RouteMap, heatmap, scoring, raw HPMS, or ledger reads |
+| road cards | `src/components/cards/RoadInfoCard.tsx`, `src/components/cards/RoadInfoOverlay.tsx` | clicked segment/resolved traffic presentation | future ActiveTruthView-derived receipt/presentation props | partial | no | UI wiring deferred |
+| SegmentInspector | `src/components/SegmentInspector.tsx`, `src/components/inspection/InspectionPanel.tsx` | clicked segment, selected truth segment, canonical scoreTrace | stable receipt ids from ActiveTruthView; score-trace explanation after 5B | yes for score impact | no | no UI/rendering change in 6B |
+| receipt panels | `src/components/inspection/SectionReceiptSection.tsx`, `src/lib/evidence/receiptBuilder.ts` | canonical scoreTrace road slices and ownership receipts | stable ActiveTruthView receipt lookup now; score-trace receipt bridge after 5B | yes | no | no score-trace claims until runtime trace metadata is real |
+| route score explanation | `src/domain/routeScoreExplanation.ts`, `src/components/RouteScoreExplanationPanel.tsx` | `SafetyResult`, canonical score trace, mileage buckets | future runtime trace metadata from Phase 5B | yes | no | UI wiring deferred; Phase 5B now provides runtime metadata but Phase 6D is not implemented |
+| old heatmap display fields | `src/lib/heatmap/builder.ts`, `src/lib/heatmap/types.ts` | legacy `TruthRunInput` and precomputed resolved traffic fields | none as route-indexed authority | yes if used for score provenance | no | old safety heatmap remains unchanged |
+| debug drawers / audit panels | `src/components/MainAppShadowTestDrawer.tsx`, HPMS debug details drawer | debug summaries, raw/debug HPMS overlays, comparison refs | opaque diagnostics/receipt ids only | no for diagnostics | no | debug remains a peephole, not production presentation |
+
+#### Phase 6B - ActiveTruthView Stable Traffic Presentation Adapter
+
+Status: complete for stable presentation adapter boundary.
+
+Implemented boundary:
+
+```text
+src/lib/active-truth/traffic-presentation-adapter.ts
+```
+
+Related downstream road-substrate adapter:
+
+```text
+src/lib/active-truth/substrate-traffic-overlay-adapter.ts
+```
+
+Contract:
+
+```text
+ActiveTruthView
+  -> stable traffic presentation adapter
+  -> semantic stable traffic presentation spans
+```
+
+Rules:
+
+- [x] Adapter input is `ActiveTruthView` only.
+- [x] Adapter output is renderer-neutral semantic presentation data.
+- [x] Selected stable AADT maps to vehicles-per-minute daily-average labels.
+- [x] Labels do not imply live observed traffic.
+- [x] Selected, unresolved, conflict, and missing states remain explicit.
+- [x] Semantic tokens are emitted instead of colors, CSS classes, Leaflet styles, zoom bands, line weights, or z-indexes.
+- [x] Receipt ids, source family, confidence, warnings, selected baseline span id, and ActiveTruthView id/digest are preserved.
+- [x] Phase 6B does not depend on Phase 5B runtime score trace metadata.
+- [x] Phase 6B does not claim runtime `trafficTruthEngine` provenance from scoring.
+- [x] Phase 6B does not import or call Phase 5A score trace compatibility attachments as authority.
+- [x] Phase 6B includes no scoring, old heatmap, cache, route history, schema, RouteMap, raw HPMS, source projection, ledger candidate, selector, temporal projector, or traffic-time dependency.
+- [x] Temporal traffic exposure is excluded from this stable presentation adapter.
+
+#### Phase 6C - Minimal Runtime Presentation Handoff
+
+Status: complete for local/dev sealed RouteMap handoff only.
+
+Handoff: `docs/04-execution/reports/exec-052-phase-6c-runtime-presentation-handoff.md`
+
+Phase 11 addendum: `docs/04-execution/reports/exec-052-phase-11-addendum-6c-presentation-handoff.md`
+
+Phase 6C may proceed only after:
+
+- [x] Phase 4B has inserted the approved traffic scoring input seam.
+- [x] Phase 5B has inserted real runtime score trace metadata.
+- [x] Focused golden/real-capture flag-off legacy parity passes.
+- [x] Route-indexed flag-on trace carries real `selectedBaselineSpanId` and `receiptIds` from the scoring path.
+- [x] No-leak tests pass.
+
+Phase 6C implementation scope:
+
+- [x] Added a route-map-specific presentation wrapper for `RoadSubstrateTrafficOverlay`.
+- [x] Added a local/dev handoff resolver that returns `routeIndexedTrafficOverlay=null` unless `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` is enabled by the caller.
+- [x] Added a `routeIndexedTrafficOverlay` RouteMap prop.
+- [x] RouteMap renders route-indexed traffic only from that sealed prop.
+- [x] RouteMap does not build `ActiveTruthView`.
+- [x] RouteMap does not build `RoadSubstrateTrafficOverlay`.
+- [x] RouteMap does not read stable traffic artifacts, ledger candidates, raw HPMS, or `truthRuns` for this overlay.
+- [x] RouteMap does not recompute traffic labels, bands, or selected truth.
+- [x] RouteMap does not receive raw AADT or vehicles-per-minute fields for recomputation; it receives the already-computed label and style.
+- [x] RouteMap does not change Safety Score, heatmap buckets, cache, route history, schema, or SegmentInspector.
+- [x] If no sealed overlay prop is supplied, 6C renders nothing and leaves legacy presentation unchanged.
+- [x] Debug flag alone does not render the production RouteMap traffic overlay.
+
+Post-4B/5B sequencing rule:
+
+```text
+1. Phase 8A rollback drills
+2. Phase 9 payload/runtime budget
+3. Phase 10 diagnostics
+4. Phase 11 final local/dev gate
+5. Only then consider Phase 6C runtime presentation handoff
+```
+
+Reason: 4B/5B touched the real scoring runtime. That is the blast radius. Prove rollback before paint.
+
+RouteMap remains untouched by Phase 6B.
+
+Reason: RouteMap is already a high-blast-radius monolith. Exec-052 must not make it a truth-selection participant.
+
+Phase 6C rules:
+
+- [x] Presentation reads `ActiveTruthView` or an `ActiveTruthView`-derived adapter only.
+- [x] RouteMap must not read `RouteIndexedEvidenceLedger`.
+- [x] RouteMap must not read raw HPMS.
+- [x] RouteMap must not inspect `truthRuns` as traffic evidence in route-indexed mode.
+- [x] RouteMap may receive presentation-ready traffic overlay props.
+- [x] RouteMap may not receive `ActiveTruthView` plus permission to interpret it arbitrarily.
+- [x] RouteMap may not receive selected stable artifacts directly.
+- [x] RouteMap may not receive ledger refs except opaque debug receipt ids.
+- [x] If RouteMap needs traffic paint, create `traffic-presentation-adapter.ts` to convert `ActiveTruthView` into semantic overlay spans.
+- [x] RouteMap must not contain traffic truth-mode branching beyond receiving already-adapted props from a parent/controller.
+- [ ] SegmentInspector may display receipt-backed traffic truth, not recompute it. Deferred to Phase 6D.
+- [x] Existing legacy presentation remains flag-off fallback.
+- [x] Phase 6C addendum does not approve dogfood, default-on, marker-aware cache reuse, SegmentInspector receipt UI, temporal Safety Score input, traffic overlay as Safety Score heatmap replacement, or legacy path removal.
+- [x] No visual redesign in exec-052.
+- [x] No broad RouteMap refactor in exec-052 unless required to remove direct traffic authority reads.
+- [x] If RouteMap needs a compatibility adapter, create one outside RouteMap.
+
+#### Phase 6D - Inspection Receipt Data Bridge
+
+Status: partially allowed, not implemented in Phase 6B.
+
+Allowed now:
+
+- [ ] Stable `ActiveTruthView` receipt lookup for selected `traffic_aadt_baseline`.
+- [ ] Data-only helper to retrieve receipt ids from `ActiveTruthView` presentation spans.
+- [ ] No UI rendering.
+- [ ] No score trace claims.
+
+Deferred until an explicit Phase 6D decision:
+
+- [ ] "This traffic value affected the Safety Score here" runtime explanation.
+- [ ] Route score explanation integration.
+- [ ] SegmentInspector score-trace receipt wiring.
+- [ ] Anything that depends on canonical score trace road slices.
+
+Acceptance:
+
+- [x] ActiveTruthView-derived presentation adapter exists.
+- [x] Adapter reads `ActiveTruthView` only.
+- [x] Adapter emits semantic stable traffic presentation spans.
+- [x] Adapter does not open raw HPMS, ledger, truthRun, score trace, temporal, heatmap, cache, or RouteMap side doors.
+- [x] No temporal traffic exposure is included.
+- [ ] Flag-on runtime presentation can display selected stable traffic baseline from `ActiveTruthView`.
+- [ ] Flag-off presentation remains legacy.
+- [x] Architecture tests prevent raw HPMS, ledger, score trace, heatmap, or `truthRun` evidence reads in the Phase 6B adapter.
+- [ ] RouteMap receives presentation-ready data, not evidence candidates.
+
+### Phase 7 - No-Leak Architecture Enforcement
+
+#### Phase 7A - Static No-Leak Architecture Firewall
+
+Status: complete after focused verification.
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-7a-no-leak-architecture-firewall-handoff.md
+```
+
+Scope:
+
+- [x] Collect every route-indexed traffic module family.
+- [x] Collect legacy compatibility modules.
+- [x] Enforce import boundaries by module role.
+- [x] Add static guard forbidden runtime strings.
+- [x] Document allowed exceptions.
+- [x] Guard duplicate presentation authority between traffic presentation and substrate overlay adapters.
+- [x] Keep Phase 6C deferred until after Phase 8A, Phase 9, Phase 10, and Phase 11.
+- [x] Complete Phase 6C only after Phase 11 returned `enable_for_local_only` and the user explicitly allowed 6C under that condition.
+- [x] Keep Phase 8 rollback drills out of this pass.
+
+Required tests:
+
+- [x] Route-indexed traffic production path does not import raw HPMS clients.
+- [x] Production route-indexed traffic scoring path does not import source projection.
+- [x] Production route-indexed traffic presentation path does not import `RouteIndexedEvidenceLedger` runtime builders.
+- [x] Presentation does not import traffic baseline selector.
+- [x] Presentation does not import temporal traffic projector.
+- [x] Presentation does not import `traffic-time.ts`.
+- [x] Scoring adapter does not import `ActiveTruthView`.
+- [x] `ActiveTruthView` does not import scoring.
+- [x] Traffic adapter does not import heatmap or RouteMap.
+- [x] Legacy `truthRuns` appear only under compatibility/comparison paths.
+- [x] No candidate promotion APIs are exported to presentation.
+
+Static guard patterns:
+
+```text
+truthRuns
+TruthRun
+rawHpms
+hpmsRows
+fetchHpms
+projectHpms
+selectStableTrafficBaseline
+projectTrafficTemporalExposure
+promoteCandidate
+recomputeTraffic
+traffic_temporal_exposure
+effectiveAadt
+RouteIndexedEvidenceLedger
+```
+
+Allowed exceptions:
+
+- [x] tests
+- [x] comparison fixtures
+- [x] type-only legacy compatibility adapters
+- [x] explicit docs
+- [x] validator modules that name forbidden fields only to reject them
+
+### Phase 8 - Rollback Drill And Failure Modes
+
+Status: Phase 8A implemented; broader rollback/cache reuse work remains incomplete.
+
+Recommended next phase after Phase 8A:
+
+```text
+Phase 9 - Payload And Runtime Budget
+```
+
+Reason: rollback/failure behavior is now proven for the runtime scoring seam. The next risk is payload and runtime cost before diagnostics, final local/dev gate, and any presentation handoff.
+
+Required order before any Phase 6C runtime presentation handoff:
+
+```text
+Phase 8A -> Phase 9 -> Phase 10 -> Phase 11 -> consider Phase 6C
+```
+
+Do not start Phase 6C before rollback, payload/runtime budget, diagnostics, and final local/dev gate are complete.
+
+Required drills:
+
+| Drill | Scenario | Required result |
+| --- | --- | --- |
+| A. flag-off rollback | route-indexed flag on, analyze route, turn flag off | same route uses legacy traffic behavior; route-indexed cache entries ignored |
+| B. marker mismatch | route-indexed cache marker version mismatch with flag on | entry rejected or recomputed; no silent legacy fallback pretending route-indexed |
+| C. missing stable artifact | route-indexed flag on and stable traffic baseline missing | fail closed with diagnostic or use legacy only if explicitly allowed as `legacy_v1`; no invented traffic truth |
+| D. unresolved/conflict span | route-indexed flag on and unresolved/conflict spans present | scoring handles explicit unresolved/conflict; no zero/low traffic conversion |
+| E. debug flag isolation | debug flag on, production flag off | no production output mutation |
+| F. error isolation | route-indexed adapter/stable artifact fails | flag off unaffected; flag on follows defined failure policy; no cache pollution |
+
+#### Phase 8A - Runtime Rollback Drill And Failure Modes
+
+Status: complete for runtime scoring cutover rollback proof.
+
+Handoff:
+
+```text
+docs/04-execution/reports/exec-052-phase-8a-rollback-drill-handoff.md
+```
+
+Executable drills:
+
+- [x] Flag-off rollback restores legacy scoring behavior after route-indexed mode was exercised.
+- [x] Flag-off rollback emits no route-indexed marker, selected baseline span id, or route-indexed receipt ids.
+- [x] Flag-off rollback rejects route-indexed cache entries and uses legacy miss policy.
+- [x] Route-indexed marker mismatch rejects cache entries.
+- [x] Missing stable artifact blocks route-indexed scoring when fallback is not allowed.
+- [x] Invalid stable artifact cannot affect flag-off behavior.
+- [x] Invalid stable artifact can fall back only as full-route `legacy_v1` when explicit fallback is allowed.
+- [x] Unresolved/conflict spans block route-indexed scoring or fall back full-route `legacy_v1`; no per-span fallback.
+- [x] Debug flag alone cannot enable production traffic cutover.
+- [x] Runtime cache read/write bypass remains enforced under `bypass_until_marker_aware_cache_reuse`.
+- [x] Route-indexed scoring trace payloads do not serialize raw HPMS/source/candidate/temporal evidence into canonical/cache-like payloads.
+- [x] `route_history` references are rejected as rollback or traffic truth authority.
+
+Phase 8A does not:
+
+- [x] implement marker-aware cache reuse
+- [x] change `route_cache` schema
+- [x] change `route_history` schema
+- [x] change Supabase schema
+- [x] change Safety Score formula or weights
+- [x] change `traffic-time.ts`
+- [x] introduce `traffic_temporal_exposure` into Safety Score
+- [x] change heatmap behavior
+- [x] wire RouteMap or SegmentInspector UI
+- [x] remove legacy traffic path
+- [x] make route-indexed traffic default-on
+
+Next after Phase 8A:
+
+```text
+Phase 9 payload/runtime budget
+```
+
+Acceptance:
+
+- [x] Rollback drill documented for runtime scoring cutover.
+- [x] Tests prove runtime rollback.
+- [x] No schema rollback.
+- [x] No saved-route payload rollback.
+- [x] No `route_cache` semantic poisoning in current bypass mode.
+- [ ] Marker-aware cache reuse remains unimplemented.
+
+### Phase 9 - Performance And Payload Budget
+
+Status: complete for route-indexed traffic scoring/presentation seam.
+
+Reason: Lanterne runs analysis client-side and `route_cache` stores completed scoring results. Do not let route-indexed artifacts bloat runtime or caches.
+
+Handoff: `docs/04-execution/reports/exec-052-phase-9-performance-payload-budget-handoff.md`
+
+Scope note: Phase 9 measures helper-stage added cost at the route-indexed traffic scoring/presentation seam. Full `route-analysis.ts` entrypoint flag-off versus flag-on timing remains a Phase 11 local/dev gate item.
+
+Budgets to define:
+
+- [x] max `ActiveTruthView` serialized bytes for traffic fields
+- [x] max selected traffic spans per route
+- [x] max traffic receipts per route
+- [x] max score trace traffic receipt refs
+- [x] max `route_cache` payload delta allowed
+- [x] max added analysis runtime under flag-on seam measurement
+- [x] max adapter payload overhead for presentation path
+
+Initial thresholds:
+
+- [x] Route-indexed traffic adapter added cost is under 750 ms on fixture routes.
+- [x] Runtime overhead percent remains unclaimed until full `route-analysis.ts` entry timings are supplied.
+- [x] `route_cache` payload delta is less than 15% for traffic-only cutover unless explicitly justified.
+- [x] No raw ledger candidates stored in cache-like production payload.
+- [x] Receipts stored as compact refs or selected snapshots, not raw source windows.
+
+Acceptance:
+
+- [x] Medford/Batsto and John’s Waterfall payload/runtime measured.
+- [x] Budget failures are blockers or documented exceptions.
+- [x] No giant debug artifacts written into production cache.
+
+### Phase 10 - Cutover Diagnostics
+
+Status: complete for Phase 10A diagnostic summary builder and Phase 10B narrow runtime diagnostic hook.
+
+Purpose: add compact diagnostics, not UI.
+
+Handoff: `docs/04-execution/reports/exec-052-phase-10-cutover-diagnostics-handoff.md`
+
+Phase 10A:
+
+- [x] Compact typed diagnostic summary builder exists.
+- [x] Formatter emits a single compact `[TRAFFIC-CUTOVER]` line.
+- [x] Dedupe emitter exists.
+- [x] Logger failure is isolated from route analysis.
+- [x] No raw evidence is serialized.
+- [x] No giant span arrays are logged.
+
+Phase 10B:
+
+- [x] Runtime hook is debug-gated by `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER`.
+- [x] Runtime hook does not depend on `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` for emission.
+- [x] `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` remains production mode control only.
+- [x] Runtime hook consumes already-produced runtime cutover objects only.
+- [x] Runtime hook does not mutate scoring input, score trace, cache payload, heatmap, RouteMap, presentation, or route history.
+- [x] Insertion-zone guard test exists for the `route-analysis.ts` hook.
+
+Required diagnostic line, behind appropriate debug flag:
+
+```text
+[TRAFFIC-CUTOVER]
+mode=legacy_v1|route_indexed_traffic_v1
+routeAxis=...
+trafficTruthEngine=...
+stableArtifactDigest=...
+adapterSpans=...
+unresolvedM=...
+conflictM=...
+receiptCoveragePct=...
+cacheMarker=...
+fallback=...
+warnings=...
+```
+
+Rules:
+
+- [x] No raw HPMS dump.
+- [x] No raw ledger candidate dump.
+- [x] No giant span arrays by default.
+- [x] No console spam per segment.
+- [x] Dedupe by route hash plus traffic truth engine plus digest.
+
+### Phase 11 - Final Cutover Gate
+
+Status: complete; decision is `enable_for_local_only`.
+
+Handoff: `docs/04-execution/reports/exec-052-phase-11-final-cutover-gate.md`
+
+Typed gate boundary:
+
+```text
+src/lib/traffic-truth/traffic-cutover-final-gate.ts
+```
+
+Phase 11 uses the pure `evaluateTrafficCutoverFinalGate(...)` record evaluator. Before enabling `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` for any local/dev trial, write a gate result.
+
+Phase 11 result:
+
+- [x] Typed gate record evaluator exists.
+- [x] Markdown decision report exists.
+- [x] All gate inputs are referenced.
+- [x] Golden routes are measured.
+- [x] Full route-analysis wall-clock comparison is included.
+- [x] Decision explicitly does not approve default-on.
+- [x] Non-decisions are explicit.
+- [x] Decision approves manual local/dev `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` only because full route-analysis golden routes selected `route_indexed_traffic_v1` with `route_indexed_ready` under flag-on.
+- [x] Decision keeps route-indexed traffic default-off for dogfood, production, and remote rollout.
+- [x] Missing full route-analysis wall-clock is a hard blocker, not a warning.
+- [x] Phase 11 does not approve RouteMap runtime handoff, marker-aware cache reuse, temporal Safety Score, legacy removal, or speed/bike/shoulder migration.
+
+After Phase 11 completes, Phase 6C may be reconsidered. Phase 11 completion does not automatically authorize RouteMap or SegmentInspector runtime handoff.
+
+Gate questions:
+
+- [x] Did flag-off legacy parity pass?
+- [x] Did flag-on adapter output partition route distance?
+- [x] Did scoring parity/delta report pass at the helper seam?
+- [x] Did presentation no-leak tests pass?
+- [x] Did rollback drill pass?
+- [x] Did cache marker tests pass?
+- [x] Did payload budget pass?
+- [x] Did receipt coverage pass at the helper seam?
+- [x] Did unresolved/conflict policy pass?
+- [x] Did TypeScript, lint, and focused tests pass for touched traffic modules?
+- [x] Did full route-analysis wall-clock timing pass?
+- [x] Did full route-analysis flag-on selected AADT drive scoring for golden routes?
+
+Golden route minimums:
+
+- [x] Medford/Batsto flag-off score exactly equals current legacy output at the focused helper seam.
+- [x] John’s Waterfall flag-off score exactly equals current legacy output at the focused helper seam.
+- [x] Flag-on route-indexed traffic adapter output partitions `[0,totalDistM)` at the helper seam.
+- [x] Flag-on stable AADT differences are exact matches, typed expected divergences from Phase 3.1, or blockers.
+- [x] Every flag-on score-ready helper-seam traffic span has receipt coverage.
+- [x] Every unresolved/conflict span is explicitly represented.
+- [x] No unexplained AADT delta may pass the final gate.
+- [x] No unexplained Safety Score delta may pass the final gate.
+- [x] No route-indexed cache entry may be accepted when flag is off.
+- [x] No legacy cache entry may be accepted as route-indexed when flag is on.
+- [x] Full route-analysis Medford/Batsto flag-on route-indexed selected AADT drives scoring.
+- [x] Full route-analysis John’s Waterfall flag-on route-indexed selected AADT drives scoring.
+
+Decision options:
+
+- `enable_for_local_only`
+- `enable_for_internal_dogfood`
+- `keep_default_off_and_fix_blockers`
+- `abandon_cutover_attempt_and_revert`
+
+Do not enable default-on in exec-052.
+
+Default-on requires a future exec after dogfood.
+
+Required typed evidence includes `evidence.fullRouteAnalysisTiming[]` in addition to golden route fixture evidence. Timing hidden inside fixture prose is not enough for Phase 11.
+
+## Final Exec-052 Outcome
+
+Final outcome: `enable_for_local_only`.
+
+Approved in exec-052:
+
+- [x] Stable route-indexed traffic AADT may be used as local/dev scoring input behind `USE_ROUTE_INDEXED_TRAFFIC_TRUTH`.
+- [x] Compact `[TRAFFIC-CUTOVER]` diagnostics may be emitted behind `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER`.
+- [x] ActiveTruthView-derived stable traffic presentation adapter exists.
+- [x] Stable route-indexed traffic may be handed to RouteMap through sealed presentation props for local/dev only, after the Phase 11 addendum returned `approve_6c_for_local_only`.
+- [x] Flag-off behavior remains legacy.
+- [x] Route-indexed cache reads/writes remain bypassed under `bypass_until_marker_aware_cache_reuse`.
+
+Conditionally ready in exec-052:
+
+- [x] RouteMap traffic overlay rendering path is architecturally ready, but runtime visibility depends on a controller or local-only harness supplying the sealed `routeIndexedTrafficOverlay` prop.
+
+Not approved in exec-052:
+
+- [x] Default-on route-indexed traffic.
+- [x] Internal dogfood.
+- [x] Production deployment with the flag enabled remotely.
+- [x] Marker-aware cache reuse.
+- [x] SegmentInspector score-trace receipt UI.
+- [x] Temporal traffic exposure in Safety Score.
+- [x] Legacy traffic path removal.
+- [x] RouteMap traffic overlay as Safety Score heatmap replacement.
+- [x] Speed migration.
+- [x] Bike infrastructure migration.
+- [x] Shoulder migration.
+- [x] Schema, cache, or route-history migrations.
+
+Known limitations:
+
+- Route-indexed cache reads/writes remain bypassed under `bypass_until_marker_aware_cache_reuse`.
+- RouteMap overlay requires an upstream controller or local-only harness to supply sealed props.
+- Absence of a sealed `routeIndexedTrafficOverlay` prop means the overlay is not operationally supplied, not that the adapter boundary failed.
+- Repo-wide TypeScript/lint debt remains in legacy monolith files, though touched-area checks passed during the Phase 11 and Phase 6C gates.
+
+Local trial protocol:
+
+1. Run Medford/Batsto with `USE_ROUTE_INDEXED_TRAFFIC_TRUTH=false`.
+2. Run Medford/Batsto with `USE_ROUTE_INDEXED_TRAFFIC_TRUTH=true`.
+3. Confirm `[TRAFFIC-CUTOVER]` diagnostics can emit when `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER=true`.
+4. Confirm `trafficTruthEngine=route_indexed_traffic_v1`, `status=route_indexed_ready`, selected baseline ids, receipt ids, and no route-indexed cache write.
+5. Confirm RouteMap traffic overlay remains absent unless a sealed `routeIndexedTrafficOverlay` prop is supplied by a local/dev controller or harness.
+6. Turn `USE_ROUTE_INDEXED_TRAFFIC_TRUTH=false`.
+7. Confirm legacy score and presentation return with no route-indexed marker, selected baseline span id, receipt id, or overlay residue.
+8. Repeat with John's Waterfall.
+9. Add more real local routes before considering `exec-053`.
+
+Next recommended step: local trial evidence log. Do not expand exec-052 further unless the trial exposes a blocker that belongs to this cutover boundary.
+
+## Implementation Sequencing / PR Boundaries
+
+No PR may depend on a later PR to preserve an architectural invariant. If an early PR introduces a leak temporarily, it fails.
+
+Required sequence:
+
+1. PR 1 - Phase 0 inventory only
+   - docs/table updates
+   - no production code behavior change
+2. PR 2 - Phase 1 flag governance
+   - `getTrafficTruthMode`
+   - debug flag vs production flag separation
+   - no scoring/presentation change
+3. PR 3 - Phase 2 cache marker policy
+   - marker types
+   - cache accept/reject tests
+   - no schema migration unless separately gated
+4. PR 4 - Phase 2.5 artifact provider
+   - single traffic truth provider boundary
+   - no scoring cutover yet
+5. PR 5 - Phase 3.5 road substrate traffic overlay adapter
+   - pulled-forward presentation-only proving layer
+   - ActiveTruthView input only
+   - no RouteMap wiring, scoring change, cache change, or old heatmap backend use
+6. PR 6 - Phase 3 stable traffic adapter
+   - selected truth to production-compatible spans
+   - no scoring formula change
+7. PR 7 - Phase 4 scoring input cutover behind flag
+   - traffic input source switch only
+   - flag-off exact legacy parity
+8. PR 8 - Phase 5 score trace/receipt compatibility
+   - `trafficTruthEngine` in traces
+   - receipt-backed explanations
+9. PR 9 - Phase 6 ActiveTruthView presentation adapter
+   - no RouteMap direct evidence reads
+   - no visual redesign
+10. PR 10 - Phase 7 no-leak architecture tests
+   - import boundaries
+   - static guards
+11. PR 11 - Phase 8 rollback drill
+    - cache marker mismatch
+    - flag-off rollback
+    - error isolation
+12. PR 12 - Phase 9/10 performance and diagnostics
+    - runtime/payload measurements
+    - compact `[TRAFFIC-CUTOVER]` logs
+13. PR 13 - Phase 11 final gate
+    - written decision
+    - default remains off
+
+## Do Not Mark Local/Dev Complete Unless
+
+Exec-052 local/dev cutover is complete only when:
+
+- [x] `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` exists and defaults off.
+- [x] `ENABLE_ROUTE_INDEXED_TRAFFIC_LEDGER` remains debug/shadow only.
+- [x] Cutover surface inventory is complete.
+- [x] Traffic truth engine marker exists.
+- [x] Cache semantics cannot mix legacy and route-indexed traffic.
+- [x] Route-indexed `route_cache` reads/writes are bypassed until marker-aware cache reuse; cache-like validators reject raw source evidence.
+- [x] Traffic Truth Artifact Provider is the only production orchestration boundary for legacy vs route-indexed traffic truth.
+- [x] Stable traffic adapter consumes selected truth only.
+- [x] Production scoring can consume route-indexed stable AADT behind flag without formula/weight changes.
+- [x] `TrafficUnresolvedConflictScoringPolicy` is typed and tested before scoring cutover.
+- [x] Temporal traffic exposure is not production Safety Score input.
+- [x] `ActiveTruthView` presentation adapter exists with a documented no-leak presentation path.
+- [x] RouteMap does not read raw HPMS or ledger candidates in route-indexed traffic mode.
+- [x] RouteMap receives presentation-ready sealed traffic overlay props, not stable artifacts, ledger refs, or adapter output as traffic authority.
+- [x] Score trace receipts explain selected/unresolved/conflict traffic spans at the compatibility boundary; SegmentInspector receipt UI remains explicitly blocked.
+- [x] Flag-off rollback passes.
+- [x] Cache marker mismatch tests pass.
+- [x] Payload/runtime budget measured.
+- [x] No-leak architecture tests pass.
+- [x] Medford/Batsto and John’s Waterfall golden route tests pass.
+- [x] Phase 11 final gate is written.
+- [x] Default-on is not enabled.
+
+## Exit Criteria
+
+- [x] Phase 0 inventory is complete and reviewed before code implementation.
+- [x] Default-off production flag is implemented and tested through one mode function.
+- [x] Cache identity cannot mix legacy and route-indexed traffic semantics.
+- [x] Traffic Truth Artifact Provider is the only approved cutover orchestration point.
+- [x] Stable traffic adapter partitions route distance and preserves unresolved/conflict spans.
+- [x] Stable selected traffic truth is inspectable with receipts at the compatibility boundary.
+- [x] Production scoring reads stable route-indexed AADT only through the approved adapter behind flag.
+- [x] Presentation reads `ActiveTruthView` or an `ActiveTruthView`-derived adapter only in route-indexed mode.
+- [x] Rollback drill passes.
+- [x] Performance and payload budgets are measured.
+- [x] Temporal traffic exposure remains outside production Safety Score.
+- [x] Final cutover gate is written and does not enable default-on.
+
+## Verification Commands
+
+Required minimum focused verification:
+
+```bash
+npx vitest run src/lib/route-indexed-traffic-ledger-poc src/lib/traffic-truth src/lib/active-truth src/lib/route-architecture/route-intelligence-architecture.test.ts
+npx eslint src/lib/route-indexed-traffic-ledger-poc src/lib/traffic-truth src/lib/active-truth src/lib/route-architecture/route-intelligence-architecture.test.ts
+npx tsc -p tsconfig.json --noEmit --pretty false --incremental false
+git diff --check
+```
+
+Implementation PRs must update commands to include the actual touched production modules. Do not let implementation pass with only POC tests after production modules are touched.
+
+Example expanded core command:
+
+```bash
+npx vitest run \
+  src/lib/traffic-truth \
+  src/lib/route-cache \
+  src/lib/active-truth \
+  src/lib/route-indexed-traffic-ledger-poc \
+  src/lib/route-architecture/route-intelligence-architecture.test.ts
+```
+
+If scoring is touched:
+
+```bash
+npx vitest run src/lib/safety-scoring* src/shared/scoring* src/domain/routeScoreExplanation*
+```
+
+If heatmap is touched:
+
+```bash
+npx vitest run src/lib/heatmap
+```
+
+If RouteMap/presentation is touched:
+
+```bash
+npx vitest run src/components/RouteMap* src/components/SegmentInspector* src/lib/active-truth
+```
+
+
+---
+
+## Source File: docs/04-execution/exec-053-route-indexed-truth-cache-with-traffic-first-layer.md
+
+# exec-053 - Route-Indexed Truth Cache With Traffic As First Layer
+
+Date: 2026-06-17
+
+Related: exec-051, exec-052, ADR-045, ADR-054, DS-031, DS-055
+
+## Trigger
+
+Exec-052 proved local/dev route-indexed stable traffic scoring and presentation handoff behind `USE_ROUTE_INDEXED_TRAFFIC_TRUTH`.
+
+The original exec-053 draft targeted marker-aware reuse of the old completed route-analysis `route_cache`. That was the wrong long-term primitive. A completed-analysis cache answers:
+
+```text
+Can we reuse a finished scored blob?
+```
+
+The route-indexed architecture needs a different primitive:
+
+```text
+Can we reuse selected stable route truth for this route version?
+```
+
+## Purpose
+
+Build the `RouteIndexedTruthCache` contract and first selected-truth layer:
+
+```text
+traffic_aadt_baseline
+```
+
+This cache stores selected stable route truth. It does not store raw source evidence, a completed Safety Score, RouteMap presentation props, temporal ride context, or RXON artifacts.
+
+RouteIndexedTruthCache is not an evidence cache.
+
+It stores selected stable truth artifacts for a specific route version and route axis. It must not store raw reusable source facts intended to serve other routes.
+
+## Cache Taxonomy
+
+Road substrate cache:
+
+- cached road geometry/substrate inputs
+- upstream of route axis and evidence projection
+- exists today
+- not exec-053
+
+Future US-wide evidence cache:
+
+- reusable source/evidence facts across geography
+- upstream of route projection
+- future work
+- not exec-053
+
+RouteIndexedEvidenceLedger:
+
+- per-route-version projected candidate evidence
+- route-distance keyed
+- not selected truth cache
+
+RouteIndexedTruthCache:
+
+- per-route-version selected stable truth artifacts
+- route-axis and route-geometry scoped
+- traffic first
+- later speed, bike infra, shoulder, ownership, surface, and hazards may become sibling layers
+- downstream of `RouteIndexedEvidenceLedger` and truth selection
+- not a reusable source-fact cache
+
+Completed route-analysis cache / v1 `route_cache`:
+
+- whole scored-result reuse
+- legacy/dormant/compatibility only
+- not the route-indexed truth cache
+
+RXON:
+
+- audit/export/compiled receipt artifact family
+- not route-indexed truth cache
+- not traffic truth authority
+
+## Non-Goals
+
+- Do not cache Safety Score as authority.
+- Do not cache RouteMap presentation.
+- Do not cache `traffic_temporal_exposure`.
+- Do not cache `RouteTimeBinding`.
+- Do not cache candidate source evidence as authority.
+- Do not cache raw reusable source facts intended to serve other routes.
+- Do not cache raw HPMS.
+- Do not cache raw `RouteIndexedEvidenceLedger` candidates.
+- Do not reuse legacy `truthRuns`.
+- Do not promote RXON into cache truth.
+- Do not build the future US-wide evidence cache.
+- Do not change scoring formula.
+- Do not change heatmap behavior.
+- Do not change RouteMap.
+- Do not change `route_history`.
+- Do not add Supabase schema until the contract and storage decision pass.
+
+## Cache Entry Contract
+
+Module:
+
+```text
+src/lib/route-indexed-truth-cache/route-indexed-truth-cache.ts
+```
+
+Primary entry:
+
+```ts
+RouteIndexedTruthCacheEntry
+```
+
+Required identity:
+
+- `cacheKind = route_indexed_truth_cache_v1`
+- `routeVersionKey`
+- `routeGeometryDigest`
+- `routeAxisDigest`
+- `routeAxisRevision`
+- `truthEngine = route_indexed_truth_v1`
+- `truthEngineVersion`
+- `generatedAt`
+- `layerDigests`
+- `sourceVersionRefs`
+- `selectorVersions`
+- `payloadDigest`
+- `payloadSizeBytes`
+
+Compatibility rule:
+
+If a true route/version id does not exist, `routeVersionKey` may be derived from:
+
+```text
+routeHash + routeGeometryDigest + routeAxisDigest
+```
+
+This is compatibility only until durable route version ids exist.
+
+## Cache Key Policy
+
+Do not use route hash alone.
+
+The truth cache key includes:
+
+- `routeVersionKey`
+- `routeAxisDigest`
+- `routeGeometryDigest`
+- `truthEngineVersion`
+
+Traffic layer acceptance also checks:
+
+- `layerDigests.traffic_aadt_baseline`
+- `selectorVersions.traffic_aadt_baseline`
+- `sourceVersionRefs.hpms` when supplied
+- `payloadDigest`
+
+No proof, no reuse.
+
+## Traffic Layer
+
+Layer:
+
+```text
+traffic_aadt_baseline
+```
+
+May store:
+
+- selected AADT baseline spans
+- unresolved spans
+- conflict spans
+- coverage metrics
+- typed receipts
+- selected ledger span refs
+- rejected candidate refs as compact refs
+- source lineage summaries
+- provenance summaries
+- confidence summaries
+- layer digest
+- selector version
+- route axis digest
+- HPMS source version refs
+
+Must not store:
+
+- traffic AADT candidate ledger rows as authority
+- raw HPMS rows
+- HPMS tile/window records
+- source projection records
+- `RouteIndexedEvidenceLedger` candidate objects
+- legacy `truthRuns`
+- `routeSpeedSegments`
+- heatmap segments
+- score trace runtime objects
+- `traffic_temporal_exposure`
+- `aadtEquivalent`
+- `effectiveAadt`
+- `RouteTimeBinding`
+- `ActiveTruthView` overlays
+- RouteMap props
+- RXON `compiledRouteReceipt`
+
+## Phase Plan
+
+### Phase 0 - Pivot And Cache Taxonomy
+
+- [x] Pause the old completed-analysis cache write plan.
+- [x] Document that v1 `route_cache` is not the route-indexed truth cache.
+- [x] Document that RouteIndexedTruthCache is not the future US-wide evidence cache.
+- [x] Document road substrate cache, future US-wide evidence cache, ledger, truth cache, v1 completed-analysis cache, and RXON boundaries.
+
+### Phase 1 - RouteIndexedTruthCache Contract
+
+- [x] Add typed cache entry contract.
+- [x] Add typed marker.
+- [x] Add route-version / route-axis / route-geometry key policy.
+- [x] Add payload digest and size accounting.
+- [x] Keep storage out.
+
+### Phase 2 - Traffic Layer Cache Entry
+
+- [x] Build cache entries from `RouteSurfaceStableTrafficOutput`.
+- [x] Cache `traffic_aadt_baseline` as selected stable truth.
+- [x] Preserve unresolved/conflict spans as first-class cached truth.
+- [x] Preserve receipts and compact evidence refs.
+- [x] Do not fetch HPMS, project facts, select truth, score, call ActiveTruthView, or write storage.
+
+### Phase 3 - Cache Acceptance And No-Leak Validation
+
+- [x] Add pure cache acceptance evaluator.
+- [x] Reject route axis mismatch.
+- [x] Reject route geometry mismatch.
+- [x] Reject layer digest mismatch.
+- [x] Reject selector/source version mismatch.
+- [x] Reject stale payload digest.
+- [x] Reject raw evidence contamination.
+- [x] Reject legacy `truthRuns`.
+- [x] Reject temporal contamination.
+- [x] Reject scoring/presentation contamination.
+- [x] Reject RXON-shaped payloads.
+- [x] Reject route_history and completed-analysis cache sources as truth authority.
+
+### Phase 4 - Storage Decision Gate
+
+- [x] Decide storage target.
+- [x] Options assessed:
+  - browser-local debug storage
+  - new Supabase JSONB table
+  - no storage yet
+- [x] Do not write migration until payload contract, golden route roundtrip, size budget, and invalidation policy pass.
+
+Preferred production direction, pending gate:
+
+```text
+route_indexed_truth_cache
+```
+
+No SQL is approved in Phase 1-4.
+
+Phase 4 decision:
+
+```text
+storage_deferred_contract_only
+new_route_indexed_truth_cache_table_recommended_later
+schema_gate_required_before_storage
+existing_route_cache_rejected
+route_history_attachment_rejected_as_truth_authority
+```
+
+See:
+
+```text
+docs/04-execution/reports/exec-053-phase-4-storage-decision-gate.md
+```
+
+### Phase 5 - Local Roundtrip Harness
+
+- [x] Medford/Batsto build/read/adapt roundtrip.
+- [x] John's Waterfall build/read/adapt roundtrip.
+- [x] Prove cached selected traffic can feed scoring adapter without raw evidence.
+- [x] Prove cached selected traffic can feed ActiveTruthView composition without raw evidence.
+
+See:
+
+```text
+docs/04-execution/reports/exec-053-phase-5-local-roundtrip-harness.md
+```
+
+### Phase 6 - Storage Implementation Gate
+
+- [ ] Do not implement storage unless the storage gate explicitly approves it.
+- [ ] Close durable route version identity, route axis digest, invalidation, long-route payload budget, and rollback blockers first.
+- [ ] Do not use legacy completed-analysis `route_cache` as the route-indexed truth cache.
+- [ ] Do not change `route_history`.
+- [ ] Do not change scoring, heatmap, RouteMap, or presentation.
+
+## Final Outcome
+
+Decision:
+
+```text
+storage_deferred_contract_only
+```
+
+Approved:
+
+- RouteIndexedTruthCache contract
+- `traffic_aadt_baseline` as first selected stable truth layer
+- local/in-memory roundtrip harness
+- no-leak validation
+- scoring adapter consumption from rehydrated selected truth
+- ActiveTruthView / presentation adapter consumption from rehydrated selected truth
+
+Not approved:
+
+- durable storage
+- Supabase schema migration
+- use of existing v1 `route_cache`
+- `route_history` truth authority
+- RXON truth authority
+- raw evidence persistence
+- temporal/session evidence persistence
+- Safety Score as cache authority
+
+Recommended future:
+
+- dedicated `route_indexed_truth_cache` table after `routeVersionKey`, `routeAxisDigest`, invalidation, source versioning, and payload budgets are boring
+
+## Possible Future Storage Shape
+
+Docs only, not implemented:
+
+```text
+route_indexed_truth_cache
+  id uuid primary key
+  route_version_key text not null
+  route_geometry_digest text not null
+  route_axis_digest text not null
+  truth_engine text not null
+  truth_engine_version text not null
+  selected_layers jsonb not null
+  layer_digests jsonb not null
+  source_version_refs jsonb not null
+  selector_versions jsonb not null
+  status text not null
+  payload_digest text not null
+  payload_size_bytes int not null
+  generated_at timestamptz not null
+  expires_at timestamptz null
+  invalidated_at timestamptz null
+```
+
+Possible unique index:
+
+```text
+route_version_key, route_axis_digest, truth_engine_version
+```
+
+## Current Status
+
+Phase 0-5 are complete as a contract-level implementation, storage decision gate, and local/in-memory golden route roundtrip harness.
+
+Storage remains unimplemented. The preferred future direction is a new `route_indexed_truth_cache` table after a schema gate; no storage target is approved for implementation yet. The Phase 4 storage decision gate was tightened after Phase 5 using measured local roundtrip payload evidence.
+
+The old marker-aware completed-analysis cache write plan is paused. Existing pure completed-analysis cache guard code is legacy compatibility only and must not be treated as the route-indexed truth cache.
+
+
+---
+
+## Source File: docs/04-execution/exec-054-ride-plan-scenario-engine-temporal-safety-poc.md
+
+# exec-054 - Ride Plan Scenario Engine Temporal Safety POC
+
+Date: 2026-06-17
+
+Related: ADR-055, DS-056, ADR-006, ADR-045, ADR-054, DS-015, DS-031, DS-055, exec-052, exec-053
+
+## Purpose
+
+Plan the Ride Plan Scenario Engine POC.
+
+The POC starts with:
+
+- traffic/time as the first dynamic safety domain
+- temporal motor-vehicle risk context as explicitly separate from traffic volume
+- access/transport as the first logistics domain scaffold
+
+This is planning-first. No implementation is approved by this exec until a later implementation gate.
+
+## Current State
+
+- exec-052 established local/dev route-indexed stable traffic cutover.
+- exec-053 established `RouteIndexedTruthCache` as selected stable route truth cache contract.
+- Durable `RouteIndexedTruthCache` storage is deferred.
+- Stable HPMS AADT truth can feed scoring adapters and ActiveTruthView/presentation adapters.
+- RouteMap traffic overlay architecture is sealed/local-only and not a truth engine.
+- Cue sheet has start-time/speed behavior today, but cue sheet must become an editor/consumer of scenario context, not owner of scenario values.
+
+## Core Boundary
+
+Stable route truth answers:
+
+```text
+What is this route?
+```
+
+RidePlanScenario answers:
+
+```text
+What happens if the rider rides this route from this start point,
+in this direction,
+at this start time,
+at this expected pace,
+under these assumptions?
+```
+
+## Non-Goals
+
+- no route geometry optimization
+- no rerouting
+- no durable scenario storage
+- no durable scenario cache
+- no weather API integration
+- no source fetches for weather, UV, wind, or POI hours
+- no live traffic API
+- no automatic speed inference
+- no RouteMap direct computation
+- no Safety Score formula change before planned-ride score contract
+- no final score multiplier as production model
+- no production night-risk coefficients
+- no `RouteIndexedTruthCache` temporal data
+- no `route_cache` writes
+- no `route_history` scenario truth
+- no SegmentInspector UI unless separately gated
+- no speed/bike/shoulder evidence migration in this exec
+- no cue sheet ownership of scenario context
+- no optimization that changes route geometry
+- no dogfood or default-on gating
+
+## Required Cross-Links
+
+- Product Principles: [phl-002-product_principles.md](../01-philosophy/phl-002-product_principles.md)
+- Project Map: [arch-003-project_map.md](../02-architecture/arch-003-project_map.md)
+- Score Calculation / Safety Scoring: [ds-015-safety_scoring_model.md](../02-architecture/design/ds-015-safety_scoring_model.md)
+- Time-of-day traffic context: [anal-001-indices_calculation.md](../02-architecture/analysis/anal-001-indices_calculation.md)
+- Route-indexed evidence layer: [ds-031-route_indexed_evidence_layer_spec.md](../02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md)
+- No-leak architecture: [adr-054-route_indexed_evidence_ledger_no_leak_architecture.md](../03-adrs/adr-054-route_indexed_evidence_ledger_no_leak_architecture.md)
+- Adapter boundary: [adr-045-route_indexed_evidence_platform.md](../03-adrs/adr-045-route_indexed_evidence_platform.md)
+
+## Phase 0 - Document Current Scenario Inputs
+
+- [x] Audit cue sheet start-time fields.
+- [x] Audit cue sheet speed fields.
+- [x] Audit `traffic-time.ts` behavior.
+- [x] Audit existing dynamic cue-sheet traffic calculation.
+- [x] Audit where start time, speed, direction, and route start point currently live.
+- [x] Identify what must move into `RidePlanScenarioContext`.
+- [x] Confirm no code behavior changes.
+
+Deliverable:
+
+```text
+docs/04-execution/reports/exec-054-phase-0-current-scenario-inputs.md
+```
+
+## Phase 1 - RidePlanScenarioContext Contract
+
+- [ ] Define scenario context.
+- [ ] Define `PaceProfile`.
+- [ ] Define `ScenarioRouteTransform`.
+- [ ] Define `RouteTimeBinding` expectations.
+- [ ] Define no-storage rules.
+- [ ] Confirm cue sheet is an editor/consumer, not owner.
+- [ ] Require `plannedStartTimeIso` to include timezone or explicit UTC offset.
+- [ ] Require `RouteTimeBinding` to avoid browser/environment-local `Date.getHours()`, `Date.getDay()`, or `getTimezoneOffset()` silently.
+- [ ] Require fixed timezone/offset tests before implementation.
+- [ ] Document that route crossing timezones is deferred.
+- [ ] Document that daylight-saving ambiguity is deferred.
+- [ ] No UI work.
+
+Deliverable:
+
+```text
+src/lib/ride-plan-scenario contract proposal or docs-only contract, depending approval
+```
+
+No source code implementation unless separately approved.
+
+## Phase 2 - Scenario Domain Adapter Registry
+
+- [ ] Define adapter contract.
+- [ ] Register traffic as first planned safety adapter.
+- [ ] Register temporal motor-vehicle risk context as separate planned safety adapter.
+- [ ] Register light, UV, weather, wind, service, and access as future adapters.
+- [ ] Ensure adapters declare score eligibility and output family.
+- [ ] No domain implementation yet.
+
+## Phase 3 - Temporal Traffic And Safety Split
+
+- [ ] Define `TrafficTemporalVolumeProfile`.
+- [ ] Define `TemporalMotorVehicleRiskContext`.
+- [ ] Document traffic volume and time safety context as separate.
+- [ ] Add `urban_suburban_commute_v1` as POC assumption if approved.
+- [ ] Add `rural_distributed_v1` as POC assumption if approved.
+- [ ] Add calibration gate for night/fatigue/intoxication coefficients.
+- [ ] Do not change production scoring.
+- [ ] Do not claim live or observed traffic.
+
+## Phase 4 - Planned Ride Safety Score Contract
+
+- [ ] Define Baseline Safety Score versus Planned Ride Safety Score.
+- [ ] Define segment/slice-level recomputation preference.
+- [ ] Define receipts, deltas, and explanations.
+- [ ] Define guardrail against opaque final-score multiplier.
+- [ ] Define how a POC simplified factor could be allowed only with warning.
+- [ ] Require calibration/research gate for non-neutral temporal motor-vehicle risk coefficients.
+
+## Phase 5 - Scenario Objective Adapter Contract
+
+- [ ] Define objective adapter shape.
+- [ ] Include `optimize_safety`.
+- [ ] Include `optimize_access_rail`.
+- [ ] Include `optimize_access_air`.
+- [ ] Include `optimize_service_gap_early`.
+- [ ] Include `optimize_climbing_early`.
+- [ ] Support hard constraints.
+- [ ] Support soft preferences.
+- [ ] Support tie-breakers.
+- [ ] Do not implement objective runtime.
+
+## Phase 6 - Scenario Sweep Contract
+
+- [ ] Define 15-minute departure bucket sweep.
+- [ ] Set departure bucket interval default to 15 minutes.
+- [ ] Set max departure buckets to 96 per day.
+- [ ] Define direction sweep.
+- [ ] Limit direction candidates to forward and reverse for the POC.
+- [ ] Define start-offset sweep for loops.
+- [ ] Require start offset candidates to be bounded, not every meter.
+- [ ] Specify max start offset candidates per run before implementation.
+- [ ] Specify max scenario candidates per sweep before implementation.
+- [ ] Specify max enabled domain adapters per sweep before implementation.
+- [ ] Define result ranking.
+- [ ] Define result explanation.
+- [ ] Define cancellation behavior.
+- [ ] Define debounce behavior when rider drags start time/speed.
+- [ ] Use local memoization only.
+- [ ] Do not store every scenario.
+- [ ] Keep sweep results in memory or local ephemeral cache only unless later persistence gate approves otherwise.
+- [ ] Degrade to coarser buckets or fewer offsets if budgets are exceeded.
+- [ ] Require Medford/Batsto and John's Waterfall scenario sweeps to complete within documented local budgets before runtime implementation proceeds.
+
+## Phase 7 - Implementation Readiness Gate
+
+Decide whether implementation may start.
+
+Required preconditions:
+
+- [ ] `RouteIndexedTruthCache` traffic baseline works in memory.
+- [ ] `RouteTimeBinding` is stable for scenario use.
+- [ ] `RidePlanScenarioView` or `ActiveScenarioView` boundary is defined.
+- [ ] No storage contamination.
+- [ ] No RouteMap direct computation.
+- [ ] No Baseline Safety Score mutation.
+- [ ] Traffic volume and temporal motor-vehicle risk context remain separate.
+- [ ] POC factor policy is warning/receipt backed.
+- [ ] Route-time binding has fixed timezone/offset tests.
+- [ ] route crossing timezones and daylight-saving ambiguity are explicitly deferred.
+- [ ] RouteMap remains a sealed presentation consumer only.
+
+Decision outcomes:
+
+```text
+proceed_to_context_contract_only
+proceed_to_traffic_scenario_poc
+keep_docs_only_and_fix_blockers
+defer_until_route_time_binding_hardening
+defer_until_scoring_policy_adr
+defer_until_temporal_risk_calibration_gate
+```
+
+## Phase 8 - Handoff / New Thread Seed
+
+- [ ] Produce concise handoff doc before implementation thread starts.
+- [ ] Include route-indexed traffic status.
+- [ ] Include `RouteIndexedTruthCache` status.
+- [ ] Include RidePlanScenario architecture.
+- [ ] Include next implementation slice.
+
+Deliverable:
+
+```text
+docs/04-execution/reports/exec-054-scenario-engine-thread-handoff.md
+```
+
+## Implementation Guardrails
+
+Do not:
+
+- change scoring formula
+- change Baseline Safety Score definition
+- change `traffic-time.ts`
+- introduce temporal/session evidence into stable truth
+- write to `RouteIndexedTruthCache`
+- implement durable scenario storage
+- write Supabase migration
+- route through old `route_cache`
+- use `route_history` as truth authority
+- use RXON as truth authority
+- wire RouteMap to raw scenario logic
+- make cue sheet the owner of scenario context
+- call POC traffic live traffic
+- call POC night-risk production calibrated
+
+RouteMap may eventually render sealed scenario presentation props. It must not own `RidePlanScenarioContext`, call scenario adapters, read objective state as authority, compute route-time bindings, or calculate scenario score deltas.
+
+`traffic-time.ts` is not the scenario engine. It may be audited or adapted as one implementation input, but scenario context, route transform, objective adapters, access projections, and future condition adapters must live outside `traffic-time.ts`.
+
+## Required Future Tests
+
+- changing start time changes `RouteTimeBinding`
+- changing direction changes `ScenarioRouteTransform`
+- changing start offset rotates scenario distance for loop routes
+- baseline route truth remains unchanged
+- `RouteIndexedTruthCache` remains unchanged
+- `TrafficTemporalVolumeProfile` does not mutate baseline AADT
+- `TemporalMotorVehicleRiskContext` remains separable from traffic volume
+- objective adapter cannot mutate domain outputs
+- cue sheet can edit/read `RidePlanScenarioContext` but does not own it
+- RouteMap does not compute scenario outputs
+- scenario sweep does not persist 96 route analyses
+- route-time binding does not use environment-local Date APIs silently
+- planned ride score cannot overwrite baseline safety score
+
+## Expected Outcome
+
+Exec-054 should end with a reviewed architecture and implementation gate for the first scenario POC.
+
+The likely first implementation slice after approval:
+
+```text
+RidePlanScenarioContext
+  + manual_constant_speed PaceProfile
+  + forward route transform
+  + planned RouteTimeBinding
+  + traffic temporal volume projection
+  + neutral TemporalMotorVehicleRiskContext
+  -> RidePlanScenarioView
+```
+
+That slice must still preserve Baseline Safety Score and stable route truth unchanged.
+
+The first implementation slice may stop at scenario view construction. However, the traffic scenario POC is not complete until:
+
+- changing start time can change `ScenarioTrafficProjection`
+- Planned Ride Safety Score or a clearly labeled planned ride risk preview can reflect that scenario delta
+- Baseline Safety Score remains unchanged
+- all deltas carry assumptions and receipts
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System

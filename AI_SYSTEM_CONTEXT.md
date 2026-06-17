@@ -3412,6 +3412,8 @@ Route Safety Score must remain:
 | ADR-033 | Canonical Segment Identity and Route-to-Canonical Mapping | Accepted | DS-013 |
 | ADR-034 | Master Route Expeditions and Windowed Long-Route Analysis | Draft | DS-014 |
 | ADR-045 | Route-Indexed Evidence Platform | Accepted | DS-031 |
+| ADR-054 | RouteIndexedEvidenceLedger No-Leak Architecture | Accepted | DS-055 |
+| ADR-055 | Ride Plan Scenario Engine and Planned Ride Safety Score | Accepted Architecture | DS-056 |
 
 ---
 
@@ -3460,6 +3462,8 @@ Route Safety Score must remain:
 | DS-052 | Lanterne Route Units, Route Analysis Summary, Global Units, and Viewport Index | ADR-045, ADR-049, ADR-051, ADR-052, DS-031, DS-047, DS-048, DS-050, DS-051 | Draft |
 | DS-053 | Local Prediction Builder | DS-015, DS-017, DS-022, DS-029, DS-031, DS-043, DS-046, DS-048 | Draft |
 | DS-054 | Admin Cache Cell Visualizer | DS-031, DS-034, DS-035, DS-050, DS-052, DS-053 | Draft |
+| DS-055 | RouteIndexedEvidenceLedger No-Leak Spec | ADR-054, DS-031, DS-043, DS-044, DS-047 | Draft |
+| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055 | Draft |
 
 ---
 
@@ -30572,6 +30576,1020 @@ Phase D: evidence and Global Unit expansion
 
 ---
 
+## Source File: docs/02-architecture/design/ds-055-route_indexed_evidence_ledger_no_leak_spec.md
+
+# DS-055 - RouteIndexedEvidenceLedger No-Leak Spec
+
+**Status:** Draft for implementation
+**Date:** 2026-06-16
+**ADR Parent:** [ADR-054](../../03-adrs/adr-054-route_indexed_evidence_ledger_no_leak_architecture.md)
+**Related:** DS-031, DS-043, DS-044, DS-047
+
+---
+
+## 1. Purpose
+
+This specification makes the ledger-first architecture executable.
+
+The route-distance axis is the canonical coordinate system. `RouteIndexedEvidenceLedger` is the only upstream source boundary for route-indexed evidence. Every later layer consumes selected or composed truth from the immediately prior boundary.
+
+## 2. Package Boundaries
+
+| Layer | Package | Allowed upstream reads |
+| --- | --- | --- |
+| RouteAxis / LinearRef | `src/lib/route-line`, `src/lib/route-line-v2/axis.ts` | route inputs |
+| Source Projection Workers | `src/lib/source-projection` | RouteAxis and raw external source facts |
+| RouteIndexedEvidenceLedger | `src/lib/route-evidence` | RouteAxis and source projection outputs |
+| Truth Selection Builders | `src/lib/truth-selection` | RouteIndexedEvidenceLedger only |
+| RouteSurfaceTruthBundle | `src/lib/route-surface-truth` | selected truth snapshots only |
+| Ride Context / Temporal Binding | `src/lib/route-time` | RouteAxis and ride context |
+| Temporal Projector | `src/lib/temporal-projection` | selected truth baseline and route-time binding |
+| ActiveTruthView | `src/lib/active-truth` | selected stable truth and ride-context temporal ledger state |
+| Presentation | `src/components`, `src/pages` | ActiveTruthView only |
+
+## 3. No-Leak Invariant
+
+RouteIndexedEvidenceLedger is the only upstream source boundary for route-indexed evidence.
+
+Truth builders may consume the ledger.
+TruthBundle may snapshot selected evidence.
+ActiveTruthView may compose selected truth with allowed temporal/context evidence.
+Presentation may read ActiveTruthView only.
+
+Presentation may not query raw HPMS.
+Presentation may not inspect legacy truthRuns as evidence.
+Presentation may not recompute traffic exposure independently.
+Presentation may not promote candidates.
+
+## 4. HPMS AADT Proof Layer
+
+HPMS AADT enters through source projection:
+
+```text
+HPMS source record
+  -> source projection worker
+  -> RouteIndexedSpan<TrafficAadtEvidenceValue>
+  -> RouteIndexedEvidenceLedger.spans.traffic_aadt
+```
+
+The canonical join key is route distance:
+
+- `distM`
+- `startDistM`
+- `endDistM`
+
+HPMS row IDs, route IDs, object IDs, tile IDs, OSM way IDs, and presentation segment IDs are metadata only.
+
+## 5. Unresolved Is First-Class
+
+Missing HPMS coverage must remain unresolved:
+
+- emit an unresolved ledger span, or
+- emit a ledger diagnostic gap
+
+Do not invent AADT.
+Do not infer AADT from road class in this first proof layer.
+Do not convert unresolved spans into score-bearing traffic truth.
+
+## 6. Truth Selection
+
+Stable traffic baseline selection consumes the ledger only.
+
+The selector may:
+
+- choose selected HPMS AADT spans
+- compute coverage
+- carry unresolved distance
+- preserve diagnostics
+
+The selector may not:
+
+- query HPMS
+- inspect legacy truth runs
+- infer missing AADT
+- apply time-of-day multipliers
+
+## 7. Stable Surface Truth Output
+
+Route-surface stable outputs consume selected truth snapshots only.
+
+For the traffic POC, the stable output is explicitly traffic-only and partial:
+
+```text
+StableTrafficBaselineSnapshot
+  -> RouteSurfaceStableTrafficOutput
+  -> future RouteSurfaceTruthBundle traffic slot
+```
+
+`RouteSurfaceStableTrafficOutput` must declare:
+
+- `artifactKind = route_surface_stable_traffic_output`
+- `compatibilityTarget = RouteSurfaceTruthBundle`
+- `completeness.scope = partial_layer_output`
+- `isCompleteRouteTruthBundle = false`
+
+The stable traffic output may carry:
+
+- selected HPMS AADT baseline spans
+- unresolved and conflict spans
+- coverage percentage
+- unresolved and conflict distance
+- selected value snapshots
+- selected source refs
+- rejected, conflict, and unresolved evidence refs
+- source, provenance, and confidence summaries
+- receipt summaries or receipt pointers
+
+The stable traffic output may not carry:
+
+- planned start time
+- current rider speed
+- actual GPS progress
+- live ETA drift
+- route-time binding
+- temporal traffic multipliers
+- effective time-adjusted traffic exposure
+- scoring outputs
+- presentation or display fields
+
+Future mapping:
+
+- `selectedEvidenceSnapshots` maps to `RouteSurfaceTruthBundle.selectedEvidenceSnapshots`
+- `receiptTraces` maps to `RouteSurfaceTruthBundle.receiptTraces`
+- `rejectedEvidenceRefs` maps to `RouteSurfaceTruthBundle.rejectedEvidenceRefs`
+- `unresolvedSpans` maps to `RouteSurfaceTruthBundle.unresolvedSpans`
+- `conflictSpans` maps to `RouteSurfaceTruthBundle.unresolvedSpans` or diagnostics, depending future policy
+- `stable.trafficAadtBaseline.coverage` maps to `RouteSurfaceTruthBundle.quality.trafficCoverage`
+
+Intentionally absent until later layers are ready:
+
+- primary ownership spans
+- speed snapshots
+- bike infra snapshots
+- shoulder snapshots
+- surface snapshots
+- full score inputs
+- temporal/context overlays
+
+## 8. Route-Time Binding
+
+`RouteTimeBinding` is ride-context state, not stable route truth.
+
+It maps canonical route distance to expected or observed clock time:
+
+```text
+RouteAxis
+  x planned start time
+  x simple speed model
+  x optional actual GPS progress
+  -> RouteTimeBinding
+```
+
+Route-time binding may carry:
+
+- planned `distM -> elapsedSec -> estimatedClockTimeIso` points
+- observed past/current route-time points
+- actual-adjusted future route-time points
+- half-open route-time basis spans
+- typed actual-progress update decisions
+- time-binding update traces
+- update policy and throttling diagnostics
+
+Route-time binding may not carry:
+
+- ledger source facts
+- selected traffic baseline values
+- temporal traffic multipliers
+- effective AADT
+- scoring output
+- presentation/display fields
+
+Route-time binding uses meters, seconds, and `speedKph` in canonical contracts. Miles, mph, raw GPS coordinates, matched roads, presentation geometry, HPMS, traffic, shoulder, bike infra, speed limit, and heatmap segments are outside this boundary.
+
+All planned and observed clock inputs must include an explicit ISO timezone offset or `Z`. Route-time code must not depend on environment-local clock interpretation and must not call local-time APIs such as `Date.getHours()`, `Date.getDay()`, or `getTimezoneOffset()`.
+
+## 9. Temporal Projection
+
+Temporal traffic exposure is downstream context:
+
+```text
+selected traffic_aadt baseline
+  x RouteTimeBinding
+  x traffic-time multiplier
+  -> temporal overlay for ActiveTruthView
+```
+
+Temporal projection must not mutate the ledger or the stable truth bundle.
+
+For the traffic POC, temporal projection lives in `src/lib/temporal-projection/traffic-temporal-exposure.ts`.
+
+It may consume:
+
+- `StableTrafficBaselineSnapshot`
+- `RouteSurfaceStableTrafficOutput`
+- `RouteTimeBinding`
+- `TrafficTimeMultiplierModel`
+
+The traffic-time multiplier model must accept explicit local-hour input derived from `RouteTimeBinding.clockContext`. Temporal projection must not call `Date.getHours()`, `Date.getDay()`, `getTimezoneOffset()`, or any browser/system-local clock path.
+
+It emits `traffic_temporal_exposure` route-indexed temporal spans and receipts for downstream session/view composition. These spans use canonical `startDistM` and `endDistM`, preserve selected baseline span refs, carry arrival start/end/representative clock time, route-time basis, local-hour bucket, multiplier model id/version, and `aadtEquivalent`.
+
+Use `aadtEquivalent`, not `effectiveAadt`. This is a time-adjusted AADT-equivalent exposure estimate, not durable selected traffic truth.
+
+Temporal exposure span envelopes must use derived-model source/provenance. HPMS lineage remains inside baseline refs and receipts; HPMS must not become the temporal span source.
+
+Given valid stable baseline truth and valid `RouteTimeBinding`, the temporal projection output must partition `[0,totalDistM)` into computed, unresolved baseline, conflict baseline, missing time binding, or missing multiplier intervals.
+
+`traffic_temporal_exposure` must not be added to the route-version evidence ledger layer registry. It is contextual overlay state for ActiveTruthView/RideContext composition, not candidate source truth.
+
+Temporal projection may not accept raw `traffic_aadt` candidate spans, query raw HPMS, read source-projection internals, inspect legacy `truthRuns`, select/promote candidates, mutate `StableTrafficBaselineSnapshot`, mutate `RouteSurfaceStableTrafficOutput`, mutate `RouteTimeBinding`, create new route-time revisions, or use presentation/scoring adapters.
+
+## 10. Ride Context Temporal Ledger
+
+`RideContextTemporalLedger` is writable session/context state. It is not route-version source evidence and it is not stable route truth.
+
+For the traffic POC, it lives in `src/lib/ride-context/ride-context-temporal-ledger.ts` rather than `src/lib/route-time` so route-time remains traffic-agnostic.
+
+It is a reducer-owned ledger, not a mutable object that components may poke. State changes enter through typed reducer functions:
+
+- `createRideContextTemporalLedger(input)`
+- `applyRouteTimeBindingRevision(ledger, newBinding, options)`
+- `acceptTrafficTemporalExposureProjection(ledger, projection, options)`
+- `markTemporalLayerStale(ledger, layerId, options)`
+- `recordObservedTiming(ledger, observedTiming, options)`
+- `validateRideContextTemporalLedger(ledger)`
+
+The intended traffic transition is:
+
+```text
+planned binding
+  -> temporal projection
+  -> ledger accepts projection
+
+actual progress changes route-time binding
+  -> ledger marks temporal layer stale
+  -> projector recomputes
+  -> ledger accepts new projection if revision matches
+  -> ActiveTruthView reads current ledger state later
+```
+
+It stores:
+
+- session id and route identity
+- route axis id/revision and total distance
+- ledger id/kind/version/revision/lifecycle
+- stable truth refs by artifact id and digest only
+- planned `RouteTimeBinding`
+- current `RouteTimeBinding`
+- binding history summaries
+- observed timing summaries keyed by `startDistM` and `endDistM`
+- `traffic_temporal_exposure` layer state with status `empty`, `current`, `stale`, or `invalid`
+- accepted temporal projection id/digest, spans, receipts, coverage, source stable artifact id/digest, and source binding id/revision
+- typed event log
+- diagnostics
+- budgets for event log, binding history, observed timings, spans, receipts, and diagnostics
+- created/updated timestamps
+
+It may replace session view evidence by creating a new ledger revision. Accepted writes increment the ledger revision and append a typed event. Rejections may append diagnostics and rejection events without promoting candidate state.
+
+`applyRouteTimeBindingRevision` accepts only valid non-stale route-time revisions. When the current binding changes, any dependent current temporal traffic layer becomes stale. The ledger does not recompute temporal exposure itself.
+
+`acceptTrafficTemporalExposureProjection` is the only path that can make `traffic_temporal_exposure` current. It must reject projections when route axis, total distance, session id, stable artifact id, stable artifact digest, current binding id, or current binding revision do not match. It must also reject hidden route-distance holes, missing receipts, span/receipt budget overflows, raw HPMS payloads, legacy truth-run payloads, scoring fields, and presentation fields.
+
+`recordObservedTiming` stores route-distance keyed timing summaries only. It must not store raw GPS coordinates, browser GPS payloads, polyline indices, route point indices, or snapped point payloads.
+
+It must not mutate:
+
+- `RouteIndexedEvidenceLedger`
+- `StableTrafficBaselineSnapshot`
+- `RouteSurfaceStableTrafficOutput`
+- future `RouteSurfaceTruthBundle`
+- `RouteTimeBinding`
+- `TrafficTemporalExposureProjection`
+
+It may not query raw HPMS, run source projection, run truth selection, build stable truth, compose `ActiveTruthView`, score, heatmap, render presentation, read browser GPS APIs, or inspect legacy `truthRuns`.
+
+It stores stable traffic artifact IDs/digests and temporal projection refs only. Stable selected traffic truth remains owned by the stable truth boundary.
+
+## 11. ActiveTruthView
+
+`ActiveTruthView` is the presentation firewall. It is not a source boundary, selector, projector, scorer, heatmap builder, RouteMap adapter, or mutable ride-context state.
+
+For the traffic POC, it lives in `src/lib/active-truth/active-truth-view.ts`.
+
+It may consume:
+
+- `RouteSurfaceStableTrafficOutput`
+- `RideContextTemporalLedger`
+- selected traffic baseline snapshot types
+
+It may expose:
+
+- `viewId`, `viewKind`, `schemaVersion`, `generatedAt`, and deterministic `contentDigest`
+- route/session/axis metadata
+- source refs for stable traffic, ride-context ledger, route-time binding, and accepted temporal projection
+- stable `traffic_aadt_baseline` spans
+- current/stale/empty `traffic_temporal_exposure` layer state
+- route-time summaries
+- typed receipt index for stable traffic, temporal traffic, and ActiveTruthView composition receipts
+- diagnostics
+- `presentation.trafficOverlay`
+- quality summary
+- explicit capabilities showing it cannot promote candidates, fetch raw evidence, recompute traffic exposure, or mutate stable truth
+
+It must validate that:
+
+- stable artifact id/digest matches the ride-context stable truth refs
+- route axis and total distance match
+- current temporal traffic exposure derives from the stable traffic artifact in the view
+- current temporal traffic exposure matches the current route-time binding id/revision
+- presentation overlay spans are a complete half-open route partition when paintable
+- policy budgets are not exceeded
+
+If temporal traffic exposure is missing, the default view may expose a stable-only traffic overlay and must mark temporal paint unavailable. If temporal traffic exposure is stale, the stale layer may remain inspectable in the view, but it must not be painted as current temporal exposure. Any blocking route/source/payload/budget error seals the presentation overlay as invalid.
+
+It may not import or call route evidence ledger builders, source projection workers, HPMS projection, truth selection builders, route-time builders, temporal projection functions, traffic-time models, scoring, heatmap, React, Supabase, browser GPS APIs, presentation components, `RouteMap`, or legacy `truthRuns`. It may import selected-truth types for stable input normalization, but it must not run selectors.
+
+## 12. Enforcement
+
+The executable architecture manifest lives in:
+
+```text
+src/lib/route-architecture/route-intelligence-architecture.ts
+```
+
+Tests should treat violations as architecture failures, not product polish issues.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-056-ride_plan_scenario_engine_and_objective_adapter_spec.md
+
+# DS-056 - Ride Plan Scenario Engine and Objective Adapter Spec
+
+**Status:** Draft for planning
+**Date:** 2026-06-17
+**ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
+**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, exec-052, exec-053, exec-054
+
+---
+
+## 1. Purpose
+
+This specification defines the extensible architecture for scenario variables, route-time binding, condition adapters, objective adapters, scenario scoring, scenario sweeps, and scenario views.
+
+The engine answers:
+
+```text
+What happens if the rider rides this stable route under this scenario?
+```
+
+It does not answer:
+
+```text
+What new route geometry should we generate?
+```
+
+Route geometry optimization and rerouting are out of scope.
+
+---
+
+## 2. Architecture
+
+The canonical flow is:
+
+```text
+Stable route truth
+  + RidePlanScenarioContext
+  + ScenarioRouteTransform
+  + RouteTimeBinding
+  + ScenarioDomainAdapters
+  + ScenarioObjectiveAdapters
+  -> RidePlanScenarioView
+```
+
+Stable route truth remains keyed to the canonical route axis.
+
+Scenario outputs may carry both:
+
+- `canonicalDistM`
+- `scenarioDistM`
+
+Scenario layers do not mutate stable truth, route geometry, the evidence ledger, or `RouteIndexedTruthCache`.
+
+---
+
+## 3. RidePlanScenarioContext
+
+`RidePlanScenarioContext` is the scenario input envelope.
+
+Fields:
+
+- `scenarioId`
+- `routeId`
+- `routeVersionId`
+- `routeHash`
+- `plannedStartTimeIso`
+- `clockContext`
+- `startOffsetDistM`
+- `direction`
+- `expectedPaceProfile`
+- `stopModel`
+- `objectiveProfile`
+- `generatedAt`
+- `assumptions`
+- `warnings`
+
+`clockContext` must be explicit:
+
+- fixed timezone, or
+- fixed UTC offset
+
+Do not derive scenario-local hour from environment-local `Date.getHours()`, `Date.getDay()`, or `getTimezoneOffset()`.
+
+Cue sheet start-time and speed controls may edit a `RidePlanScenarioContext`. They do not own it.
+
+---
+
+## 4. PaceProfile
+
+`PaceProfile` must not live only in the cue sheet drawer.
+
+Fields:
+
+- `profileId`
+- `profileKind`
+- `expectedMovingSpeedKph`
+- `elapsedSpeedKph`
+- `stopPenaltyModel`
+- `source`
+- `confidence`
+- `warnings`
+
+Allowed `profileKind` values:
+
+- `manual_constant_speed`
+- `user_default`
+- `inferred_from_past_rides`
+- `route_type_default`
+- `actual_adjusted_later`
+
+POC scope:
+
+```text
+manual_constant_speed only
+```
+
+Future scope:
+
+- past ride inferred speed
+- route type speed
+- actual GPS progress adjustment
+- moving speed versus elapsed speed distinction
+
+---
+
+## 5. ScenarioRouteTransform
+
+`ScenarioRouteTransform` maps canonical route distance to scenario route distance.
+
+It handles:
+
+- alternate start point
+- reverse direction
+- loop rotation
+- out-and-back behavior where possible
+- canonical distance to scenario distance conversion
+- scenario distance to canonical distance conversion
+
+Rules:
+
+- Do not mutate route geometry.
+- Do not create a new route version because a rider chooses a different start point.
+- Scenario transform is contextual.
+- Stable route truth remains keyed to canonical route axis.
+- Scenario outputs may carry both canonical and scenario distance.
+
+Minimum fields:
+
+- `transformId`
+- `routeAxisId`
+- `routeAxisRevision`
+- `totalDistM`
+- `direction: forward | reverse`
+- `startOffsetDistM`
+- `endOffsetDistM`
+- `loopPolicy`
+- `segments`
+- `warnings`
+
+`ScenarioRouteTransform` or a derived `ScenarioRouteKinematics` view must expose scenario-direction-aware bearing/heading by distance.
+
+Rules:
+
+- forward and reverse direction must produce different scenario bearing where appropriate
+- wind, glare, and directional exposure adapters must consume scenario bearing, not canonical forward-only bearing
+- reversing a route does not mutate stable route truth
+- scenario bearing is contextual output of the transform/kinematics layer
+
+---
+
+## 6. RouteTimeBinding
+
+`RouteTimeBinding` maps scenario distance to estimated clock time.
+
+Fields:
+
+- `scenarioDistM`
+- `canonicalDistM`
+- `elapsedSec`
+- `estimatedClockTimeIso`
+- `basis`
+- `paceProfileId`
+- `clockContext`
+- `warnings`
+
+Allowed `basis` values:
+
+- `planned`
+- `actual_adjusted`
+- `observed`
+
+Rules:
+
+- Planned bindings are immutable inputs until the scenario changes.
+- Actual-adjusted bindings later update future spans only.
+- Route-time binding must use explicit timezone or offset.
+- Route-time binding must not read raw traffic, weather, RouteMap state, score state, or evidence candidates.
+
+---
+
+## 7. ScenarioDomainAdapter
+
+`ScenarioDomainAdapter` is the downstream adapter contract for scenario-derived outputs.
+
+Each adapter declares:
+
+- `adapterId`
+- `domain`
+- `requiredStableLayers`
+- `requiredScenarioInputs`
+- `routeTimeRequired`
+- `bearingRequired`
+- `forecastDataRequired`
+- `scoreEligibility`
+- `outputLayerId`
+- `diagnostics`
+
+Allowed `domain` values:
+
+- `traffic`
+- `temporal_motor_vehicle_risk_context`
+- `light`
+- `uv`
+- `weather`
+- `temperature`
+- `wind`
+- `service_access`
+- `transport_access`
+- `remoteness`
+- `fatigue`
+- `climb_timing`
+- `poi_open_status`
+- `other`
+
+Allowed `scoreEligibility` values:
+
+- `baseline_safety_score_input`
+- `planned_ride_safety_score_input`
+- `route_reality_index`
+- `condition_index`
+- `objective_only`
+- `display_only`
+- `diagnostic_only`
+
+Default eligibility rules:
+
+- traffic temporal volume may be `planned_ride_safety_score_input`
+- temporal motor-vehicle risk context may be `planned_ride_safety_score_input` only after calibration gate
+- light, UV, weather, temperature, and wind are `condition_index` by default
+- access and transport are `route_reality_index` or `objective_only` by default
+- POI likely-open status is logistics, objective, or display by default
+- fatigue and climb timing are `route_reality_index` or `objective_only` by default
+- no scenario domain becomes `baseline_safety_score_input` by default
+
+Adapters produce scenario outputs.
+
+`ScenarioDomainAdapter` consumes selected stable truth, prepared scenario context, route-time binding, and approved prepared source inputs. It does not own external source fetching.
+
+If a future domain requires external source retrieval, define a separate `ScenarioSourceProvider` or equivalent source-acquisition boundary before the adapter. Weather, UV, wind, POI hours, and live-like external data must not be fetched ad hoc from a domain adapter in exec-054.
+
+Adapters must not:
+
+- mutate stable truth
+- mutate `RouteIndexedTruthCache`
+- read legacy `truthRuns`
+- read RouteMap props
+- become objective ranking logic
+
+### ScenarioDomainOutput Envelope
+
+Every domain adapter output must fit a shared conceptual envelope:
+
+```ts
+interface ScenarioDomainOutput {
+  outputLayerId: string;
+  domain: string;
+  modelVersion: string;
+  scenarioId: string;
+  scenarioContextDigest: string;
+  routeTransformDigest: string;
+  routeTimeBindingDigest?: string;
+  generatedAt: string;
+  basis: 'planned' | 'actual_adjusted' | 'observed' | 'modeled';
+  canonicalCoverage: unknown;
+  scenarioCoverage: unknown;
+  confidence: unknown;
+  receipts: unknown[];
+  assumptions: string[];
+  warnings: string[];
+  diagnostics: unknown[];
+}
+```
+
+Rules:
+
+- every domain output must be traceable to scenario context and model version
+- every score-bearing output must carry receipts or explanation refs
+- route-positioned outputs may carry both `canonicalDistM` and `scenarioDistM`
+- outputs must not carry raw evidence, RouteMap props, or durable storage handles
+
+---
+
+## 8. ScenarioObjectiveAdapter
+
+`ScenarioObjectiveAdapter` ranks scenario outputs for a chosen planning objective.
+
+Each objective declares:
+
+- `objectiveId`
+- `objectiveFamily`
+- `allowedVariables`
+- `hardConstraints`
+- `softPreferences`
+- `tieBreakers`
+- `requiredDomainOutputs`
+- `rankingPolicy`
+- `explanationPolicy`
+
+Allowed `objectiveFamily` values:
+
+- `safety`
+- `access`
+- `logistics`
+- `conditions`
+- `fatigue`
+- `climbing`
+- `custom`
+
+Examples:
+
+- `optimize_safety`
+- `optimize_access_rail`
+- `optimize_access_air`
+- `optimize_service_gap_early`
+- `optimize_climbing_early`
+- `optimize_night_avoidance`
+- `optimize_wind_exposure`
+
+Rules:
+
+- Objective adapters may propose and rank scenarios.
+- Objective adapters may not mutate stable truth.
+- Objective adapters may not directly alter scoring formulas.
+- Objective adapters may not become domain projection logic.
+- Objective adapters consume scenario outputs and return rankings/explanations.
+- Objective adapters may generate candidate scenario contexts before evaluation and rank evaluated scenario views after evaluation.
+- Objective adapters may not alter domain adapter outputs, rewrite scenario projections, or patch Planned Ride Safety Score to make a candidate rank better.
+
+Airport access is one objective adapter example. It is not a special architecture case.
+
+### Objective Examples
+
+`optimize_safety`:
+
+- primary objective: minimize Planned Ride Safety Score risk or `riskPlannedRidePerMile`
+- hard constraints: no blocked route-indexed traffic truth if policy requires; no temporal model calibration blockers
+- soft preferences: shorter dark exposure; better bailout density
+- tie breakers: earlier service access; lower unresolved distance
+
+`optimize_access_air`:
+
+- primary objective: minimize airport start/end logistics friction
+- hard constraints: Planned Ride Safety Score must remain below the approved risk threshold
+- soft preferences: rail access; service availability; lower night exposure
+- tie breakers: lower traffic temporal exposure
+
+`optimize_service_gap_early`:
+
+- primary objective: place longest no-service gap earlier in scenario distance
+- hard constraints: avoid remote gap after dark where possible
+- soft preferences: improve bailout spacing
+- tie breakers: lower traffic exposure
+
+---
+
+## 9. ScenarioSafetyScorer
+
+`ScenarioSafetyScorer` computes Planned Ride Safety Score from stable route truth plus approved scenario modifiers.
+
+Inputs:
+
+- stable scoring truth
+- scenario traffic volume projection
+- temporal motor-vehicle risk context projection
+- bike support, speed, railroad-crossing hazard, and other approved stable safety inputs as applicable
+- approved contextual modifiers only
+
+Rail transport access is not a Planned Ride Safety Score input by default. It belongs to `ScenarioAccessProjection`, route reality, or objective scoring unless a later ADR explicitly says otherwise.
+
+Outputs:
+
+- `scorePlannedRideSafety`
+- `riskPlannedRidePerMile`
+- `deltaFromBaselineSafetyScore`
+- scenario traffic volume contribution
+- temporal motor-vehicle risk context contribution
+- explanation receipts
+- warnings
+
+Implementation may choose final field names later, but names must follow existing naming discipline:
+
+- `observed_*` for direct measurements
+- `inferred_*` for deterministic known truth
+- `predicted_*` for model output
+- `baseline_*` for priors/defaults
+- `confidence_*` for evidence strength
+- `score_*` for normalized Lanterne output
+
+Avoid `effectiveAadt` as durable truth. Avoid `liveTraffic`, `actualTraffic`, and `observedFlow` for POC modeled estimates.
+
+Critical rule:
+
+```text
+Do not apply one opaque final score multiplier if slice-level recomputation is possible.
+```
+
+Preferred model:
+
+- recompute traffic/risk contribution at slice level using arrival time and temporal context
+- roll up with the same aggregation policy or an explicitly versioned scenario aggregation policy
+
+Any POC simplification must be:
+
+- labeled POC
+- versioned
+- receipt-backed
+- excluded from production scoring policy until a later gate
+
+---
+
+## 10. TrafficTemporalVolumeProfile
+
+`TrafficTemporalVolumeProfile` distributes selected stable AADT baseline across hours.
+
+Fields:
+
+- `profileId`
+- `hourlyShares`
+- `sourceBasis`
+- `isObservedTraffic`
+- `isLiveTraffic`
+- `notes`
+
+Initial profile ids:
+
+- `urban_suburban_commute_v1`
+- `rural_distributed_v1`
+
+Rules:
+
+- `hourlyShares` length is 24.
+- `hourlyShares` sum is 1.0.
+- `sourceBasis` may be `default_prior_poc` or `calibrated_later`.
+- `isObservedTraffic` is false for the POC.
+- `isLiveTraffic` is false for the POC.
+
+Outputs:
+
+- hourly share
+- hourly vehicle estimate
+- vehicles per minute estimate
+- volume multiplier versus average hour
+
+This changes pass frequency and exposure estimate.
+
+---
+
+## 11. TemporalMotorVehicleRiskContext
+
+`TemporalMotorVehicleRiskContext` models time-dependent motor-vehicle risk context independent of volume.
+
+Factors:
+
+- daylight/twilight/night
+- visibility state
+- low-light rider detection risk
+- driver fatigue or impairment prior by hour
+- glare if sun angle aligns with rider or driver bearing
+- confidence
+- calibration version
+- source refs or TODO placeholders
+
+Rules:
+
+- Do not bake production coefficients without calibration/research gate.
+- POC may define placeholder profile ids and neutral/default factors.
+- Any non-neutral factor must be clearly marked POC and not production-calibrated unless supported.
+- Do not claim empirical crash certainty without backing data.
+
+This changes risk per vehicle interaction or severity context. It is not traffic volume.
+
+---
+
+## 12. Scenario Outputs
+
+### RidePlanScenarioView
+
+Fields:
+
+- scenario context
+- scenario route transform
+- route time binding
+- domain outputs
+- planned ride safety score
+- baseline safety score reference
+- deltas
+- objective rankings
+- assumptions
+- receipts
+- diagnostics
+
+### ScenarioTrafficProjection
+
+Fields:
+
+- selected stable AADT baseline reference
+- hourly traffic estimate
+- vehicles per minute estimate
+- volume profile id
+- arrival time
+- basis
+- receipts
+
+### ScenarioTemporalSafetyProjection
+
+Fields:
+
+- light/darkness context
+- temporal motor-vehicle risk factor
+- whether factor is neutral, POC, or calibrated
+- explanation
+
+### ScenarioAccessProjection
+
+Fields:
+
+- rail, bus, air, and service nodes
+- nearest access by scenario position/time
+- distance/time to access
+- mode-specific caveats
+- open/closed/unknown for POIs when available
+
+Access/transport mode semantics:
+
+- rail is generally the strongest bailout / return-logistics mode
+- bus may be useful bailout, but service frequency and bike policy may be uncertain
+- air is usually trip logistics / start-end optimization, not roadside bailout
+- services/resupply are route reality and service-gap inputs
+- emergency/support access is a future domain and is not implied by public transit proximity alone
+
+Access/transport may affect Objective Score or Route Reality Index. It does not automatically affect Baseline Safety Score or Planned Ride Safety Score.
+
+POI open/closed caveats:
+
+- OSM `opening_hours` may be absent, stale, incomplete, or ambiguous
+- `unknown` is a valid output
+- do not hide POIs because hours are unknown
+- do not promise actual availability
+- do not fetch live business status in exec-054
+- POI open/closed status is display, objective, or logistics by default, not durable route truth
+
+### ScenarioConditionProjection
+
+Future condition outputs:
+
+- light
+- UV
+- weather
+- temperature
+- wind
+
+---
+
+## 13. Scenario Sweeps
+
+The engine may sweep:
+
+- start time buckets, such as every 15 minutes
+- direction: forward/reverse
+- start offset candidates for loops
+- pace profile variants later
+
+Outputs:
+
+- ranked candidate scenarios
+- best/worst windows
+- safety/access/conditions summaries
+- assumptions
+
+Do not store 96 durable route analyses for a 15-minute daily sweep.
+
+Sweeps should run in memory or local ephemeral cache unless a later persistence gate approves otherwise.
+
+---
+
+## 14. Persistence Policy
+
+Allowed:
+
+- user preferred scenario settings
+- pinned ride plan later
+- local ephemeral scenario results
+- diagnostics fixture snapshots
+
+Not allowed:
+
+- storing every scenario as durable route truth
+- storing scenario outputs in `RouteIndexedTruthCache`
+- storing temporal exposure as stable traffic truth
+- storing planned ride score as baseline route score
+- storing scenario outputs in old completed-analysis `route_cache` as truth
+- storing scenario outputs in `route_history` as truth authority
+
+Future selected stable layers such as `speed_limit`, `bike_infra`, `shoulder`, `surface`, and access/service baselines may become `RouteIndexedTruthCache` sibling layers after their own selection contracts exist. Scenario outputs derived from those layers still remain outside the cache.
+
+---
+
+## 15. No-Leak Rules
+
+Scenario adapters may consume selected stable truth and route-time context.
+
+They may not read:
+
+- raw HPMS
+- raw `RouteIndexedEvidenceLedger` candidates
+- legacy `truthRuns`
+- RXON
+- RouteMap props
+- `route_history` as truth
+- completed-analysis `route_cache` as truth
+
+Presentation reads:
+
+- `RidePlanScenarioView`, or
+- future `ActiveScenarioView`
+
+Presentation must not run the optimizer, fetch evidence, select candidates, or recompute contextual projections independently.
+
+---
+
+## 16. POC Boundaries
+
+Exec-054 may plan traffic/time as the first dynamic safety domain.
+
+It must keep separate:
+
+- `TrafficTemporalVolumeProfile`
+- `TemporalMotorVehicleRiskContext`
+
+Exec-054 may scaffold access/transport objectives.
+
+It must not:
+
+- implement route geometry optimization
+- implement rerouting
+- implement durable scenario storage
+- wire RouteMap directly
+- make cue sheet the owner of start time/speed
+- change Baseline Safety Score
+- mutate `RouteIndexedTruthCache`
+- claim live traffic
+- claim night-risk coefficients are production-calibrated
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
@@ -40783,4 +41801,714 @@ The route-line v2 topology builder should:
 - keep non-bikeable and bike-unknown non-motor spans grey/unknown rather than blue safe-path
 - attach access and facility warnings to ownership spans without changing span identity
 - keep tiny-gap smoothing as a presentation or continuity aid, not as ownership rescue
+
+
+---
+
+## Source File: docs/03-adrs/adr-054-route_indexed_evidence_ledger_no_leak_architecture.md
+
+# ADR-054 - RouteIndexedEvidenceLedger No-Leak Architecture
+
+Status: Accepted
+Date: 2026-06-16
+Related: ADR-045, ADR-052, ADR-053, DS-031, DS-043, DS-044, DS-047, DS-055
+
+------
+
+## Context
+
+Lanterne has accumulated route evidence mechanisms across route loading, HPMS/DOT traffic, V2 route-line evidence, legacy truth runs, heatmap/presentation adapters, inspection, scoring, and diagnostic tools.
+
+The long-term architecture cannot allow source facts, selected truth, receipts, inspection, temporal overlays, and presentation to query or promote evidence independently. That creates circular truth and makes every new surface a potential source boundary.
+
+The corrected architecture is ledger-first and no-leak.
+
+------
+
+## Decision
+
+Lanterne will enforce `RouteIndexedEvidenceLedger` as the only upstream source boundary for route-indexed evidence.
+
+The required end-state architecture is:
+
+1. Route Inputs
+   GPX / Manual / RWGPS / RUSA / edits
+
+2. RouteAxis / LinearRef
+   canonical route-distance coordinate system
+   `distM` / `startDistM` / `endDistM`
+
+3. Source Projection Workers
+   project external facts onto RouteAxis
+   HPMS traffic is first proof layer
+
+4. RouteIndexedEvidenceLedger
+   route-version-scoped evidence ledger
+   candidate source facts
+   source lineage
+   provenance
+   confidence
+   diagnostics
+   unresolved gaps
+   layer registry
+
+5. Truth Selection Builders
+   Quick Builder / Robust Builder
+   consume the ledger only
+   select stable truth snapshots
+
+6. RouteSurfaceTruthBundle
+   durable selected truth
+   selected HPMS AADT baseline snapshots
+   stable score-driving evidence
+   receipts
+   rejected evidence refs
+   unresolved spans
+
+7. Ride Context / Temporal Binding
+   planned start time
+   expected pace
+   actual GPS progress later
+   `distM -> estimatedClockTime`
+
+8. Temporal Projector
+   selected `traffic_aadt` baseline
+   x route-time binding
+   x traffic-time multiplier
+
+9. ActiveTruthView
+   TruthBundle
+   + allowed temporal/context overlays
+   + receipts
+   + presentation-ready adapters
+
+10. Presentation
+    reads ActiveTruthView only
+
+------
+
+## No-Leak Invariant
+
+RouteIndexedEvidenceLedger is the only upstream source boundary for route-indexed evidence.
+
+Truth builders may consume the ledger.
+TruthBundle may snapshot selected evidence.
+ActiveTruthView may compose selected truth with allowed temporal/context evidence.
+Presentation may read ActiveTruthView only.
+
+Presentation may not query raw HPMS.
+Presentation may not inspect legacy truthRuns as evidence.
+Presentation may not recompute traffic exposure independently.
+Presentation may not promote candidates.
+
+------
+
+## Consequences
+
+### Source projection is upstream only
+
+HPMS, DOT, OSM, weather, sunlight, hazards, and future evidence sources may be fetched, parsed, normalized, and projected only in source projection workers or source projection modules.
+
+Those workers emit route-distance-keyed candidate facts into the ledger. They do not select truth for presentation.
+
+### Ledger is candidate evidence, not selected truth
+
+The ledger stores candidate facts, unresolved gaps, source lineage, provenance, confidence, diagnostics, and layer definitions. It is route-version scoped and route-axis scoped.
+
+The ledger does not become a presentation API. It is the input to truth selection.
+
+### Truth selection is a separate boundary
+
+Quick Builder and Robust Builder consume the ledger only. They may select stable truth snapshots and preserve rejected evidence refs, but they may not query raw HPMS, inspect legacy truth runs, or discover source candidates themselves.
+
+### RouteSurfaceTruthBundle is selected truth
+
+`RouteSurfaceTruthBundle` carries durable selected truth, selected HPMS AADT baseline snapshots, stable score-driving evidence, receipts, rejected refs, and unresolved spans.
+
+It may snapshot selected evidence. It must not become a raw source reader.
+
+For the traffic proof layer, the Phase 1.4 bridge is `RouteSurfaceStableTrafficOutput`: a traffic-only, partial, RouteSurfaceTruthBundle-compatible stable artifact that consumes `StableTrafficBaselineSnapshot` only. It preserves selected AADT value snapshots, unresolved and conflict spans, receipts, refs, coverage, and future bundle mapping. It is not the whole `RouteSurfaceTruthBundle`, and it must not carry ride-session state, temporal traffic exposure, scoring output, or presentation fields.
+
+### Temporal traffic is contextual
+
+Temporal traffic exposure is not source truth. It is derived later from:
+
+- selected stable `traffic_aadt` baseline
+- route-time binding
+- traffic-time multiplier
+
+`RouteTimeBinding` is ride-context state that maps canonical route distance to planned, observed, or actual-adjusted clock time. It uses meters, seconds, `speedKph`, absolute ISO instants, and explicit clock context. It must not read the evidence ledger, selected traffic output, traffic multipliers, scoring, heatmap, presentation modules, browser GPS APIs, or environment-local clock APIs.
+
+Temporal projection may feed `ActiveTruthView`, but it must not mutate the stable truth bundle or ledger.
+
+The traffic temporal projection POC is `src/lib/temporal-projection/traffic-temporal-exposure.ts`. It consumes selected stable traffic truth, route-time binding, and an explicit `TrafficTimeMultiplierModel`, then emits route-indexed `traffic_temporal_exposure` spans plus receipts. This is contextual overlay state, not a route-version evidence ledger layer. The output uses `aadtEquivalent` for time-adjusted view exposure; it must not rename that estimate into durable effective AADT truth. Temporal spans use derived-model source/provenance, while HPMS lineage remains inside selected baseline refs and receipts. The projector must not query raw HPMS, source-projection internals, truth selection runtime selectors, legacy `truthRuns`, scoring, heatmap, presentation modules, browser GPS APIs, or environment-local clock APIs.
+
+`RideContextTemporalLedger` is the writable session/context ledger for route-time bindings and temporal overlays. The traffic POC implementation is `src/lib/ride-context/ride-context-temporal-ledger.ts` so `src/lib/route-time` remains traffic-agnostic. It is reducer-owned state, not a mutable object for components to poke. The clean transition is planned binding -> temporal projection -> ledger accepts projection; actual progress changes route-time binding -> ledger marks dependent temporal layer stale -> projector recomputes -> ledger accepts the new projection only if the current binding revision still matches. It may store planned/current `RouteTimeBinding`, binding history summaries, route-distance keyed observed timing summaries, `traffic_temporal_exposure` projection spans/receipts/coverage, projection id/digest refs, stable artifact id/digest refs, diagnostics, budgets, and a typed event log. It stores stable traffic artifact refs only; it must not mutate the evidence ledger, selected stable traffic truth, route-time bindings, temporal projections, future truth bundles, scoring, heatmap, presentation state, browser GPS payloads, or legacy truth runs.
+
+`ActiveTruthView` is the presentation firewall for the POC. The traffic implementation is `src/lib/active-truth/active-truth-view.ts`. It composes `RouteSurfaceStableTrafficOutput` with current `RideContextTemporalLedger` state, validates stable artifact id/digest, route axis, total distance, current route-time revision, route partition coverage, and policy budgets, then emits a sealed read model with `stable.trafficAadtBaseline`, `temporal.routeTime`, optional `temporal.trafficTemporalExposure`, `presentation.trafficOverlay`, `inspection.receiptIndex`, diagnostics, quality, capabilities, and deterministic content digest. It does not fetch, project, select, score, heatmap, render UI, promote candidates, query raw sources, inspect legacy `truthRuns`, couple to `RouteMap`, or recompute temporal traffic exposure. Missing temporal traffic may produce stable-only overlay. Stale temporal overlays may remain inspectable, but they must not be painted as current temporal exposure. Blocking route/source/payload/budget errors seal the presentation overlay as invalid.
+
+### Presentation is downstream-only
+
+Presentation reads `ActiveTruthView` only. Presentation adapters can format, filter, and render already-selected truth and allowed overlays.
+
+Presentation cannot:
+
+- query raw HPMS
+- inspect legacy truth runs as evidence
+- recompute traffic exposure independently
+- promote candidates
+- decide score-driving truth
+
+------
+
+## Implementation Direction
+
+The codebase should keep these packages separate:
+
+- `src/lib/route-evidence`: ledger contracts, layer registry, evidence types
+- `src/lib/source-projection`: source projection workers/modules, starting with HPMS AADT
+- `src/lib/truth-selection`: stable truth selection builders that consume ledgers
+- `src/lib/route-surface-truth`: durable selected truth bundles
+- `src/lib/route-time`: ride context and route-time binding
+- future `src/lib/temporal-projection`: temporal/context projectors
+- future `src/lib/active-truth-view`: presentation-ready active truth composition
+- presentation components: ActiveTruthView consumers only
+
+Any code path that violates these package responsibilities is architectural debt and should be removed, not normalized.
+
+------
+
+## Migration Rule
+
+Legacy truth runs may be used for comparison, diagnostics, or compatibility adapters only.
+
+They must not be treated as RouteIndexedEvidenceLedger source facts. If an HPMS value exists only inside legacy truth runs, the V2 ledger must report an architectural gap or unresolved span rather than laundering that value into evidence.
+
+------
+
+## Future Scenario Evaluation And Start-Time Optimization
+
+This ADR also reserves a future socket for scenario evaluation and route-time optimization. This is an architectural seam only. It is not implemented by exec-052, which remains a traffic-only hard cutover for stable selected AADT.
+
+Future Lanterne product work should be able to compare and optimize scenarios across:
+
+- planned start time
+- planned pace or speed model
+- actual ride progress
+- starting at the route beginning
+- starting at an offset such as mile 35
+- full route vs partial route
+- normal direction vs reverse/counterclockwise direction
+- planned stops and controls
+- weather at arrival
+- light, darkness, and twilight
+- sun glare
+- wind
+- temporal traffic exposure
+- hazard freshness
+- route alternatives
+
+That future system must preserve the same no-leak architecture. Scenario evaluation may consume stable truth and allowed contextual projections, but it must not become a shortcut back to raw sources, route-version candidate evidence, legacy truth runs, or presentation-side recomputation.
+
+### Stable route truth
+
+`RouteSurfaceTruthBundle` is durable selected route truth. It may contain:
+
+- road ownership
+- selected `traffic_aadt_baseline`
+- speed
+- bike infrastructure
+- shoulder
+- surface
+- stable hazards
+- receipts
+- unresolved and conflict spans
+
+It must not contain mutable ride-time context, planned start time, actual progress, scenario overlays, forecast state, or optimization output.
+
+### TraversalPlan
+
+`TraversalPlan` defines how a rider intends to traverse a route. It is a scenario input, not route truth.
+
+It may include:
+
+- `direction: forward | reverse`
+- `startCanonicalDistM`
+- `endCanonicalDistM`
+- full route vs partial route vs loop-from-offset
+- `plannedStartTimeIso`
+- pace model
+- planned stops and controls
+- clock context
+
+### TraversalAxis
+
+`TraversalAxis` is derived from `RouteAxis + TraversalPlan`.
+
+It maps:
+
+```text
+traversalDistM -> canonicalRouteDistM
+```
+
+Reverse direction, offset starts, partial routes, and loop-from-offset traversal must be represented here. They must not be faked by mutating the canonical route axis.
+
+### RouteTimeBinding
+
+`RouteTimeBinding` is derived from:
+
+```text
+TraversalAxis
++ planned start time
++ pace model
++ actual progress
+```
+
+It maps:
+
+```text
+traversalDistM / canonicalDistM -> estimatedClockTime
+```
+
+`RouteTimeBinding` may update during a ride. It must not mutate stable route truth.
+
+### ContextProjection
+
+`ContextProjection` is derived from:
+
+```text
+stable selected truth
++ TraversalAxis
++ RouteTimeBinding
++ contextual sources/models
+```
+
+Examples include:
+
+- `traffic_temporal_exposure`
+- `weather_at_arrival`
+- `wind_at_arrival`
+- `light_state_at_arrival`
+- `sun_glare_at_arrival`
+- darkness exposure
+- precipitation exposure
+- temperature exposure
+
+Context projections are scenario/view evidence. They are not durable HPMS, OSM, weather, hazard, or route truth.
+
+### ScenarioEvaluation
+
+`ScenarioEvaluation` consumes:
+
+```text
+RouteSurfaceTruthBundle
++ TraversalPlan
++ RouteTimeBinding
++ ContextProjections
+```
+
+It may produce:
+
+- scenario risk profile
+- ride-time warnings
+- temporal overlays
+- scenario receipts
+- summary metrics
+
+It must not:
+
+- fetch HPMS
+- read raw source evidence
+- inspect legacy truth runs as truth
+- mutate `RouteIndexedEvidenceLedger`
+- mutate `RouteSurfaceTruthBundle`
+- become presentation logic
+
+### ScenarioOptimizer
+
+`ScenarioOptimizer` runs many `ScenarioEvaluation` instances.
+
+Examples:
+
+- compare 2 AM, 5 AM, and 8 AM starts
+- compare forward vs reverse direction
+- compare starting at mile 35 vs mile 0
+- compare planned average speeds
+- compare control-stop strategies
+
+The optimizer is an orchestrator. It does not create truth. It ranks scenario outputs.
+
+### Score boundary
+
+Baseline Safety Score remains narrow unless a future ADR explicitly changes it.
+
+Temporal and contextual scenario outputs may affect:
+
+- Ride-Time Risk Profile
+- Start-Time Optimization
+- contextual warnings
+- route planning recommendations
+
+They must not silently mutate:
+
+- stable Safety Score
+- stable `traffic_aadt_baseline`
+- `RouteSurfaceTruthBundle`
+- `route_cache` durable truth
+
+If future work wants temporal or contextual factors to influence a production score, it requires a separate scoring ADR and gate.
+
+### Cache rule
+
+Stable route truth may be cached by route/version.
+
+Scenario evaluations must be keyed by:
+
+- stable truth artifact digest
+- `TraversalPlan` digest
+- context model versions
+- forecast/source timestamps
+- `generatedAt` and freshness policy
+
+Scenario results must not be cached as durable route truth.
+
+### Presentation rule
+
+Presentation reads:
+
+- `ActiveTruthView`
+- future `ScenarioTruthView` or `ScenarioView`
+
+Presentation must not run the optimizer, fetch evidence, select candidates, or recompute contextual projections independently.
+
+
+---
+
+## Source File: docs/03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md
+
+# ADR-055 - Ride Plan Scenario Engine and Planned Ride Safety Score
+
+Status: Accepted Architecture, Implementation Deferred To exec-054 Gates
+Date: 2026-06-17
+Companion DS: [DS-056](../02-architecture/design/ds-056-ride_plan_scenario_engine_and_objective_adapter_spec.md)
+Related: ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, exec-052, exec-053, exec-054
+
+------
+
+This ADR approves the scenario-engine architecture. It does not approve runtime wiring, scoring changes, RouteMap integration, cue-sheet ownership changes, storage, dogfood, or default-on behavior.
+
+## Context
+
+Exec-052 established the local/dev route-indexed stable traffic cutover. Exec-053 then corrected the cache target: selected stable route truth belongs in `RouteIndexedTruthCache`, not in the old completed-analysis `route_cache`, `route_history`, RXON, or a future US-wide evidence cache.
+
+That closes the stable route-indexed traffic vertical enough to plan the next layer: scenario evaluation.
+
+Lanterne should eventually answer questions such as:
+
+- What is the safest time to ride this route?
+- Should I ride clockwise or counterclockwise?
+- What if I start from a different point on a loop?
+- What start time minimizes traffic risk?
+- What start point improves rail bailout?
+- What plan optimizes access to air travel?
+- Can I cover the service gap earlier in the ride?
+- Can I do the climbing earlier rather than late?
+- Which sections become bad after dark?
+- How do UV, light, weather, temperature, and wind change by start time and pace?
+- Which POIs are likely open when the rider reaches them?
+
+This cannot be owned by the cue sheet, RouteMap, airport access, traffic, or any single product surface. Those are editors, consumers, or objective adapters. They are not the scenario engine.
+
+------
+
+## Decision
+
+Lanterne will distinguish durable stable route truth from scenario-specific planned ride views.
+
+Stable route truth answers:
+
+```text
+What is this route?
+```
+
+RidePlanScenario answers:
+
+```text
+What happens if the rider rides this route
+from this start point,
+in this direction,
+at this start time,
+at this expected pace,
+under these assumptions?
+```
+
+The architecture shape is:
+
+```text
+Stable route truth
+  + RidePlanScenarioContext
+  + ScenarioRouteTransform
+  + RouteTimeBinding
+  + ScenarioDomainAdapters
+  + ScenarioObjectiveAdapters
+  -> RidePlanScenarioView
+```
+
+This is scenario optimization over the same route geometry. It may vary:
+
+- start time
+- start offset
+- direction
+- expected pace
+- later stop model
+- later actual progress
+
+It is not route geometry optimization. Rerouting, route alternatives, and automatic geometry generation are separate future systems.
+
+------
+
+## Score And View Concepts
+
+### 1. Baseline Safety Score
+
+Baseline Safety Score is the durable baseline score from stable route truth.
+
+It does not depend on:
+
+- planned start time
+- route direction
+- expected speed or pace
+- weather forecast
+- UV forecast
+- wind forecast
+- scenario objective
+- rider start offset
+- actual ride progress
+
+It is suitable for route comparison, saved route analysis, and stable route records.
+
+### 2. Planned Ride Safety Score
+
+Planned Ride Safety Score is scenario-specific.
+
+It may change with:
+
+- start time
+- start point
+- direction
+- expected pace
+- route-time-derived traffic conditions
+- approved temporal motor-vehicle safety context
+
+It is not durable route truth.
+
+It may become the prominent displayed score in planning mode, but it must be labeled as scenario-based. It must carry scenario context, assumptions, and receipts.
+
+Planned Ride Safety Score remains limited to motor-vehicle collision/injury risk unless a later ADR explicitly expands it.
+
+Light state, sun glare, darkness, and visibility do not directly enter Planned Ride Safety Score by default. They may influence Planned Ride Safety Score only through an explicitly approved `TemporalMotorVehicleRiskContext` model with versioned assumptions, receipts, and a calibration/research gate.
+
+Planned Ride Safety Score must never overwrite, rename, or replace Baseline Safety Score in stored route analysis. Any UI that elevates Planned Ride Safety Score in planning mode must still preserve the Baseline Safety Score as the stable route comparison score.
+
+### 3. Condition / Route Reality Indices
+
+Condition and route reality indices may include:
+
+- access
+- remoteness
+- services
+- weather
+- UV
+- wind
+- temperature
+- light
+- fatigue
+- climb timing
+- POI open/closed likelihood
+
+These may influence objective optimization and planning guidance. They do not automatically become narrow Safety Score inputs.
+
+### 4. Objective Score
+
+Objective Score is a ranking value for a chosen planning objective.
+
+Examples:
+
+- optimize safety
+- optimize access: rail
+- optimize access: air
+- optimize service gap early
+- optimize climbing early
+- optimize night avoidance
+- optimize wind exposure
+
+Objective Score is not the same as Baseline Safety Score or Planned Ride Safety Score.
+
+------
+
+## Traffic Nuance
+
+Traffic is the first and hardest scenario domain because time affects traffic in at least two separate ways.
+
+### A. TrafficTemporalVolumeProfile
+
+`TrafficTemporalVolumeProfile` distributes selected stable AADT baseline across hours.
+
+It estimates:
+
+- hourly traffic volume
+- vehicles per hour
+- vehicles per minute
+- volume multiplier versus average hour
+
+This changes pass frequency and exposure volume.
+
+It is not live traffic. It is not observed traffic. It is a model-backed estimate unless later source data proves otherwise.
+
+### B. TemporalMotorVehicleRiskContext
+
+`TemporalMotorVehicleRiskContext` describes time-dependent motor-vehicle risk context independent of volume.
+
+It may include:
+
+- daylight, twilight, and night
+- visibility state
+- low-light rider detection risk
+- driver fatigue or impairment prior by hour
+- glare where sun angle aligns with rider or driver bearing
+- confidence
+- calibration version
+
+This changes the risk per interaction or severity context. It is not the same thing as traffic volume and must not be collapsed into a generic traffic multiplier.
+
+------
+
+## Planned Ride Safety Score Policy
+
+Planned Ride Safety Score may incorporate:
+
+- time-dependent traffic exposure
+- approved time-dependent motor-vehicle safety context
+
+Time-dependent volume and time-dependent motor-vehicle risk context must remain separable and explainable.
+
+Do not apply an opaque final route-level score multiplier if slice-level recomputation is possible.
+
+Preferred model:
+
+```text
+scenario route slice
+  + selected stable truth
+  + arrival time
+  + traffic temporal volume
+  + temporal motor-vehicle risk context
+  -> recomputed scenario slice risk
+  -> explicit rollup policy
+  -> Planned Ride Safety Score
+```
+
+A temporary POC may use simplified factors only when they are:
+
+- explicitly labeled as POC
+- versioned
+- receipt-backed
+- excluded from production scoring policy unless later approved
+
+Coefficients for night, darkness, driver fatigue, and intoxication context require a calibration/research gate before production scoring policy.
+
+Lanterne must not claim live traffic, observed traffic, or empirical crash certainty unless backed by actual data.
+
+Night-risk coefficients in exec-054 are not production-calibrated.
+
+`traffic-time.ts` is the existing production time-of-day traffic adjustment. `RidePlanScenarioEngine` does not treat `traffic-time.ts` as the scenario engine. `traffic-time.ts` may be audited or adapted as one implementation input, but scenario context, route transform, objective adapters, access projections, and future condition adapters must live outside `traffic-time.ts`.
+
+------
+
+## No-Leak Rule
+
+Scenario evaluation may consume:
+
+- selected stable truth
+- route-time context
+- approved contextual projection outputs
+- explicit forecast or model inputs after those sources are gated
+
+Scenario evaluation may not read:
+
+- raw HPMS
+- raw `RouteIndexedEvidenceLedger` candidates
+- legacy `truthRuns`
+- RXON as truth
+- RouteMap props
+- `route_history` as truth
+- completed-analysis `route_cache` as truth
+
+Presentation reads `RidePlanScenarioView` or future `ActiveScenarioView`, not raw adapters.
+
+RouteMap, cue sheet, SegmentInspector, and planning panels may edit or display scenario context, but they must not become source readers, candidate selectors, scoring engines, or optimizers.
+
+------
+
+## Persistence Rule
+
+Stable route truth may be cached by route/version.
+
+Scenario outputs are not durable route truth.
+
+Allowed persistence:
+
+- user preferred scenario settings
+- pinned ride plan later
+- local ephemeral scenario results
+- diagnostics fixture snapshots
+
+Not allowed:
+
+- storing every scenario as durable route truth
+- storing scenario outputs in `RouteIndexedTruthCache`
+- storing temporal exposure as stable traffic truth
+- storing planned ride score as baseline route score
+
+Future selected stable layers such as `speed_limit`, `bike_infra`, `shoulder`, `surface`, and access/service baselines may become `RouteIndexedTruthCache` sibling layers after their own selection contracts exist. Scenario outputs derived from those layers still remain outside the cache.
+
+Scenario evaluation cache keys, if later allowed, must include:
+
+- stable truth artifact digest
+- scenario context digest
+- scenario route transform digest
+- domain model versions
+- forecast/source timestamps
+- generatedAt/freshness policy
+
+------
+
+## Non-Goals
+
+- Do not implement all domains now.
+- Do not store scenario outputs as durable route truth.
+- Do not mutate `RouteIndexedTruthCache` with temporal data.
+- Do not change Baseline Safety Score definition.
+- Do not make weather, UV, or wind part of narrow Safety Score without a later ADR.
+- Do not build route geometry optimization.
+- Do not implement automatic rerouting.
+- Do not wire RouteMap directly to raw scenario logic.
+- Do not replace stable route analysis.
+- Do not call this live traffic.
+- Do not treat night-risk coefficients as production-calibrated in exec-054.
+
+------
+
+## Consequences
+
+Scenario planning becomes a first-class architecture layer, not a cue sheet feature.
+
+Baseline route analysis remains stable and durable.
+
+Planned ride scoring can become richer without corrupting Baseline Safety Score or selected route truth.
+
+Traffic scenario work must split volume estimation from temporal motor-vehicle risk context.
+
+Objective optimization can grow without turning every objective into a new score model.
+
+The next implementation plan is exec-054. It must be planning-first and must not mutate stable route truth, scoring policy, route cache, RouteIndexedTruthCache storage, RouteMap, or cue sheet ownership until gated.
 
