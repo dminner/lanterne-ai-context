@@ -56324,35 +56324,41 @@ docs/04-execution/reports/exec-054-phase-0-current-scenario-inputs.md
 
 ## Phase 1 - RidePlanScenarioContext Contract
 
-- [ ] Define scenario context.
-- [ ] Define `PaceProfile`.
-- [ ] Define `ScenarioRouteTransform`.
-- [ ] Define `RouteTimeBinding` expectations.
-- [ ] Define no-storage rules.
-- [ ] Confirm cue sheet is an editor/consumer, not owner.
-- [ ] Require `plannedStartTimeIso` to include timezone or explicit UTC offset.
-- [ ] Require `RouteTimeBinding` to avoid browser/environment-local `Date.getHours()`, `Date.getDay()`, or `getTimezoneOffset()` silently.
-- [ ] Require fixed timezone/offset tests before implementation.
-- [ ] Document that route crossing timezones is deferred.
-- [ ] Document that daylight-saving ambiguity is deferred.
-- [ ] No UI work.
+- [x] Define scenario context.
+- [x] Define `PaceProfile`.
+- [x] Define `ScenarioRouteTransform`.
+- [x] Define `RouteTimeBinding` expectations.
+- [x] Define no-storage rules.
+- [x] Confirm cue sheet is an editor/consumer, not owner.
+- [x] Require `plannedStartTimeIso` to include timezone or explicit UTC offset.
+- [x] Require `RouteTimeBinding` to avoid browser/environment-local `Date.getHours()`, `Date.getDay()`, or `getTimezoneOffset()` silently.
+- [x] Require fixed timezone/offset tests before implementation.
+- [x] Document that route crossing timezones is deferred.
+- [x] Document that daylight-saving ambiguity is deferred.
+- [x] No UI work.
 
 Deliverable:
 
 ```text
-src/lib/ride-plan-scenario contract proposal or docs-only contract, depending approval
+docs/04-execution/reports/exec-054-phase-1-ride-plan-scenario-context-contract.md
 ```
 
 No source code implementation unless separately approved.
 
 ## Phase 2 - Scenario Domain Adapter Registry
 
-- [ ] Define adapter contract.
-- [ ] Register traffic as first planned safety adapter.
-- [ ] Register temporal motor-vehicle risk context as separate planned safety adapter.
-- [ ] Register light, UV, weather, wind, service, and access as future adapters.
-- [ ] Ensure adapters declare score eligibility and output family.
-- [ ] No domain implementation yet.
+- [x] Define adapter contract.
+- [x] Register traffic as first planned safety adapter.
+- [x] Register temporal motor-vehicle risk context as separate planned safety adapter.
+- [x] Register light, UV, weather, wind, service, and access as future adapters.
+- [x] Ensure adapters declare score eligibility and output family.
+- [x] No domain implementation yet.
+
+Deliverable:
+
+```text
+docs/04-execution/reports/exec-054-phase-2-scenario-domain-adapter-registry.md
+```
 
 ## Phase 3 - Temporal Traffic And Safety Split
 
@@ -56499,7 +56505,7 @@ The likely first implementation slice after approval:
 
 ```text
 RidePlanScenarioContext
-  + manual_constant_speed PaceProfile
+  + manual_constant_elapsed_speed PaceProfile
   + forward route transform
   + planned RouteTimeBinding
   + traffic temporal volume projection

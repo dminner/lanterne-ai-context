@@ -30983,12 +30983,28 @@ Scenario layers do not mutate stable truth, route geometry, the evidence ledger,
 
 `RidePlanScenarioContext` is the scenario input envelope.
 
+The Phase 1 expanded context contract is:
+
+```text
+docs/04-execution/reports/exec-054-phase-1-ride-plan-scenario-context-contract.md
+```
+
+That contract is docs-only and defines the sealed context envelope, draft/edit semantics, consumer rules, validation requirements, and no-storage boundaries.
+
+Draft scenario context may be edited by UI/editor surfaces. Sealed `RidePlanScenarioContext` is immutable for one evaluation and is the only form consumed by `ScenarioRouteTransform`, `RouteTimeBinding`, scenario domain adapters, objective ranking, and future planned scoring.
+
 Fields:
 
 - `scenarioId`
+- `scenarioRevision`
+- `scenarioContextDigest`
 - `routeId`
 - `routeVersionId`
 - `routeHash`
+- `routeAxisDigest`
+- `routeAxisId`
+- `routeAxisRevision`
+- `totalDistM`
 - `plannedStartTimeIso`
 - `clockContext`
 - `startOffsetDistM`
@@ -30996,9 +31012,11 @@ Fields:
 - `expectedPaceProfile`
 - `stopModel`
 - `objectiveProfile`
+- `source`
 - `generatedAt`
 - `assumptions`
 - `warnings`
+- `diagnostics`
 
 `clockContext` must be explicit:
 
@@ -31007,7 +31025,13 @@ Fields:
 
 Do not derive scenario-local hour from environment-local `Date.getHours()`, `Date.getDay()`, or `getTimezoneOffset()`.
 
-Cue sheet start-time and speed controls may edit a `RidePlanScenarioContext`. They do not own it.
+Cue sheet start-time and speed controls may edit a `RidePlanScenarioDraft` that seals into `RidePlanScenarioContext`. They do not own the sealed context.
+
+`RidePlanScenarioContext` references route identity and route-axis identity. It does not embed selected stable truth payloads, scenario outputs, planned ride scores, RouteMap props, cue-sheet presentation rows, raw external source responses, or durable storage handles.
+
+`scenarioContextDigest` is a canonical digest of scenario-relevant inputs. It excludes volatile fields such as `generatedAt`, validation diagnostics, render timestamps, and transient UI warnings. `scenarioId` may identify an instance or run, but semantic equality and memoization use canonical scenario inputs.
+
+Route identity must support saved and unsaved routes. `routeId` and `routeVersionId` may exist for saved routes, but unsaved GPX/manual routes must remain scenario-plannable through `routeHash`, `routeAxisDigest`, `routeAxisId`, or an equivalent deterministic route-axis identity. Scenario evaluation must not require `route_history`, `route_cache`, or database persistence.
 
 ---
 
@@ -31028,7 +31052,8 @@ Fields:
 
 Allowed `profileKind` values:
 
-- `manual_constant_speed`
+- `manual_constant_elapsed_speed`
+- `manual_constant_moving_speed`
 - `user_default`
 - `inferred_from_past_rides`
 - `route_type_default`
@@ -31037,8 +31062,10 @@ Allowed `profileKind` values:
 POC scope:
 
 ```text
-manual_constant_speed only
+manual_constant_elapsed_speed only
 ```
+
+For the POC, `elapsedSpeedKph` drives `RouteTimeBinding`. `expectedMovingSpeedKph` may be supporting/display context, but it does not drive binding unless paired with an explicit `StopModel`. If moving speed exists without a stop model, timing outputs must warn that arrival estimates may be optimistic.
 
 Future scope:
 
@@ -31069,11 +31096,13 @@ Rules:
 - Scenario transform is contextual.
 - Stable route truth remains keyed to canonical route axis.
 - Scenario outputs may carry both canonical and scenario distance.
+- `startOffsetDistM` must be bounded and validated before sealing context.
 
 Minimum fields:
 
 - `transformId`
 - `routeAxisId`
+- `routeAxisDigest`
 - `routeAxisRevision`
 - `totalDistM`
 - `direction: forward | reverse`
@@ -31088,6 +31117,7 @@ Minimum fields:
 Rules:
 
 - forward and reverse direction must produce different scenario bearing where appropriate
+- `routeAxisRevision` is required when a persisted route-axis revision exists
 - wind, glare, and directional exposure adapters must consume scenario bearing, not canonical forward-only bearing
 - reversing a route does not mutate stable route truth
 - scenario bearing is contextual output of the transform/kinematics layer
@@ -31120,7 +31150,8 @@ Rules:
 - Planned bindings are immutable inputs until the scenario changes.
 - Actual-adjusted bindings later update future spans only.
 - Route-time binding must use explicit timezone or offset.
-- Route-time binding must not read raw traffic, weather, RouteMap state, score state, or evidence candidates.
+- Actual-adjusted and observed modes are future scope unless separately approved.
+- Route-time binding must not read raw traffic, weather, RouteMap state, score state, source candidates, or evidence candidates.
 
 ---
 
@@ -31128,18 +31159,40 @@ Rules:
 
 `ScenarioDomainAdapter` is the downstream adapter contract for scenario-derived outputs.
 
+The Phase 2 expanded registry contract is:
+
+```text
+docs/04-execution/reports/exec-054-phase-2-scenario-domain-adapter-registry.md
+```
+
+That contract is docs-only and defines adapter registration, output families, lifecycle status, calibration status, source-provider boundaries, receipt requirements, coverage requirements, and registry stubs. It does not implement adapter runtime.
+
 Each adapter declares:
 
 - `adapterId`
+- `displayName`
 - `domain`
+- `outputFamily`
+- `scoreEligibility`
+- `lifecycleStatus`
 - `requiredStableLayers`
 - `requiredScenarioInputs`
+- `requiredPreparedSourceInputs`
 - `routeTimeRequired`
 - `bearingRequired`
-- `forecastDataRequired`
-- `scoreEligibility`
+- `sourceProviderBoundaryRequired`
+- `modelVersion`
+- `calibrationStatus`
+- `defaultEnabledForPoc`
+- `defaultEnabledForProduction`
 - `outputLayerId`
-- `diagnostics`
+- `produces`
+- `consumes`
+- `forbiddenReads`
+- `forbiddenWrites`
+- `receiptsRequired`
+- `diagnosticsRequired`
+- `warnings`
 
 Allowed `domain` values:
 
@@ -31170,13 +31223,45 @@ Allowed `scoreEligibility` values:
 
 Default eligibility rules:
 
-- traffic temporal volume may be `planned_ride_safety_score_input`
-- temporal motor-vehicle risk context may be `planned_ride_safety_score_input` only after calibration gate
+- no scenario adapter becomes `baseline_safety_score_input` by default
+- traffic temporal volume may be `planned_ride_safety_score_input` for Planned Ride Safety Score or planned ride risk preview only after the planned-score contract allows it
+- temporal motor-vehicle risk context may be `planned_ride_safety_score_input` only after calibration/research gate
 - light, UV, weather, temperature, and wind are `condition_index` by default
-- access and transport are `route_reality_index` or `objective_only` by default
+- service access and transport access are `route_reality_index` or `objective_only` by default
 - POI likely-open status is logistics, objective, or display by default
 - fatigue and climb timing are `route_reality_index` or `objective_only` by default
-- no scenario domain becomes `baseline_safety_score_input` by default
+- remoteness remains route reality unless a later scoring ADR explicitly changes it
+
+Allowed `outputFamily` values:
+
+- `scenario_traffic_projection`
+- `scenario_temporal_motor_vehicle_risk_projection`
+- `scenario_condition_projection`
+- `scenario_access_projection`
+- `scenario_service_projection`
+- `scenario_route_reality_projection`
+- `scenario_diagnostic_projection`
+
+Output family describes output type. It does not grant score authority.
+
+Allowed `lifecycleStatus` values:
+
+- `registry_stub`
+- `contract_ready`
+- `poc_allowed`
+- `implementation_ready`
+- `production_allowed`
+- `deprecated`
+
+Allowed `calibrationStatus` values:
+
+- `neutral`
+- `default_prior_poc`
+- `modeled_unvalidated`
+- `calibrated`
+- `disabled`
+
+No adapter is `implementation_ready` or `production_allowed` in exec-054 Phase 2.
 
 Adapters produce scenario outputs.
 
@@ -31184,13 +31269,53 @@ Adapters produce scenario outputs.
 
 If a future domain requires external source retrieval, define a separate `ScenarioSourceProvider` or equivalent source-acquisition boundary before the adapter. Weather, UV, wind, POI hours, and live-like external data must not be fetched ad hoc from a domain adapter in exec-054.
 
+OSM `opening_hours` may be absent, stale, incomplete, contradictory, or ambiguous. `unknown` is a valid POI open/closed output. Live business status is not fetched in exec-054 Phase 2.
+
 Adapters must not:
 
 - mutate stable truth
 - mutate `RouteIndexedTruthCache`
+- write `route_cache`
+- write `route_history`
+- write durable scenario output
+- read draft scenario context
+- read raw HPMS
+- read raw `RouteIndexedEvidenceLedger` candidates
 - read legacy `truthRuns`
+- read RXON as truth
 - read RouteMap props
+- read cue-sheet local state as authority
+- read `route_history` as truth
+- read completed-analysis `route_cache` as truth
+- read scoring output as projection input
 - become objective ranking logic
+
+Adapters return pure `ScenarioDomainOutput`-like objects only.
+
+Time-dependent adapters must consume `RouteTimeBinding` and must not independently estimate arrival time from cue-sheet state, map state, or browser-local date APIs. Direction-dependent adapters must declare `bearingRequired` and consume scenario-direction-aware bearing/heading from `ScenarioRouteTransform` or `ScenarioRouteKinematics`.
+
+Traffic and temporal risk remain separate:
+
+- `TrafficTemporalVolumeProfile` estimates volume or exposure opportunity.
+- `TemporalMotorVehicleRiskContext` estimates contextual risk per interaction or severity context.
+- They must not collapse into one generic traffic multiplier.
+- Combined planned score contribution belongs to the Planned Ride Safety Score contract, not inside either adapter.
+
+Phase 2 registry stubs:
+
+- `traffic_temporal_volume_v1`
+- `temporal_motor_vehicle_risk_context_neutral_v1`
+- `light_context_v1`
+- `uv_context_v1`
+- `weather_context_v1`
+- `temperature_context_v1`
+- `wind_context_v1`
+- `service_access_v1`
+- `transport_access_v1`
+- `poi_open_status_v1`
+- `climb_timing_v1`
+- `fatigue_timing_v1`
+- `remoteness_context_v1`
 
 ### ScenarioDomainOutput Envelope
 
@@ -31223,6 +31348,8 @@ Rules:
 - every score-bearing output must carry receipts or explanation refs
 - route-positioned outputs may carry both `canonicalDistM` and `scenarioDistM`
 - outputs must not carry raw evidence, RouteMap props, or durable storage handles
+- `generatedAt` may appear in outputs and receipts, but it must not be part of `scenarioContextDigest` semantic equality
+- missing coverage must not be silently treated as safe, low-risk, or zero
 
 ---
 
