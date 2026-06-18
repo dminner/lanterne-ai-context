@@ -70155,6 +70155,242 @@ No helper was added. The existing pure `LanterneRouteAnalysisSummary` builder al
 
 ---
 
+## Source File: docs/assessments/ass-031-viewport_performance_lifecycle_audit_2026_06_18.md
+
+# ASS-031 - Viewport Performance And Lifecycle Audit
+
+Date: 2026-06-18
+
+Status: Accepted assessment
+
+Starting branch: `main`
+
+Related: UX-0, UX-0.5, UX-1A, UX-1B, UX-1C, DS-018, DS-031, DS-032, DS-052
+
+Detailed diagnostic artifact: `docs/diagnostics/viewport-performance-audit.md`
+
+## Summary
+
+Lanterne's repeated map interaction degradation is best explained by main-thread Leaflet/SVG lifecycle cost combined with overlay state and viewport hydration churn.
+
+The audit did not prove that a Web Worker alone would solve the issue. A worker can help with pure viewport computation, but the strongest measured evidence points to Leaflet layer and SVG path churn, route-load long tasks, full road arrays in React state, and synchronous per-road rendering paths.
+
+No route truth, scoring, ownership, RXON runtime, route_cache, route_history, database writes, migrations, or RouteMap architecture were changed as part of this assessment.
+
+## Primary Findings
+
+The Medford/Batsto diagnostic route produced a 4,923ms main-thread long task during route load. Once stable, the map held roughly 332-337 SVG paths and 149-150 interactive paths. Repeated zoom/toggle flows raised the path count to 493 and produced bursts of hundreds of `layeradd` and `layerremove` events.
+
+The lightbulb speed overlay reproduced lifecycle churn even when local viewport road hydration returned zero roads. Ten speed toggles produced 240 `layeradd` events, 115 `layerremove` events, and 16 speed overlay effect starts. The local environment did not reproduce heavy nonzero-road speed drawing, but the lifecycle overhead is real.
+
+The eye bike/safe-path overlay did not reproduce the reported blue-road freeze locally because viewport road hydration returned zero source roads. Static code still shows the risk path: all source roads are filtered by scanning coordinates, an all-road-id render key is built, the layer is cleared, and `renderBikeInfraOverlay` creates one Leaflet polyline per eligible road on the main thread.
+
+Viewport hydration is request-ID guarded, but superseded fetches are not abortable. The live run recorded a 9.4s superseded hydration request followed by a 4.3s hydration completion that returned zero roads, zero cache hits, and zero owned refresh tiles.
+
+Road click reliability is likely affected by overlapping interactive layers. Route segment inspection uses invisible interactive hitboxes, while speed overlay road polylines are also interactive and can overlap those hitboxes. The eye overlay itself is less likely to intercept clicks because its pane uses `pointerEvents: none` and it renders with `interactive: false`.
+
+## Root Cause Classification
+
+Primary root cause:
+
+- Leaflet/SVG layer churn and route/overlay lifecycle churn.
+
+Secondary root causes:
+
+- Full road arrays stored in React state.
+- Synchronous road coordinate scans.
+- Render keys that join every road id.
+- Per-road Leaflet polyline construction.
+- Superseded but uncancelled viewport fetches.
+- Retained hidden layer groups.
+- Interactive speed overlay paths competing with route hitboxes.
+
+Not the primary explanation:
+
+- A pure React render storm.
+- Eye overlay pointer interception.
+- Route truth/scoring/ownership systems.
+- RXON runtime loading.
+- route_cache or route_history reload behavior.
+
+## Evidence
+
+Live route used:
+
+- Vault route `04880 - Medford Batsto`.
+- Route UI counts: 1,445 track points, 27 cue points, 150 corridor roads, 88 matched roads, 63.7 mi, 60 bike lanes and paths, 2 signaled intersections, 15 signed intersections.
+
+Route load baseline:
+
+- SVG paths after stable load: 332-337.
+- Interactive paths after stable load: 149-150.
+- Long tasks during route load: 4,923ms, plus shorter 64ms and 67ms tasks.
+- No maximum update depth warnings observed in this audit run.
+
+Scenario A - lightbulb speed overlay:
+
+| Step | Path count | Interactive paths | RouteMap renders since reset | Dominant diagnostics |
+| --- | ---: | ---: | ---: | --- |
+| Baseline | 332 | 149 | 0 | none after reset |
+| Enable speed | 332 | 149 | 3 | 11 `layeradd`, 10 `layerremove`, below-min-zoom skip |
+| Pan 10 | 332 | 149 | 40 | 436 `move`, 4 `moveend`, 15 `layeradd`, 15 `layerremove` |
+| Zoom cycles | 493 | 149 | 69 | 456 `layeradd`, 29 `layerremove` |
+| Toggle speed 10 | 493 | 149 | 100 | 240 `layeradd`, 115 `layerremove`, 16 speed effect starts |
+| Pan 10 more | 493 | 149 | 141 | 432 `move`, 3 `moveend`, 15 `layeradd`, 15 `layerremove` |
+
+Scenario B - eye overlay:
+
+| Step | Path count | Interactive paths | RouteMap renders since reset | Dominant diagnostics |
+| --- | ---: | ---: | ---: | --- |
+| Baseline before eye | 493 | 149 | 0 | none after reset |
+| Eye enable | 493 | 149 | 1 | `bike-overlay:add_layer_group`, `clear_empty_source` |
+| Pan 5 | 493 | 149 | 21 | 483 `move`, 5 `layeradd`, 5 `layerremove`, `fetch_superseded` |
+| Zoom 3 | 493 | 149 | 45 | 456 `layeradd`, 24 `layerremove`, `fetch_done` |
+| Eye toggle 10 | 493 | 149 | 55 | 385 `layeradd`, 65 `layerremove`, 11 bike effect starts |
+
+Raw local artifacts:
+
+- `.tmp/viewport-audit/scenario-a-speed.json`
+- `.tmp/viewport-audit/scenario-b-eye-empty-source.json`
+- `.tmp/viewport-audit/console-warnings-errors.json`
+- `.tmp/viewport-audit/blank-map-after-pan-zoom.png`
+
+## Code Paths Audited
+
+Bottom-right control stack:
+
+- `src/components/MapControls.tsx:119-215`
+- Lightbulb button: `src/components/MapControls.tsx:172-184`
+- Eye button: `src/components/MapControls.tsx:186-193`
+
+State owners and prop handoff:
+
+- `src/pages/Index.tsx:1903-1929`
+- `src/pages/Index.tsx:8708-8750`
+- `src/pages/Index.tsx:9485-9510`
+- `src/pages/Index.tsx:10057-10081`
+
+Viewport hydration:
+
+- `src/components/RouteMap.tsx:3028-3037`
+- `src/components/RouteMap.tsx:3038-3056`
+- `src/hooks/useViewportRoadHydration.ts:471-482`
+- `src/hooks/useViewportRoadHydration.ts:513-523`
+- `src/hooks/useViewportRoadHydration.ts:814-1045`
+- `src/hooks/useViewportRoadHydration.ts:1208-1263`
+
+Speed overlay:
+
+- `src/components/RouteMap.tsx:8578-8825`
+- `src/components/RouteMap.tsx:9256-9368`
+
+Bike overlay:
+
+- `src/components/RouteMap.tsx:7472-7684`
+- `src/lib/heatmap/admin-verification-overlays.ts:241-303`
+
+Route hitboxes and pinstripes:
+
+- `src/components/RouteMap.tsx:5726-5740`
+- `src/lib/heatmap/route-bike-pinstripe-layer.ts:906-1030`
+
+Viewport road cache/fetch path:
+
+- `src/lib/route-load/viewportRoadContext.ts:474-480`
+- `src/lib/route-load/viewportRoadContext.ts:619-955`
+- `src/lib/route-load/viewportRoadContext.ts:822-830`
+- `src/lib/route-load/viewportRoadContext.ts:878-911`
+
+## Decision
+
+Do not begin UX remediation by rewriting RouteMap or adding a worker.
+
+The first repair should target overlay lifecycle correctness and main-thread rendering pressure:
+
+1. Clear hidden overlay layer contents or prove retained contents are harmless.
+2. Keep full viewport road universes out of React state.
+3. Add cancellation for superseded viewport requests.
+4. Avoid all-road render keys for large overlay sets.
+5. Diff or batch overlay layer updates rather than clearing and rebuilding every path.
+6. Add explicit hit-test ownership diagnostics for route hitboxes versus speed-road overlays.
+
+After that, profile a nonzero-road viewport. If the dominant cost is spatial filtering, classification, clipping, or simplification, move that pure computation to a worker. If the dominant cost remains thousands of SVG paths and paint/compositing, evaluate Canvas, WebGL, vector-grid, vector tiles, or a custom batched renderer.
+
+## Worker Boundary
+
+Worker-owned work should be limited to pure computation:
+
+- spatial index construction
+- bbox candidate queries
+- geometry clipping and simplification
+- feature deduplication
+- road classification
+- display-bucket calculation
+- compact render-payload construction
+
+Main-thread-owned work must remain:
+
+- Leaflet map instances
+- panes
+- LayerGroups
+- DOM, SVG, or canvas rendering
+- map event subscriptions
+- `addLayer`, `removeLayer`, and `clearLayers`
+- popups, drawers, road cards, and inspection UI
+
+Worker messages must be request-ID scoped, cancellable, bounded, compact, and free of full route/corridor universes where avoidable.
+
+## Regression Gates
+
+Before accepting the next UX fix:
+
+- 20 speed overlay toggles must not accumulate Leaflet layers.
+- 20 bike overlay toggles with nonzero fixture roads must not accumulate Leaflet layers.
+- Viewport listeners must not accumulate across toggles.
+- Superseded viewport requests must not overwrite newer results and should be cancellable.
+- Warm viewport refresh should begin immediately after pan/zoom and complete inside a measured budget.
+- Route segment click hitboxes must retain ownership under speed and bike overlays.
+- Disabling an overlay must release its rendering and interaction cost.
+
+## Instrumentation Added
+
+The audit added a dev-only `VIEWPORT_PERF_DEBUG` diagnostics module:
+
+- `src/lib/perf/viewport-performance-debug.ts`
+- `src/lib/perf/viewport-performance-debug.test.ts`
+
+It records bounded counts, timings, hashes, render counts, layer churn, and optional long-task records. It does not store full route objects, raw geometry, private user data, or giant payloads.
+
+Enable locally with:
+
+```js
+localStorage.setItem('DEBUG_FLAGS', JSON.stringify({ VIEWPORT_PERF_DEBUG: true }));
+```
+
+Read diagnostics with:
+
+```js
+window.__LANTERNE_VIEWPORT_PERF__.getRecentViewportPerfDiagnostics()
+```
+
+## Test Evidence
+
+Focused checks passed:
+
+- `npm test -- src/lib/perf/viewport-performance-debug.test.ts src/lib/perf/interaction-blackbox.test.ts src/lib/perf/leaflet-overlay-lifecycle.test.ts`
+- `npx eslint src/lib/perf/viewport-performance-debug.ts src/lib/perf/viewport-performance-debug.test.ts src/lib/debug-flags.ts`
+- `npx tsc --noEmit --pretty false`
+- `git diff --check`
+
+Broad touched-file ESLint still reports pre-existing `RouteMap.tsx` and `Index.tsx` lint debt. The new diagnostics module and tests lint cleanly.
+
+## Guardrail
+
+This assessment and its instrumentation must not be used to promote presentation overlays into route truth. Viewport overlays remain presentation and diagnostics surfaces. Route analysis truth, scoring, ownership, RXON runtime loading, route_cache, route_history reload, database writes, and migrations remain outside this UX audit boundary.
+
+
+---
+
 ## Source File: docs/migrations/2026-03-21-canonical_boostrap.md
 
 # Canonical Route Bootstrap Migration
