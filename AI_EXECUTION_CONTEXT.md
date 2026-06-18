@@ -56232,7 +56232,7 @@ The old marker-aware completed-analysis cache write plan is paused. Existing pur
 
 Date: 2026-06-17
 
-Related: ADR-055, ADR-056, DS-056, DS-057, DS-058, DS-059, ADR-006, ADR-045, ADR-054, DS-015, DS-031, DS-055, exec-052, exec-053, exec-055
+Related: ADR-055, ADR-056, DS-056, DS-057, DS-058, DS-059, DS-060, ADR-006, ADR-045, ADR-054, DS-015, DS-031, DS-055, exec-052, exec-053, exec-055
 
 ## Purpose
 
@@ -56431,54 +56431,158 @@ docs/02-architecture/design/ds-059-scenario_objective_adapter_contract.md
 
 ## Phase 6 - Scenario Sweep Contract
 
-- [ ] Define 15-minute departure bucket sweep.
-- [ ] Set departure bucket interval default to 15 minutes.
-- [ ] Set max departure buckets to 96 per day.
-- [ ] Define direction sweep.
-- [ ] Limit direction candidates to forward and reverse for the POC.
-- [ ] Define start-offset sweep for loops.
-- [ ] Require start offset candidates to be bounded, not every meter.
-- [ ] Specify max start offset candidates per run before implementation.
-- [ ] Specify max scenario candidates per sweep before implementation.
-- [ ] Specify max enabled domain adapters per sweep before implementation.
-- [ ] Define result ranking.
-- [ ] Define result explanation.
-- [ ] Define cancellation behavior.
-- [ ] Define debounce behavior when rider drags start time/speed.
-- [ ] Use local memoization only.
-- [ ] Do not store every scenario.
-- [ ] Keep sweep results in memory or local ephemeral cache only unless later persistence gate approves otherwise.
-- [ ] Degrade to coarser buckets or fewer offsets if budgets are exceeded.
-- [ ] Require Medford/Batsto and John's Waterfall scenario sweeps to complete within documented local budgets before runtime implementation proceeds.
+- [x] Define 15-minute departure bucket sweep.
+- [x] Set departure bucket interval default to 15 minutes.
+- [x] Set max departure buckets to 96 per day.
+- [x] Define direction sweep.
+- [x] Limit direction candidates to forward and reverse for the POC.
+- [x] Define start-offset sweep for loops.
+- [x] Require start offset candidates to be bounded, not every meter.
+- [x] Specify max start offset candidates per run before implementation.
+- [x] Specify max scenario candidates per sweep before implementation.
+- [x] Specify max enabled domain adapters per sweep before implementation.
+- [x] Define result ranking.
+- [x] Define result explanation.
+- [x] Define cancellation behavior.
+- [x] Define debounce behavior when rider drags start time/speed.
+- [x] Use local memoization only.
+- [x] Do not store every scenario.
+- [x] Keep sweep results in memory or local ephemeral cache only unless later persistence gate approves otherwise.
+- [x] Degrade to coarser buckets or fewer offsets if budgets are exceeded.
+- [x] Require Medford/Batsto and John's Waterfall scenario sweeps to complete within documented local budgets before runtime implementation proceeds.
+
+Deliverable:
+
+```text
+docs/04-execution/reports/exec-054-phase-6-scenario-sweep-contract.md
+```
+
+Contract:
+
+```text
+docs/02-architecture/design/ds-060-scenario_sweep_contract.md
+```
+
+Phase 6 sweep policy:
+
+- evaluate one deterministic departure lattice progressively: 60-minute, then 30-minute cumulative, then 15-minute cumulative.
+- retain the 15-minute target grid as 96 local-day buckets when clock policy allows it.
+- keep hard POC caps: 96 departure buckets, 2 directions, 8 loop offsets, 192 scenario candidates, 4 enabled domain adapters, 1 pace, and 1 objective.
+- use fixed pace in the POC.
+- require worker-first orchestration before runtime implementation.
+- prefer ranked windows over magic-minute winners.
+- keep results local/ephemeral unless a later persistence gate approves otherwise.
+- require measured performance evidence before runtime implementation.
 
 ## Phase 7 - Implementation Readiness Gate
 
-Decide whether implementation may start.
+Decide which exact implementation slice may start, if any.
 
-Required preconditions:
+Phase 7 is capability-specific. It does not approve the entire Ride Plan Scenario Engine.
 
-- [ ] `RouteIndexedTruthCache` traffic baseline works in memory.
-- [ ] `RouteTimeBinding` is stable for scenario use.
-- [ ] `RidePlanScenarioView` or `ActiveScenarioView` boundary is defined.
-- [ ] No storage contamination.
-- [ ] No RouteMap direct computation.
-- [ ] No Baseline Safety Score mutation.
-- [ ] Traffic volume and temporal motor-vehicle risk context remain separate.
-- [ ] POC factor policy is warning/receipt backed.
-- [ ] Route-time binding has fixed timezone/offset tests.
-- [ ] route crossing timezones and daylight-saving ambiguity are explicitly deferred.
-- [ ] RouteMap remains a sealed presentation consumer only.
+Deliverable:
+
+```text
+docs/04-execution/reports/exec-054-phase-7-implementation-readiness-decision.md
+```
+
+Evidence-backed readiness categories:
+
+- [x] Architecture/contract readiness audited.
+- [x] Stable-input readiness audited.
+- [x] Context/transform/time readiness audited.
+- [x] Projection readiness audited.
+- [x] View-boundary readiness audited.
+- [x] Planned-risk readiness audited.
+- [x] Sweep readiness audited.
+- [x] Feature-flag/rollback readiness audited.
+- [x] No-leak/no-storage readiness audited.
+- [x] Test/fixture readiness audited.
+- [x] Owner decision recorded.
+
+Readiness dimensions are separate:
+
+- contract ready.
+- existing runtime seam proven.
+- implementation authorization recorded.
+- owner decision accepted for the exact slice.
+
+`ready` in the Phase 7 report means ready to implement under the gate, not already operational in product runtime.
 
 Decision outcomes:
 
 ```text
-proceed_to_context_contract_only
-proceed_to_traffic_scenario_poc
+approve_context_time_foundation_only
+approve_single_scenario_projection_poc
+approve_non_neutral_projection_poc
+approve_planned_risk_preview_poc
+approve_scenario_sweep_poc
 keep_docs_only_and_fix_blockers
 defer_until_route_time_binding_hardening
-defer_until_scoring_policy_adr
-defer_until_temporal_risk_calibration_gate
+defer_until_adr_056_acceptance
+defer_until_double_counting_audit
+defer_until_worker_budget_evidence
 ```
+
+Phase 7 owner decision:
+
+```text
+accept_recommended_slice
+```
+
+Authorized capability:
+
+```text
+context_time_foundation
+```
+
+Authorized scope:
+
+```text
+context_time_foundation_only
+```
+
+Phase 7 is complete because the recommendation, owner decision, exact authorized slice, exclusions, evidence, missing tests, rollback/flag requirements, and revalidation triggers are documented.
+
+Phase 7 authorizes `context_time_foundation` only. It does not authorize projections, scoring, objectives, sweeps, presentation, dogfood, default-on behavior, or production.
+
+Authorized slice:
+
+- pure scenario contract/types.
+- `RidePlanScenarioDraft` validation and sealing.
+- deterministic `RidePlanScenarioContext` digest.
+- deterministic `routeTransformDigest`.
+- deterministic `routeTimeBindingDigest`.
+- `RouteTimeBinding.bindingId` must not be reused as semantic digest.
+- `manual_constant_elapsed_speed` only.
+- forward/start-zero `ScenarioRouteTransform` only.
+- planned `RouteTimeBinding` adapter only.
+- headless foundation result only, not a complete `RidePlanScenarioView`.
+- headless tests.
+- local/dev activation contract, default off.
+
+Current prohibited capabilities:
+
+- no runtime `ScenarioTrafficProjection`.
+- no runtime traffic-profile registry.
+- no temporal risk projection runtime, neutral or non-neutral.
+- no planned ride risk preview.
+- no Planned Ride Safety Score runtime.
+- no objective adapter runtime.
+- no scenario sweep runtime.
+- no actual-adjusted/observed binding.
+- no GPS progress integration.
+- no source fetching.
+- no RouteMap integration.
+- no cue-sheet integration.
+- no presentation integration.
+- no durable scenario storage.
+- no `RouteIndexedTruthCache` scenario writes.
+- no `route_cache` scenario writes.
+- no `route_history` scenario truth.
+- no Supabase changes.
+- no dogfood/default-on.
+- no production release.
 
 ## Phase 8 - Handoff / New Thread Seed
 
@@ -56543,15 +56647,19 @@ The likely first implementation slice after approval:
 RidePlanScenarioContext
   + manual_constant_elapsed_speed PaceProfile
   + forward route transform
-  + planned RouteTimeBinding
-  + traffic temporal volume projection
-  + neutral TemporalMotorVehicleRiskContext
-  -> RidePlanScenarioView
+  + scenarioContextDigest
+  + routeTransformDigest
+  + planned RouteTimeBinding adapter
+  + routeTimeBindingDigest
+  + headless foundation result
+  + headless foundation tests
 ```
 
 That slice must still preserve Baseline Safety Score and stable route truth unchanged.
 
-The first implementation slice may stop at scenario view construction. However, the traffic scenario POC is not complete until:
+Traffic temporal volume projection, neutral `TemporalMotorVehicleRiskContext`, and `RidePlanScenarioView` composition require the next gate after the context/time foundation is implemented and tested, unless Derek explicitly broadens the Phase 7 owner decision.
+
+The accepted first implementation slice stops before scenario view construction. The traffic scenario POC is not complete until:
 
 - changing start time can change `ScenarioTrafficProjection`
 - Planned Ride Safety Score or a clearly labeled planned ride risk preview can reflect that scenario delta
@@ -56762,7 +56870,7 @@ Acceptance:
 
 ## 11. Phase 7 — Planned Risk Preview Integration
 
-Only after Phase 6, integrate with a planned ride risk preview.
+Only after exec-055 Phase 6 - Double-Counting Audit, integrate with a planned ride risk preview.
 
 This phase also requires the planned-score contract to say whether the output is a preview or Planned Ride Safety Score.
 
@@ -56795,11 +56903,19 @@ Acceptance:
 
 Add optional sweep support only after single-scenario output works.
 
-Initial sweeps:
+Sweep orchestration is governed by DS-060:
 
-- start times every 60 minutes.
-- then every 30 minutes if budgets allow.
-- 15-minute sweep is future after performance confirmation.
+```text
+docs/02-architecture/design/ds-060-scenario_sweep_contract.md
+```
+
+Progressive departure lattice:
+
+- 60-minute stage first.
+- 30-minute cumulative stage next.
+- 15-minute cumulative stage after performance confirmation.
+- all stages belong to one deterministic 96-bucket lattice.
+- partial Stage 1 or Stage 2 output must not claim the final best 15-minute window.
 
 Acceptance:
 
@@ -56807,6 +56923,7 @@ Acceptance:
 - no durable route analyses are written.
 - results rank safest and riskiest windows.
 - output explains whether differences come from traffic volume, nighttime context, or both.
+- DS-060 remains authoritative for sweep orchestration.
 
 ---
 
@@ -56857,15 +56974,25 @@ Required fixtures:
 
 ## 15. Implementation Readiness Gate
 
-Proceed to implementation only when:
+Proceed to temporal projection or planned-risk implementation only when:
 
 - DS-057 is accepted.
-- ADR-056 is accepted.
-- exec-054 Phase 7 readiness criteria are satisfied or explicitly updated.
-- double-counting decision is documented.
+- ADR-056 is accepted or revised where non-neutral temporal-risk runtime is requested.
+- exec-054 Phase 7 readiness criteria are satisfied or explicitly updated for the exact requested slice.
+- exec-055 Phase 6 - Double-Counting Audit is complete where planned-risk preview or planned-score integration is requested.
 - the planned score contract says whether this is a preview or a Planned Ride Safety Score.
 - RouteTimeBinding has fixed timezone / offset tests.
 - UI copy labels output as modeled planned ride risk, not live observed risk.
+
+exec-054 Phase 7 authorizes an exact implementation slice. It does not approve all of exec-055.
+
+Current sequencing constraints:
+
+- Non-neutral temporal-risk runtime requires ADR-056 accepted or revised.
+- Traffic projection runtime remains outside the exec-054 Phase 7 authorization.
+- Planned-risk preview requires exec-055 Phase 6 - Double-Counting Audit.
+- Scenario sweeps require a successful single-scenario runtime and measured browser/device budgets.
+- A context/time foundation slice may be authorized before non-neutral runtime, planned-risk preview, or sweep runtime.
 
 Decision outcomes:
 
@@ -56881,11 +57008,29 @@ Decision outcomes:
 
 ## 16. Handoff Summary
 
-The first implementation thread should build only this:
+The first implementation thread is narrower than the full temporal-risk POC because exec-054 Phase 7 authorized only a foundation slice.
+
+exec-054 Phase 7 owner decision is `accept_recommended_slice`.
+
+The first implementation thread may build only:
+
+```text
+RidePlanScenarioContext
+  + manual_constant_elapsed_speed PaceProfile
+  + forward/start-zero ScenarioRouteTransform
+  + scenarioContextDigest
+  + routeTransformDigest
+  + planned RouteTimeBinding adapter
+  + routeTimeBindingDigest
+  + headless foundation result
+  + headless no-write/no-leak tests
+```
+
+The fuller temporal projection slice remains:
 
 RidePlanScenarioContext plus RouteTimeBinding plus TrafficTemporalVolumeProfile plus TemporalMotorVehicleRiskContext produces a receipt-backed planned risk preview.
 
-Everything else waits.
+That fuller slice waits for a later gate and is not authorized by exec-054 Phase 7.
 
 
 ---

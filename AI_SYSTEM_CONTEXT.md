@@ -3463,10 +3463,11 @@ Route Safety Score must remain:
 | DS-053 | Local Prediction Builder | DS-015, DS-017, DS-022, DS-029, DS-031, DS-043, DS-046, DS-048 | Draft |
 | DS-054 | Admin Cache Cell Visualizer | DS-031, DS-034, DS-035, DS-050, DS-052, DS-053 | Draft |
 | DS-055 | RouteIndexedEvidenceLedger No-Leak Spec | ADR-054, DS-031, DS-043, DS-044, DS-047 | Draft |
-| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059 | Draft |
+| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060 | Draft |
 | DS-057 | Temporal Traffic Volume and Nighttime Motor-Vehicle Risk Context Spec | ADR-056, ADR-055, DS-056, DS-015, DS-031 | Draft |
 | DS-058 | Planned Ride Safety Score Contract | ADR-055, ADR-056, DS-015, DS-031, DS-056, DS-057 | Draft |
-| DS-059 | Scenario Objective Adapter Contract | ADR-055, DS-056, DS-058 | Draft |
+| DS-059 | Scenario Objective Adapter Contract | ADR-055, DS-056, DS-058, DS-060 | Draft |
+| DS-060 | Scenario Sweep Contract | ADR-055, DS-056, DS-058, DS-059 | Draft |
 
 ---
 
@@ -30933,7 +30934,7 @@ Tests should treat violations as architecture failures, not product polish issue
 **Status:** Draft for planning
 **Date:** 2026-06-17
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
-**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, exec-052, exec-053, exec-054
+**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, exec-052, exec-053, exec-054
 
 ---
 
@@ -31723,23 +31724,35 @@ Future condition outputs:
 
 ## 13. Scenario Sweeps
 
-The engine may sweep:
+The canonical sweep contract is DS-060:
 
-- start time buckets, such as every 15 minutes
-- direction: forward/reverse
-- start offset candidates for loops
-- pace profile variants later
+```text
+docs/02-architecture/design/ds-060-scenario_sweep_contract.md
+```
 
-Outputs:
+Scenario sweeps reuse one stable route foundation and evaluate bounded scenario overlays.
 
-- ranked candidate scenarios
-- best/worst windows
-- safety/access/conditions summaries
-- assumptions
+DS-060 owns:
 
-Do not store 96 durable route analyses for a 15-minute daily sweep.
+- candidate generation and sealing.
+- progressive 60/30/15 departure lattice.
+- direction and loop start-offset sweep bounds.
+- candidate budgets and deterministic degradation.
+- cancellation and debounce contracts.
+- worker-first orchestration.
+- local memoization and structural reuse.
+- objective-ranking orchestration.
+- ranked-window output policy.
 
-Sweeps should run in memory or local ephemeral cache unless a later persistence gate approves otherwise.
+Rules:
+
+- A sweep must not perform full stable route analysis once per candidate.
+- Selected stable truth, Baseline Safety Score/reference, route geometry, and route axis are reused.
+- Objective adapters rank evaluated views only.
+- Domain adapters and planned safety evaluation remain single-scenario contracts.
+- Sweep results stay in memory or local ephemeral cache unless a later persistence gate approves otherwise.
+- Do not store 96 durable route analyses for a 15-minute daily sweep.
+- Do not place every full slice-heavy candidate view in presentation state.
 
 ---
 
@@ -32748,7 +32761,7 @@ Before runtime planned-score integration:
 **Status:** Draft for planning
 **Date:** 2026-06-17
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
-**Related:** DS-015, DS-031, DS-056, DS-057, DS-058, ADR-045, ADR-054, EXEC-054
+**Related:** DS-015, DS-031, DS-056, DS-057, DS-058, DS-060, ADR-045, ADR-054, EXEC-054
 
 ---
 
@@ -32902,7 +32915,9 @@ Candidate generation role:
 - may propose candidate `RidePlanScenarioDraft` values before evaluation.
 - may declare which variables it is allowed to vary.
 - may suggest start-time windows, direction candidates, start offsets, or pace variants only when those variables are supported by the scenario contract.
+- may provide hints to DS-060 sweep orchestration when the sweep request allows that objective.
 - may not seal scenario context as authority.
+- may not own sweep enumeration runtime, budgets, cancellation, or worker orchestration.
 
 Ranking role:
 
@@ -33312,6 +33327,31 @@ Objective outputs:
 - must not create durable route analyses for every candidate.
 - may support pinned ride plans in future persistence work, but not in Phase 5.
 
+## 15.1 Sweep Orchestration Boundary
+
+DS-060 defines scenario sweep orchestration.
+
+Objective adapters:
+
+- may propose bounded candidate drafts.
+- may rank evaluated views.
+- may explain hard constraints, soft preferences, and tie-breakers.
+
+Objective adapters do not:
+
+- own sweep budgets.
+- own progressive departure lattice evaluation.
+- own worker orchestration.
+- own cancellation/debounce.
+- erase or soften degradation disclosures.
+- claim requested-grid or global optimality for degraded effective sweeps.
+
+Partial sweep results must not become final recommendations.
+
+Degraded-but-complete sweep results may be ranked and recommended only within the effective evaluated candidate set.
+
+Recommendation explanations must include effective resolution and degradation receipts. Objective adapters cannot claim requested-grid, full 15-minute-grid, or global optimality when the sweep result is degraded.
+
 ---
 
 ## 16. Presentation Rules
@@ -33385,6 +33425,938 @@ Before runtime objective implementation:
 - No rerouting.
 - No source fetching for rail, air, services, POI hours, weather, UV, wind, or live traffic.
 - No Supabase migration.
+- No `RouteIndexedTruthCache` writes.
+- No `route_cache` writes.
+- No `route_history` scenario truth.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-060-scenario_sweep_contract.md
+
+# DS-060 - Scenario Sweep Contract
+
+**Status:** Draft for planning
+**Date:** 2026-06-17
+**ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
+**Related:** DS-015, DS-031, DS-056, DS-057, DS-058, DS-059, ADR-045, ADR-054, EXEC-054, EXEC-055
+
+---
+
+## 1. Purpose
+
+This spec defines the contract for bounded scenario sweeps.
+
+A scenario sweep is one shared route foundation plus a bounded collection of scenario overlays.
+
+It is not:
+
+- N route analyses.
+- route reanalysis.
+- route geometry generation.
+- rerouting.
+- stable truth selection.
+- evidence acquisition.
+- source fetching.
+- a domain adapter.
+- a scoring model.
+- an objective adapter.
+- a persistence system.
+- a claim of globally optimal truth.
+
+The sweep contract orchestrates:
+
+```text
+Stable selected route truth, loaded once
+  -> bounded scenario candidate generation
+  -> semantic deduplication
+  -> shared transform/time-binding preparation
+  -> single-scenario evaluation through existing contracts
+  -> objective-adapter ranking
+  -> ranked windows and explanations
+```
+
+Every evaluated candidate must become a sealed `RidePlanScenarioContext` before evaluation.
+
+---
+
+## 2. Architecture Roles
+
+### 2.1 ScenarioSweepCoordinator
+
+Owns:
+
+- sweep planning and orchestration.
+- candidate generation orchestration.
+- semantic deduplication.
+- budget planning.
+- candidate evaluation orchestration.
+- objective-ranking orchestration.
+- ranked-window construction.
+- diagnostics and performance accounting.
+
+Does not own:
+
+- route truth.
+- domain logic.
+- planned safety formulas.
+- objective ranking policy.
+- presentation.
+- source fetching.
+
+### 2.2 ScenarioCandidateGenerator
+
+Owns:
+
+- deterministic bounded candidate specifications.
+- candidate dimension enumeration under the request policy.
+- semantic candidate identity inputs.
+
+Does not:
+
+- evaluate candidates.
+- inspect domain outputs.
+- use scoring results to rewrite candidates in the POC.
+- silently perform adaptive optimization.
+
+### 2.3 RidePlanScenarioEngine
+
+Evaluates one sealed scenario.
+
+Rules:
+
+- It remains the single-scenario authority.
+- It must not gain sweep-specific ranking logic.
+- It must not own objective ranking.
+
+### 2.4 ScenarioObjectiveAdapter
+
+Ranks evaluated scenario views.
+
+Rules:
+
+- It does not enumerate an unbounded search space.
+- It does not evaluate scenarios.
+- It does not mutate domain outputs.
+- It does not mutate planned safety outputs.
+
+### 2.5 Presentation
+
+Receives a sealed `ScenarioSweepView` or equivalent.
+
+Presentation does not:
+
+- run loops.
+- call adapters.
+- compute scores.
+- rank results.
+- own sweep authority.
+
+---
+
+## 3. Performance Invariant
+
+A sweep must not perform full stable route analysis once per candidate.
+
+Required shared work:
+
+- selected stable route truth is resolved once per sweep.
+- Baseline Safety Score/reference is resolved once per sweep.
+- route geometry and route axis are reused.
+- no raw source or evidence selection runs per candidate.
+- no HPMS, OSM, weather, POI, or external source fetch occurs per candidate.
+- no completed route analysis is written per candidate.
+
+Recommended factoring:
+
+- stable input bundle: once per sweep.
+- `ScenarioRouteTransform`: once per unique direction/start-offset transform.
+- elapsed route-binding template: once per unique transform plus pace profile.
+- absolute clock binding: derived per departure candidate.
+- time-dependent domain outputs: evaluated per candidate.
+- planned safety output or preview: evaluated per candidate if approved.
+- objective ranking: after candidate evaluation.
+
+```text
+A 96-bucket departure sweep is not 96 route analyses.
+```
+
+---
+
+## 4. ScenarioSweepRequest
+
+Conceptual fields:
+
+- `schemaVersion`
+- `sweepRunId`
+- `sweepRequestDigest`
+- `baseScenarioContext` or base sealed scenario reference
+- `routeIdentity`
+- `stableInputDigest`
+- `objectiveId`
+- `objectivePolicyVersion`
+- `sweepMode`
+- `dimensions`
+- `enabledAdapterIds`
+- `enabledAdapterVersions`
+- `plannedSafetyContractVersion`
+- `rankingPolicyId`
+- `budgets`
+- `source`
+- `requestedAt`
+- `assumptions`
+- `warnings`
+
+Rules:
+
+- `requestedAt` and `generatedAt` must not define semantic equality.
+- `sweepRequestDigest` must include all ranking/evaluation-relevant model and policy versions.
+- one sweep uses exactly one objective.
+- multiple objectives require separate sweep requests.
+- pace is fixed for the Phase 6 POC.
+- changing pace creates a new sweep request.
+- changing `stableInputDigest` invalidates the sweep.
+
+---
+
+## 5. POC Sweep Modes
+
+Explicit POC modes:
+
+- `departure_time_only`
+- `departure_time_and_direction`
+- `direction_only`
+- `loop_start_offset_only`
+- `bounded_custom_later`
+
+Rules:
+
+- Do not activate every axis automatically.
+- At most two varying axes are allowed in the POC.
+- Pace-profile sweep is deferred.
+- Multi-objective sweep is deferred.
+- Full departure x direction x every loop offset Cartesian product is not a default POC mode.
+- A requested combination must fit the candidate budget before evaluation.
+
+---
+
+## 6. Departure-Time Sweep
+
+POC daily sweep:
+
+- one explicit local calendar date.
+- one explicit `clockContext`.
+- default target resolution: 15 minutes.
+- full daily target: 96 departure buckets.
+- bucket alignment: local-day quarter hours.
+- long rides may finish on the following day; `RouteTimeBinding` handles arrival times.
+- the selected/current scenario may be retained as a comparison reference without silently changing the canonical 96-bucket grid.
+
+Do not use browser/system-local `Date` APIs as hidden clock authority.
+
+POC clock gate:
+
+- fixed UTC offset is allowed.
+- fixed IANA timezone is allowed only when the sweep day has no unresolved DST transition under the approved clock policy.
+- DST-transition ambiguity is blocked or explicitly deferred.
+- route crossing timezones remains deferred.
+- do not force 96 local buckets onto a 23-hour or 25-hour DST-transition day while pretending it is ordinary.
+
+### 6.1 Progressive Lattice
+
+The 15-minute daily sweep is one deterministic candidate lattice evaluated in stages.
+
+Stage 1:
+
+- 60-minute anchors.
+- 24 total departure candidates for a full day.
+
+Stage 2:
+
+- add 30-minute midpoints.
+- 48 total departure candidates.
+
+Stage 3:
+
+- add 15-minute and 45-minute candidates.
+- 96 total departure candidates.
+
+Rules:
+
+- final Stage 3 candidate set is the full deterministic 15-minute grid.
+- evaluation order may be progressive.
+- progressive evaluation must not change the final candidate set or final ranking.
+- do not use top-K adaptive refinement as the only search method in the POC, because it could miss unevaluated windows.
+- if execution stops before the effective planned candidate set is complete, `executionStatus` is `partial`.
+- partial output must declare effective resolution.
+- partial output must not claim the final best 15-minute window.
+- a degraded 30-minute or 60-minute effective grid can still have `executionStatus = complete` if every effective candidate was evaluated.
+- the full 96-candidate result must match direct evaluation of the same 96 candidate contexts regardless of evaluation order.
+
+---
+
+## 7. Direction Sweep
+
+POC candidates:
+
+- forward
+- reverse
+
+Rules:
+
+- maximum direction candidates = 2.
+- reverse is included only when `ScenarioRouteTransform` supports it.
+- illegal or unresolved reverse traversal, including applicable one-way conflicts, becomes blocked/unresolved rather than silently valid.
+- direction candidates use scenario-direction-aware bearings.
+- direction changes do not mutate route geometry or stable truth.
+- semantically equivalent transforms must deduplicate by transform/context digest.
+- departure-time-and-direction sweep may contain up to 96 x 2 = 192 candidates.
+
+---
+
+## 8. Loop Start-Offset Sweep
+
+Rules:
+
+- start-offset sweep is permitted only for a route classified as a loop under an approved route-shape policy.
+- open-route start-offset sweep is blocked unless a later contract defines its traversal semantics.
+- offset candidates are route-axis distances in meters.
+- current start offset 0 is always available.
+- candidate sources may include explicit user-selected/pinned route positions.
+- candidate sources may include existing approved controls or access anchors.
+- candidate sources may include deterministic evenly spaced fallback candidates for diagnostics/POC.
+- no source fetching occurs to create offset candidates.
+- do not generate one candidate per meter.
+- maximum POC start-offset candidates = 8.
+- normalize and deduplicate candidates by `ScenarioRouteTransform` digest.
+- retain explicit/pinned candidates before generated fallback candidates when budget reduction is required.
+- a start-offset sweep uses fixed direction and departure time by default.
+- combined departure/start-offset sweeps must fit the global candidate cap and may require coarser departure buckets.
+
+---
+
+## 9. Hard POC Count Budgets
+
+Contract limits:
+
+- `maxDepartureBuckets = 96`
+- `maxDirectionCandidates = 2`
+- `maxStartOffsetCandidates = 8`
+- `maxScenarioCandidatesPerSweep = 192`
+- `defaultEnabledDomainAdapters = 2`
+- `maxEnabledDomainAdaptersPerSweep = 4`
+- `paceVariantCandidates = 1`
+- `objectiveAdaptersPerSweep = 1`
+
+These are contract limits, not performance claims.
+
+Rules:
+
+- raw Cartesian count is calculated before evaluation.
+- semantically duplicate candidates are removed before budget enforcement.
+- planned candidate count must be reported.
+- no sweep starts while over hard budget.
+- no dimension is silently truncated.
+- budget reduction/degradation must be deterministic and receipt-backed.
+- debug/admin mode may not remove hard bounds.
+- measured work budgets, once approved, are hard gates.
+- if planned work exceeds measured budgets, the sweep must block or deterministically degrade before candidate evaluation begins.
+
+Route-length-aware work estimates must be reported before evaluation. Candidate count alone is not enough.
+
+Required work estimate fields:
+
+- `routeSliceCount`
+- `routeTimeSampleCount`
+- `uniqueTransformCount`
+- `routeTimeBindingPointEvaluations`
+- `domainSpanEvaluations`
+- `plannedSafetySliceEvaluations`
+- `estimatedRetainedFullViewBytes`
+- `estimatedWorkerTransferBytes`
+
+---
+
+## 10. Deterministic Degradation
+
+When requested candidates exceed budget:
+
+1. remove semantic duplicates.
+2. retain explicitly requested/pinned offsets before generated offsets.
+3. preserve every requested legal direction or block and require separate sweeps; do not silently bias toward forward.
+4. coarsen departure resolution from 15 to 30 to 60 minutes when needed.
+5. reduce generated loop offsets deterministically when needed.
+
+Never silently change:
+
+- pace.
+- objective.
+- hard constraints.
+- model versions.
+- stable truth.
+
+Required reporting:
+
+- requested dimensions.
+- effective dimensions.
+- every degradation reason.
+- `fidelityStatus = degraded` when effective dimensions differ from requested dimensions.
+- `recommendationStatus` limits when degradation narrows the effective candidate set.
+- requested work estimates.
+- effective work estimates after degradation.
+
+Do not claim full-grid optimality after degradation.
+
+---
+
+## 11. ScenarioSweepPlan
+
+The plan must be produced before evaluation begins.
+
+Conceptual fields:
+
+- `sweepRunId`
+- `sweepRequestDigest`
+- `stableInputDigest`
+- `requestedDimensions`
+- `effectiveDimensions`
+- `progressiveStages`
+- `rawCartesianCandidateCount`
+- `deduplicatedCandidateCount`
+- `plannedCandidateCount`
+- `estimatedWorkUnits`
+- `routeSliceCount`
+- `routeTimeSampleCount`
+- `uniqueTransformCount`
+- `routeTimeBindingPointEvaluations`
+- `domainSpanEvaluations`
+- `plannedSafetySliceEvaluations`
+- `estimatedRetainedFullViewBytes`
+- `estimatedWorkerTransferBytes`
+- `enabledAdapterIdsAndVersions`
+- `objectiveIdAndVersion`
+- `candidateGenerationPolicyId`
+- `degradationPolicyId`
+- `degradations`
+- `blockers`
+- `warnings`
+- `assumptions`
+- `candidatePlanDigest`
+
+---
+
+## 11.1 Structural Candidate Admissibility
+
+Structural candidate admissibility is separate from objective hard constraints.
+
+Structural admissibility runs before candidate evaluation and answers:
+
+```text
+Can this candidate legally and coherently be evaluated?
+```
+
+Examples:
+
+- requested dimensions fit hard count budgets.
+- requested dimensions fit measured work budgets or deterministic degradation succeeds.
+- clock context is valid.
+- DST ambiguity is blocked or explicitly deferred.
+- route crossing timezones is not required.
+- reverse transform is supported and not structurally illegal.
+- loop start-offset sweep is requested only for an approved loop route.
+- open-route start-offset sweep is blocked unless a later contract defines traversal semantics.
+- stable input digest is available.
+- enabled adapter/model versions are recognized.
+
+Objective hard constraints run after evaluation and answer:
+
+```text
+Does this evaluated candidate satisfy the chosen objective?
+```
+
+Rules:
+
+- Objective hard constraints must not make a structurally inadmissible candidate valid.
+- Structural blockers must be reported separately from objective hard-constraint failures.
+- Structural admissibility must not inspect domain output values to rewrite candidates in the POC.
+- Missing coverage is not structurally admissible just because an objective could rank it lower later.
+
+---
+
+## 12. ScenarioSweepCandidate
+
+Conceptual fields:
+
+- `candidateId`
+- `candidateOrdinal`
+- `progressiveStage`
+- `dimensionValues`
+- `scenarioId`
+- `scenarioContextDigest`
+- `routeTransformDigest`
+- `paceProfileDigest`
+- `routeTimeBindingDigest` after binding
+- `evaluationStatus`
+- `exclusionReason`
+- `blockers`
+- `warnings`
+
+Rules:
+
+- every evaluated candidate uses a sealed `RidePlanScenarioContext`.
+- candidate semantic equality is based on canonical digests, not `candidateOrdinal` or `generatedAt`.
+- duplicate `scenarioContextDigest` candidates are evaluated once.
+- candidate order is deterministic.
+
+---
+
+## 13. Worker Ownership
+
+Phase 6 runtime implementation must be worker-first.
+
+Worker owns:
+
+- sweep planning after validated request input.
+- candidate generation.
+- semantic deduplication.
+- budget planning.
+- candidate orchestration.
+- single-scenario evaluation calls.
+- objective-ranking orchestration.
+- result-window construction.
+- diagnostics and performance accounting.
+
+Main thread may:
+
+- create a request.
+- start work.
+- cancel work.
+- display progress.
+- display partial results.
+- display final results.
+
+Main thread must not:
+
+- synchronously loop through scenario candidates.
+- call domain adapters candidate-by-candidate.
+- compute planned score candidate-by-candidate.
+- rank results.
+- retain every full candidate view in React state.
+
+---
+
+## 14. Progress Events
+
+Conceptual stages:
+
+- `planning`
+- `deduplicating`
+- `evaluating_stage_60m`
+- `evaluating_stage_30m`
+- `evaluating_stage_15m`
+- `ranking`
+- `building_windows`
+- `complete`
+- `partial`
+- `blocked`
+- `cancelled`
+- `failed`
+
+Progress fields:
+
+- `sweepRunId`
+- `requestId`
+- `stage`
+- `candidatesPlanned`
+- `candidatesEvaluated`
+- `candidatesBlocked`
+- `candidatesRemaining`
+- `effectiveResolutionMinutes`
+- `elapsedMs`
+- `currentBestTierSummary` if allowed
+- `warnings`
+
+Rules:
+
+- stale events from an older `sweepRunId`/`requestId` are ignored.
+- worker messages are coalesced; do not emit one large full view per candidate.
+- progress events must not include full `RidePlanScenarioView` payloads.
+- progress events must not include slice-heavy arrays, route-positioned span arrays, raw domain outputs, or raw source/evidence payloads.
+- progress event frequency must be explicitly bounded before implementation.
+- presentation progress is not proof of final ranking completeness.
+
+---
+
+## 15. Cancellation
+
+Required cancellation triggers:
+
+- changing base scenario inputs.
+- changing pace.
+- changing objective.
+- changing enabled adapter versions.
+- explicit user cancellation.
+
+Rules:
+
+- cancellation token is checked between candidates and inside chunked route-position evaluation.
+- after cancellation, no stale candidate result may enter the next run.
+- cancelled results may exist for diagnostics but cannot be presented as final recommendation.
+- partial best-so-far must be labeled provisional.
+- cancellation must not write storage or mutate stable truth.
+
+---
+
+## 16. Debounce And Coalescing
+
+POC policy:
+
+- cancel current work immediately when an authoritative sweep input changes.
+- do not launch a new sweep continuously while the rider is actively dragging a control.
+- launch after the input is stable for a documented debounce interval.
+- pointer-up/commit may trigger a shorter final debounce.
+- identical `sweepRequestDigest` requests reuse or join in-flight local work.
+- debounce belongs to the sweep controller boundary, not RouteMap or cue sheet as authority.
+
+Do not implement the UI in Phase 6.
+
+---
+
+## 17. Local Memoization And Structural Reuse
+
+Allowed:
+
+- session-local memory.
+- bounded local ephemeral memoization.
+- in-flight request deduplication.
+- deterministic diagnostic fixture snapshots.
+
+Forbidden:
+
+- durable candidate storage.
+- `RouteIndexedTruthCache` scenario writes.
+- `route_cache` scenario writes.
+- `route_history` scenario truth.
+- one stored route analysis per candidate.
+- cross-user scenario cache.
+- persistence disguised as memoization.
+
+Recommended memo layers:
+
+- stable input bundle keyed by `stableInputDigest`.
+- transform keyed by route identity plus direction/start offset.
+- elapsed binding template keyed by transform plus pace profile.
+- candidate evaluation keyed by `scenarioContextDigest` plus `stableInputDigest` plus adapter/model/scoring versions.
+- ranking keyed by evaluated candidate digests plus objective policy version.
+
+Rules:
+
+- `generatedAt` does not enter semantic cache keys.
+- any stable truth/model/profile/policy version change invalidates affected memo entries.
+- local memoization must be bounded/LRU-like.
+- candidate summaries may be retained more broadly than full `RidePlanScenarioView` values.
+- retain only a bounded number of full candidate views, such as the selected candidate and top/bottom representatives.
+- the POC hard cap for retained full `RidePlanScenarioView` payloads is 8 per sweep.
+- do not place 96 full slice-heavy scenario views in React state.
+
+---
+
+## 18. Candidate Evaluation Flow
+
+For each unique candidate:
+
+1. derive and seal candidate `RidePlanScenarioContext`.
+2. resolve or reuse `ScenarioRouteTransform`.
+3. resolve or reuse elapsed route-binding template.
+4. bind candidate absolute start time.
+5. run approved `ScenarioDomainAdapters`.
+6. run planned safety preview/score only if DS-058 and later gates allow it.
+7. produce `RidePlanScenarioView`.
+8. hand evaluated view by reference to the Phase 5 objective adapter.
+9. never allow objective ranking to mutate the evaluated view.
+
+---
+
+## 19. Objective Ranking
+
+Rules:
+
+- exactly one objective adapter ranks one sweep.
+- hard constraints run as pass/fail/unresolved gates.
+- soft preferences rank eligible candidates.
+- tie-breakers are deterministic and receipt-backed.
+- objective adapter consumes evaluated scenario views by reference.
+- objective adapter does not recompute domain outputs or planned safety.
+- no hidden scalar blender across unrelated domains.
+- POC ranking remains rule-based or lexicographic unless DS-059 explicitly approves another policy.
+- blocked or unresolved candidates remain visible with reasons.
+- missing data is not treated as favorable.
+
+---
+
+## 20. Ranked Windows
+
+For departure-time sweeps, adjacent candidates that are materially equivalent under the objective policy should be grouped into `ScenarioWindowResult` objects.
+
+Conceptual fields:
+
+- `windowId`
+- `localStartTime`
+- `localEndTime`
+- `representativeScenarioId`
+- `memberScenarioIds`
+- `rankTier`
+- `eligibilityStatus`
+- `materialEquivalencePolicyId`
+- `primaryDrivers`
+- `trafficContributionSummary`
+- `temporalRiskContributionSummary`
+- `unresolvedCoverage`
+- `confidence`
+- `comparisonToBaseScenario`
+- `receipts`
+- `assumptions`
+- `warnings`
+- `diagnostics`
+
+Rules:
+
+- distinguish rank tier from exact scalar score.
+- materially indistinguishable candidates share a tier.
+- material equivalence must be governed by a versioned `materialEquivalencePolicyId`.
+- window grouping must not cross material discontinuities such as hard-constraint pass/fail changes, blocked/unresolved status changes, light-state/night-window transitions, temporal risk factor changes, traffic profile/profile-version changes, clock-day/DST ambiguity boundaries, or objective primary-driver changes.
+- do not claim 10:45 is meaningfully better than 11:00 when the model cannot support that precision.
+- prefer rider-facing windows or plateaus over one magic minute.
+- result must say "best within the evaluated candidate set and assumptions," not globally optimal.
+- result must disclose requested and effective resolution.
+- result must disclose unresolved/blocked candidate coverage.
+- worst windows may be shown, but with the same modeled/uncertainty language.
+
+---
+
+## 21. Execution, Fidelity, And Recommendation Status
+
+Execution status describes whether the effective candidate set finished evaluating.
+
+Allowed `executionStatus` values:
+
+- `complete`
+- `partial`
+- `blocked`
+- `cancelled`
+- `failed`
+
+Fidelity status describes whether the effective sweep dimensions match the requested dimensions.
+
+Allowed `fidelityStatus` values:
+
+- `exact`
+- `degraded`
+
+Recommendation status describes whether a result can become a recommendation.
+
+Allowed `recommendationStatus` values:
+
+- `final_within_effective_set`
+- `provisional`
+- `none`
+
+Rules:
+
+- exact and complete means every requested/effective candidate was evaluated and may produce a final recommendation within the requested candidate set.
+- degraded and complete means every effective candidate was evaluated, but effective dimensions differ from requested dimensions.
+- degraded and complete may produce a final recommendation only within the effective evaluated candidate set.
+- degraded and complete must disclose degradation, effective resolution, candidate coverage, and assumptions.
+- degraded and complete must not claim requested-grid, full 15-minute-grid, or global optimality.
+- degraded and complete copy may say "Best within the evaluated 30-minute departure windows and current assumptions."
+- degraded and complete copy must not say "Best 15-minute departure window."
+- partial means evaluation did not complete the effective planned candidate set.
+- partial results may show best-so-far only as provisional.
+- partial results must not become final recommendations.
+- blocked, cancelled, and failed results must not produce automatic recommendations.
+- blocked results explain the blocker.
+
+---
+
+## 22. ScenarioSweepResult
+
+Conceptual fields:
+
+- `outputLayerId`
+- `schemaVersion`
+- `sweepRunId`
+- `sweepRequestDigest`
+- `candidatePlanDigest`
+- `stableInputDigest`
+- `objectiveId`
+- `objectivePolicyVersion`
+- `executionStatus`
+- `fidelityStatus`
+- `recommendationStatus`
+- `requestedDimensions`
+- `effectiveDimensions`
+- `requestedCandidateCount`
+- `plannedCandidateCount`
+- `evaluatedCandidateCount`
+- `blockedCandidateCount`
+- `unresolvedCandidateCoverage`
+- `blockedCandidateCoverage`
+- `deduplicatedCandidateCount`
+- `progressiveStagesCompleted`
+- `rankedWindows`
+- `rankedCandidateSummaries`
+- `bestWindow`
+- `worstWindows`
+- `baseScenarioComparison`
+- `retainedFullViewRefs`
+- `performanceSummary`
+- `budgetSummary`
+- `degradations`
+- `receipts`
+- `assumptions`
+- `warnings`
+- `diagnostics`
+- `generatedAt`
+
+Rules:
+
+- `generatedAt` is not semantic equality.
+- output is not stable route truth.
+- output is not durable scenario truth.
+- output must not be written to `RouteIndexedTruthCache`, `route_cache`, or `route_history`.
+- result must not contain raw evidence or source responses.
+- base scenario is comparison-only unless explicitly added as a budgeted candidate in the sweep request.
+- adding the base scenario as a candidate consumes candidate budget and must appear in `plannedCandidateCount`.
+- retained full view refs must contain at most 8 full `RidePlanScenarioView` references per sweep in the POC.
+
+---
+
+## 23. Temporal Precision Policy
+
+DS-057 uses:
+
+- 24 hourly traffic shares.
+- POC/default-prior traffic profiles.
+- modeled-unvalidated temporal risk factors.
+
+Therefore:
+
+- 15-minute evaluation resolution is useful for route arrival-time shifts and light transitions.
+- 15-minute evaluation resolution does not imply 15-minute empirical traffic calibration.
+- ranking copy must distinguish evaluation resolution from source/model resolution.
+- small modeled differences must not be presented as scientific certainty.
+- contiguous equivalent candidates should become windows.
+
+---
+
+## 24. No-Leak Rules
+
+Sweep orchestration may consume:
+
+- selected stable truth.
+- sealed scenario contexts.
+- approved route transforms.
+- route-time binding.
+- approved domain outputs.
+- approved planned safety output/preview.
+- Phase 5 objective adapter.
+
+It may not consume:
+
+- raw HPMS.
+- raw `RouteIndexedEvidenceLedger` candidates.
+- legacy `truthRuns` as evidence.
+- RXON as truth.
+- RouteMap props.
+- cue-sheet local state as authority.
+- `route_history` as truth.
+- completed-analysis `route_cache` as truth.
+- raw external source responses.
+- browser-local `Date` APIs silently.
+
+---
+
+## 25. POC Fixture Requirements
+
+Required fixtures:
+
+- Medford/Batsto.
+- John's Waterfall.
+- one deterministic synthetic loop fixture for start-offset testing.
+- one fixed-offset synthetic date fixture.
+- one timezone/DST-blocked fixture.
+
+Required assertions:
+
+- 60-minute stage produces 24 unique departure candidates.
+- 30-minute cumulative stage produces 48.
+- 15-minute cumulative stage produces 96.
+- progressive full result equals direct 96-candidate result.
+- departure-plus-direction produces at most 192 candidates.
+- duplicate context digests are evaluated once.
+- fixed pace is reused.
+- stable truth is resolved once.
+- Baseline Safety Score remains unchanged.
+- `RouteIndexedTruthCache` remains unchanged.
+- `route_cache` remains unchanged.
+- `route_history` remains unchanged.
+- no source fetch occurs per candidate.
+- no route geometry analysis occurs per candidate.
+- changing start time can change temporal projections.
+- same route may have lower traffic but higher nighttime context risk.
+- adjacent equivalent candidates group into one window.
+- partial results are labeled provisional.
+- cancellation prevents stale events/results.
+- DST-transition ambiguity blocks or warns according to contract.
+- non-loop start-offset sweep is blocked.
+- reverse candidate with unresolved/illegal traversal is blocked, not silently accepted.
+
+---
+
+## 26. Implementation Budgets
+
+Phase 6 approves count/work budgets only.
+
+Before runtime implementation:
+
+- measure single-scenario evaluation cost.
+- measure 24/48/96 candidate stages on Medford/Batsto and John's Waterfall.
+- document reference browser/device/hardware.
+- document elapsed time, memory, worker payload size, progress event count, and cancellation behavior.
+- approve explicit local performance budgets from measured evidence.
+- do not invent product SLA numbers before measurement.
+
+---
+
+## 27. Implementation Gates
+
+Phase 6 approves only this contract.
+
+Before runtime sweep implementation:
+
+- DS-060 must be accepted or revised.
+- DS-058 and DS-059 must remain authoritative for planned safety and objective ranking.
+- `RidePlanScenarioEngine` must evaluate one sealed scenario cleanly.
+- worker-first orchestration must be designed.
+- fixture tests and measured performance gates must pass.
+- no storage contamination tests must pass.
+
+---
+
+## 28. Non-Goals
+
+- No runtime implementation.
+- No worker implementation.
+- No UI work.
+- No RouteMap changes.
+- No cue-sheet changes.
+- No scoring code changes.
+- No Planned Ride Safety Score runtime implementation.
+- No domain adapter runtime.
+- No source fetching.
+- No route geometry optimization.
+- No rerouting.
+- No Supabase migrations.
 - No `RouteIndexedTruthCache` writes.
 - No `route_cache` writes.
 - No `route_history` scenario truth.
