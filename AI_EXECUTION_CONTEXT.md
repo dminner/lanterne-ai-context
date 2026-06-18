@@ -56586,17 +56586,35 @@ Current prohibited capabilities:
 
 ## Phase 8 - Handoff / New Thread Seed
 
-- [ ] Produce concise handoff doc before implementation thread starts.
-- [ ] Include route-indexed traffic status.
-- [ ] Include `RouteIndexedTruthCache` status.
-- [ ] Include RidePlanScenario architecture.
-- [ ] Include next implementation slice.
+- [x] Produce concise handoff doc before implementation thread starts.
+- [x] Include route-indexed traffic status.
+- [x] Include `RouteIndexedTruthCache` status.
+- [x] Include RidePlanScenario architecture.
+- [x] Include exact next implementation slice.
+- [x] Pin architecture baseline commit.
+- [x] Pin corrected Phase 7 decision artifact commit.
+- [x] Restate owner decision.
+- [x] Restate exclusions.
 
 Deliverable:
 
 ```text
 docs/04-execution/reports/exec-054-scenario-engine-thread-handoff.md
 ```
+
+Phase 8 completion:
+
+- architectureBaselineCommit: `4e80dc528a4c7aa09c2b029d0c140ad4f30d6bd6`
+- phase7DecisionCommit: `c26f67d11135ed6953f20b7ad77cd28018e70f0e`
+- ownerDecision: `accept_recommended_slice`
+- ownerDecisionBy: Derek Minner
+- ownerDecisionDate: 2026-06-17
+- authorizedCapability: `context_time_foundation`
+- authorizedScope: `context_time_foundation_only`
+
+exec-054 architecture planning is complete. The only authorized implementation capability is `context_time_foundation`. Projections, scoring, objective adapters, sweeps, UI integration, storage, dogfood, default-on behavior, and production release require later gates.
+
+exec-055 remains the later temporal-projection implementation plan and is not authorized by this handoff.
 
 ## Implementation Guardrails
 
