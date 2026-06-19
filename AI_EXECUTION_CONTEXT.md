@@ -56695,6 +56695,8 @@ The accepted first implementation slice stops before scenario view construction.
 **Date:** 2026-06-17
 **Related:** ADR-056, DS-057, ADR-055, DS-056, EXEC-054, DS-015, DS-031, ADR-045
 
+> 2026-06-18 update: EXEC-056 — Hourly Temporal Risk Model Implementation Plan supersedes this execution plan for the active temporal-risk implementation path. EXEC-055 remains historical context for guardrails and the earlier POC sequencing.
+
 ---
 
 ## 1. Purpose
@@ -57049,6 +57051,217 @@ The fuller temporal projection slice remains:
 RidePlanScenarioContext plus RouteTimeBinding plus TrafficTemporalVolumeProfile plus TemporalMotorVehicleRiskContext produces a receipt-backed planned risk preview.
 
 That fuller slice waits for a later gate and is not authorized by exec-054 Phase 7.
+
+
+---
+
+## Source File: docs/04-execution/exec-056-hourly-temporal-risk-model-implementation-plan.md
+
+# EXEC-056 — Hourly Temporal Risk Model Implementation Plan
+
+Status: Draft execution plan
+Date: 2026-06-18
+Related: ADR-057, DS-058, ADR-055, DS-056
+Primary artifact: Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
+
+## 1. Objective
+
+Replace the earlier broad temporal model with an hourly temporal motor-vehicle risk model inside the ride-plan scenario engine.
+
+The implementation must preserve the stable Baseline Safety Score and apply temporal risk only in Planned Ride Safety.
+
+## 2. Inputs
+
+Required static inputs:
+
+- 96 hourly NYSDOT traffic shares
+- 96 normalized FARS-derived per-pass temporal multipliers
+- 96 confidence labels
+- model version
+- source metadata
+
+Required runtime inputs:
+
+- route segment stable motor-vehicle risk contribution
+- stable AADT or same-direction AADT estimate
+- planned arrival local time
+- planned arrival date
+- segment rural/urban classification
+- scenario id
+
+## 3. Implementation Phases
+
+### Phase 1 — Data constants
+
+Create a versioned temporal model data file.
+
+Suggested name:
+
+`src/domain/temporalRisk/hourlyTemporalRiskV1.ts`
+
+It should export:
+
+- modelVersion
+- trafficShareBasis
+- cyclistExposureFactor
+- hourlyProfiles
+- source metadata
+- validation metadata
+
+Each hourly profile row should include:
+
+- cohortId
+- urbanicity
+- dayType
+- hour
+- trafficShare
+- hourlyTrafficFactor
+- normalizedPerPassMultiplier
+- combinedHourlyFactor
+- fatalityShare
+- fatalityCount
+- confidence
+
+### Phase 2 — Cohort selection
+
+Implement a cohort selector.
+
+Rules:
+
+- Use segment urbanicity if available.
+- If segment urbanicity is missing, fall back to route-level majority urbanicity.
+- If still unknown, use urban as a conservative default and emit a warning.
+- Use NHTSA weekday/weekend boundaries.
+- Use local planned arrival hour.
+
+Acceptance:
+
+- Friday 18:00 selects weekend.
+- Monday 05:59 selects weekend.
+- Monday 06:00 selects weekday.
+- Rural and urban segments select different profiles.
+
+### Phase 3 — Adapter into scenario engine
+
+Add a temporal-risk adapter to Planned Ride Safety.
+
+Do not touch Baseline Safety Score.
+
+Adapter responsibilities:
+
+- get arrival hour for each segment
+- select temporal cohort
+- fetch hourly traffic factor
+- compute hourly AADT equivalent
+- fetch normalized per-pass multiplier
+- apply multiplier to motor-vehicle risk contribution
+- write scenario receipt
+
+### Phase 4 — Model receipts
+
+Every affected segment or aggregated scenario result should expose:
+
+- model version
+- local hour
+- cohort
+- traffic share
+- hourly traffic factor
+- normalized per-pass multiplier
+- combined hourly factor
+- confidence
+- warnings
+- source note
+
+Receipts should make it clear that the model is relative, not absolute probability.
+
+### Phase 5 — Tests
+
+Add unit tests for:
+
+- weekend boundary logic
+- all traffic curves sum to 1.00
+- all normalized multiplier curves have exposure-weighted mean 1.00
+- missing planned time leaves Baseline Safety unchanged
+- unknown urbanicity emits warning
+- sparse cells carry low confidence
+- multiplier applies only to motor-vehicle risk
+- three representative hours match the workbook
+
+Add integration tests for:
+
+- same route at 10 AM versus 10 PM
+- same rural segment weekday versus weekend
+- same urban segment midnight weekend versus weekday
+- no mutation of route truth or Baseline Safety Score
+
+### Phase 6 — UI / explanation
+
+Add rider-facing explanation in Planned Ride Safety:
+
+- "This section is timed for 22:00."
+- "Traffic is lower than the average hour, but fatality concentration is higher than expected for that exposure."
+- "Temporal confidence is low/medium/high."
+
+Avoid showing giant raw per-pass multipliers without context.
+
+Prefer showing:
+
+- traffic factor
+- planned-time risk factor
+- confidence
+- plain-language note
+
+### Phase 7 — Documentation update
+
+Update internal docs:
+
+- ADR index
+- DS index
+- scenario engine docs
+- temporal model docs
+- source inventory
+- model version registry
+
+Add the public explainer as a product-methodology draft.
+
+## 4. Acceptance Criteria
+
+Implementation is complete when:
+
+- hourly model data is loaded from versioned constants or seeded data
+- Planned Ride Safety uses hourly traffic and normalized per-pass multipliers
+- Baseline Safety Score remains unchanged
+- 96 hourly model cells are available
+- all tests pass
+- receipts are visible in debug/admin inspection
+- public explanation avoids false precision
+- the old two-bell-curve temporal implementation is removed or disabled
+
+## 5. Rollback
+
+A feature flag must allow disabling temporal multipliers while preserving hourly traffic exposure.
+
+Suggested flag:
+
+`ENABLE_HOURLY_TEMPORAL_RISK_V1`
+
+If disabled:
+
+- planned route still uses baseline traffic exposure
+- temporal receipts show disabled state
+- no Baseline Safety mutation occurs
+
+## 6. Guardrails
+
+Do not:
+
+- apply the multiplier to the whole route score
+- multiply remoteness, surface, or fatigue
+- hardcode weekend as Saturday/Sunday only
+- use three-hour buckets in runtime
+- hide sparse confidence
+- present the model as a crash probability
+- overwrite route-indexed stable evidence
 
 
 ---
