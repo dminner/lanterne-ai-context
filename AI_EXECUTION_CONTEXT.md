@@ -57266,14 +57266,14 @@ Do not:
 
 ---
 
-## Source File: docs/04-execution/exec-056-viewport_overlay_runtime_and_routemap_strangler_plan.md
+## Source File: docs/04-execution/exec-057-viewport_overlay_runtime_and_routemap_strangler_plan.md
 
-# EXEC-056 - Viewport Overlay Runtime and RouteMap Strangler Plan
+# EXEC-057 - Viewport Overlay Runtime and RouteMap Strangler Plan
 
 **Status:** Draft Execution Spec
 **Date:** 2026-06-18
 **Owner:** Derek Minner
-**Related:** ADR-057, DS-061, ASS-031, DS-018, DS-031, DS-032, DS-035, DS-052, ADR-047, ADR-052
+**Related:** ADR-058, DS-061, ASS-031, DS-018, DS-031, DS-032, DS-035, DS-052, ADR-047, ADR-052
 
 **Diagram:** [DS-061 Viewport Road Runtime Architecture Diagram](../02-architecture/design/ds-061-viewport_road_runtime_architecture_diagram.md)
 
@@ -57281,7 +57281,7 @@ Do not:
 
 ## 1. Purpose
 
-Implement ADR-057 and DS-061 as a safe strangler migration.
+Implement ADR-058 and DS-061 as a safe strangler migration.
 
 The program moves viewport-road hydration, cache/source orchestration, overlay data selection, render diffing, layer ownership, and interaction arbitration out of RouteMap without changing route truth, scoring, ownership, RXON runtime loading, `route_cache`, `route_history`, database schema, or renderer technology prematurely.
 
@@ -58026,7 +58026,7 @@ Open decisions for Phase 6 or later:
 
 ## 16. Done Criteria
 
-EXEC-056 is complete when:
+EXEC-057 is complete when:
 
 - RouteMap no longer owns viewport-road hydration or speed/bike overlay data-plane logic
 - speed and bike overlays share one viewport data plane

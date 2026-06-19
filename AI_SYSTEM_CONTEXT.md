@@ -34623,7 +34623,7 @@ Before runtime sweep implementation:
 
 **Status:** Illustrative companion diagram
 **Date:** 2026-06-18
-**Related:** ADR-057, DS-061, EXEC-056, ASS-031
+**Related:** ADR-058, DS-061, EXEC-057, ASS-031
 
 ```mermaid
 flowchart TB
@@ -34741,15 +34741,15 @@ flowchart TB
 **Date:** 2026-06-18
 **Owner:** Derek Minner
 **Filename:** `ds-061-viewport_road_runtime_overlay_lifecycle_and_render_diff_spec.md`
-**ADR Parent:** [ADR-057](../../03-adrs/adr-057-viewport_road_data_plane_and_overlay_ownership.md)
-**Related:** ASS-031, DS-018, DS-031, DS-032, DS-035, DS-052, ADR-047, ADR-052, EXEC-056
+**ADR Parent:** [ADR-058](../../03-adrs/adr-058-viewport_road_data_plane_and_overlay_ownership.md)
+**Related:** ASS-031, DS-018, DS-031, DS-032, DS-035, DS-052, ADR-047, ADR-052, EXEC-057
 **Diagram:** [DS-061 Viewport Road Runtime Architecture Diagram](./ds-061-viewport_road_runtime_architecture_diagram.md)
 
 ---
 
 ## 1. Purpose
 
-This specification makes ADR-057 implementable.
+This specification makes ADR-058 implementable.
 
 It defines the viewport road runtime, request model, feature identity, active frame, overlay lifecycle, render diff contract, renderer adapter, interaction arbiter, React snapshot boundary, diagnostics, budgets, and must-not rules needed to move viewport-road logic out of RouteMap incrementally.
 
@@ -34829,7 +34829,7 @@ Conclusion:
 bike_infra_v1 is currently a declared/incomplete profile, not a proven bounded hot-path materialized profile.
 ```
 
-Therefore EXEC-056 must include a dedicated phase to make bike-infra profile materialization real, bounded, and measurable before using it as proof of bike overlay runtime performance.
+Therefore EXEC-057 must include a dedicated phase to make bike-infra profile materialization real, bounded, and measurable before using it as proof of bike overlay runtime performance.
 
 ---
 
@@ -46754,14 +46754,14 @@ The implementation is accepted when:
 
 ---
 
-## Source File: docs/03-adrs/adr-057-viewport_road_data_plane_and_overlay_ownership.md
+## Source File: docs/03-adrs/adr-058-viewport_road_data_plane_and_overlay_ownership.md
 
-# ADR-057 - Viewport Road Data Plane and Overlay Ownership
+# ADR-058 - Viewport Road Data Plane and Overlay Ownership
 
 **Status:** Proposed
 **Date:** 2026-06-18
 **Owner:** Derek Minner
-**Related:** ASS-031, ADR-045, ADR-047, ADR-052, DS-018, DS-031, DS-032, DS-035, DS-052, DS-061, EXEC-056
+**Related:** ASS-031, ADR-045, ADR-047, ADR-052, DS-018, DS-031, DS-032, DS-035, DS-052, DS-061, EXEC-057
 
 **Diagram:** [DS-061 Viewport Road Runtime Architecture Diagram](../02-architecture/design/ds-061-viewport_road_runtime_architecture_diagram.md)
 
@@ -46897,13 +46897,13 @@ presentation != evidence authority
 | ADR-047 / DS-035 | Profile-cache, substrate, profile descriptor, and hydration-source semantics. |
 | DS-018 | Moving viewport window, progressive hydration, purge-before-merge, and client budgets. |
 | ASS-031 | Measured viewport lifecycle and rendering failure evidence. |
-| ADR-057 | Runtime ownership boundaries between data, render, interaction, React, and RouteMap. |
+| ADR-058 | Runtime ownership boundaries between data, render, interaction, React, and RouteMap. |
 | DS-061 | Concrete runtime contracts, state machines, lifecycle rules, diff rules, and budgets. |
-| EXEC-056 | Safe strangler migration and acceptance gates. |
+| EXEC-057 | Safe strangler migration and acceptance gates. |
 
-ADR-057 and DS-061 refine and extend DS-018. They do not replace it. DS-018 remains the viewport hydration and client-budget policy. ADR-057 adds ownership boundaries and a RouteMap strangler direction that DS-018 anticipated but did not fully specify.
+ADR-058 and DS-061 refine and extend DS-018. They do not replace it. DS-018 remains the viewport hydration and client-budget policy. ADR-058 adds ownership boundaries and a RouteMap strangler direction that DS-018 anticipated but did not fully specify.
 
-ADR-047 and DS-035 remain the source of truth for profile-aware cache semantics. ADR-057 does not invent a parallel cache architecture.
+ADR-047 and DS-035 remain the source of truth for profile-aware cache semantics. ADR-058 does not invent a parallel cache architecture.
 
 ADR-045 and DS-031 remain the source of truth for route-indexed evidence. Viewport runtime descriptors are presentation/runtime features and cannot become route evidence authority.
 
@@ -47208,7 +47208,7 @@ Costs:
 
 ## 16. Non-Goals
 
-ADR-057 does not:
+ADR-058 does not:
 
 - change route scoring
 - change ownership resolver behavior
