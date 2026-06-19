@@ -56691,11 +56691,11 @@ The accepted first implementation slice stops before scenario view construction.
 
 # EXEC-055 — Temporal Traffic Volume and Nighttime Risk Context Implementation Plan
 
-**Status:** Draft execution plan
+**Status:** Lineage plan; Phase 6 double-counting audit complete for selected recomputation path; planned-risk implementation blocked
 **Date:** 2026-06-17
 **Related:** ADR-056, ADR-057, DS-057, DS-062, ADR-055, DS-056, EXEC-054, EXEC-056, DS-015, DS-031, ADR-045
 
-> 2026-06-19 update: ADR-057 / DS-062 accept the hourly temporal model architecture and detached kernel only. EXEC-056 supersedes this execution plan's two-profile implementation phases and old broad nighttime factors for the active temporal-risk implementation path. EXEC-055 remains lineage for the traffic exposure versus per-pass/contextual risk separation, RouteTimeBinding consumption requirements, Planned Ride Safety integration gates, and the Phase 6 Double-Counting Audit until that audit is completed. ADR-057's owner decision does not approve scenario projection or scoring integration.
+> 2026-06-19 update: ADR-057 / DS-062 accept the hourly temporal model architecture and detached kernel only. EXEC-056 supersedes this execution plan's two-profile implementation phases and old broad nighttime factors for the active temporal-risk implementation path. EXEC-055 remains lineage for the traffic exposure versus per-pass/contextual risk separation, RouteTimeBinding consumption requirements, Planned Ride Safety integration gates, and the Phase 6 Double-Counting Audit. The Phase 6 audit is complete in `docs/04-execution/reports/exec-056-phase-5-double-counting-audit.md`; Derek approved only the contract-only neutral AADT recompute path. ADR-057, DS-062, DS-063, and the Phase 6 audit do not approve scoring integration.
 
 ---
 
@@ -56872,25 +56872,69 @@ Acceptance:
 
 ## 10. Phase 6 — Double-Counting Audit
 
+Status: complete for architecture audit and selected recomputation path; planned-risk implementation remains blocked.
+
 Audit current `traffic-time.ts` and any existing time-of-day scoring behavior.
 
-Decision required before planned-risk integration:
+Audit report:
 
-- neutralize legacy time-of-day traffic adjustment for scenario planned-risk preview, or
-- compute planned traffic component directly from stable AADT and stable road factors, or
-- prove no double-counting exists.
+```text
+docs/04-execution/reports/exec-056-phase-5-double-counting-audit.md
+```
+
+The audit found no current Baseline Safety Score double-counting. No current runtime double counting was detected. This does not prove that cached or precomputed risk artifacts are all-day-neutral or component-decomposable. Canonical DS-015 scoring does not import `traffic-time.ts`, consume the old `TrafficTimeMultiplierModel`, consume Phase 4 projections, or accept a scenario start-time input.
+
+Separate audit findings:
+
+- `currentCanonicalTrafficTimeAdjustment = none_detected`
+- `selectedStableTrafficTemporalBasis = requires_explicit_per_span_contract`
+- `cachedRiskTemporalBasis = unknown_unless_explicitly_receipted`
+
+The current-runtime finding must not be read as proof that cached baseline artifacts are neutral. Cached risk and score artifacts remain reference-only unless they explicitly carry temporal basis, score model version, traffic component inputs, lane/AADT basis, and component decomposition.
+
+Owner decision:
+
+```text
+approve_neutral_aadt_component_recompute_path_contract_only
+```
+
+Decision by: Derek Minner.
+
+Decision date: 2026-06-19.
+
+Authorized capability: `neutral_aadt_component_recompute_contract`.
+
+Authorized scope: `contract_only_no_planned_risk_runtime`.
+
+This decision means future planned-risk composition may compute planned traffic components only from explicit neutral all-day AADT and approved stable road/crossing inputs through a basis-aware DS-015 traffic adapter. It must not multiply an existing DS-015 traffic factor, stable segment risk, crossing risk, route risk, cached risk, or normalized 0-100 score by `hourlyTrafficFactor`.
+
+Still required before planned-risk integration:
+
+- DS-058 is amended/accepted for the exact planned-score or preview output.
+- continuous road and crossing component recompute seams are complete.
+- receipts prove exactly one traffic-volume time adjustment for resolved planned traffic components.
+- `normalizedPerPassMultiplier` component placement is accepted before any per-pass adjustment count can be one.
+- receipts prove zero legacy `traffic-time.ts`, zero `combinedHourlyFactorDiagnosticOnly`, and zero normalized score multiplier applications.
+- cached `scoreTrace`, `cachedRawRisk`, `cachedNormalizedRisk`, `cachedRiskLevel`, `route_cache`, `route_history`, RXON, and RouteIndexedTruthCache-derived views remain reference-only unless neutral basis and component decomposition are receipted.
 
 Acceptance:
 
 - test route shows exactly one traffic-volume time adjustment.
 - test receipt states where the time-volume factor was applied.
 - no planned ride output stacks old `traffic-time.ts` with new profile multiplier.
+- `combinedHourlyFactorDiagnosticOnly` is never used as a score input.
+- the road traffic recompute path uses the basis-aware DS-015 adapter and does not hide divide-by-two conversion.
+- crossing risk has its own component recompute policy; full planned score remains blocked until crossings are covered.
+- per-pass placement remains unresolved pending DS-058/component-contract review.
+- the completed audit does not authorize EXEC-055 Phase 7.
 
 ---
 
 ## 11. Phase 7 — Planned Risk Preview Integration
 
-Only after exec-055 Phase 6 - Double-Counting Audit, integrate with a planned ride risk preview.
+Status: blocked.
+
+Only after a later motor-vehicle component recompute contract is approved and DS-058 accepts the exact scoring/preview contract may this phase integrate with a planned ride risk preview.
 
 This phase also requires the planned-score contract to say whether the output is a preview or Planned Ride Safety Score.
 
@@ -56901,11 +56945,13 @@ Preferred:
 - apply nighttime context factor to the motor-vehicle collision/injury component.
 - roll up with documented planned score policy.
 
-Allowed POC approximation:
+Previously discussed POC approximation:
 
 - apply both factors to stable motor-vehicle slice risk.
 - label approximation.
 - emit receipt warning.
+
+Current audit posture: not authorized. The approved contract path is neutral AADT component recompute only for the traffic component. Any approximation that multiplies stable motor-vehicle slice risk, crossing risk, route risk, cached risk, or normalized score remains blocked unless a later owner decision explicitly accepts it.
 
 Acceptance:
 
@@ -57058,7 +57104,7 @@ That fuller slice waits for a later gate and is not authorized by exec-054 Phase
 
 # EXEC-056 — Hourly Temporal Risk Model Implementation Plan
 
-Status: Phase 0 and detached-kernel hardening accepted; Phase 3 contract/readiness gate complete; Phase 4 headless prepared-input projection implemented; scenario/scoring integration deferred
+Status: Phase 0 and detached-kernel hardening accepted; Phase 3 contract/readiness gate complete; Phase 4 headless prepared-input projection implemented; Phase 5 double-counting audit complete for contract-only neutral AADT recompute-path decision; scenario/scoring integration deferred
 Date: 2026-06-18
 Related: ADR-057, DS-062, DS-063, ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-055
 Primary artifact: docs/04-execution/reports/source-data/temporal-risk/Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
@@ -57067,7 +57113,7 @@ Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-
 Phase 3 owner decision: approve_headless_hourly_temporal_projection_with_prepared_inputs_only, Derek Minner, 2026-06-19
 Authorized Phase 4 capability: headless_hourly_temporal_scenario_projection
 Authorized Phase 4 scope: prepared_inputs_projection_only
-Next required step: Review the Phase 4 headless prepared-input projection implementation, then complete EXEC-055 Double-Counting Audit before any planned-risk/scoring integration.
+Next required gate: Define and approve the motor-vehicle component recompute contract for per-pass semantics and crossings.
 
 ## 1. Objective
 
@@ -57215,23 +57261,67 @@ docs/04-execution/reports/exec-056-phase-4-headless-temporal-projection-implemen
 
 ### Phase 5 — EXEC-055 Double-Counting Audit
 
-Status: incomplete.
+Status: complete for architecture audit and neutral-AADT recompute-path decision; runtime planned-risk conformance remains future work.
 
-The detached kernel now blocks factor application unless `baselineTemporalBasis = all_day_aadt_neutral`.
+Audit report:
 
-This fail-closed precondition does not complete the exec-055 Phase 6 double-counting audit. The audit must still prove that legacy `traffic-time.ts` and any future planned-risk integration apply exactly one traffic-volume time adjustment.
+```text
+docs/04-execution/reports/exec-056-phase-5-double-counting-audit.md
+```
+
+The audit found:
+
+- `currentCanonicalTrafficTimeAdjustment = none_detected`
+- `selectedStableTrafficTemporalBasis = requires_explicit_per_span_contract`
+- `cachedRiskTemporalBasis = unknown_unless_explicitly_receipted`
+
+No current runtime double counting was detected. This does not prove that cached or precomputed risk artifacts are all-day-neutral or component-decomposable. Canonical DS-015 scoring does not import `traffic-time.ts`, consume the old `TrafficTimeMultiplierModel`, consume Phase 4 projections, or accept a scenario start-time input. Cached risk/score artifacts remain reference-only unless temporal basis and component decomposition are explicitly receipted.
+
+The audit also found that future planned-risk composition remains blocked unless it recomputes DS-015 score-bearing traffic components from explicit neutral all-day AADT through a basis-aware DS-015 traffic adapter. The road traffic recompute path is contract-ready, but per-pass component placement and crossing temporalization remain blocked.
+
+Owner decision:
+
+```text
+approve_neutral_aadt_component_recompute_path_contract_only
+```
+
+Decision by: Derek Minner.
+
+Decision date: 2026-06-19.
+
+Authorized capability: `neutral_aadt_component_recompute_contract`.
+
+Authorized scope: `contract_only_no_planned_risk_runtime`.
+
+This contract-only decision approves the neutral all-day AADT to `hourlyAADTEquivalent` to basis-aware DS-015 traffic-factor recompute architecture. It does not authorize Planned Ride Safety Score, planned-risk preview, score delta, production runtime, UI, storage, or `traffic-time.ts` changes.
+
+Capability readiness:
+
+- double-counting audit contract: ready
+- selected stable traffic basis contract: ready when explicitly `all_day_aadt_neutral`
+- road traffic recompute path: contract-ready
+- road per-pass recompute path: blocked pending component semantics
+- crossing traffic recompute path: incomplete or blocked
+- crossing per-pass recompute path: blocked pending component semantics
+- planned-risk preview, full Planned Ride Safety Score, presentation, and production: blocked
 
 ### Phase 6 — Planned-Risk Integration Gate
 
 Status: blocked.
 
+Next required gate: define and approve the motor-vehicle component recompute contract for per-pass semantics and crossings.
+
 Planned-risk or Planned Ride Safety integration requires:
 
 - DS-058 planned-score contract review
-- exec-055 double-counting audit completion
+- exec-055 double-counting audit owner decision
 - explicit decision whether output is preview-only or official score
 - proof that Baseline Safety Score and stable route truth remain unchanged
 - receipts showing where the one traffic-volume time adjustment was applied
+- a basis-aware DS-015 traffic adapter for `total_two_way_aadt`, `same_direction_aadt`, `per_lane_aadt`, `right_lane_display_estimate`, and `unknown`
+- complete road and crossing component recompute contracts from explicit neutral AADT
+- accepted per-pass component placement for `normalizedPerPassMultiplier`
+- proof cached artifacts are reference-only unless neutral temporal basis and component decomposition are receipted
 
 ### Phase 7 — Presentation
 

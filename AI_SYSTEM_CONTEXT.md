@@ -32333,7 +32333,9 @@ Required warnings include:
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
 **Related:** DS-015, DS-031, DS-056, DS-057, DS-059, DS-062, ADR-045, ADR-054, ADR-056, ADR-057, EXEC-054, EXEC-055, EXEC-056
 
-> 2026-06-18 temporal update: the active detached temporal model kernel is ADR-057 / DS-062 hourly temporal risk. Planned Ride Safety may consume the hourly traffic factor and normalized per-pass multiplier only after a separate scenario projection gate, the exec-055 double-counting audit, and this planned-score contract approve integration. It must not use DS-057's earlier two-profile / broad-night-bucket runtime assumptions.
+> 2026-06-18 temporal update: the active detached temporal model kernel is ADR-057 / DS-062 hourly temporal risk. DS-063 owns the headless scenario projections. Planned Ride Safety may consume hourly temporal outputs only after a separate scenario projection gate, the exec-055 double-counting audit, and this planned-score contract approve integration. It must not use DS-057's earlier two-profile / broad-night-bucket runtime assumptions.
+>
+> 2026-06-19 double-counting audit update: EXEC-056 Phase 5 / EXEC-055 Phase 6 owner decision is `approve_neutral_aadt_component_recompute_path_contract_only`. Current Baseline Safety Score double-counting was not detected, but future planned-risk composition remains blocked beyond this contract-only approval. The approved path recomputes score-bearing DS-015 traffic components from explicit neutral all-day AADT using `ScenarioTrafficProjection.hourlyAADTEquivalent`. `ScenarioTemporalMotorVehicleRiskProjection.normalizedPerPassMultiplier` is a separate future contextual input whose component placement remains unresolved. `combinedHourlyFactorDiagnosticOnly` is diagnostic only and is not a scoring input. This update does not authorize Planned Ride Safety Score, planned-risk preview, score delta, UI, storage, or production runtime.
 
 ---
 
@@ -32349,7 +32351,30 @@ The core rule is:
 Do not multiply the normalized 0-100 Safety Score directly.
 ```
 
-Scenario factors apply to raw or component-level motor-vehicle risk. That risk may then be rolled up and normalized through an approved scoring policy.
+Scenario factors apply only to approved raw or component-level motor-vehicle risk seams. That risk may then be rolled up and normalized through an approved scoring policy.
+
+The active audit recommendation further narrows the traffic-volume seam:
+
+```text
+selected stable all-day AADT
+  -> verify baselineTemporalBasis = all_day_aadt_neutral
+  -> ScenarioTrafficProjection.hourlyAADTEquivalent
+  -> basis-aware DS-015 traffic-input adapter
+  -> resolveDs015TrafficFactor exactly once
+  -> recompute scenario traffic-dependent likelihood component
+```
+
+Do not multiply an existing DS-015 traffic factor, stable segment risk, crossing risk, route risk, cached risk, or normalized score by `hourlyTrafficFactor`. Cached risk is reference-only unless temporal basis and component decomposition are explicit.
+
+Active temporal authority:
+
+- ADR-057 / DS-062 own the active hourly temporal model and detached kernel.
+- DS-063 owns the headless prepared-input scenario projections.
+- DS-057's two-profile traffic curves are lineage only.
+- DS-057's old `1.15`, `1.60`, and `2.10` broad nighttime factors are lineage only.
+- `hourlyAADTEquivalent` is the future traffic-volume input, not a score multiplier.
+- `normalizedPerPassMultiplier` is a separate future contextual input, not yet placed on likelihood, severity, or local risk.
+- `combinedHourlyFactorDiagnosticOnly` is not a scoring input.
 
 ---
 
@@ -32409,6 +32434,10 @@ A planned ride risk preview is allowed before the full Planned Ride Safety Score
 
 Rules:
 
+- No planned ride risk preview is approved by the current double-counting audit.
+- A road-only preview may be considered only under a separate explicit owner gate.
+- Any road-only preview must say `partial_motor_vehicle_coverage`.
+- A preview must not leave crossings silently at baseline while claiming complete planned safety.
 - It must be clearly labeled preview.
 - It may show directional risk movement and slice deltas.
 - It must not present itself as the official headline Safety Score.
@@ -32453,19 +32482,39 @@ For each scoring slice:
 2. Bind the slice to scenario time using `RouteTimeBinding`.
 3. Consume `ScenarioTrafficProjection`.
 4. Consume `ScenarioTemporalMotorVehicleRiskProjection`.
-5. Apply the `TrafficTemporalVolumeProfile` multiplier to the traffic exposure component.
-6. Apply the `TemporalMotorVehicleRiskContext` factor to the motor-vehicle collision/injury or severity context.
+5. Recompute the DS-015 traffic factor from neutral all-day AADT using `ScenarioTrafficProjection.hourlyAADTEquivalent` and the approved traffic-volume basis/lane/directional policy.
+6. Defer `ScenarioTemporalMotorVehicleRiskProjection.normalizedPerPassMultiplier` application until this contract or a follow-up component-recompute specification approves the exact component seam.
 7. Recompute scenario slice risk.
 8. Roll up scenario slice risk using a documented aggregation policy.
 9. Produce Planned Ride Safety Score or planned ride risk preview with deltas and receipts.
 
 This model is preferred because it keeps traffic volume, temporal motor-vehicle context, and baseline road risk visible instead of hiding them inside a final multiplier.
 
+`combinedHourlyFactorDiagnosticOnly` is diagnostic only. It must not be used as score input.
+
+Crossings require a separate component policy because DS-015 crossing risk uses `sqrt(trafficFactor)` and a cap. Full Planned Ride Safety Score remains blocked until continuous road and crossing component coverage are both accepted.
+
+The road traffic recompute seam is contract-ready only for the traffic component:
+
+```text
+scenarioBaseLikelihood =
+  intervalLength
+  * scenarioDs015TrafficFactor
+  * stableBikeInfrastructureFactor
+  * stableShoulderFactor
+  * stableCurvatureFactor
+
+stableSpeedSeverity =
+  DS-015 speed severity from stable speed input
+```
+
+Final scenario risk remains undefined until per-pass component placement is approved.
+
 ---
 
 ## 5. POC Fallback Model
 
-The POC fallback is allowed only if component-level separation is unavailable.
+The POC fallback is documented lineage only unless a later owner decision explicitly accepts it. The Phase 5 double-counting audit approves only the neutral AADT component recompute contract path.
 
 Allowed:
 
@@ -32483,7 +32532,7 @@ Forbidden:
 - multiplying remoteness, fatigue, weather, UV, wind, temperature, services, access, or POI status.
 - treating fallback output as production scoring.
 
-The POC fallback is excluded from production scoring until a later gate approves it.
+The POC fallback is excluded from production scoring and remains unauthorized for the current temporal integration gate.
 
 ---
 
@@ -32516,6 +32565,8 @@ Forbidden inputs:
 - completed-analysis `route_cache` as truth
 - browser-local `Date` APIs as hidden clock authority
 - `traffic-time.ts` output stacked with `ScenarioTrafficProjection`
+- `combinedHourlyFactorDiagnosticOnly` as a score input
+- cached risk fields without neutral temporal-basis and component-decomposition receipts
 - scoring output as an input for projection
 - external source fetches inside scorer
 
@@ -32607,7 +32658,7 @@ Rules:
 
 ## 10. Temporal Coefficient Policy
 
-DS-057 coefficients may be used only as POC modeled-unvalidated temporal motor-vehicle risk context.
+The old DS-057 coefficients are lineage only for the active hourly-temporal path. ADR-057 / DS-062 replace them with the hourly detached kernel, and DS-063 owns scenario projection. The old values below may remain useful for historical comparison, but they are not authorized runtime inputs for Planned Ride Safety.
 
 Approved POC ids:
 
@@ -32617,14 +32668,14 @@ Approved POC ids:
 - `early_morning_night_v1 = 2.10`
 - `unknown_light_state_v1 = 1.00` with unresolved warning
 
-Rules:
+Lineage rules:
 
 - Coefficients are dimensionless risk factors on motor-vehicle planned risk only.
 - Coefficients are not production calibrated.
 - Coefficients are not pure darkness risk.
 - Coefficients do not infer actual intoxication, fatigue, crash cause, or vehicle speed for a specific rider or driver.
 - `unknown_light_state_v1` is neutral but unresolved; it must not be labeled safe or low-risk.
-- Production use requires a later calibration/research gate.
+- Production use requires a later calibration/research gate and a current model authority.
 
 ---
 
@@ -32635,7 +32686,10 @@ Planned-score integration must not proceed until a double-counting audit proves 
 Rules:
 
 - Do not stack `traffic-time.ts` and `TrafficTemporalVolumeProfile` on the same traffic exposure component.
-- Planned output must show exactly one traffic-volume time adjustment.
+- Planned output must show exactly one traffic-volume time adjustment for any resolved planned traffic component.
+- Planned output must show zero per-pass applications until `normalizedPerPassMultiplier` component placement is explicitly approved.
+- Planned output must show zero `combinedHourlyFactorDiagnosticOnly` applications.
+- Planned output must show zero normalized score multipliers.
 - Receipts must say where the time-volume factor was applied.
 - Tests must prove no duplicate time-volume multiplier.
 
@@ -32644,6 +32698,14 @@ Accepted POC paths:
 1. Use neutral-time stable baseline.
 2. Remove or neutralize legacy time-of-day traffic factor before applying `ScenarioTrafficProjection`.
 3. Compute scenario risk from stable selected AADT and stable road factors rather than from already-timed route score output.
+
+Current audit recommendation:
+
+```text
+approve_neutral_aadt_component_recompute_path_contract_only
+```
+
+That decision approves only the neutral AADT to hourly AADT-equivalent to DS-015 traffic recompute architecture. It does not approve per-pass application, road risk output, crossing temporalization, road-only preview, route rollup, normalized score, UI, dogfood, default-on behavior, or production.
 
 ---
 
@@ -32686,7 +32748,25 @@ Every planned score or preview must explain:
 - coverage
 - unresolved spans
 - double-counting decision/path
+- `trafficVolumeBasis`
+- source AADT
+- `hourlyAADTEquivalent`
+- lane count basis and directional conversion policy
+- DS-015 traffic input mode and confidence
+- traffic-volume adjustment count
+- per-pass adjustment count
+- legacy traffic-time adjustment count
+- combined diagnostic factor application count
+- normalized score multiplier count
 - why output is planned, modeled, scenario-specific, and not live or observed
+
+Cached risk policy:
+
+- `cachedRawRisk`, `cachedNormalizedRisk`, `cachedRiskLevel`, `totalRouteRisk`, `routeRiskPerMile`, completed `route_cache` scores, `route_history` scores, and legacy score traces lacking component temporal basis are reference-only.
+- No cached normalized score may become planned-risk input.
+- No cached `localRisk` may become planned-risk input merely because its model version is known.
+- Component values may be reused only when temporal basis and stable semantics are explicit.
+- Selected stable inputs are preferred over reverse-engineering cached risk.
 
 ---
 
@@ -32749,6 +32829,11 @@ Runtime implementation must not proceed without tests proving:
 - `traffic-time.ts` is not stacked with `TrafficTemporalVolumeProfile`.
 - Planned score or preview carries receipts and deltas.
 - No normalized 0-100 score is directly multiplied.
+- DS-015 traffic-basis adapter matrix blocks ambiguous basis and hidden conversion.
+- `combinedHourlyFactorDiagnosticOnly` cannot be used as a score input.
+- Cached risk without temporal basis and component decomposition is reference-only.
+- Crossings cannot remain baseline while output claims complete Planned Ride Safety coverage.
+- `normalizedPerPassMultiplier` is not applied before component placement is approved.
 
 ---
 
@@ -32762,6 +32847,8 @@ Before runtime planned-score integration:
 - ADR-057 / DS-062 must be accepted or revised for the hourly model architecture and detached kernel.
 - Phase 6 double-counting audit must be complete.
 - Planned-score implementation must decide whether output is preview-only or official Planned Ride Safety Score.
+- Per-pass component placement must be accepted for road and crossing components.
+- Full planned score requires accepted crossing temporalization and coverage receipts.
 - Non-neutral temporal motor-vehicle risk coefficients must pass the calibration/research gate before production scoring use.
 - Tests must prove Baseline Safety Score and stable route truth remain unchanged.
 
