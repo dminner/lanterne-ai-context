@@ -3415,7 +3415,7 @@ Route Safety Score must remain:
 | ADR-054 | RouteIndexedEvidenceLedger No-Leak Architecture | Accepted | DS-055 |
 | ADR-055 | Ride Plan Scenario Engine and Planned Ride Safety Score | Accepted Architecture | DS-056 |
 | ADR-056 | Temporal Motor-Vehicle Risk Context and Traffic Volume Split | Proposed; superseded for active temporal model kernel by ADR-057 / DS-062 | DS-057 |
-| ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Accepted for hourly architecture and detached kernel; scenario/scoring integration deferred | DS-062 |
+| ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Accepted for hourly architecture and detached kernel; scenario/scoring integration deferred | DS-062, DS-063 accepted projection contract |
 | ADR-058 | Viewport Road Data Plane and Overlay Ownership | Proposed | DS-061 |
 
 ---
@@ -3466,13 +3466,14 @@ Route Safety Score must remain:
 | DS-053 | Local Prediction Builder | DS-015, DS-017, DS-022, DS-029, DS-031, DS-043, DS-046, DS-048 | Draft |
 | DS-054 | Admin Cache Cell Visualizer | DS-031, DS-034, DS-035, DS-050, DS-052, DS-053 | Draft |
 | DS-055 | RouteIndexedEvidenceLedger No-Leak Spec | ADR-054, DS-031, DS-043, DS-044, DS-047 | Draft |
-| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062 | Draft |
+| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062, DS-063 | Draft |
 | DS-057 | Temporal Traffic Volume and Nighttime Motor-Vehicle Risk Context Spec | ADR-056, ADR-055, DS-056, DS-015, DS-031 | Draft; superseded for active temporal model kernel by DS-062 hourly temporal spec |
 | DS-058 | Planned Ride Safety Score Contract | ADR-055, ADR-056, DS-015, DS-031, DS-056, DS-057 | Draft |
 | DS-059 | Scenario Objective Adapter Contract | ADR-055, DS-056, DS-058, DS-060 | Draft |
 | DS-060 | Scenario Sweep Contract | ADR-055, DS-056, DS-058, DS-059 | Draft |
 | DS-061 | Viewport Road Runtime, Overlay Lifecycle, and Render Diff Spec | ADR-058, DS-018, DS-031, DS-032, DS-035, DS-052 | Reserved for viewport road-data-plane / overlay-ownership packet; draft |
 | DS-062 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056, DS-057 lineage, DS-058 | Accepted for detached model-kernel implementation; scenario/scoring integration deferred |
+| DS-063 | Hourly Temporal Scenario Projection Contract | ADR-055, ADR-057, DS-031, DS-056, DS-058, DS-062, EXEC-055, EXEC-056 | Accepted for headless prepared-input projection implementation; runtime not yet implemented |
 
 ---
 
@@ -3491,7 +3492,7 @@ ADR-021 governs the existence and rules of the OSM variable registry. DS-004 is 
 An earlier draft of the ride computer tile system was incorrectly numbered DS-008. DS-008 is the Route Corridor Model (ADR-019 companion). The ride computer tile system is DS-012. The earlier draft is superseded and should be deleted.
 
 ### Hourly temporal model lineage
-ADR-057 and DS-062 define the active hourly temporal model architecture and detached model-kernel specification. ADR-056 and DS-057 remain lineage for the conceptual split between traffic exposure and per-pass/contextual risk; their two-profile curves, broad night buckets, and fixed 1.60 / 2.10 broad-night factors are not runtime authority.
+ADR-057 and DS-062 define the active hourly temporal model architecture and detached model-kernel specification. DS-063 accepts the headless prepared-input scenario projection contract around that kernel; runtime is not yet implemented, and scoring/presentation/persistence remain deferred. ADR-056 and DS-057 remain lineage for the conceptual split between traffic exposure and per-pass/contextual risk; their two-profile curves, broad night buckets, and fixed 1.60 / 2.10 broad-night factors are not runtime authority.
 
 EXEC-056 is the active hourly temporal model implementation plan. EXEC-055 remains lineage and retains the double-counting audit gate before any planned-risk or Planned Ride Safety integration.
 
@@ -30947,9 +30948,9 @@ Tests should treat violations as architecture failures, not product polish issue
 **Status:** Draft for planning
 **Date:** 2026-06-17
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
-**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062, exec-052, exec-053, exec-054
+**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062, DS-063, exec-052, exec-053, exec-054, exec-056
 
-> 2026-06-18 temporal update: future scenario temporal-risk adapters should use ADR-057 / DS-062 hourly temporal risk as the active temporal model after a separate projection gate. The earlier DS-057 two-profile traffic and broad nighttime factor shape remains lineage only for the traffic-exposure versus per-pass-risk separation.
+> 2026-06-19 temporal update: future scenario temporal-risk adapters should use ADR-057 / DS-062 hourly temporal risk as the active detached kernel and DS-063 as the accepted headless prepared-input scenario projection contract. Scoring remains under DS-058 and later gates. The earlier DS-057 two-profile traffic and broad nighttime factor shape remains lineage only for the traffic-exposure versus per-pass-risk separation.
 
 ---
 
@@ -31553,6 +31554,14 @@ docs/04-execution/reports/exec-054-phase-3-temporal-traffic-and-safety-split.md
 ```
 
 That contract is docs-only and defines `TrafficTemporalVolumeProfile`, `TemporalMotorVehicleRiskContext`, the POC profile ids, the neutral/default risk context, calibration gates, clock requirements, missing coverage behavior, and the Planned Ride Safety Score boundary. It does not implement traffic projection or scoring.
+
+The hourly temporal scenario projection contract is:
+
+```text
+docs/02-architecture/design/ds-063-hourly_temporal_scenario_projection_contract.md
+```
+
+DS-063 governs the authorized ADR-057 / DS-062 hourly projection adapter. It requires `ScenarioFoundationResult` plus a prepared `ScenarioTemporalStableInputBundle`, preserves the scenario digest trio, derives route-local clock time from `RouteTimeBinding` and explicit clock context, and emits separate `ScenarioTrafficProjection` and `ScenarioTemporalMotorVehicleRiskProjection` envelopes. It does not authorize scoring, planned-risk preview, UI, fetching, storage, or durable truth writes.
 
 POC nighttime motor-vehicle risk coefficients are specified separately by ADR-056 and DS-057:
 
@@ -35242,7 +35251,7 @@ DS-061 is satisfied when:
 Status: Accepted for detached model-kernel implementation; scenario/scoring integration deferred
 Date: 2026-06-18
 Parent ADR: ADR-057 — Hourly Temporal Motor-Vehicle Risk Model
-Related: ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-056
+Related: ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, DS-063, EXEC-056
 Primary source artifact: Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
 
 Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-06-19
@@ -35250,6 +35259,10 @@ Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-
 > Numbering note: the originally imported hourly spec used number DS-058, which collided with the existing DS-058 Planned Ride Safety Score Contract. DS-061 is already committed for viewport-road runtime architecture, so this spec is renumbered to DS-062 in this consolidation pass.
 
 > Authority note: DS-062 is active for the detached hourly temporal model kernel only. It does not authorize ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score integration, planned-risk preview, UI, storage, or stable-truth writes.
+
+> Projection note: DS-063 defines the accepted headless prepared-input scenario projection contract around this kernel. DS-062 remains the kernel authority; DS-063 owns prepared scenario inputs, route-local clock conversion, output envelopes, semantic digests, unresolved/fallback behavior, and no-write/no-leak rules for the scenario adapter.
+
+> First-slice fallback note: DS-062 lists the detached kernel fallback surface. DS-063 narrows the first scenario projection slice to no fallback, `route_majority`, `explicit_urban_proxy`, or `explicit_rural_proxy`; `max_combined_factor_for_hour` is deferred from that first projection slice.
 
 Authority summary:
 
@@ -35259,6 +35272,7 @@ Authority summary:
 - The old two-profile bell curves, old broad night buckets, and old 1.60 / 2.10 broad-night factors are superseded for runtime temporal modeling.
 - DS-058 Planned Ride Safety Score Contract remains authoritative for any later score integration.
 - DS-062 does not itself authorize score integration.
+- DS-063 projection acceptance does not authorize score integration.
 
 ## 1. Purpose
 
@@ -35527,6 +35541,932 @@ Do not use the earlier 60% cyclist-volume heuristic.
 Do not use the earlier 5.1% / 7.4% drafted nighttime traffic shares.
 
 The source of truth is the committed workbook, normalized 96-row extract, source manifest, and this DS. Production runtime must not parse XLSX.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-063-hourly_temporal_scenario_projection_contract.md
+
+# DS-063 — Hourly Temporal Scenario Projection Contract
+
+Status: Accepted for headless prepared-input projection implementation; scoring, presentation, persistence, and production deferred
+Date: 2026-06-19
+Parent ADRs: ADR-055, ADR-057
+Related: DS-031, DS-056, DS-058, DS-062, EXEC-055, EXEC-056
+Owner decision: approve_headless_hourly_temporal_projection_with_prepared_inputs_only
+Owner decision by: Derek Minner
+Owner decision date: 2026-06-19
+
+## 1. Purpose
+
+This specification defines the contract for a future headless hourly temporal scenario projection and authorizes implementation of that projection contract only.
+
+It connects the accepted ride-plan scenario foundation to the accepted detached hourly temporal model kernel:
+
+```text
+ScenarioFoundationResult
+  + ScenarioTemporalStableInputBundle
+  + HourlyTemporalProjectionPolicy
+  + detached hourlyTemporalRiskV1 kernel
+  -> HourlyTemporalScenarioProjectionBundle
+     -> ScenarioTrafficProjection
+     -> ScenarioTemporalMotorVehicleRiskProjection
+```
+
+The projection contract exists so the next implementation slice can be reviewed before runtime enters the scenario engine. This document authorizes the exact Phase 4 headless prepared-input projection slice, but it does not describe that runtime as already implemented.
+
+Authorized capability:
+
+```text
+headless_hourly_temporal_scenario_projection
+```
+
+Authorized scope:
+
+```text
+prepared_inputs_projection_only
+```
+
+This document authorizes implementation of:
+
+- `ScenarioTemporalStableInputBundle` types and validation
+- complete traffic-span partition validation
+- complete urbanicity-span partition validation
+- `stableInputDigest`
+- route-local clock conversion from the accepted planned `RouteTimeBinding`
+- deterministic temporal-boundary inversion
+- deterministic atomic interval planning
+- shared immutable cohort/hour kernel selection
+- `ScenarioTrafficProjection`
+- `ScenarioTemporalMotorVehicleRiskProjection`
+- `HourlyTemporalScenarioProjectionBundle`
+- `trafficProjectionContentDigest`
+- `riskProjectionContentDigest`
+- `projectionBundleContentDigest`
+- compact receipts and receipt references
+- coverage, fidelity, confidence, warnings, diagnostics, and typed blockers
+- prepared deterministic fixtures
+- pure headless tests
+- in-memory output only
+- default-off diagnostic harness contract
+- worker-compatible plain cloneable data
+
+This document does not authorize:
+
+- Planned Ride Safety Score integration
+- planned-risk preview
+- application of temporal factors to stable risk
+- score deltas
+- objective adapters
+- scenario sweeps
+- RouteMap, cue sheet, or UI wiring
+- presentation
+- React or Leaflet integration
+- source fetching
+- raw HPMS reads
+- raw evidence candidate reads
+- stable truth selection
+- stable truth writes
+- storage, Supabase, migrations, `route_cache`, or `route_history`
+- `RouteIndexedTruthCache` writes
+- legacy `traffic-time.ts` behavior changes
+- dogfood
+- default-on behavior
+- production release
+
+## 2. Authority Boundary
+
+DS-062 remains authoritative for the detached hourly temporal model kernel:
+
+- four cohorts
+- 24 hourly cells per cohort
+- StationBalanced24h traffic share basis
+- NHTSA weekend boundary
+- normalized per-pass multiplier
+- combined hourly factor as kernel diagnostic
+- source manifest and checksum policy
+
+DS-063 is authoritative only for the accepted headless prepared-input scenario adapter contract around that kernel:
+
+- accepted scenario foundation input
+- prepared stable input envelope
+- route-local clock derivation policy
+- route-indexed atomic interval policy
+- two separate projection output envelopes
+- semantic digest policy
+- unresolved and fallback policy
+- no-write/no-leak boundary
+- implementation-readiness tests
+
+DS-058 remains authoritative for any later Planned Ride Safety Score or planned-risk preview consumption. Score eligibility in a projection envelope is not score authority.
+
+## 3. Core Projection Boundary
+
+The only accepted scenario foundation input is `ScenarioFoundationResult`.
+
+The projection adapter must not accept:
+
+- `RidePlanScenarioDraft`
+- unsealed scenario context
+- RouteMap props
+- cue-sheet state
+- presentation rows
+- raw route-time estimates
+- selected stable truth candidates
+- source-provider responses
+
+The projection adapter must not rebuild or reseal:
+
+- `RidePlanScenarioContext`
+- `ScenarioRouteTransform`
+- `RouteTimeBinding`
+
+The adapter consumes the foundation result's semantic digest trio:
+
+- `scenarioContextDigest`
+- `routeTransformDigest`
+- `routeTimeBindingDigest`
+
+It must not substitute `RouteTimeBinding.bindingId` for `routeTimeBindingDigest`. Binding id is runtime/instance identity; the digest is semantic binding identity.
+
+## 4. Foundation Preconditions
+
+The proof-of-concept headless projection may proceed only when all preconditions hold:
+
+- `ScenarioFoundationResult.executionBasis = planned`
+- scenario context, route transform, and route-time binding digests agree with the foundation result
+- route-time binding basis is `planned`
+- route transform direction is `forward`
+- `startOffsetDistM = 0`
+- scenario distance equals canonical distance for the full route
+- `scenarioDistM = canonicalDistM` for POC projection spans
+- stable input route axis id, route axis digest, route axis revision, and total distance match the foundation result
+- stable input route identity is semantically equivalent to the foundation route identity
+- `generatedAt` is treated as trace metadata only
+
+Any mismatch blocks the projection.
+
+Deferred until separate approval:
+
+- reverse route projections
+- loop rotation
+- nonzero start offsets
+- actual-adjusted route-time binding
+- observed route-time binding
+- GPS progress adjustment
+- route crossing multiple time zones
+
+## 5. Prepared Stable Input Contract
+
+`ScenarioTemporalStableInputBundle` is a prepared, read-only stable input envelope.
+
+It is the only stable-data input accepted by the projection adapter. It contains selected or explicitly unresolved stable read-model outputs, not raw source candidates.
+
+Required top-level fields:
+
+- `schemaVersion`
+- `stableInputBundleId`
+- `stableInputDigest`
+- `routeId`, when saved route identity exists
+- `routeVersionId`, when saved route-version identity exists
+- `routeHash`
+- `routeAxisId`
+- `routeAxisDigest`
+- `routeAxisRevision`
+- `totalDistM`
+- `intervalSemantics = half_open`
+- `selectedTrafficArtifactRef`
+- `selectedTrafficArtifactDigest`
+- `trafficSpans`
+- `urbanicitySpans`
+- `sourceLineageRefs`
+- `provenanceRefs`
+- `confidenceSummary`
+- `coverageSummary`
+- `receipts`
+- `assumptions`
+- `warnings`
+- `diagnostics`
+- `generatedAt`
+
+`stableInputDigest` includes semantic stable inputs, source-artifact digests, selected/unresolved span semantics, assumptions, and explicit fallback inputs. It excludes `stableInputBundleId`, `generatedAt`, warnings, diagnostics, trace ids, presentation copy, and UI provenance.
+
+`stableInputDigest` must include every output-affecting stable semantic:
+
+- route identity and route-axis semantic identity
+- route-axis digest and revision policy
+- total distance
+- interval semantics
+- traffic span boundaries, selected/unresolved/conflict status, AADT value, AADT units, traffic volume basis, temporal baseline basis, directional conversion policy, selected evidence reference, source artifact digest, confidence, and material assumptions
+- urbanicity span boundaries, selected/unresolved/conflict status, selected urbanicity value, selected evidence reference, source artifact digest, confidence, and material assumptions
+- prepared majority-urbanicity fallback input, when present
+- any versioned stable-input selection policy that can change output
+
+It must exclude:
+
+- `stableInputBundleId`
+- `generatedAt`
+- trace-only ids
+- run ids
+- transient warning text
+- diagnostic text
+- presentation labels
+- UI provenance that only describes where editing occurred
+
+The bundle must not contain:
+
+- raw HPMS rows
+- raw ledger candidates
+- raw workbook rows
+- legacy `truthRuns`
+- RouteMap props
+- cue-sheet state
+- `route_history` truth
+- `route_cache` truth
+- source-fetching handles
+
+### 5.1 Prepared Partition Rules
+
+`trafficSpans` must exactly partition `[0,totalDistM)` using half-open canonical intervals.
+
+`urbanicitySpans` must exactly partition `[0,totalDistM)` using half-open canonical intervals.
+
+For each span family:
+
+- the first span starts at `0`
+- the last span ends at `totalDistM`
+- spans are sorted by `canonicalStartDistM`
+- every span has `canonicalEndDistM > canonicalStartDistM`
+- adjacent spans meet exactly within the deterministic snap epsilon
+- overlaps block the bundle
+- hidden gaps block the bundle
+- every interval is typed as `selected`, `unresolved`, or `conflict`
+- unresolved and conflict spans are explicit output-affecting states, not omitted spans
+
+### 5.2 Traffic Span Fields
+
+Each traffic span contains:
+
+- `stableSpanId`
+- `canonicalStartDistM`
+- `canonicalEndDistM`
+- `status: selected | unresolved | conflict`
+- `aadt`
+- `aadtUnits = vehicles_per_day`
+- `trafficVolumeBasis: total_two_way_aadt | same_direction_aadt | per_lane_aadt | right_lane_display_estimate | unknown`
+- `baselineTemporalBasis: all_day_aadt_neutral | legacy_time_adjusted | unknown`
+- `directionalConversionPolicyId`, optional
+- `directionalConversionAssumptions`
+- `selectedStableArtifactRef`
+- `selectedStableArtifactDigest`
+- `selectedEvidenceRef`
+- `sourceLineageRef`
+- `provenanceRef`
+- `confidence`
+- `warnings`
+
+No silent divide-by-two, lane reinterpretation, or same-direction conversion is permitted. If the selected source is total two-way AADT and the output wants rider-direction or right-lane display estimates, the conversion must use a named `directionalConversionPolicyId`, versioned assumptions, receipts, and digest inputs. Unknown basis remains unresolved for directional outputs.
+
+`all_day_aadt_neutral` is required before the traffic projection may apply the hourly traffic factor.
+
+`legacy_time_adjusted` blocks traffic projection because applying hourly factors would double count traffic-time adjustment.
+
+`unknown` remains unresolved. It must not be treated as zero, safe, neutral, or silently acceptable.
+
+### 5.3 Urbanicity Span Fields
+
+Each urbanicity span contains:
+
+- `stableSpanId`
+- `canonicalStartDistM`
+- `canonicalEndDistM`
+- `status: selected | unresolved | conflict`
+- `urbanicity: rural | urban | null`
+- `selectedEvidenceRef`
+- `sourceLineageRef`
+- `provenanceRef`
+- `confidence`
+- `warnings`
+
+Unknown or conflicted urbanicity blocks temporal motor-vehicle risk projection by default and blocks traffic projection where the same atomic interval needs an hourly cohort. Fallback is allowed only through explicit policy.
+
+## 6. Local Clock Policy
+
+The scenario adapter owns conversion from the planned `RouteTimeBinding` estimated absolute instant plus `RidePlanScenarioContext.clockContext` into route-local calendar date, hour, and minute for the detached hourly kernel.
+
+The adapter should use `estimateClockTimeIsoAtDistM` or an approved route-time seam. `estimatedClockTimeIso` is an absolute instant.
+
+Do not:
+
+- parse the lexical hour out of an ISO string as local route hour
+- use browser-local `Date.getHours()`
+- use browser-local `Date.getDay()`
+- use browser-local `Date.getTimezoneOffset()`
+- infer route timezone from the device timezone
+- accept bare local wall time as proof of an instant
+
+### 6.1 Fixed UTC Offset
+
+For `fixed_utc_offset` clock context:
+
+- apply the explicit offset to the absolute instant
+- derive local calendar, weekday, hour, and minute from the shifted instant using UTC getters or equivalent deterministic arithmetic
+- preserve the resolved UTC offset in receipts
+- include the offset in content digests
+- remain independent of browser/device timezone
+
+### 6.2 Fixed IANA Time Zone
+
+For `fixed_time_zone` clock context:
+
+- use the explicit IANA time zone through `Intl.DateTimeFormat.formatToParts` or an approved equivalent
+- validate runtime support for the zone
+- derive local calendar, weekday, hour, minute, and resolved offset from the absolute instant
+- preserve the IANA zone and resolved offset in receipts
+- include the IANA zone policy and resulting offset semantics in content digests
+- remain independent of browser/device timezone
+
+DST behavior:
+
+- instant-to-IANA conversion is authoritative
+- spring skipped local hours do not occur because the input is an instant
+- fall repeated local hours must carry resolved offset
+- fixed-IANA DST tests are required if this mode is authorized for implementation
+- ambiguous local user input is prohibited
+- routes crossing time zones remain deferred
+
+## 7. Atomic Interval Policy
+
+Outputs are route-indexed half-open intervals.
+
+Atomic interval boundaries are the sorted union of:
+
+- `0`
+- route total distance
+- scenario route-transform segment boundaries
+- selected traffic span boundaries
+- urbanicity span boundaries
+- `RouteTimeBinding` basis span boundaries
+- local clock-hour boundaries
+- NHTSA Friday 18:00 boundary
+- NHTSA Monday 06:00 boundary
+- timezone-offset transition boundaries, when fixed IANA time zones are authorized
+
+Projection must not create per-coordinate or per-meter output.
+
+Temporal boundaries must be located by inverting the monotonic `RouteTimeBinding` time-to-distance relation for the relevant basis span. The adapter must not accept the nearest `RouteTimeBinding` sample point, nearest 500-meter sample, or `sampleEveryM` artifact as the semantic boundary. Changing `sampleEveryM` must not materially alter semantic partitions.
+
+Boundary resolution requirements:
+
+- `maxTemporalBoundaryTimeErrorMs = 1000`
+- `maxTemporalBoundaryDistanceErrorM = 1`
+- `snapEpsilonM = 0.001` for route-distance dedupe and equality
+- block zero-length spans after tolerance application
+- block hidden gaps and overlaps
+- preserve canonical and scenario coverage summaries
+- keep boundaries sorted and deterministic
+- include boundary-finding errors in typed failures
+
+Each atomic interval carries:
+
+- `scenarioStartDistM`
+- `scenarioEndDistM`
+- `canonicalStartDistM`
+- `canonicalEndDistM`
+- `representativeScenarioDistM`
+- `representativeCanonicalDistM`
+
+The representative-distance policy is deterministic. The first-slice policy is interval midpoint in scenario distance, mapped to canonical distance through `ScenarioRouteTransform`. A later policy may replace midpoint only if it is versioned, digest-backed, and test-covered.
+
+Adjacent intervals may merge only when all semantic fields match:
+
+- traffic baseline status and selected traffic evidence
+- traffic `baselineTemporalBasis`
+- AADT and units
+- urbanicity cohort and selected evidence
+- route-time basis
+- local calendar date/hour/minute bucket
+- NHTSA day type
+- resolved clock offset
+- kernel cohort id
+- fallback policy
+- confidence level and confidence inputs
+- unresolved/conflict state
+- model version
+- projection policy version
+
+## 8. Projection Outputs
+
+The projection produces two separate outputs.
+
+It must not combine traffic exposure and temporal motor-vehicle risk context into one generic multiplier. `combinedHourlyFactor` may appear only as a diagnostic copied from the detached kernel receipt. The scenario adapter must not call a kernel helper that directly applies traffic and risk factors to a score or risk contribution.
+
+Phase 4 is explicitly forbidden from calling, wrapping, re-exporting, or indirectly using:
+
+- `applyHourlyTemporalRiskToMotorVehicleContribution`
+- any helper that calculates a motor-vehicle risk contribution
+- any score helper
+- any planned-risk helper
+
+Traffic and per-pass projections must share one immutable cohort/hour kernel-selection result per atomic interval. The selection result is computed from representative route-local time, NHTSA day type, urbanicity/fallback policy, model version, and projection policy. Both output families reference the same selection receipt; neither output family may independently choose a different cohort or local-hour cell for the same atomic interval.
+
+### 8.1 ScenarioTrafficProjection
+
+`ScenarioTrafficProjection` models hourly traffic exposure opportunity only.
+
+It may include:
+
+- `hourlyTrafficShare`
+- `modeledVehiclesPerHour = AADT x hourlyTrafficShare`
+- `modeledVehiclesPerMinute = modeledVehiclesPerHour / 60`
+- `hourlyTrafficFactor = hourlyTrafficShare x 24`
+- `hourlyAADTEquivalent = AADT x hourlyTrafficFactor`
+- exposure opportunity fields
+- `trafficVolumeBasis`
+- `aadtUnits = vehicles_per_day`
+- directional conversion policy and assumptions, when used
+- traffic baseline status
+- traffic coverage
+- receipts
+- assumptions
+- warnings
+- diagnostics
+
+It must not include:
+
+- normalized per-pass risk multiplier
+- motor-vehicle risk contribution
+- traffic risk
+- planned score contribution
+- planned-risk preview contribution
+- stable traffic truth writes
+
+`modeledVehiclesPerHour` and `modeledVehiclesPerMinute` are modeled exposure-opportunity estimates. `hourlyAADTEquivalent` is normalized exposure versus the all-day average. It is not actual observed vehicles during that hour and must be labeled as normalized modeled exposure, not observation.
+
+`ScenarioTrafficProjection` must not silently divide two-way AADT by two, rename total two-way traffic as rider-direction traffic, or claim live or observed traffic.
+
+### 8.2 ScenarioTemporalMotorVehicleRiskProjection
+
+`ScenarioTemporalMotorVehicleRiskProjection` models per-pass temporal motor-vehicle risk context only.
+
+It may include:
+
+- `normalizedPerPassMultiplier`
+- `combinedHourlyFactorDiagnosticOnly`
+- `calibratedFatalityCount`
+- `rawPedalcyclistRecordCount`
+- `fatalityShare`
+- `calibrationMethod`
+- temporal model confidence
+- proxy/model confidence
+- provenance
+- warnings
+- receipts
+- assumptions
+- diagnostics
+
+It must not include:
+
+- hourly AADT equivalent
+- traffic exposure estimate
+- `temporalMotorVehicleRiskContribution`
+- `totalRiskContribution`
+- planned risk
+- risk per mile
+- score delta
+- Planned Ride Safety Score
+- normalized 0-100 score
+- planned score contribution
+- planned-risk preview contribution
+- stable risk writes
+
+`combinedHourlyFactorDiagnosticOnly` remains diagnostic only.
+
+### 8.3 Bundle Envelope
+
+`HourlyTemporalScenarioProjectionBundle` contains:
+
+- `bundleSchemaVersion`
+- `bundleId`
+- `scenarioId`
+- `scenarioContextDigest`
+- `routeTransformDigest`
+- `routeTimeBindingDigest`
+- `stableInputDigest`
+- `modelVersion`
+- `projectionPolicyVersion`
+- `trafficProjection`
+- `temporalMotorVehicleRiskProjection`
+- `executionStatus`
+- `coverageStatus`
+- `fidelityStatus`
+- `receipts`
+- `assumptions`
+- `warnings`
+- `diagnostics`
+- `generatedAt`
+
+Status dimensions are separate:
+
+- `executionStatus: complete | partial | blocked | failed`
+- `coverageStatus: full | partial | none`
+- `fidelityStatus: exact | degraded`
+
+Execution status is:
+
+- `complete` when both output families cover the authorized route interval set without blocking diagnostics
+- `partial` when one family resolves and the other has explicit unresolved spans
+- `blocked` when required preconditions, stable inputs, clock derivation, or fallback policy are missing
+- `failed` when an unexpected implementation/runtime failure prevents typed output construction
+
+Coverage status is:
+
+- `full` when the output family covers the full authorized route interval set, including explicit unresolved/conflict spans where permitted
+- `partial` when only part of the authorized route interval set has typed output
+- `none` when no authorized interval has typed output
+
+Fidelity status is:
+
+- `exact` when no fallback or degraded source policy is used
+- `degraded` when an explicit fallback, proxy, unresolved span carry-through, or degraded source policy is used
+
+Full coverage with fallback is `executionStatus = complete`, `coverageStatus = full`, and `fidelityStatus = degraded`, not `exact`.
+
+Confidence is structured:
+
+- `stableTrafficConfidence`
+- `urbanicityConfidence`
+- `temporalModelCellConfidence`
+- `proxyModelConfidence`
+- `fallbackConfidence`
+- `overallConfidence`
+- `overallConfidenceReason`
+
+Fallback output cannot be high confidence, even when route coverage is full.
+
+Receipt structure is compact:
+
+- one projection-run receipt records model version, source manifest refs, projection policy, digest trio, `stableInputDigest`, fallback policy, clock policy, cap policy, and source/checksum metadata
+- shared cohort/hour selection receipts record model cell selection per atomic interval or merged equivalent interval group
+- span receipts reference projection-run and cohort/hour selection receipt ids
+- spans must not repeat full source strings, calibration prose, source manifest bodies, or model metadata when a receipt reference is sufficient
+- compact receipt ids are trace-only and excluded from content digests unless the referenced receipt semantic content changes
+
+## 9. Output Envelope And Digest Policy
+
+Each output envelope includes:
+
+- `schemaVersion`
+- `outputLayerId`
+- `domain`
+- `outputFamily`
+- `adapterId`
+- `adapterVersion`
+- `modelVersion`
+- `projectionPolicyVersion`
+- `scenarioId`
+- `scenarioContextDigest`
+- `routeTransformDigest`
+- `routeTimeBindingDigest`
+- `stableInputDigest`
+- `contentDigest`
+- `generatedAt`
+- `basis = planned_modeled`
+- `executionStatus`
+- `coverageStatus`
+- `fidelityStatus`
+- `canonicalCoverage`
+- `scenarioCoverage`
+- `spans`
+- `receipts`
+- `assumptions`
+- `warnings`
+- `diagnostics`
+
+`contentDigest` includes:
+
+- scenario digest trio
+- `stableInputDigest`
+- model version
+- source checksum
+- clock policy version
+- boundary policy version
+- projection policy version
+- fallback policy
+- fallback input
+- confidence/provenance semantics
+- local-clock policy
+- route-indexed interval semantics
+- output span semantic content
+
+Separate semantic digests are required:
+
+- `trafficProjectionContentDigest`
+- `riskProjectionContentDigest`
+- `projectionBundleContentDigest`
+
+The bundle digest includes the two output content digests plus bundle-level semantic policy. It does not collapse traffic and risk context into one multiplier or one score-driving identity.
+
+`contentDigest` excludes:
+
+- `scenarioId`
+- `evaluationId`
+- `generatedAt`
+- warnings
+- diagnostics
+- trace ids
+- presentation copy
+- source/UI provenance that only describes where editing occurred
+
+`scenarioId` is trace metadata only. It is not semantic equality.
+
+## 10. Scenario Digest Compatibility
+
+`scenarioContextDigest` remains the semantic digest of scenario-relevant inputs accepted by the foundation.
+
+It excludes:
+
+- source/UI provenance when it only describes where editing occurred
+- `scenarioId`
+- edit revision
+- `generatedAt`
+- warnings
+- diagnostics
+- validation text
+
+It includes:
+
+- planned start instant
+- explicit clock context
+- pace profile inputs that affect route-time binding
+- stop model inputs that affect route-time binding
+- direction
+- start offset
+- route axis semantic identity
+- material assumptions
+- semantic objective-profile inputs when `objectiveProfile` is carried in the sealed context
+
+It includes only versioned and material assumptions.
+
+Equivalent saved and unsaved route-axis references remain semantically identical when they resolve to the same route axis digest, route-axis id policy, route-axis revision policy, and total distance under the documented foundation policy. Saved-route persistence handles must not become required semantic inputs.
+
+`routeTransformDigest` and `routeTimeBindingDigest` retain the reviewed foundation inclusion/exclusion rules. `generatedAt` is injected once per foundation build for traceability and remains excluded from semantic digests.
+
+## 11. Unresolved And Fallback Policy
+
+Default fallback policy is `none`.
+
+Unresolved behavior:
+
+- missing AADT blocks traffic projection for the affected interval; `hourlyAADTEquivalent = null`
+- missing AADT does not automatically block temporal motor-vehicle risk context if route time and urbanicity resolve
+- `legacy_time_adjusted` blocks traffic projection and emits warning; risk context may still resolve
+- `unknown` traffic baseline temporal basis blocks traffic projection
+- unknown urbanicity blocks both output families by default
+- conflicted urbanicity blocks both output families by default
+- missing route time blocks both output families
+- zero-count fatality cells carry uncertainty and never mean safe
+- sparse fatality cells carry uncertainty and never mean high confidence
+
+Allowed fallback policies, only when explicitly selected:
+
+- `route_majority`, requiring a prepared majority urbanicity value in `ScenarioTemporalStableInputBundle`
+- `explicit_urban_proxy`
+- `explicit_rural_proxy`
+
+Fallback requirements:
+
+- fallback choice enters `contentDigest`
+- fallback source enters receipts
+- fallback cannot scan raw route state at projection time
+- fallback cannot fetch or parse source data
+- fallback cannot claim high confidence by default
+- `max_combined_factor_for_hour` is deferred from the first Phase 4 implementation slice
+- `max_combined_factor_for_hour` must not be described as empirically conservative if a later gate authorizes it
+
+### 11.1 Failure Model
+
+Expected input and contract failures are typed diagnostics, not generic exceptions:
+
+- `invalid_foundation_digest`
+- `invalid_transform_digest`
+- `invalid_binding_digest`
+- `route_axis_mismatch`
+- `total_distance_mismatch`
+- `non_planned_binding`
+- `invalid_prepared_partition`
+- `unsupported_clock_context`
+- `invalid_model_version`
+- `invalid_projection_policy`
+- `atomic_interval_budget_exceeded`
+
+Span-level missing/conflict states remain typed outputs:
+
+- missing AADT produces a traffic span with unresolved status and null traffic estimates
+- conflict AADT produces a traffic span with conflict status and null traffic estimates unless a later explicit policy says otherwise
+- `legacy_time_adjusted` baseline blocks traffic projection for the affected span
+- unknown `baselineTemporalBasis` blocks traffic projection for the affected span
+- unknown/conflict urbanicity produces typed blocked or unresolved risk-context spans by default
+- missing route-time coverage produces typed blocked spans for both output families
+- sparse/zero model cells produce typed warnings and lower confidence, not exceptions
+
+Expected incomplete data must not become generic exceptions, zero, safe, or low-risk.
+
+Typed failures may block the bundle, but they must preserve enough diagnostics for review. Generic exceptions are reserved for unexpected implementation failures and map to `executionStatus = failed`.
+
+## 12. Double-Counting Boundary
+
+Phase 3 and any later Phase 4 headless projection do not complete EXEC-055 Phase 6.
+
+The traffic output may apply hourly traffic factor only to traffic spans marked `baselineTemporalBasis = all_day_aadt_neutral`.
+
+Traffic projection must not apply hourly factors to:
+
+- traffic already time-adjusted
+- `legacy_time_adjusted` traffic
+- unknown temporal-basis traffic
+- modeled risk contribution
+- Planned Ride Safety Score
+
+Temporal motor-vehicle risk projection outputs normalized per-pass multiplier only. It must not compute total route risk, 0-100 score deltas, or final planned safety adjustments.
+
+Any future planned-risk or score integration must separately prove:
+
+- exactly one traffic-volume time adjustment is applied
+- legacy `traffic-time.ts` is not stacked with scenario traffic projection
+- traffic exposure and temporal per-pass risk remain distinguishable in receipts
+- Baseline Safety Score and stable route truth remain unchanged
+
+## 13. No-Write / No-Leak Boundary
+
+The projection adapter must not import from or write to:
+
+- `RouteIndexedTruthCache`
+- `route_cache`
+- `route_history`
+- Supabase clients
+- migrations
+- stable-input mutation APIs
+- foundation mutation APIs
+- Baseline Safety Score mutation APIs
+- HPMS source clients
+- FARS source clients
+- workbook/XLSX parsers
+- raw ledger candidate selectors
+- RouteMap modules
+- cue-sheet components
+- scoring modules
+- React
+- presentation components
+- persistence layers
+
+The adapter may consume only cloneable prepared data and approved pure helpers.
+
+## 14. Worker And Performance Posture
+
+The projection should be worker-compatible:
+
+- plain cloneable input and output data
+- no DOM dependency
+- no React dependency
+- no Leaflet dependency
+- no source clients
+- no raw workbook parsing
+- no full route geometry unless separately justified
+- no per-coordinate output
+- no per-meter output
+
+First-slice cap policy:
+
+- `maxAtomicIntervals = 4096`
+- exceeding the cap blocks with `atomic_interval_budget_exceeded`
+- no silent truncation
+- no best-effort partial output after over-cap
+- no output per coordinate
+- no output per meter
+
+Implementation must measure:
+
+- input traffic span count
+- input urbanicity span count
+- route-time basis span count
+- boundary count before dedupe
+- atomic interval count and configured `maxAtomicIntervals`
+- output span count
+- receipt count
+- elapsed milliseconds
+- approximate serialized output bytes
+
+No production SLA is accepted in this draft.
+
+Required measurement fixtures:
+
+- small synthetic fixed-offset route
+- Medford/Batsto
+- John's Waterfall
+- long overnight route crossing midnight
+- interval crossing Friday 18:00
+- interval crossing Monday 06:00
+- fixed-IANA DST transition fixture, if fixed IANA time zones are authorized
+
+## 15. Temporal Projection Precedent Audit
+
+`src/lib/temporal-projection/traffic-temporal-exposure.ts` is useful precedent but not DS-063 authority.
+
+Useful patterns:
+
+- selected stable traffic input validation
+- `assertRouteSurfaceStableTrafficOutputIntegrity`
+- `validateStableTrafficBaselineSnapshot`
+- `validateRouteTimeBinding`
+- `estimateClockTimeIsoAtDistM`
+- `getRouteTimeBasisAtDistM`
+- half-open route-indexed intervals
+- hidden gap and overlap diagnostics
+- coverage accounting
+- receipt-backed projection output
+- no-write projection posture
+
+Not authoritative for DS-063:
+
+- `TrafficTimeMultiplierModel`
+- legacy two-profile traffic-time multiplier
+- broad time-of-day multiplier semantics
+- `RouteTimeBinding.bindingId` and revision as semantic identity
+- old envelope shape without the scenario digest trio and `stableInputDigest`
+- actual-adjusted route-time behavior
+- `scoreUsePolicy = view_only_poc`
+- direct stable traffic plus route-time input instead of `ScenarioFoundationResult + ScenarioTemporalStableInputBundle`
+
+## 16. Required Phase 4 Tests
+
+A future implementation must include focused tests before owner acceptance:
+
+- rejects drafts and accepts only `ScenarioFoundationResult`
+- blocks foundation digest mismatches
+- blocks route-axis id/digest/revision/total-distance mismatches
+- proves one injected `generatedAt` flows through trace fields and is excluded from semantic digests
+- proves `routeTimeBindingDigest` is not `RouteTimeBinding.bindingId`
+- proves `stableInputDigest` changes for all output-affecting stable semantics and excludes generatedAt, trace ids, warning text, diagnostics text, and presentation copy
+- derives fixed-offset local date/hour/minute from an absolute instant
+- does not call browser-local `Date.getHours`, `Date.getDay`, or `getTimezoneOffset`
+- covers Friday 17:59 weekday and Friday 18:00 weekend
+- covers Monday 05:59 weekend and Monday 06:00 weekday
+- covers midnight crossing
+- covers fixed-IANA DST behavior if fixed IANA is authorized
+- partitions on traffic span, urbanicity span, route-time basis, local hour, NHTSA boundary, and offset-transition boundaries
+- validates traffic and urbanicity prepared spans exactly partition `[0,totalDistM)` with no hidden gaps or overlaps
+- verifies temporal boundaries are found by monotonic time-to-distance inversion, not nearest sample or nearest 500-meter point
+- verifies maximum time error, maximum distance error, deterministic snap epsilon, and zero-length-span rejection
+- proves `sampleEveryM` changes do not materially alter semantic partitions
+- verifies representative scenario and canonical distances use the deterministic midpoint policy
+- blocks hidden gaps, overlaps, zero-length intervals, and over-cap interval counts
+- verifies `maxAtomicIntervals = 4096`, over-cap blocking, and no silent truncation
+- preserves half-open interval semantics
+- verifies AADT units and traffic volume basis, including no silent divide-by-two or directional reinterpretation
+- verifies traffic output formula separation for `hourlyTrafficShare`, `modeledVehiclesPerHour`, `modeledVehiclesPerMinute`, `hourlyTrafficFactor`, and `hourlyAADTEquivalent`
+- verifies `hourlyAADTEquivalent` is labeled normalized modeled exposure, not observed hourly vehicles
+- traffic projection resolves only with `all_day_aadt_neutral`
+- traffic projection blocks `legacy_time_adjusted` and `unknown`
+- temporal risk projection resolves independently of missing AADT when route time and urbanicity resolve
+- unknown urbanicity blocks by default
+- first-slice fallbacks are limited to none, `route_majority`, `explicit_urban_proxy`, and `explicit_rural_proxy`
+- verifies `max_combined_factor_for_hour` is deferred
+- explicit fallbacks enter content digests and receipts
+- verifies full coverage with fallback is complete/full/degraded, not exact
+- verifies fallback output cannot be high confidence
+- verifies structured confidence fields and `overallConfidenceReason`
+- verifies one immutable cohort/hour selection result is shared by traffic and risk projections per atomic interval
+- sparse and zero-count cells warn and do not imply safety
+- traffic projection contains no normalized per-pass risk contribution
+- temporal risk projection contains no hourly AADT equivalent
+- verifies separate `trafficProjectionContentDigest`, `riskProjectionContentDigest`, and `projectionBundleContentDigest`
+- verifies content digests exclude trace ids, `scenarioId`, `evaluationId`, `generatedAt`, warning text, and diagnostic text
+- verifies compact projection-run, shared selection, and per-span receipt-reference structure
+- verifies typed expected failures and typed span-level missing/conflict outputs
+- bundle contains no score, planned-risk preview, durable truth, storage handle, source-client output, RouteMap state, or UI state
+- proves Phase 4 does not call, wrap, re-export, or indirectly use `applyHourlyTemporalRiskToMotorVehicleContribution`, any motor-vehicle risk contribution helper, or any score/planned-risk helper
+- no imports from scoring, React, RouteMap, cue-sheet components, Supabase, migrations, `route_cache`, or `route_history`
+
+## 17. Owner Decision
+
+Accepted owner decision:
+
+```text
+approve_headless_hourly_temporal_projection_with_prepared_inputs_only
+```
+
+Decision by: Derek Minner.
+
+Decision date: 2026-06-19.
+
+Phase 3 is complete. Phase 4 is authorized for the headless prepared-input projection slice, but runtime is not yet implemented.
+
+The exact next implementation slice is:
+
+```text
+Implement a headless, worker-compatible hourly temporal scenario projection that consumes only ScenarioFoundationResult, ScenarioTemporalStableInputBundle, HourlyTemporalProjectionPolicy, and the detached hourlyTemporalRiskV1 kernel; emits separate ScenarioTrafficProjection and ScenarioTemporalMotorVehicleRiskProjection envelopes; preserves semantic digest policy; blocks unresolved inputs by default; and performs no scoring, UI, fetching, storage, or durable truth writes.
+```
 
 
 ---

@@ -57058,18 +57058,22 @@ That fuller slice waits for a later gate and is not authorized by exec-054 Phase
 
 # EXEC-056 — Hourly Temporal Risk Model Implementation Plan
 
-Status: Phase 0 and detached-kernel hardening accepted; scenario/scoring integration deferred
+Status: Phase 0 and detached-kernel hardening accepted; Phase 3 contract/readiness gate complete; Phase 4 headless prepared-input projection implemented; scenario/scoring integration deferred
 Date: 2026-06-18
-Related: ADR-057, DS-062, ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-055
+Related: ADR-057, DS-062, DS-063, ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-055
 Primary artifact: docs/04-execution/reports/source-data/temporal-risk/Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
 
 Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-06-19
+Phase 3 owner decision: approve_headless_hourly_temporal_projection_with_prepared_inputs_only, Derek Minner, 2026-06-19
+Authorized Phase 4 capability: headless_hourly_temporal_scenario_projection
+Authorized Phase 4 scope: prepared_inputs_projection_only
+Next required step: Review the Phase 4 headless prepared-input projection implementation, then complete EXEC-055 Double-Counting Audit before any planned-risk/scoring integration.
 
 ## 1. Objective
 
 Replace the earlier broad temporal model with an hourly temporal motor-vehicle risk model, but only as a detached model kernel until architecture review accepts the next gate.
 
-This plan does not authorize ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score integration, planned-risk preview, UI, storage, Supabase, migrations, stable-truth writes, or legacy `traffic-time.ts` changes.
+This plan now authorizes implementation of `ScenarioTrafficProjection` and `ScenarioTemporalMotorVehicleRiskProjection` only inside the Phase 4 headless prepared-input projection slice. It does not authorize Planned Ride Safety Score integration, planned-risk preview, UI, storage, Supabase, migrations, stable-truth writes, or legacy `traffic-time.ts` changes.
 
 ## 2. Inputs
 
@@ -57152,7 +57156,14 @@ Rules:
 
 ### Phase 3 — Scenario Projection Contract / Readiness Gate
 
-Status: not authorized / incomplete.
+Status: complete.
+
+Phase 3 contract:
+
+```text
+docs/02-architecture/design/ds-063-hourly_temporal_scenario_projection_contract.md
+docs/04-execution/reports/exec-056-phase-3-scenario-projection-contract-readiness.md
+```
 
 Before any scenario projection exists, a separate authorization must define:
 
@@ -57162,15 +57173,49 @@ Before any scenario projection exists, a separate authorization must define:
 - no-write/no-leak receipts
 - unresolved/blocking behavior
 
+Owner decision:
+
+```text
+approve_headless_hourly_temporal_projection_with_prepared_inputs_only
+```
+
+Decision by: Derek Minner.
+
+Decision date: 2026-06-19.
+
+Authorized capability:
+
+```text
+headless_hourly_temporal_scenario_projection
+```
+
+Authorized scope:
+
+```text
+prepared_inputs_projection_only
+```
+
+The authorized implementation slice is a headless worker-compatible projection that consumes only `ScenarioFoundationResult`, `ScenarioTemporalStableInputBundle`, `HourlyTemporalProjectionPolicy`, and the detached hourly temporal kernel, then emits separate `ScenarioTrafficProjection` and `ScenarioTemporalMotorVehicleRiskProjection` envelopes.
+
+The first Phase 4 projection slice may use only no fallback, `route_majority` with prepared majority input, `explicit_urban_proxy`, or `explicit_rural_proxy`. `max_combined_factor_for_hour` remains a kernel fallback surface and is deferred from the first scenario projection slice.
+
+The slice must not implement application of temporal factors to risk, scoring, planned-risk preview, RouteMap, cue-sheet UI, presentation, React, Leaflet, source fetching, raw HPMS, raw evidence candidates, stable truth selection, storage, Supabase, migrations, stable-truth writes, dogfood, default-on behavior, production release, or legacy `traffic-time.ts` changes.
+
 ### Phase 4 — Headless Temporal Scenario Projection
 
-Status: not authorized / incomplete.
+Status: implemented as a pure headless prepared-input projection; runtime application integration, scoring, presentation, persistence, dogfood, default-on, and production remain deferred.
 
-This phase may begin only after Phase 3 is accepted. It must remain headless and must not touch RouteMap, cue sheets, presentation, storage, or scoring.
+This phase implements only the exact DS-063 headless prepared-input projection slice. It remains headless, default-off, in-memory, worker-compatible, and plain cloneable. It does not touch RouteMap, cue sheets, presentation, storage, scoring, planned-risk composition, source fetching, or `traffic-time.ts`.
+
+Implementation report:
+
+```text
+docs/04-execution/reports/exec-056-phase-4-headless-temporal-projection-implementation.md
+```
 
 ### Phase 5 — EXEC-055 Double-Counting Audit
 
-Status: not complete.
+Status: incomplete.
 
 The detached kernel now blocks factor application unless `baselineTemporalBasis = all_day_aadt_neutral`.
 
