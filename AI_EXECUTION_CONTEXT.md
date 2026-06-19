@@ -56695,7 +56695,7 @@ The accepted first implementation slice stops before scenario view construction.
 **Date:** 2026-06-17
 **Related:** ADR-056, ADR-057, DS-057, DS-062, ADR-055, DS-056, EXEC-054, EXEC-056, DS-015, DS-031, ADR-045
 
-> 2026-06-18 update: EXEC-056 — Hourly Temporal Risk Model Implementation Plan supersedes this execution plan's two-profile implementation phases for the active temporal-risk implementation path. EXEC-055 remains historical context for guardrails and remains authoritative for the Phase 6 double-counting audit requirement until that audit is completed.
+> 2026-06-19 update: ADR-057 / DS-062 accept the hourly temporal model architecture and detached kernel only. EXEC-056 supersedes this execution plan's two-profile implementation phases and old broad nighttime factors for the active temporal-risk implementation path. EXEC-055 remains lineage for the traffic exposure versus per-pass/contextual risk separation, RouteTimeBinding consumption requirements, Planned Ride Safety integration gates, and the Phase 6 Double-Counting Audit until that audit is completed. ADR-057's owner decision does not approve scenario projection or scoring integration.
 
 ---
 
@@ -57058,10 +57058,12 @@ That fuller slice waits for a later gate and is not authorized by exec-054 Phase
 
 # EXEC-056 — Hourly Temporal Risk Model Implementation Plan
 
-Status: Draft execution plan; Phase 0 and detached-kernel hardening ready for architecture review
+Status: Phase 0 and detached-kernel hardening accepted; scenario/scoring integration deferred
 Date: 2026-06-18
 Related: ADR-057, DS-062, ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-055
 Primary artifact: docs/04-execution/reports/source-data/temporal-risk/Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
+
+Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-06-19
 
 ## 1. Objective
 
@@ -57096,7 +57098,7 @@ The future scenario adapter owns `RouteTimeBinding` plus `RidePlanScenarioContex
 
 ### Phase 0 — Source Artifact And Reproducibility Freeze
 
-Status: implemented for review.
+Status: complete for accepted architecture/kernel scope.
 
 Deliverables:
 
@@ -57110,7 +57112,7 @@ Production runtime must not parse XLSX. The committed TypeScript constants are g
 
 ### Phase 1 — Detached Hourly Model Kernel
 
-Status: implemented for review.
+Status: accepted/complete for commit `f1e7a33d4a375be3f3c7fa47c1811a93c459a56f`.
 
 The kernel may produce:
 
@@ -57136,7 +57138,7 @@ The kernel must not produce:
 
 ### Phase 2 — Cohort Selection And Confidence Hardening
 
-Status: implemented for detached kernel review.
+Status: complete only to the extent proven by the detached kernel and its tests.
 
 Rules:
 
@@ -57150,7 +57152,7 @@ Rules:
 
 ### Phase 3 — Scenario Projection Contract / Readiness Gate
 
-Status: not implemented.
+Status: not authorized / incomplete.
 
 Before any scenario projection exists, a separate authorization must define:
 
@@ -57162,7 +57164,7 @@ Before any scenario projection exists, a separate authorization must define:
 
 ### Phase 4 — Headless Temporal Scenario Projection
 
-Status: not implemented.
+Status: not authorized / incomplete.
 
 This phase may begin only after Phase 3 is accepted. It must remain headless and must not touch RouteMap, cue sheets, presentation, storage, or scoring.
 
@@ -57176,7 +57178,7 @@ This fail-closed precondition does not complete the exec-055 Phase 6 double-coun
 
 ### Phase 6 — Planned-Risk Integration Gate
 
-Status: not implemented.
+Status: blocked.
 
 Planned-risk or Planned Ride Safety integration requires:
 
@@ -57188,7 +57190,7 @@ Planned-risk or Planned Ride Safety integration requires:
 
 ### Phase 7 — Presentation
 
-Status: not implemented.
+Status: blocked.
 
 Presentation requires separate UI authorization after the headless projection and planned-risk gates. Avoid showing large raw multipliers without context, and label the model as relative and modeled-unvalidated.
 

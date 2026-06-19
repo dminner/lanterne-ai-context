@@ -3352,7 +3352,7 @@ Route Safety Score must remain:
 
 # Lanterne Design Document Index
 
-**Status:** Current as of 2026-06-18
+**Status:** Current as of 2026-06-19
 **Maintained by:** Derek
 
 ---
@@ -3415,7 +3415,7 @@ Route Safety Score must remain:
 | ADR-054 | RouteIndexedEvidenceLedger No-Leak Architecture | Accepted | DS-055 |
 | ADR-055 | Ride Plan Scenario Engine and Planned Ride Safety Score | Accepted Architecture | DS-056 |
 | ADR-056 | Temporal Motor-Vehicle Risk Context and Traffic Volume Split | Proposed; superseded for active temporal model kernel by ADR-057 / DS-062 | DS-057 |
-| ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Proposed; detached kernel ready for owner review | DS-062 |
+| ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Accepted for hourly architecture and detached kernel; scenario/scoring integration deferred | DS-062 |
 | ADR-058 | Viewport Road Data Plane and Overlay Ownership | Proposed | DS-061 |
 
 ---
@@ -3471,8 +3471,8 @@ Route Safety Score must remain:
 | DS-058 | Planned Ride Safety Score Contract | ADR-055, ADR-056, DS-015, DS-031, DS-056, DS-057 | Draft |
 | DS-059 | Scenario Objective Adapter Contract | ADR-055, DS-056, DS-058, DS-060 | Draft |
 | DS-060 | Scenario Sweep Contract | ADR-055, DS-056, DS-058, DS-059 | Draft |
-| DS-061 | Viewport Road Runtime, Overlay Lifecycle, and Render Diff Spec | ADR-058, DS-018, DS-031, DS-032, DS-035, DS-052 | Draft |
-| DS-062 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056, DS-057 lineage, DS-058 | Draft for detached model-kernel review |
+| DS-061 | Viewport Road Runtime, Overlay Lifecycle, and Render Diff Spec | ADR-058, DS-018, DS-031, DS-032, DS-035, DS-052 | Reserved for viewport road-data-plane / overlay-ownership packet; draft |
+| DS-062 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056, DS-057 lineage, DS-058 | Accepted for detached model-kernel implementation; scenario/scoring integration deferred |
 
 ---
 
@@ -3494,6 +3494,9 @@ An earlier draft of the ride computer tile system was incorrectly numbered DS-00
 ADR-057 and DS-062 define the active hourly temporal model architecture and detached model-kernel specification. ADR-056 and DS-057 remain lineage for the conceptual split between traffic exposure and per-pass/contextual risk; their two-profile curves, broad night buckets, and fixed 1.60 / 2.10 broad-night factors are not runtime authority.
 
 EXEC-056 is the active hourly temporal model implementation plan. EXEC-055 remains lineage and retains the double-counting audit gate before any planned-risk or Planned Ride Safety integration.
+
+### DS-061 reservation
+DS-061 is reserved for the viewport road-data-plane / overlay-ownership packet tied to ADR-058 and EXEC-057. DS-062 is therefore the hourly temporal model specification.
 
 ---
 
@@ -32104,7 +32107,9 @@ Rules:
 
 ## 9. Planned Slice Calculation
 
-DS-058 is authoritative for planned score or planned risk preview calculation. DS-062 is authoritative for the active hourly model kernel. This section remains lineage for temporal traffic and nighttime motor-vehicle risk projection boundaries that later contracts may consume.
+DS-058 is authoritative for planned score or planned risk preview calculation.
+
+DS-062 is authoritative for the active hourly model kernel. This section remains lineage for temporal traffic and nighttime motor-vehicle risk projection boundaries that later contracts may consume.
 
 For each scenario slice:
 
@@ -35234,14 +35239,26 @@ DS-061 is satisfied when:
 
 # DS-062 — Hourly Temporal Exposure and Per-Pass Risk Specification
 
-Status: Draft for detached model-kernel review
+Status: Accepted for detached model-kernel implementation; scenario/scoring integration deferred
 Date: 2026-06-18
 Parent ADR: ADR-057 — Hourly Temporal Motor-Vehicle Risk Model
-Related: ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-056, Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
+Related: ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-056
+Primary source artifact: Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
 
-> Numbering note: this spec was originally imported as DS-058, which collided with the existing DS-058 Planned Ride Safety Score Contract. DS-061 is already committed for viewport-road runtime architecture, so the hourly temporal spec is renumbered to DS-062 in this consolidation pass.
+Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-06-19
+
+> Numbering note: the originally imported hourly spec used number DS-058, which collided with the existing DS-058 Planned Ride Safety Score Contract. DS-061 is already committed for viewport-road runtime architecture, so this spec is renumbered to DS-062 in this consolidation pass.
 
 > Authority note: DS-062 is active for the detached hourly temporal model kernel only. It does not authorize ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score integration, planned-risk preview, UI, storage, or stable-truth writes.
+
+Authority summary:
+
+- DS-062 is authoritative for the four cohort IDs `rural_weekday`, `rural_weekend`, `urban_weekday`, and `urban_weekend`.
+- DS-062 is authoritative for 24 hourly cells per cohort, StationBalanced24h traffic-share basis, cyclist exposure factor 1.00, hourly traffic factor, normalized per-pass multiplier, combined diagnostic factor, confidence/provenance, NHTSA weekend boundary, source manifest/reproducibility policy, and the detached model-kernel contract.
+- ADR-056 and DS-057 remain lineage for the conceptual separation of traffic exposure and per-pass/contextual risk.
+- The old two-profile bell curves, old broad night buckets, and old 1.60 / 2.10 broad-night factors are superseded for runtime temporal modeling.
+- DS-058 Planned Ride Safety Score Contract remains authoritative for any later score integration.
+- DS-062 does not itself authorize score integration.
 
 ## 1. Purpose
 
@@ -46645,14 +46662,35 @@ Before production scoring use, Lanterne must have:
 
 # ADR-057 — Hourly Temporal Motor-Vehicle Risk Model
 
-Status: Proposed; detached kernel ready for owner review
+Status: Accepted - Hourly Model Architecture And Detached Kernel Only; Integration Deferred
 Date: 2026-06-18
 Owner: Derek Minner
 Related: ADR-055, DS-056, DS-057 draft lineage, DS-062, EXEC-056, NYSDOT 2022 hourly traffic analysis, Lanterne Temporal Risk Model 2022-2024 Hourly workbook
 
-Owner decision: pending_review
+ownerDecision: accept_hourly_model_architecture_and_kernel_only
+ownerDecisionBy: Derek Minner
+Decision recorded: 2026-06-19
+authorizedCapability: hourly_temporal_model_architecture_and_detached_kernel
+authorizedScope: hourly_temporal_model_architecture_and_kernel_only
+acceptedKernelCommit: f1e7a33d4a375be3f3c7fa47c1811a93c459a56f
+acceptedKernelPath: src/domain/temporalRisk/hourlyTemporalRiskV1.ts
+acceptedKernelTestPath: src/domain/temporalRisk/hourlyTemporalRiskV1.test.ts
 
 Review recommendation: accept_hourly_model_architecture_and_kernel_only
+
+Decision envelope:
+
+- Derek accepts the four-cohort, 24-hour hourly temporal architecture.
+- Derek accepts the detached model kernel represented by commit `f1e7a33d4a375be3f3c7fa47c1811a93c459a56f`.
+- This is not production calibration approval.
+- This is not scenario-projection approval.
+- This is not scoring-integration approval.
+- This is not UI or presentation approval.
+- This is not dogfood, default-on, or production approval.
+- The model remains POC / modeled-unvalidated.
+- The workbook-derived factors remain relative modeled factors, not absolute crash probabilities.
+- Baseline Safety Score remains unchanged.
+- Stable route truth remains unchanged.
 
 ## 1. Context
 
@@ -46687,9 +46725,34 @@ For each cohort, the model stores 24 hourly values for:
 - normalized per-pass temporal multiplier
 - combined hourly factor for diagnostics and explanation
 
-Runtime scoring integration is not authorized by this ADR while it remains Proposed. The current implementation may select and apply model-kernel factors only when called with explicit route-local calendar/hour/minute and an all-day AADT-neutral baseline precondition.
+Runtime scoring integration is not authorized by this ADR. The current implementation may select and apply model-kernel factors only when called with explicit route-local calendar/hour/minute and an all-day AADT-neutral baseline precondition.
 
 The model remains detached from stable route truth. It does not rewrite stable route truth, mutate the Baseline Safety Score, write storage, fetch source data, or create scenario/scoring outputs by itself.
+
+The accepted kernel may:
+
+- expose the 96 versioned cohort/hour rows
+- validate model invariants
+- classify NHTSA weekday/weekend
+- select explicit cohort/hour rows
+- calculate hourly traffic factor
+- calculate normalized per-pass multiplier
+- calculate modeled hourly AADT equivalent
+- apply factors only behind the explicit neutral all-day baseline precondition
+- emit model-kernel receipts and warnings
+
+The accepted kernel may not:
+
+- consume RidePlanScenarioContext directly
+- consume RouteTimeBinding directly
+- produce ScenarioTrafficProjection
+- produce ScenarioTemporalMotorVehicleRiskProjection
+- produce RidePlanScenarioView
+- compute Planned Ride Safety Score
+- mutate Baseline Safety Score
+- read `traffic-time.ts` output as a neutral baseline
+- write storage
+- drive UI
 
 ## 3. Core Formula
 
@@ -46776,6 +46839,7 @@ This ADR does not:
 - use individual day-of-week coefficients in v1
 - replace the Baseline Safety Score
 - authorize ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score, planned-risk preview, UI, storage, or stable-truth writes
+- authorize dogfood, default-on behavior, or production release
 
 ## 10. Consequences
 
