@@ -56691,11 +56691,11 @@ The accepted first implementation slice stops before scenario view construction.
 
 # EXEC-055 — Temporal Traffic Volume and Nighttime Risk Context Implementation Plan
 
-**Status:** Lineage plan; Phase 6 double-counting audit complete for selected recomputation path; planned-risk implementation blocked
+**Status:** Lineage plan; Phase 6 double-counting audit complete for selected recomputation path; DS-064 temporal component-adaptation contract accepted contract-only; planned-risk implementation blocked
 **Date:** 2026-06-17
-**Related:** ADR-056, ADR-057, DS-057, DS-062, ADR-055, DS-056, EXEC-054, EXEC-056, DS-015, DS-031, ADR-045
+**Related:** ADR-056, ADR-057, DS-057, DS-062, DS-064, ADR-055, DS-056, EXEC-054, EXEC-056, DS-015, DS-031, ADR-045
 
-> 2026-06-19 update: ADR-057 / DS-062 accept the hourly temporal model architecture and detached kernel only. EXEC-056 supersedes this execution plan's two-profile implementation phases and old broad nighttime factors for the active temporal-risk implementation path. EXEC-055 remains lineage for the traffic exposure versus per-pass/contextual risk separation, RouteTimeBinding consumption requirements, Planned Ride Safety integration gates, and the Phase 6 Double-Counting Audit. The Phase 6 audit is complete in `docs/04-execution/reports/exec-056-phase-5-double-counting-audit.md`; Derek approved only the contract-only neutral AADT recompute path. ADR-057, DS-062, DS-063, and the Phase 6 audit do not approve scoring integration.
+> 2026-06-19 update: ADR-057 / DS-062 accept the hourly temporal model architecture and detached kernel only. EXEC-056 supersedes this execution plan's two-profile implementation phases and old broad nighttime factors for the active temporal-risk implementation path. EXEC-055 remains lineage for the traffic exposure versus per-pass/contextual risk separation, RouteTimeBinding consumption requirements, Planned Ride Safety integration gates, and the Phase 6 Double-Counting Audit. The Phase 6 audit is complete in `docs/04-execution/reports/exec-056-phase-5-double-counting-audit.md`; Derek approved only the contract-only neutral AADT recompute path. DS-064 now accepts the follow-on motor-vehicle temporal component-adaptation and coverage contract as contract-only; it reuses canonical DS-015 scoring seams and does not approve scoring formula changes. ADR-057, DS-062, DS-063, DS-064, and the Phase 6 audit do not approve scoring integration.
 
 ---
 
@@ -56911,9 +56911,10 @@ This decision means future planned-risk composition may compute planned traffic 
 Still required before planned-risk integration:
 
 - DS-058 is amended/accepted for the exact planned-score or preview output.
+- DS-064 is accepted contract-only for motor-vehicle temporal component-adaptation semantics and coverage.
 - continuous road and crossing component recompute seams are complete.
 - receipts prove exactly one traffic-volume time adjustment for resolved planned traffic components.
-- `normalizedPerPassMultiplier` component placement is accepted before any per-pass adjustment count can be one.
+- `normalizedPerPassMultiplier` component placement is owner-approved before any per-pass adjustment count can be one.
 - receipts prove zero legacy `traffic-time.ts`, zero `combinedHourlyFactorDiagnosticOnly`, and zero normalized score multiplier applications.
 - cached `scoreTrace`, `cachedRawRisk`, `cachedNormalizedRisk`, `cachedRiskLevel`, `route_cache`, `route_history`, RXON, and RouteIndexedTruthCache-derived views remain reference-only unless neutral basis and component decomposition are receipted.
 
@@ -56925,7 +56926,7 @@ Acceptance:
 - `combinedHourlyFactorDiagnosticOnly` is never used as a score input.
 - the road traffic recompute path uses the basis-aware DS-015 adapter and does not hide divide-by-two conversion.
 - crossing risk has its own component recompute policy; full planned score remains blocked until crossings are covered.
-- per-pass placement remains unresolved pending DS-058/component-contract review.
+- per-pass placement is accepted in DS-064 as `motor_vehicle_local_risk_product_v1`, but runtime remains blocked pending a separate gate.
 - the completed audit does not authorize EXEC-055 Phase 7.
 
 ---
@@ -56934,7 +56935,7 @@ Acceptance:
 
 Status: blocked.
 
-Only after a later motor-vehicle component recompute contract is approved and DS-058 accepts the exact scoring/preview contract may this phase integrate with a planned ride risk preview.
+Only after a headless component runtime is separately authorized and reviewed under DS-064, and DS-058 accepts the exact scoring/preview contract, may this phase integrate with a planned ride risk preview.
 
 This phase also requires the planned-score contract to say whether the output is a preview or Planned Ride Safety Score.
 
@@ -57045,6 +57046,7 @@ Proceed to temporal projection or planned-risk implementation only when:
 - DS-062 and ADR-057 are accepted or revised for the active hourly model architecture/kernel where non-neutral temporal-risk runtime is requested.
 - exec-054 Phase 7 readiness criteria are satisfied or explicitly updated for the exact requested slice.
 - exec-055 Phase 6 - Double-Counting Audit is complete where planned-risk preview or planned-score integration is requested.
+- DS-064 is accepted contract-only where motor-vehicle temporal component adaptation is requested; runtime requires a later gate.
 - the planned score contract says whether this is a preview or a Planned Ride Safety Score.
 - RouteTimeBinding has fixed timezone / offset tests.
 - UI copy labels output as modeled planned ride risk, not live observed risk.
@@ -57104,22 +57106,22 @@ That fuller slice waits for a later gate and is not authorized by exec-054 Phase
 
 # EXEC-056 — Hourly Temporal Risk Model Implementation Plan
 
-Status: Phase 0 and detached-kernel hardening accepted; Phase 3 contract/readiness gate complete; Phase 4 headless prepared-input projection implemented; Phase 5 double-counting audit complete for contract-only neutral AADT recompute-path decision; scenario/scoring integration deferred
+Status: Phase 0 and detached-kernel hardening accepted; Phase 3 contract/readiness gate complete; Phase 4 headless prepared-input projection implemented; Phase 5 double-counting audit complete for contract-only neutral AADT recompute-path decision; Phase 6A motor-vehicle temporal component-adaptation contract accepted contract-only; scenario/scoring integration deferred
 Date: 2026-06-18
-Related: ADR-057, DS-062, DS-063, ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-055
+Related: ADR-057, DS-062, DS-063, DS-064, ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-055
 Primary artifact: docs/04-execution/reports/source-data/temporal-risk/Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
 
 Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-06-19
 Phase 3 owner decision: approve_headless_hourly_temporal_projection_with_prepared_inputs_only, Derek Minner, 2026-06-19
 Authorized Phase 4 capability: headless_hourly_temporal_scenario_projection
 Authorized Phase 4 scope: prepared_inputs_projection_only
-Next required gate: Define and approve the motor-vehicle component recompute contract for per-pass semantics and crossings.
+Next required gate: Decide whether to authorize a bounded headless road temporal-adaptation proof using canonical DS-015 seams, mirror-baseline parity, explicit crossing blockers, and no preview, rollup, normalization, UI, or production behavior.
 
 ## 1. Objective
 
 Replace the earlier broad temporal model with an hourly temporal motor-vehicle risk model, but only as a detached model kernel until architecture review accepts the next gate.
 
-This plan now authorizes implementation of `ScenarioTrafficProjection` and `ScenarioTemporalMotorVehicleRiskProjection` only inside the Phase 4 headless prepared-input projection slice. It does not authorize Planned Ride Safety Score integration, planned-risk preview, UI, storage, Supabase, migrations, stable-truth writes, or legacy `traffic-time.ts` changes.
+This plan now authorizes implementation of `ScenarioTrafficProjection` and `ScenarioTemporalMotorVehicleRiskProjection` only inside the Phase 4 headless prepared-input projection slice. DS-064 accepts a later motor-vehicle temporal component-adaptation contract around canonical DS-015 seams, but that contract authorizes no runtime by itself. This plan does not authorize Planned Ride Safety Score integration, planned-risk preview, UI, storage, Supabase, migrations, stable-truth writes, or legacy `traffic-time.ts` changes.
 
 ## 2. Inputs
 
@@ -57300,27 +57302,114 @@ Capability readiness:
 - double-counting audit contract: ready
 - selected stable traffic basis contract: ready when explicitly `all_day_aadt_neutral`
 - road traffic recompute path: contract-ready
-- road per-pass recompute path: blocked pending component semantics
-- crossing traffic recompute path: incomplete or blocked
-- crossing per-pass recompute path: blocked pending component semantics
+- road per-pass recompute path: contract-defined in accepted DS-064; runtime remains blocked
+- crossing traffic recompute path: contract-defined but implementation-blocked pending prepared crossing candidate universe, route location, and basis inputs
+- crossing per-pass recompute path: contract-defined but implementation-blocked pending prepared crossing candidate universe, route location, and basis inputs
 - planned-risk preview, full Planned Ride Safety Score, presentation, and production: blocked
 
-### Phase 6 — Planned-Risk Integration Gate
+### Phase 6A — Motor-Vehicle Temporal Component Adaptation Contract / Readiness Gate
+
+Status: complete; accepted as contract-only; docs-only; no runtime authorized.
+
+Contract:
+
+```text
+docs/02-architecture/design/ds-064-motor_vehicle_component_recompute_and_coverage_contract.md
+docs/04-execution/reports/exec-056-phase-6a-motor-vehicle-component-recompute-contract-readiness.md
+```
+
+Owner decision:
+
+```text
+approve_motor_vehicle_component_recompute_contract_only
+```
+
+Decision by: Derek Minner.
+
+Decision date: 2026-06-19.
+
+Authorized capability:
+
+```text
+motor_vehicle_temporal_component_adaptation_contract
+```
+
+Authorized scope:
+
+```text
+contract_only_reuse_canonical_ds015_no_runtime
+```
+
+This decision approves only the temporal adapter architecture around existing canonical DS-015 road and crossing seams, the `motor_vehicle_local_risk_product_v1` placement for a later POC, coverage/receipt/digest/blocker contracts, no-fork parity requirements, and runtime budget requirements. It does not approve Phase 6B runtime, copied DS-015 equations, road-only runtime, crossing runtime, planned-risk preview, Planned Ride Safety Score, score delta, route rollup, UI, storage, production, or `traffic-time.ts` changes.
+
+Phase 6A defines:
+
+- `ScenarioMotorVehicleStableInputBundle`
+- road temporal traffic adaptation into canonical DS-015 seams from explicit neutral all-day AADT
+- crossing temporal traffic adaptation into canonical DS-015 seams from explicit neutral all-day AADT
+- `normalizedPerPassMultiplier` placement as `motor_vehicle_local_risk_product_v1`
+- mirror-baseline recompute policy for apples-to-apples deltas
+- road component interval atomization across stable, projection, curvature, domain, basis, confidence, provenance, transform, and route endpoint boundaries
+- independent road and crossing coverage statuses
+- crossing candidate universe requirements
+- point-to-span projection joins
+- client-side execution-budget requirements before runtime authorization
+- adjustment ledgers proving exactly one traffic adjustment and exactly one accepted per-pass adjustment
+- compact receipts
+- component semantic digest rules
+- typed blockers and unresolved states
+
+Phase 6A is a completed contract-only gate. It does not authorize implementation. It does not authorize component runtime, planned-risk preview, Planned Ride Safety Score, score delta, route rollup, objective adapters, scenario sweeps, UI, storage, production, or `traffic-time.ts` changes.
+
+### Phase 6B — Headless Motor-Vehicle Temporal Component Adaptation Runtime
+
+Status: blocked; not implemented; not authorized.
+
+A future Phase 6B implementation requires a separate implementation authorization. If authorized, it may consume only:
+
+- `ScenarioFoundationResult`
+- `ScenarioMotorVehicleStableInputBundle`
+- `ScenarioTrafficProjection`
+- `ScenarioTemporalMotorVehicleRiskProjection`
+- `MotorVehicleTemporalComponentAdaptationPolicy`
+- approved canonical DS-015 functions or extracted shared canonical component helpers
+
+It may emit only:
+
+```text
+ScenarioMotorVehicleComponentRecomputeOutput
+```
+
+It must stop before route rollup, planned-risk preview, Planned Ride Safety Score, score delta, normalized score, UI, storage, source fetching, stable-truth selection, or production.
+
+Current implementation blockers:
+
+- prepared stable road component bundle does not yet exist
+- safe canonical road component reuse seam and parity tests are not yet approved for temporal adaptation
+- component interval/receipt/output budgets are not yet measured or approved
+- crossing candidate universe is not route-indexed as a stable prepared input
+- crossing events lack canonical route location and route-axis identity in current score input/trace shapes
+- crossing traffic/lane/AADT basis and baseline temporal basis are not explicit enough for planned recompute
+- baseline-filtered crossing conflicts cannot be the future scenario candidate universe
+- at least one existing scoring adapter can supply an empty crossing conflict list, so adapter evidence cannot imply crossing completeness
+
+Phase 6B remains blocked until a separate gate authorizes a bounded headless road temporal-adaptation proof using canonical DS-015 seams, mirror-baseline parity, explicit crossing blockers, and approved budgets. Crossing runtime, complete component runtime, planned-risk preview, score rollup, normalized score, presentation, and production remain blocked.
+
+### Phase 6C — Planned-Risk Preview / Planned Ride Safety Integration Gate
 
 Status: blocked.
 
-Next required gate: define and approve the motor-vehicle component recompute contract for per-pass semantics and crossings.
-
-Planned-risk or Planned Ride Safety integration requires:
+Planned-risk preview or Planned Ride Safety integration requires:
 
 - DS-058 planned-score contract review
 - exec-055 double-counting audit owner decision
+- DS-064 accepted contract and a later temporal component-adaptation runtime review
 - explicit decision whether output is preview-only or official score
 - proof that Baseline Safety Score and stable route truth remain unchanged
 - receipts showing where the one traffic-volume time adjustment was applied
 - a basis-aware DS-015 traffic adapter for `total_two_way_aadt`, `same_direction_aadt`, `per_lane_aadt`, `right_lane_display_estimate`, and `unknown`
-- complete road and crossing component recompute contracts from explicit neutral AADT
-- accepted per-pass component placement for `normalizedPerPassMultiplier`
+- complete road and crossing temporal component-adaptation contracts from explicit neutral AADT that reuse canonical DS-015 seams
+- accepted per-pass component placement for `normalizedPerPassMultiplier`, specified by DS-064 as `motor_vehicle_local_risk_product_v1`
 - proof cached artifacts are reference-only unless neutral temporal basis and component decomposition are receipted
 
 ### Phase 7 — Presentation
