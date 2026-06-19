@@ -3352,7 +3352,7 @@ Route Safety Score must remain:
 
 # Lanterne Design Document Index
 
-**Status:** Current as of 2026-06-17
+**Status:** Current as of 2026-06-18
 **Maintained by:** Derek
 
 ---
@@ -3414,8 +3414,9 @@ Route Safety Score must remain:
 | ADR-045 | Route-Indexed Evidence Platform | Accepted | DS-031 |
 | ADR-054 | RouteIndexedEvidenceLedger No-Leak Architecture | Accepted | DS-055 |
 | ADR-055 | Ride Plan Scenario Engine and Planned Ride Safety Score | Accepted Architecture | DS-056 |
-| ADR-056 | Temporal Motor-Vehicle Risk Context and Traffic Volume Split | Proposed; superseded for runtime temporal model by ADR-057 | DS-057 |
-| ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Proposed for implementation | DS-058 hourly temporal spec |
+| ADR-056 | Temporal Motor-Vehicle Risk Context and Traffic Volume Split | Proposed; superseded for active temporal model kernel by ADR-057 / DS-062 | DS-057 |
+| ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Proposed; detached kernel ready for owner review | DS-062 |
+| ADR-058 | Viewport Road Data Plane and Overlay Ownership | Proposed | DS-061 |
 
 ---
 
@@ -3465,12 +3466,13 @@ Route Safety Score must remain:
 | DS-053 | Local Prediction Builder | DS-015, DS-017, DS-022, DS-029, DS-031, DS-043, DS-046, DS-048 | Draft |
 | DS-054 | Admin Cache Cell Visualizer | DS-031, DS-034, DS-035, DS-050, DS-052, DS-053 | Draft |
 | DS-055 | RouteIndexedEvidenceLedger No-Leak Spec | ADR-054, DS-031, DS-043, DS-044, DS-047 | Draft |
-| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060 | Draft |
-| DS-057 | Temporal Traffic Volume and Nighttime Motor-Vehicle Risk Context Spec | ADR-056, ADR-055, DS-056, DS-015, DS-031 | Draft; superseded for runtime temporal model by DS-058 hourly temporal spec |
-| DS-058 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056 | Draft for implementation |
+| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062 | Draft |
+| DS-057 | Temporal Traffic Volume and Nighttime Motor-Vehicle Risk Context Spec | ADR-056, ADR-055, DS-056, DS-015, DS-031 | Draft; superseded for active temporal model kernel by DS-062 hourly temporal spec |
 | DS-058 | Planned Ride Safety Score Contract | ADR-055, ADR-056, DS-015, DS-031, DS-056, DS-057 | Draft |
 | DS-059 | Scenario Objective Adapter Contract | ADR-055, DS-056, DS-058, DS-060 | Draft |
 | DS-060 | Scenario Sweep Contract | ADR-055, DS-056, DS-058, DS-059 | Draft |
+| DS-061 | Viewport Road Runtime, Overlay Lifecycle, and Render Diff Spec | ADR-058, DS-018, DS-031, DS-032, DS-035, DS-052 | Draft |
+| DS-062 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056, DS-057 lineage, DS-058 | Draft for detached model-kernel review |
 
 ---
 
@@ -3488,11 +3490,10 @@ ADR-021 governs the existence and rules of the OSM variable registry. DS-004 is 
 ### DS-008 number collision (resolved)
 An earlier draft of the ride computer tile system was incorrectly numbered DS-008. DS-008 is the Route Corridor Model (ADR-019 companion). The ride computer tile system is DS-012. The earlier draft is superseded and should be deleted.
 
-### DS-058 number collision (open)
-The hourly temporal-risk packet introduced `ds-058-hourly-temporal-exposure-and-per-pass-risk-spec.md` while `ds-058-planned_ride_safety_score_contract.md` already exists. Until the docs are renumbered, treat the filenames and titles as the disambiguators:
+### Hourly temporal model lineage
+ADR-057 and DS-062 define the active hourly temporal model architecture and detached model-kernel specification. ADR-056 and DS-057 remain lineage for the conceptual split between traffic exposure and per-pass/contextual risk; their two-profile curves, broad night buckets, and fixed 1.60 / 2.10 broad-night factors are not runtime authority.
 
-- `ds-058-hourly-temporal-exposure-and-per-pass-risk-spec.md` is authoritative for hourly temporal model data and runtime temporal factors.
-- `ds-058-planned_ride_safety_score_contract.md` remains authoritative for the Planned Ride Safety score/output boundary.
+EXEC-056 is the active hourly temporal model implementation plan. EXEC-055 remains lineage and retains the double-counting audit gate before any planned-risk or Planned Ride Safety integration.
 
 ---
 
@@ -30943,9 +30944,9 @@ Tests should treat violations as architecture failures, not product polish issue
 **Status:** Draft for planning
 **Date:** 2026-06-17
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
-**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, exec-052, exec-053, exec-054
+**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062, exec-052, exec-053, exec-054
 
-> 2026-06-18 temporal update: scenario temporal-risk adapters should use ADR-057 / DS-058 hourly temporal risk as the active temporal model. The earlier DS-057 two-profile traffic and broad nighttime factor shape remains lineage only for the traffic-exposure versus per-pass-risk separation.
+> 2026-06-18 temporal update: future scenario temporal-risk adapters should use ADR-057 / DS-062 hourly temporal risk as the active temporal model after a separate projection gate. The earlier DS-057 two-profile traffic and broad nighttime factor shape remains lineage only for the traffic-exposure versus per-pass-risk separation.
 
 ---
 
@@ -31845,9 +31846,9 @@ It must not:
 **Status:** Draft for implementation planning
 **Date:** 2026-06-17
 **ADR Parent:** ADR-056
-**Related:** ADR-055, DS-056, DS-058, EXEC-054, DS-015, DS-031, ADR-045, ADR-031
+**Related:** ADR-055, DS-056, DS-058, DS-062, EXEC-054, DS-015, DS-031, ADR-045, ADR-031
 
-> 2026-06-18 update: DS-058 — Hourly Temporal Exposure and Per-Pass Risk Specification supersedes this spec for runtime temporal model implementation. DS-057 remains useful lineage for the separation between traffic exposure and per-interaction motor-vehicle risk, but runtime code must use the hourly four-cohort model and workbook-derived values from DS-058.
+> 2026-06-18 update: DS-062 — Hourly Temporal Exposure and Per-Pass Risk Specification supersedes this spec for the active detached temporal model kernel. DS-057 remains useful lineage for the separation between traffic exposure and per-interaction motor-vehicle risk, but runtime code must use the hourly four-cohort model and workbook-derived values from DS-062.
 
 ---
 
@@ -31862,7 +31863,7 @@ It implements two separate scenario adapters:
 
 The adapters feed a planned ride risk preview or future Planned Ride Safety Score. They do not affect Baseline Safety Score or stable route truth.
 
-DS-058 defines the planned score contract and is authoritative for how these projections may later combine with baseline motor-vehicle risk.
+DS-058 defines the planned score contract and remains authoritative for whether projections may later combine with baseline motor-vehicle risk. DS-062 defines the active hourly model values and detached kernel behavior.
 
 ---
 
@@ -32103,7 +32104,7 @@ Rules:
 
 ## 9. Planned Slice Calculation
 
-DS-058 is authoritative for planned score or planned risk preview calculation. This section defines the temporal traffic and nighttime motor-vehicle risk projection boundaries that DS-058 may consume.
+DS-058 is authoritative for planned score or planned risk preview calculation. DS-062 is authoritative for the active hourly model kernel. This section remains lineage for temporal traffic and nighttime motor-vehicle risk projection boundaries that later contracts may consume.
 
 For each scenario slice:
 
@@ -32309,244 +32310,6 @@ Required warnings include:
 
 ---
 
-## Source File: docs/02-architecture/design/ds-058-hourly-temporal-exposure-and-per-pass-risk-spec.md
-
-# DS-058 — Hourly Temporal Exposure and Per-Pass Risk Specification
-
-Status: Draft for implementation
-Date: 2026-06-18
-Parent ADR: ADR-057 — Hourly Temporal Motor-Vehicle Risk Model
-Related: ADR-055, DS-056, Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
-
-## 1. Purpose
-
-This specification defines the hour-level temporal model used by the ride-plan scenario engine.
-
-The model converts stable all-day road risk into planned-time risk by separating:
-
-- hourly vehicle exposure
-- normalized temporal per-pass risk
-
-This keeps the implementation simple and defensible:
-
-Timed motor-vehicle risk = stable motor-vehicle risk × hourly traffic factor × normalized temporal per-pass multiplier.
-
-## 2. Model Cohorts
-
-The v1 model has four cohorts:
-
-- Rural weekday
-- Urban weekday
-- Rural weekend
-- Urban weekend
-
-Each cohort has 24 rows, one for each local clock hour.
-
-Weekend follows the NHTSA definition:
-
-- Friday 18:00 through Monday 05:59
-- all other hours are weekday
-
-## 3. Source Inputs
-
-### 3.1 Fatality inputs
-
-Fatality inputs come from FARS 2022–2024 ACCIDENT and PBTYPE files.
-
-The workbook joins the files by year and ST_CASE, filters PBTYPE to:
-
-- Bicyclist
-- Other Pedalcyclist
-
-The raw joined sheet is included as `Raw Cyclist Records`.
-
-Because the supplied files do not include the FARS PERSON table, the raw table uses aggregate fatality calibration weights to reconcile to the validated 3,393 fatality total and to the validated cohort/time-block counts.
-
-### 3.2 Traffic inputs
-
-Traffic inputs come from NYSDOT 2022 Continuous Count data across all 11 regions.
-
-The workbook provides three traffic-share bases:
-
-- StationBalanced24h
-- ObservationWeighted24h
-- NHTSAPeriodVolume
-
-The default v1 model uses StationBalanced24h.
-
-### 3.3 Cyclist exposure input
-
-CyclistShare equals TrafficShare multiplied by CyclistExposureFactor.
-
-The default CyclistExposureFactor is 1.00.
-
-This means the model assumes cyclists are present at the same hourly share as traffic. The assumption is conservative for night risk if cyclists decay faster than vehicles.
-
-## 4. Required Data Structure
-
-The implementation should store a table equivalent to:
-
-- model_version
-- cohort_id
-- urbanicity
-- day_type
-- hour
-- hour_label
-- fatality_share
-- traffic_share
-- hourly_traffic_factor
-- cyclist_exposure_factor
-- cyclist_share
-- raw_per_pass_index
-- normalized_per_pass_multiplier
-- combined_hourly_factor
-- calibrated_fatality_count
-- raw_pedalcyclist_record_count
-- confidence
-
-The implementation may store this in TypeScript constants, JSON, or a database seed table. It must be versioned.
-
-## 5. Computation
-
-For each cohort and hour:
-
-TrafficShare = selected hourly NYSDOT traffic share.
-
-HourlyTrafficFactor = TrafficShare × 24.
-
-CyclistShare = TrafficShare × CyclistExposureFactor.
-
-ExposureProduct = TrafficShare × CyclistShare.
-
-RawPerPassIndex = FatalityShare ÷ ExposureProduct.
-
-NormalizationFactor = sum of ExposureProduct for the cohort across all 24 hours.
-
-NormalizedPerPassMultiplier = RawPerPassIndex × NormalizationFactor.
-
-CombinedHourlyFactor = HourlyTrafficFactor × NormalizedPerPassMultiplier.
-
-The exposure-weighted mean of NormalizedPerPassMultiplier must equal 1.00 for each cohort.
-
-## 6. Runtime Contract
-
-Input:
-
-- route segment stable motor-vehicle risk contribution
-- stable AADT or same-direction AADT estimate
-- segment urbanicity classification
-- planned arrival local time
-- planned arrival local date
-- model version
-
-Output:
-
-- hourlyTrafficFactor
-- hourlyAADTEquivalent
-- normalizedPerPassMultiplier
-- temporalMotorVehicleRiskContribution
-- receipt object
-- confidence metadata
-
-Runtime steps:
-
-1. Select cohort by urbanicity and NHTSA day type.
-2. Select hour from planned local arrival time.
-3. Read traffic share and normalized per-pass multiplier.
-4. Compute HourlyAADTEquivalent as stable AADT multiplied by HourlyTrafficFactor.
-5. Feed HourlyAADTEquivalent into the traffic exposure term.
-6. Apply NormalizedPerPassMultiplier only to the motor-vehicle risk contribution.
-7. Emit receipt.
-
-## 7. Receipt Shape
-
-Each scenario output must include:
-
-- temporal_model_version
-- cohort_id
-- local_arrival_hour
-- nhtsa_day_type
-- urbanicity
-- traffic_share_basis
-- hourly_traffic_share
-- hourly_traffic_factor
-- cyclist_exposure_assumption
-- normalized_per_pass_multiplier
-- combined_hourly_factor
-- fatality_count
-- fatality_share
-- confidence
-- warnings
-
-Warnings should include:
-
-- sparse_fatality_cell
-- zero_fatality_cell
-- unknown_urbanicity
-- missing_arrival_time
-- fallback_profile_used
-- baseline_score_unchanged
-
-## 8. Confidence
-
-The workbook uses count confidence:
-
-- high: calibrated fatality count >= 30
-- medium: calibrated fatality count >= 10 and < 30
-- low: calibrated fatality count > 0 and < 10
-- zero-count / sparse: no calibrated fatalities in that hour
-
-The product should surface low confidence as uncertainty, not as false precision.
-
-## 9. Validation Rules
-
-Required tests:
-
-- every traffic curve has 24 hours
-- every traffic curve sums to 1.00
-- every cohort has 24 normalized multiplier values
-- every cohort's exposure-weighted normalized multiplier mean is 1.00
-- Friday 17:59 is weekday
-- Friday 18:00 is weekend
-- Monday 05:59 is weekend
-- Monday 06:00 is weekday
-- temporal model does not mutate Baseline Safety Score
-- temporal multiplier is applied only to motor-vehicle risk contribution
-- model reproduces the spreadsheet values for representative hours
-- three-hour rollups approximately match validation rows
-
-## 10. Non-Goals
-
-Do not implement:
-
-- day-of-week coefficients
-- rider-purpose weighting
-- recreational-only denominators
-- separate intoxication coefficients
-- separate fatigue coefficients
-- time-specific speed changes
-- dooring or intersection complexity time coefficients
-- absolute probability claims
-
-Those may be researched later, but they are not part of this implementation.
-
-## 11. Migration from Older Drafts
-
-Replace the earlier two-bell-curve model with the hourly version.
-
-Do not keep runtime three-hour night buckets.
-
-Do not use the older 1.60 or 2.10 nighttime factor constants.
-
-Do not use the earlier 60% cyclist-volume heuristic.
-
-Do not use the earlier 5.1% / 7.4% drafted nighttime traffic shares.
-
-The source of truth is the hourly workbook and this DS.
-
-
----
-
 ## Source File: docs/02-architecture/design/ds-058-planned_ride_safety_score_contract.md
 
 # DS-058 - Planned Ride Safety Score Contract
@@ -32554,9 +32317,9 @@ The source of truth is the hourly workbook and this DS.
 **Status:** Draft for planning
 **Date:** 2026-06-17
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
-**Related:** DS-015, DS-031, DS-056, DS-057, DS-059, ADR-045, ADR-054, ADR-056, EXEC-054, EXEC-055
+**Related:** DS-015, DS-031, DS-056, DS-057, DS-059, DS-062, ADR-045, ADR-054, ADR-056, ADR-057, EXEC-054, EXEC-055, EXEC-056
 
-> 2026-06-18 temporal update: the active temporal model is ADR-057 / DS-058 hourly temporal risk. Planned Ride Safety must consume the hourly traffic factor and normalized per-pass multiplier as scenario inputs; it must not use DS-057's earlier two-profile / broad-night-bucket runtime assumptions.
+> 2026-06-18 temporal update: the active detached temporal model kernel is ADR-057 / DS-062 hourly temporal risk. Planned Ride Safety may consume the hourly traffic factor and normalized per-pass multiplier only after a separate scenario projection gate, the exec-055 double-counting audit, and this planned-score contract approve integration. It must not use DS-057's earlier two-profile / broad-night-bucket runtime assumptions.
 
 ---
 
@@ -32982,6 +32745,7 @@ Phase 4 approves only this contract.
 Before runtime planned-score integration:
 
 - DS-058 must be accepted or revised.
+- ADR-057 / DS-062 must be accepted or revised for the hourly model architecture and detached kernel.
 - Phase 6 double-counting audit must be complete.
 - Planned-score implementation must decide whether output is preview-only or official Planned Ride Safety Score.
 - Non-neutral temporal motor-vehicle risk coefficients must pass the calibration/research gate before production scoring use.
@@ -35462,6 +35226,290 @@ DS-061 is satisfied when:
 - diagnostics are bounded and safe
 - RouteMap is smaller by responsibility, not merely by line count
 - route truth, scoring, ownership, RXON runtime, `route_cache`, `route_history`, and DB boundaries are preserved
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-062-hourly_temporal_exposure_and_per_pass_risk_spec.md
+
+# DS-062 — Hourly Temporal Exposure and Per-Pass Risk Specification
+
+Status: Draft for detached model-kernel review
+Date: 2026-06-18
+Parent ADR: ADR-057 — Hourly Temporal Motor-Vehicle Risk Model
+Related: ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-056, Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
+
+> Numbering note: this spec was originally imported as DS-058, which collided with the existing DS-058 Planned Ride Safety Score Contract. DS-061 is already committed for viewport-road runtime architecture, so the hourly temporal spec is renumbered to DS-062 in this consolidation pass.
+
+> Authority note: DS-062 is active for the detached hourly temporal model kernel only. It does not authorize ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score integration, planned-risk preview, UI, storage, or stable-truth writes.
+
+## 1. Purpose
+
+This specification defines the hour-level temporal model used by the detached temporal-risk model kernel.
+
+The model converts stable all-day road risk into planned-time risk by separating:
+
+- hourly vehicle exposure
+- normalized temporal per-pass risk
+
+This keeps the implementation simple and defensible:
+
+Timed motor-vehicle risk = stable motor-vehicle risk x hourly traffic factor x normalized temporal per-pass multiplier.
+
+Any later scenario adapter must prove that the stable motor-vehicle baseline is all-day AADT-neutral before applying the hourly traffic factor.
+
+## 2. Model Cohorts
+
+The v1 model has four cohorts:
+
+- Rural weekday
+- Urban weekday
+- Rural weekend
+- Urban weekend
+
+Each cohort has 24 rows, one for each local clock hour.
+
+Weekend follows the NHTSA definition:
+
+- Friday 18:00 through Monday 05:59
+- all other hours are weekday
+
+## 3. Source Inputs
+
+### 3.1 Fatality inputs
+
+Fatality inputs come from FARS 2022–2024 ACCIDENT and PBTYPE files.
+
+The workbook joins the files by year and ST_CASE, filters PBTYPE to:
+
+- Bicyclist
+- Other Pedalcyclist
+
+The raw joined sheet is included as `Raw Cyclist Records`.
+
+Because the supplied files do not include the FARS PERSON table, the raw table uses aggregate fatality calibration weights to reconcile to the validated 3,393 fatality total and to the validated cohort/time-block counts.
+
+### 3.2 Traffic inputs
+
+Traffic inputs come from NYSDOT 2022 Continuous Count data across all 11 regions.
+
+The workbook provides three traffic-share bases:
+
+- StationBalanced24h
+- ObservationWeighted24h
+- NHTSAPeriodVolume
+
+The default v1 model uses StationBalanced24h.
+
+### 3.3 Cyclist exposure input
+
+CyclistShare equals TrafficShare multiplied by CyclistExposureFactor.
+
+The default CyclistExposureFactor is 1.00.
+
+This means the model assumes cyclists are present at the same hourly share as traffic. The assumption is model-supporting and intentionally simple. Product or docs must not call any urban/rural fallback conservative unless that specific fallback choice has been tested for the chosen hour and factor.
+
+## 4. Required Data Structure
+
+The implementation should store a table equivalent to:
+
+- model_version
+- cohort_id
+- urbanicity
+- day_type
+- hour
+- hour_label
+- fatality_share
+- traffic_share
+- hourly_traffic_factor
+- cyclist_exposure_factor
+- cyclist_share
+- raw_per_pass_index
+- normalized_per_pass_multiplier
+- combined_hourly_factor
+- calibrated_fatality_count
+- raw_pedalcyclist_record_count
+- confidence
+
+The implementation may store this in TypeScript constants, JSON, or a database seed table. It must be versioned.
+
+## 5. Computation
+
+For each cohort and hour:
+
+TrafficShare = selected hourly NYSDOT traffic share.
+
+HourlyTrafficFactor = TrafficShare × 24.
+
+CyclistShare = TrafficShare × CyclistExposureFactor.
+
+ExposureProduct = TrafficShare × CyclistShare.
+
+RawPerPassIndex = FatalityShare ÷ ExposureProduct.
+
+NormalizationFactor = sum of ExposureProduct for the cohort across all 24 hours.
+
+NormalizedPerPassMultiplier = RawPerPassIndex × NormalizationFactor.
+
+CombinedHourlyFactor = HourlyTrafficFactor × NormalizedPerPassMultiplier.
+
+The exposure-weighted mean of NormalizedPerPassMultiplier must equal 1.00 for each cohort.
+
+## 6. Detached Kernel Contract
+
+Input:
+
+- route-local calendar date in `YYYY-MM-DD`
+- route-local hour as integer `0..23`
+- route-local minute as integer `0..59`
+- segment urbanicity classification, exactly `rural` or `urban`
+- explicit urbanicity fallback policy, if the caller approves one
+- model version
+
+The kernel must not accept an ambiguous timestamp as proof of route-local time. A future scenario adapter owns `RouteTimeBinding` plus `RidePlanScenarioContext.clockContext` to produce the route-local date/hour/minute passed to this kernel.
+
+Urbanicity behavior:
+
+- exact `rural` or `urban` selects the cohort
+- unknown urbanicity blocks by default
+- explicit fallback policies may be `route_majority`, `explicit_urban_proxy`, `explicit_rural_proxy`, or `max_combined_factor_for_hour`
+- every fallback emits `unknown_urbanicity` and `fallback_profile_used`
+- no fallback is described as conservative unless separately proven for the chosen hour/day/factor
+
+Application precondition:
+
+- applying factors to motor-vehicle risk requires `baselineTemporalBasis = all_day_aadt_neutral`
+- `legacy_time_adjusted` blocks to avoid stacking with legacy `traffic-time.ts`
+- `unknown` blocks until the baseline basis is resolved
+
+Output:
+
+- selected cohort/hour row
+- hourlyTrafficFactor
+- hourlyAADTEquivalent
+- normalizedPerPassMultiplier
+- temporalMotorVehicleRiskContribution
+- model-kernel receipt object
+- confidence metadata
+- deterministic warnings
+
+Runtime steps:
+
+1. Select cohort by urbanicity and NHTSA day type.
+2. Select hour from explicit route-local arrival hour.
+3. Read traffic share and normalized per-pass multiplier.
+4. Compute HourlyAADTEquivalent as stable AADT multiplied by HourlyTrafficFactor.
+5. Apply NormalizedPerPassMultiplier only to the motor-vehicle risk contribution.
+6. Emit receipt.
+
+The detached kernel must not claim to produce ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score, planned-risk preview, RidePlanScenarioView, RouteMap props, durable truth, or storage writes.
+
+## 7. Receipt Shape
+
+Each kernel output must include:
+
+- temporal_model_version
+- source_manifest
+- source_extract_sha256
+- cohort_id
+- local_calendar_date
+- local_arrival_hour
+- local_arrival_minute
+- nhtsa_day_type
+- urbanicity
+- urbanicity_fallback_policy, when used
+- baseline_temporal_basis, when applying factors
+- traffic_volume_time_adjustment, when applying factors
+- source_basis
+- traffic_proxy_geography
+- traffic_share_basis
+- hourly_traffic_share
+- hourly_traffic_factor
+- cyclist_exposure_factor
+- normalized_per_pass_multiplier
+- combined_hourly_factor
+- calibrated_fatality_count
+- raw_pedalcyclist_record_count
+- fatality_share
+- calibration_method
+- confidence
+- proxy_model_confidence
+- warnings
+- blockers, when unresolved
+
+Warnings should include:
+
+- sparse_fatality_cell
+- zero_fatality_cell
+- nysdot_proxy_not_national_ground_truth
+- cyclist_exposure_assumed_equal_to_traffic_share
+- unknown_urbanicity
+- fallback_profile_used
+- baseline_temporal_basis_unresolved
+- legacy_time_adjustment_detected
+- baseline_score_unchanged
+- modeled_relative_factor_not_absolute_probability
+
+## 8. Confidence
+
+The workbook uses count confidence:
+
+- high: calibrated fatality count >= 30
+- medium: calibrated fatality count >= 10 and < 30
+- low: calibrated fatality count > 0 and < 10
+- zero-count / sparse: no calibrated fatalities in that hour
+
+The product should surface low confidence as uncertainty, not as false precision. A zero-count cell means zero observed/calibrated fatalities in that source cell; it does not mean zero risk, safe, or low-risk by definition.
+
+## 9. Validation Rules
+
+Required tests:
+
+- every traffic curve has 24 hours
+- every traffic curve sums to 1.00
+- every cohort has 24 normalized multiplier values
+- every cohort's exposure-weighted normalized multiplier mean is 1.00
+- Friday 17:59 is weekday
+- Friday 18:00 is weekend
+- Monday 05:59 is weekend
+- Monday 06:00 is weekday
+- temporal model does not mutate Baseline Safety Score
+- temporal multiplier is applied only to motor-vehicle risk contribution
+- model reproduces the spreadsheet values for representative hours
+- three-hour rollups approximately match validation rows
+- source manifest/checksum matches generated constants
+- unknown urbanicity blocks without explicit fallback
+- explicit fallback emits warning and receipt
+- `legacy_time_adjusted` and `unknown` baseline temporal bases block factor application
+
+## 10. Non-Goals
+
+Do not implement:
+
+- day-of-week coefficients
+- rider-purpose weighting
+- recreational-only denominators
+- separate intoxication coefficients
+- separate fatigue coefficients
+- time-specific speed changes
+- dooring or intersection complexity time coefficients
+- absolute probability claims
+
+Those may be researched later, but they are not part of this implementation.
+
+## 11. Migration from Older Drafts
+
+Replace the earlier two-bell-curve model with the hourly version.
+
+Do not keep runtime three-hour night buckets.
+
+Do not use the older 1.60 or 2.10 nighttime factor constants.
+
+Do not use the earlier 60% cyclist-volume heuristic.
+
+Do not use the earlier 5.1% / 7.4% drafted nighttime traffic shares.
+
+The source of truth is the committed workbook, normalized 96-row extract, source manifest, and this DS. Production runtime must not parse XLSX.
 
 
 ---
@@ -46401,7 +46449,7 @@ The next implementation plan is exec-054. It must be planning-first and must not
 **Companion DS:** DS-057 — Temporal Traffic Volume and Nighttime Motor-Vehicle Risk Context Spec
 **Companion EXEC:** EXEC-055 — Temporal Traffic Volume and Nighttime Risk Context Implementation Plan
 
-> 2026-06-18 update: ADR-057 — Hourly Temporal Motor-Vehicle Risk Model supersedes this ADR for the runtime temporal-risk model. ADR-056 remains as lineage for the earlier split between traffic exposure and temporal motor-vehicle risk context, but the old two-profile traffic model, broad night buckets, and fixed 1.60 / 2.10 nighttime constants are not authoritative for implementation.
+> 2026-06-18 update: ADR-057 — Hourly Temporal Motor-Vehicle Risk Model and DS-062 supersede this ADR for the active detached temporal-risk model kernel. ADR-056 remains as lineage for the earlier split between traffic exposure and temporal motor-vehicle risk context, but the old two-profile traffic model, broad night buckets, and fixed 1.60 / 2.10 nighttime constants are not authoritative for runtime implementation.
 
 ---
 
@@ -46597,10 +46645,14 @@ Before production scoring use, Lanterne must have:
 
 # ADR-057 — Hourly Temporal Motor-Vehicle Risk Model
 
-Status: Proposed for implementation
+Status: Proposed; detached kernel ready for owner review
 Date: 2026-06-18
 Owner: Derek Minner
-Related: ADR-055, DS-056, DS-057 draft lineage, NYSDOT 2022 hourly traffic analysis, Lanterne Temporal Risk Model 2022–2024 Hourly workbook
+Related: ADR-055, DS-056, DS-057 draft lineage, DS-062, EXEC-056, NYSDOT 2022 hourly traffic analysis, Lanterne Temporal Risk Model 2022-2024 Hourly workbook
+
+Owner decision: pending_review
+
+Review recommendation: accept_hourly_model_architecture_and_kernel_only
 
 ## 1. Context
 
@@ -46617,7 +46669,7 @@ Earlier temporal drafts used a small number of broad traffic bell curves and bro
 
 ## 2. Decision
 
-Lanterne will use an hourly temporal motor-vehicle risk model for Planned Ride Safety.
+Lanterne should use an hourly temporal motor-vehicle risk model for the planned-ride temporal-risk architecture, beginning with a detached model kernel.
 
 The model uses four cohorts:
 
@@ -46635,9 +46687,9 @@ For each cohort, the model stores 24 hourly values for:
 - normalized per-pass temporal multiplier
 - combined hourly factor for diagnostics and explanation
 
-Runtime scoring uses the hour of arrival for each route slice.
+Runtime scoring integration is not authorized by this ADR while it remains Proposed. The current implementation may select and apply model-kernel factors only when called with explicit route-local calendar/hour/minute and an all-day AADT-neutral baseline precondition.
 
-The model remains scenario-only. It does not rewrite stable route truth and it does not mutate the Baseline Safety Score.
+The model remains detached from stable route truth. It does not rewrite stable route truth, mutate the Baseline Safety Score, write storage, fetch source data, or create scenario/scoring outputs by itself.
 
 ## 3. Core Formula
 
@@ -46661,7 +46713,7 @@ HourlyTrafficFactor = 24 × TrafficShare.
 
 CombinedHourlyFactor = HourlyTrafficFactor × NormalizedPerPassMultiplier.
 
-The production scoring path should use HourlyTrafficFactor to create the hourly AADT equivalent, then apply NormalizedPerPassMultiplier only to the motor-vehicle risk contribution.
+A future production scoring path may use HourlyTrafficFactor to create the hourly AADT equivalent, then apply NormalizedPerPassMultiplier only to the motor-vehicle risk contribution, after DS-058 planned-score gates and the exec-055 double-counting audit approve integration.
 
 ## 4. Why All-Day Normalization
 
@@ -46675,7 +46727,7 @@ All-day normalization keeps the model compatible with existing AADT-based traffi
 
 The model currently assumes cyclist hourly share equals traffic hourly share.
 
-This is intentionally conservative for night risk. Utrecht and other count-based evidence suggest cyclist volume drops more sharply than motor traffic away from peak periods. If true, the v1 assumption overstates nighttime cyclist exposure and understates the inferred individual nighttime risk.
+This is a simplified v1 exposure assumption. Utrecht and other count-based evidence suggest cyclist volume may drop more sharply than motor traffic away from peak periods. If true, the v1 assumption overstates nighttime cyclist exposure and understates inferred individual nighttime risk, but that does not make every fallback policy conservative.
 
 A future model may replace CyclistExposureFactor with an empirical cyclist exposure curve, but v1 will not invent that curve.
 
@@ -46698,18 +46750,20 @@ NYSDOT traffic curves are used as a lower-48 proxy because New York contains ver
 
 This is not a claim that New York exactly represents every U.S. roadway. It is a practical and reproducible proxy.
 
-## 8. Runtime Application
+## 8. Detached Kernel Application
 
-For every route slice with estimated arrival time:
+For every kernel call:
 
-1. Determine local hour.
-2. Determine NHTSA weekday/weekend using the ride date and local time.
-3. Determine rural/urban profile from segment context.
+1. Receive route-local calendar date, hour, and minute from an authorized future scenario adapter.
+2. Determine NHTSA weekday/weekend using those explicit route-local calendar values.
+3. Determine rural/urban profile from segment context or block until an explicit fallback policy is supplied.
 4. Read the cohort-hour traffic share and normalized per-pass multiplier.
-5. Convert steady-state AADT to hourly AADT equivalent using HourlyTrafficFactor.
-6. Recompute or adjust the motor-vehicle traffic exposure term.
+5. Convert steady-state AADT to hourly AADT equivalent using HourlyTrafficFactor only when the input baseline declares `baselineTemporalBasis = all_day_aadt_neutral`.
+6. Block `legacy_time_adjusted` or `unknown` baseline temporal basis to prevent double-counting legacy `traffic-time.ts`.
 7. Apply NormalizedPerPassMultiplier to the motor-vehicle risk contribution only.
-8. Emit a receipt showing traffic factor, temporal multiplier, cohort, hour, and model version.
+8. Emit a receipt showing traffic factor, temporal multiplier, cohort, hour, source manifest, calibrated fatality count, raw record count, warnings, and model version.
+
+The kernel does not infer timezone, read browser-local time, treat `Z` timestamps as local wall time, or own DST/route-crossing-timezone policy. A future scenario adapter owns `RouteTimeBinding` and `RidePlanScenarioContext.clockContext`.
 
 ## 9. Non-Goals
 
@@ -46721,6 +46775,7 @@ This ADR does not:
 - infer actual intoxication, fatigue, or driver behavior for a specific road user
 - use individual day-of-week coefficients in v1
 - replace the Baseline Safety Score
+- authorize ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score, planned-risk preview, UI, storage, or stable-truth writes
 
 ## 10. Consequences
 
@@ -46736,20 +46791,26 @@ Tradeoffs:
 
 - rural overnight hours can still be sparse and require confidence metadata
 - New York traffic curves are a proxy, not national ground truth
-- cyclist exposure remains conservative and simplified
+- cyclist exposure remains simplified and may understate individual night risk if actual cyclist exposure falls faster than motor traffic
 - raw multipliers can look large and require careful product explanation
 
 ## 11. Acceptance
 
-The implementation is accepted when:
+The architecture and detached kernel may be accepted when:
 
 - four 24-hour traffic curves are available
 - four 24-hour normalized per-pass multiplier curves are available
 - all cohort curves normalize to an all-day exposure-weighted mean of 1.00
 - runtime uses hourly values, not three-hour buckets
 - three-hour rollups remain available for validation only
-- Planned Ride Safety uses the temporal model without mutating Baseline Safety Score
-- every scenario result contains a receipt with cohort, hour, traffic factor, multiplier, source version, and confidence
+- the workbook, normalized 96-row extract, source manifest, and drift verifier are committed
+- the detached kernel takes explicit route-local calendar/hour/minute rather than ambiguous timestamp strings
+- unknown urbanicity blocks unless an explicit fallback policy is supplied
+- factor application blocks unless the baseline temporal basis is `all_day_aadt_neutral`
+- the kernel does not mutate Baseline Safety Score
+- every kernel result contains a receipt with cohort, hour, traffic factor, multiplier, source version, calibrated counts, raw counts, confidence, warnings, and blockers where unresolved
+
+Scenario projection, scoring, UI, and production integration remain separate future decisions.
 
 
 ---

@@ -56693,9 +56693,9 @@ The accepted first implementation slice stops before scenario view construction.
 
 **Status:** Draft execution plan
 **Date:** 2026-06-17
-**Related:** ADR-056, DS-057, ADR-055, DS-056, EXEC-054, DS-015, DS-031, ADR-045
+**Related:** ADR-056, ADR-057, DS-057, DS-062, ADR-055, DS-056, EXEC-054, EXEC-056, DS-015, DS-031, ADR-045
 
-> 2026-06-18 update: EXEC-056 — Hourly Temporal Risk Model Implementation Plan supersedes this execution plan for the active temporal-risk implementation path. EXEC-055 remains historical context for guardrails and the earlier POC sequencing.
+> 2026-06-18 update: EXEC-056 — Hourly Temporal Risk Model Implementation Plan supersedes this execution plan's two-profile implementation phases for the active temporal-risk implementation path. EXEC-055 remains historical context for guardrails and remains authoritative for the Phase 6 double-counting audit requirement until that audit is completed.
 
 ---
 
@@ -56996,8 +56996,7 @@ Required fixtures:
 
 Proceed to temporal projection or planned-risk implementation only when:
 
-- DS-057 is accepted.
-- ADR-056 is accepted or revised where non-neutral temporal-risk runtime is requested.
+- DS-062 and ADR-057 are accepted or revised for the active hourly model architecture/kernel where non-neutral temporal-risk runtime is requested.
 - exec-054 Phase 7 readiness criteria are satisfied or explicitly updated for the exact requested slice.
 - exec-055 Phase 6 - Double-Counting Audit is complete where planned-risk preview or planned-score integration is requested.
 - the planned score contract says whether this is a preview or a Planned Ride Safety Score.
@@ -57008,7 +57007,7 @@ exec-054 Phase 7 authorizes an exact implementation slice. It does not approve a
 
 Current sequencing constraints:
 
-- Non-neutral temporal-risk runtime requires ADR-056 accepted or revised.
+- Non-neutral temporal-risk runtime requires ADR-057 / DS-062 accepted or revised for hourly model authority.
 - Traffic projection runtime remains outside the exec-054 Phase 7 authorization.
 - Planned-risk preview requires exec-055 Phase 6 - Double-Counting Audit.
 - Scenario sweeps require a successful single-scenario runtime and measured browser/device budgets.
@@ -57059,209 +57058,192 @@ That fuller slice waits for a later gate and is not authorized by exec-054 Phase
 
 # EXEC-056 — Hourly Temporal Risk Model Implementation Plan
 
-Status: Draft execution plan
+Status: Draft execution plan; Phase 0 and detached-kernel hardening ready for architecture review
 Date: 2026-06-18
-Related: ADR-057, DS-058, ADR-055, DS-056
-Primary artifact: Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
+Related: ADR-057, DS-062, ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, EXEC-055
+Primary artifact: docs/04-execution/reports/source-data/temporal-risk/Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
 
 ## 1. Objective
 
-Replace the earlier broad temporal model with an hourly temporal motor-vehicle risk model inside the ride-plan scenario engine.
+Replace the earlier broad temporal model with an hourly temporal motor-vehicle risk model, but only as a detached model kernel until architecture review accepts the next gate.
 
-The implementation must preserve the stable Baseline Safety Score and apply temporal risk only in Planned Ride Safety.
+This plan does not authorize ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score integration, planned-risk preview, UI, storage, Supabase, migrations, stable-truth writes, or legacy `traffic-time.ts` changes.
 
 ## 2. Inputs
 
 Required static inputs:
 
-- 96 hourly NYSDOT traffic shares
-- 96 normalized FARS-derived per-pass temporal multipliers
-- 96 confidence labels
+- original workbook artifact
+- normalized machine-readable 96-row extract
+- source manifest with workbook and extract checksums
+- deterministic source drift verifier
 - model version
 - source metadata
 
-Required runtime inputs:
+Required kernel inputs:
 
-- route segment stable motor-vehicle risk contribution
-- stable AADT or same-direction AADT estimate
-- planned arrival local time
-- planned arrival date
-- segment rural/urban classification
-- scenario id
+- route-local calendar date in `YYYY-MM-DD`
+- route-local hour as integer `0..23`
+- route-local minute as integer `0..59`
+- segment rural/urban classification, or explicit fallback policy
+- stable AADT or same-direction AADT estimate, only for application helpers
+- stable motor-vehicle risk contribution, only for application helpers
+- baseline temporal basis, only for application helpers
+
+The future scenario adapter owns `RouteTimeBinding` plus `RidePlanScenarioContext.clockContext` and must convert estimated instants into approved route-local calendar/hour/minute before calling this kernel.
 
 ## 3. Implementation Phases
 
-### Phase 1 — Data constants
+### Phase 0 — Source Artifact And Reproducibility Freeze
 
-Create a versioned temporal model data file.
+Status: implemented for review.
 
-Suggested name:
+Deliverables:
 
-`src/domain/temporalRisk/hourlyTemporalRiskV1.ts`
+- committed workbook under `docs/04-execution/reports/source-data/temporal-risk/`
+- normalized 96-row JSON extract
+- source manifest with workbook SHA-256 and extract SHA-256
+- verifier command:
+  `node scripts/temporal-risk/verify-hourly-temporal-risk-v1.mjs --check`
 
-It should export:
+Production runtime must not parse XLSX. The committed TypeScript constants are generated from the normalized workbook extract and carry the source manifest/checksum header.
 
-- modelVersion
-- trafficShareBasis
-- cyclistExposureFactor
-- hourlyProfiles
-- source metadata
-- validation metadata
+### Phase 1 — Detached Hourly Model Kernel
 
-Each hourly profile row should include:
+Status: implemented for review.
 
-- cohortId
-- urbanicity
-- dayType
-- hour
-- trafficShare
-- hourlyTrafficFactor
-- normalizedPerPassMultiplier
-- combinedHourlyFactor
-- fatalityShare
-- fatalityCount
+The kernel may produce:
+
+- selected cohort/hour row
+- hourly traffic factor
+- modeled hourly AADT equivalent
+- normalized per-pass multiplier
+- combined diagnostic factor
+- modeled motor-vehicle temporal contribution
+- model-kernel receipt
 - confidence
+- warnings and blockers
 
-### Phase 2 — Cohort selection
+The kernel must not produce:
 
-Implement a cohort selector.
+- ScenarioTrafficProjection
+- ScenarioTemporalMotorVehicleRiskProjection
+- Planned Ride Safety Score
+- planned-risk preview
+- RidePlanScenarioView
+- RouteMap props
+- durable truth
+
+### Phase 2 — Cohort Selection And Confidence Hardening
+
+Status: implemented for detached kernel review.
 
 Rules:
 
-- Use segment urbanicity if available.
-- If segment urbanicity is missing, fall back to route-level majority urbanicity.
-- If still unknown, use urban as a conservative default and emit a warning.
-- Use NHTSA weekday/weekend boundaries.
-- Use local planned arrival hour.
+- exact `rural` or `urban` selects a cohort
+- unknown urbanicity blocks by default
+- explicit fallback policies are `route_majority`, `explicit_urban_proxy`, `explicit_rural_proxy`, and `max_combined_factor_for_hour`
+- fallback always emits `unknown_urbanicity` and `fallback_profile_used`
+- no fallback is called conservative unless tested for the chosen hour/day/factor
+- sparse and zero-count cells carry uncertainty warnings
+- zero observed/calibrated fatalities never means safe or zero risk
 
-Acceptance:
+### Phase 3 — Scenario Projection Contract / Readiness Gate
 
-- Friday 18:00 selects weekend.
-- Monday 05:59 selects weekend.
-- Monday 06:00 selects weekday.
-- Rural and urban segments select different profiles.
+Status: not implemented.
 
-### Phase 3 — Adapter into scenario engine
+Before any scenario projection exists, a separate authorization must define:
 
-Add a temporal-risk adapter to Planned Ride Safety.
+- scenarioId ownership
+- scenarioContextDigest, routeTransformDigest, and routeTimeBindingDigest inclusion rules
+- canonical/scenario coverage
+- no-write/no-leak receipts
+- unresolved/blocking behavior
 
-Do not touch Baseline Safety Score.
+### Phase 4 — Headless Temporal Scenario Projection
 
-Adapter responsibilities:
+Status: not implemented.
 
-- get arrival hour for each segment
-- select temporal cohort
-- fetch hourly traffic factor
-- compute hourly AADT equivalent
-- fetch normalized per-pass multiplier
-- apply multiplier to motor-vehicle risk contribution
-- write scenario receipt
+This phase may begin only after Phase 3 is accepted. It must remain headless and must not touch RouteMap, cue sheets, presentation, storage, or scoring.
 
-### Phase 4 — Model receipts
+### Phase 5 — EXEC-055 Double-Counting Audit
 
-Every affected segment or aggregated scenario result should expose:
+Status: not complete.
+
+The detached kernel now blocks factor application unless `baselineTemporalBasis = all_day_aadt_neutral`.
+
+This fail-closed precondition does not complete the exec-055 Phase 6 double-counting audit. The audit must still prove that legacy `traffic-time.ts` and any future planned-risk integration apply exactly one traffic-volume time adjustment.
+
+### Phase 6 — Planned-Risk Integration Gate
+
+Status: not implemented.
+
+Planned-risk or Planned Ride Safety integration requires:
+
+- DS-058 planned-score contract review
+- exec-055 double-counting audit completion
+- explicit decision whether output is preview-only or official score
+- proof that Baseline Safety Score and stable route truth remain unchanged
+- receipts showing where the one traffic-volume time adjustment was applied
+
+### Phase 7 — Presentation
+
+Status: not implemented.
+
+Presentation requires separate UI authorization after the headless projection and planned-risk gates. Avoid showing large raw multipliers without context, and label the model as relative and modeled-unvalidated.
+
+## 4. Receipt And Warning Requirements
+
+Receipts must include:
 
 - model version
-- local hour
-- cohort
-- traffic share
+- source manifest and normalized extract checksum
+- route-local calendar/hour/minute
+- NHTSA day type
+- cohort and urbanicity
+- fallback policy, when used
+- baseline temporal basis, when applying factors
+- source basis and calibration method
+- traffic proxy geography and traffic share basis
 - hourly traffic factor
 - normalized per-pass multiplier
-- combined hourly factor
-- confidence
-- warnings
-- source note
+- combined diagnostic factor
+- calibrated fatality count
+- raw pedalcyclist record count
+- confidence and proxy/model confidence
+- deterministic warnings
+- blockers where unresolved
 
-Receipts should make it clear that the model is relative, not absolute probability.
+Warnings include:
 
-### Phase 5 — Tests
-
-Add unit tests for:
-
-- weekend boundary logic
-- all traffic curves sum to 1.00
-- all normalized multiplier curves have exposure-weighted mean 1.00
-- missing planned time leaves Baseline Safety unchanged
-- unknown urbanicity emits warning
-- sparse cells carry low confidence
-- multiplier applies only to motor-vehicle risk
-- three representative hours match the workbook
-
-Add integration tests for:
-
-- same route at 10 AM versus 10 PM
-- same rural segment weekday versus weekend
-- same urban segment midnight weekend versus weekday
-- no mutation of route truth or Baseline Safety Score
-
-### Phase 6 — UI / explanation
-
-Add rider-facing explanation in Planned Ride Safety:
-
-- "This section is timed for 22:00."
-- "Traffic is lower than the average hour, but fatality concentration is higher than expected for that exposure."
-- "Temporal confidence is low/medium/high."
-
-Avoid showing giant raw per-pass multipliers without context.
-
-Prefer showing:
-
-- traffic factor
-- planned-time risk factor
-- confidence
-- plain-language note
-
-### Phase 7 — Documentation update
-
-Update internal docs:
-
-- ADR index
-- DS index
-- scenario engine docs
-- temporal model docs
-- source inventory
-- model version registry
-
-Add the public explainer as a product-methodology draft.
-
-## 4. Acceptance Criteria
-
-Implementation is complete when:
-
-- hourly model data is loaded from versioned constants or seeded data
-- Planned Ride Safety uses hourly traffic and normalized per-pass multipliers
-- Baseline Safety Score remains unchanged
-- 96 hourly model cells are available
-- all tests pass
-- receipts are visible in debug/admin inspection
-- public explanation avoids false precision
-- the old two-bell-curve temporal implementation is removed or disabled
+- sparse_fatality_cell
+- zero_fatality_cell
+- nysdot_proxy_not_national_ground_truth
+- cyclist_exposure_assumed_equal_to_traffic_share
+- unknown_urbanicity
+- fallback_profile_used
+- baseline_temporal_basis_unresolved
+- legacy_time_adjustment_detected
+- baseline_score_unchanged
+- modeled_relative_factor_not_absolute_probability
 
 ## 5. Rollback
 
-A feature flag must allow disabling temporal multipliers while preserving hourly traffic exposure.
-
-Suggested flag:
-
-`ENABLE_HOURLY_TEMPORAL_RISK_V1`
-
-If disabled:
-
-- planned route still uses baseline traffic exposure
-- temporal receipts show disabled state
-- no Baseline Safety mutation occurs
+A future feature flag may disable temporal multipliers while preserving neutral baseline behavior. That flag is deferred until scenario integration exists.
 
 ## 6. Guardrails
 
 Do not:
 
 - apply the multiplier to the whole route score
-- multiply remoteness, surface, or fatigue
+- multiply remoteness, surface, fatigue, or non-motor risks
 - hardcode weekend as Saturday/Sunday only
 - use three-hour buckets in runtime
 - hide sparse confidence
 - present the model as a crash probability
 - overwrite route-indexed stable evidence
+- parse XLSX in production runtime
+- infer browser-local timezone in the kernel
 
 
 ---
