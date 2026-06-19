@@ -57115,7 +57115,7 @@ Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-
 Phase 3 owner decision: approve_headless_hourly_temporal_projection_with_prepared_inputs_only, Derek Minner, 2026-06-19
 Authorized Phase 4 capability: headless_hourly_temporal_scenario_projection
 Authorized Phase 4 scope: prepared_inputs_projection_only
-Next required gate: Decide whether to authorize a bounded headless road temporal-adaptation proof using canonical DS-015 seams, mirror-baseline parity, explicit crossing blockers, and no preview, rollup, normalization, UI, or production behavior.
+Next required gate: Design and validate the chunked worker execution seam plus route-time-zone and explicit stop-schedule contracts before any temporal road-component runtime authorization.
 
 ## 1. Objective
 
@@ -57363,7 +57363,87 @@ Phase 6A is a completed contract-only gate. It does not authorize implementation
 
 ### Phase 6B — Headless Motor-Vehicle Temporal Component Adaptation Runtime
 
-Status: blocked; not implemented; not authorized.
+Status: deferred after long-route readiness evidence; computational shape appears plausible, but chunked-worker runtime, browser/mobile scale, multi-time-zone correctness, and multi-day stop-schedule correctness remain unproven.
+
+Readiness report:
+
+```text
+docs/04-execution/reports/exec-056-phase-6b-road-temporal-adaptation-readiness.md
+```
+
+Owner decision:
+
+```text
+defer_until_4000_mile_scale_timezone_and_stop_schedule_gate
+```
+
+Decision by: Derek Minner.
+
+Decision date: 2026-06-19.
+
+Authorized capability:
+
+```text
+long_route_temporal_scale_readiness_evidence
+```
+
+Authorized scope:
+
+```text
+test_and_contract_evidence_only_no_runtime
+```
+
+Recommended owner decision from current readiness evidence:
+
+```text
+defer_until_4000_mile_scale_timezone_and_stop_schedule_gate
+```
+
+No Phase 6B runtime capability is authorized. A future runtime capability remains blocked until the scale, timezone, stop-schedule, and browser/mobile gates pass.
+
+Superseded earlier candidate capability:
+
+```text
+bounded_headless_road_temporal_adaptation_proof
+```
+
+Superseded earlier candidate scope:
+
+```text
+road_components_only_canonical_ds015_explicit_crossing_blockers_no_rollup_no_score
+```
+
+Current readiness findings:
+
+- canonical road reuse: `computeSegmentRisk` is sufficient as the initial canonical reuse seam for a bounded road-only proof
+- mirror-baseline parity: proven by direct `computeSegmentRisk` calls across ordinary, curved, shoulder, bike-facility, safe-path, AADT, and speed fixtures
+- prepared road input: minimal first-slice `PreparedRoadTemporalAdaptationSpan` contract defined in the readiness report
+- first-slice traffic basis: only `total_two_way_aadt` with `baselineTemporalBasis = all_day_aadt_neutral`, finite non-negative AADT, explicit known total lanes, and canonical DS-015 total-AADT path
+- temporal recompute: scenario `hourlyAADTEquivalent` recomputes canonical DS-015 traffic behavior rather than multiplying existing risk
+- harm-context placement: `normalizedPerPassMultiplier` is proven as `motorVehicleHarmContextMultiplier` applied exactly once after canonical local road risk
+- synthetic 4,000-mile boundary evidence: complete as deterministic Node/Vitest proxy evidence
+- computational shape finding: tens of thousands of intervals appears tractable with linear chunked worker processing
+- production scale finding: unproven
+- current budget evidence: insufficient for the 4,000-mile product target
+- current caps: `4096` component intervals, `8192` ledger entries, `4096` receipt references, and `1.5 MB` serialized bytes are provisional only and not authorized as whole-route product caps
+- measured route-scale proxy: fixed-timezone synthetic 4,000-mile fixtures can exceed `4096` valid intervals and require chunking
+- chunked worker architecture: contract required before runtime authorization; peak work must be bounded by chunk size, not total route length
+- fixedTimezone4000MileRuntimeScale: unproven pending real browser/mobile evidence and real route-scale semantic-boundary evidence
+- multiTimezone4000MileCorrectness: blocked pending route-distance-indexed `RouteTimeZoneSpan` architecture
+- multiDayStopScheduleCorrectness: blocked pending explicit route-distance-indexed stop events and downstream arrival-time discontinuity tests
+- browserDesktopScale, mobileChromiumScale, and mobileSafariScale: unproven
+- crossing blocker: crossings remain blocked by missing candidate-universe digest and canonical route-axis location; complete component runtime remains blocked
+
+Do not authorize `approve_bounded_headless_road_temporal_adaptation_proof` until the 4,000-mile fixed-timezone scale gate, chunk-size invariant semantics, cancellation behavior, browser/mobile evidence, timezone correctness blockers, and stop-schedule correctness blockers are resolved or explicitly accepted.
+
+Multi-day stop/sleep correctness blocker:
+
+- constant elapsed speed may remain a coarse `smoothed_elapsed_pace` mode
+- it must not claim exact multi-day arrival-hour correctness
+- exact multi-day temporal planning requires explicit stop events by route distance
+- an eight-hour sleep stop at mile `700` must shift every downstream arrival time by eight hours at that route position
+- off-bike time must not be smeared gradually across upstream route distance
+- changing a stop duration must change the downstream `RouteTimeBinding` digest and temporal projections
 
 A future Phase 6B implementation requires a separate implementation authorization. If authorized, it may consume only:
 
@@ -57385,15 +57465,24 @@ It must stop before route rollup, planned-risk preview, Planned Ride Safety Scor
 Current implementation blockers:
 
 - prepared stable road component bundle does not yet exist
-- safe canonical road component reuse seam and parity tests are not yet approved for temporal adaptation
-- component interval/receipt/output budgets are not yet measured or approved
+- 4,000-mile fixed-timezone scale is unproven for real route density and real browser/mobile execution
+- multi-timezone route-local temporal correctness is blocked
+- explicit multi-day stop/sleep schedule correctness is blocked
+- chunked worker runtime is not implemented or authorized
+- component interval/receipt/output budgets are provisional per-chunk candidates only and are not approved as whole-route caps
 - crossing candidate universe is not route-indexed as a stable prepared input
 - crossing events lack canonical route location and route-axis identity in current score input/trace shapes
 - crossing traffic/lane/AADT basis and baseline temporal basis are not explicit enough for planned recompute
 - baseline-filtered crossing conflicts cannot be the future scenario candidate universe
 - at least one existing scoring adapter can supply an empty crossing conflict list, so adapter evidence cannot imply crossing completeness
 
-Phase 6B remains blocked until a separate gate authorizes a bounded headless road temporal-adaptation proof using canonical DS-015 seams, mirror-baseline parity, explicit crossing blockers, and approved budgets. Crossing runtime, complete component runtime, planned-risk preview, score rollup, normalized score, presentation, and production remain blocked.
+Next required step:
+
+```text
+Design and validate the chunked worker execution seam plus route-time-zone and explicit stop-schedule contracts before any temporal road-component runtime authorization.
+```
+
+Phase 6B remains deferred. Crossing runtime, complete component runtime, planned-risk preview, score rollup, normalized score, presentation, and production remain blocked.
 
 ### Phase 6C — Planned-Risk Preview / Planned Ride Safety Integration Gate
 
