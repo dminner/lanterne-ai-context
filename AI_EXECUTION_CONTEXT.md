@@ -57266,6 +57266,784 @@ Do not:
 
 ---
 
+## Source File: docs/04-execution/exec-056-viewport_overlay_runtime_and_routemap_strangler_plan.md
+
+# EXEC-056 - Viewport Overlay Runtime and RouteMap Strangler Plan
+
+**Status:** Draft Execution Spec
+**Date:** 2026-06-18
+**Owner:** Derek Minner
+**Related:** ADR-057, DS-061, ASS-031, DS-018, DS-031, DS-032, DS-035, DS-052, ADR-047, ADR-052
+
+**Diagram:** [DS-061 Viewport Road Runtime Architecture Diagram](../02-architecture/design/ds-061-viewport_road_runtime_architecture_diagram.md)
+
+---
+
+## 1. Purpose
+
+Implement ADR-057 and DS-061 as a safe strangler migration.
+
+The program moves viewport-road hydration, cache/source orchestration, overlay data selection, render diffing, layer ownership, and interaction arbitration out of RouteMap without changing route truth, scoring, ownership, RXON runtime loading, `route_cache`, `route_history`, database schema, or renderer technology prematurely.
+
+---
+
+## 2. Program Non-Goals
+
+Do not:
+
+- rewrite RouteMap
+- refactor the inspector
+- change Safety Score
+- change ownership resolver behavior
+- change HPMS/DOT/OSM evidence selection
+- change route-indexed evidence truth
+- enable RXON runtime loading
+- change `route_cache`
+- change `route_history` reload
+- add database writes
+- add migrations
+- workerize before the measurement gate
+- change renderer before the renderer gate
+- hide lifecycle issues with arbitrary delays
+- move full viewport road universes into React state
+
+---
+
+## 3. Required Regression Gates
+
+Every implementation slice must preserve or add gates for:
+
+- 20 speed-overlay toggles produce zero net growth in layers, handlers, listeners, timers, animation frames, and pending requests.
+- 20 bike-overlay toggles with nonzero fixture roads meet the same gate.
+- Re-enabling either overlay is visually and functionally equivalent to first enablement.
+- Panning repeatedly causes overlay coverage to follow completed viewport movement.
+- Superseded requests cannot commit.
+- Disabling an overlay releases its renderer cost.
+- Speed and bike overlays do not independently fetch/process the same viewport universe unnecessarily.
+- Full road arrays do not enter React state.
+- Routine updates do not clear and rebuild the entire road layer.
+- Road selection is deterministic under all overlay combinations.
+- Route risk paint, scoring, ownership, and route inspection truth remain unchanged.
+- Hard refresh is no longer required to restore correctness.
+- Cache-hit improvements are reported separately from render/apply improvements.
+- Worker and renderer decisions are backed by nonzero-road measurements.
+
+---
+
+## 4. Implementation Operating Process
+
+This program is not a series of tactical patches. Every slice must follow the same operating process so RouteMap responsibilities are removed deliberately and measurement quality improves as the code moves.
+
+1. Start with the documented phase objective and identify the owner that will receive the migrated responsibility.
+2. Keep RouteMap changes to wiring, compact props, and removal of dead local ownership. Do not use a phase as cover for unrelated cleanup.
+3. Move one ownership boundary at a time: source selection, hydration scheduling, overlay lifecycle, render diffing, interaction arbitration, or cleanup.
+4. Preserve current route truth, scoring, ownership resolution, route-indexed evidence, RXON runtime loading posture, `route_cache`, `route_history`, DB schema, and persistence behavior.
+5. Add a deterministic test or harness gate before claiming performance or lifecycle improvement.
+6. Keep cache acquisition metrics separate from renderer/apply metrics. A warm cache win is not proof that rendering is fixed.
+7. Keep full viewport road universes outside React state as a target boundary; interim adapters must make remaining large-array state explicit.
+8. Give every Leaflet layer, listener, timer, request, hitbox, and render registry one owner. Ownership transfer is complete only when RouteMap no longer holds the corresponding ref/effect/render key.
+9. Replace routine clear-and-rebuild paths with stable-key diffs before calling an overlay extracted.
+10. Add focused tests for the moved owner and run the phase regression gates that cover the touched surface.
+11. Report residual RouteMap lint/test debt separately from new slice failures.
+12. Do not skip Phase 0 evidence. Later extraction work may proceed only with an explicit note that benchmark coverage is still catching up.
+
+Required slice report:
+
+- phase and owner changed
+- RouteMap responsibilities removed
+- production behavior intentionally changed, if any
+- fixtures/harnesses used
+- cache/source timing separated from render/apply timing
+- layer/listener/timer/request growth result
+- tests and checks run
+- forbidden systems untouched confirmation
+
+Current sequencing note:
+
+- Speed and bike overlay controller extraction may exist ahead of completed Phase 0 because the interaction freeze work exposed immediate lifecycle ownership problems. Phase 0 remains mandatory before accepting renderer, worker, or production performance conclusions.
+
+---
+
+## 5. Phase 0 - Deterministic Benchmark and Fixture Repair
+
+Objective:
+
+- Create deterministic nonzero-road performance fixtures before accepting any overlay performance conclusion.
+
+Architectural boundary established:
+
+- Measurement separates route load, cache/source, runtime compute, renderer apply, React render, layer/listener lifecycle, and interaction arbitration.
+
+Expected files/modules touched:
+
+- test fixtures under existing fixture/test locations
+- viewport diagnostic harness files
+- no production runtime behavior unless diagnostics require a gated hook
+
+Logic removed from RouteMap:
+
+- none
+
+Tests:
+
+- small sparse fixture
+- dense urban fixture
+- bike-infrastructure-heavy fixture
+- mixed speed-plus-bike fixture
+- no-network lifecycle tests
+
+Initial Phase 0 artifact requirements:
+
+- Add deterministic fixture factories for small sparse, dense urban, bike-heavy, and mixed speed-plus-bike viewport-road universes.
+- Add a no-network lifecycle benchmark harness that records source counts, render object counts, path counts, interactive path counts, listener counts, timers, animation frames, pending requests, and pan/toggle coverage.
+- Run every baseline in cold-bbox and warm-road-cache modes and report those source metrics separately from render/apply metrics.
+- Reject empty or zero-render-road runs explicitly; zero-road baselines cannot prove renderer behavior.
+- Keep the harness deterministic and unit-testable. Live browser timings may be layered on later, but Phase 0 must not depend on network, Supabase auth, admin-only golden harness access, or cache state.
+
+Telemetry:
+
+- layer count
+- interactive layer count
+- listener count
+- timer count
+- request count
+- React renders
+- long tasks
+- memory trend
+- path/render object count
+- pan timing
+- toggle timing
+- click success
+
+Acceptance gate:
+
+- at least one deterministic route produces nonzero viewport-road hydration
+- no zero-road benchmark is accepted as proof of overlay renderer performance
+- baseline artifacts are recorded for cold cache and warm cache
+
+Rollback:
+
+- remove fixtures/harness additions only; no runtime cutover exists
+
+Explicit non-goals:
+
+- no worker
+- no renderer migration
+- no RouteMap extraction
+- no scoring or route truth change
+
+Stop conditions:
+
+- fixture cannot produce nonzero roads
+- diagnostics cannot separate cache/source from renderer timing
+
+---
+
+## 6. Phase 1 - Establish the Viewport Runtime Boundary
+
+Objective:
+
+- Create the runtime/controller boundary outside RouteMap and move runtime state ownership behind it.
+
+Architectural boundary established:
+
+- `ViewportRoadRuntime` owns generation state, request state, bounds/zoom policy, retention windows, budgets, coverage, and feature registry.
+
+Expected files/modules touched:
+
+- new `src/lib/viewport-runtime/*` or equivalent runtime module
+- `src/hooks/useViewportRoadHydration.ts` transitional adapter
+- `src/components/RouteMap.tsx` wiring only
+- focused runtime tests
+
+Logic removed from RouteMap:
+
+- viewport generation state
+- viewport road universe state
+- request in-flight state
+- retained/covered window state
+- broad overlay data counters where migrated
+
+Tests:
+
+- runtime generation lifecycle
+- compact React snapshot shape
+- request state ownership
+- no full road arrays in React state
+- no duplicate viewport listener
+
+Telemetry:
+
+- generation ID
+- active profile set
+- retained feature count
+- coverage state
+- RouteMap render count
+
+Acceptance gate:
+
+- equivalent data output to current behavior
+- compact React snapshot adapter exists
+- no scoring or route-paint change
+- no duplicate viewport scheduler/listener
+- request lifecycle tests pass
+
+Rollback:
+
+- RouteMap uses old hydration hook directly
+
+Explicit non-goals:
+
+- no speed/bike render diff yet
+- no worker
+- no renderer change
+
+Stop conditions:
+
+- route paint changes
+- full road arrays still flow through React state as the primary runtime store
+- runtime cannot preserve current overlay output
+
+---
+
+## 7. Phase 2 - Cancellation and Cache Integration
+
+Objective:
+
+- Make viewport hydration abortable/generation-safe and connect cache/source receipts to coverage semantics.
+
+Architectural boundary established:
+
+- Cache/source adapters feed the runtime. Coverage is based on receipts, not request initiation.
+
+Expected files/modules touched:
+
+- `ViewportHydrationScheduler`
+- `ViewportRoadCacheGateway`
+- `src/lib/route-load/viewportRoadContext.ts` adapter boundary
+- `src/lib/profile-tile-cache.ts` read metrics only where needed
+- runtime tests
+
+Logic removed from RouteMap:
+
+- in-flight guard ownership
+- queued-latest bounds ownership
+- coverage interpretation
+- cache/source summary interpretation for overlay runtime
+
+Tests:
+
+- abortable generation
+- latest-bounds coalescing
+- stale result rejection
+- cleanup in finally
+- partial/empty/failure coverage distinctions
+- purge-before-merge
+- warm cache vs cold cache metrics
+
+Telemetry:
+
+- cache hit/miss/stale/invalid counts
+- owned fallback count
+- cache duration
+- source duration
+- cancelled request count
+- stale rejection count
+- coverage state
+
+Acceptance gate:
+
+- superseded requests cancel or terminate safely
+- old results never overwrite current bounds
+- pan-follow works across multiple windows
+- warm cache behavior is measurably better than cold acquisition
+- hard refresh no longer changes correctness
+- ambiguous zero-road results do not mark authoritative coverage
+
+Rollback:
+
+- keep request-ID stale guards and disable abort path
+
+Explicit non-goals:
+
+- no shared-cache browser writes
+- no `bike_infra_v1` materialization unless included as a separate subphase
+- no renderer changes
+
+Stop conditions:
+
+- old generation commits
+- busy flag remains stuck
+- coverage advances on request start alone
+
+---
+
+## 8. Phase 3 - Extract Speed Overlay Ownership
+
+Objective:
+
+- Create a complete speed overlay controller that owns style, selection exposure, renderer lifecycle, diff application, cleanup, and metrics.
+
+Architectural boundary established:
+
+- Speed overlay visual paint no longer owns clicks directly and no longer rebuilds the whole layer during routine updates.
+
+Expected files/modules touched:
+
+- `SpeedOverlayController`
+- render diff builder
+- renderer adapter
+- RouteMap wiring
+- speed overlay lifecycle tests
+
+Logic removed from RouteMap:
+
+- speed overlay layer group refs
+- speed road filtering loops
+- speed all-road render keys
+- speed `clearLayers()` routine update path
+- speed road direct click handlers
+- speed overlay metrics
+
+Tests:
+
+- 20 speed toggles
+- pan/zoom coverage follow
+- no accumulated layers/handlers/listeners/timers/requests
+- equivalent first and twentieth activation
+- route inspection under speed overlay
+- no routine full clear/rebuild
+
+Telemetry:
+
+- added/removed/restyled/unchanged feature counts
+- active render-object count
+- renderer apply timing
+- per-frame apply duration
+- interaction arbitration winner
+
+Acceptance gate:
+
+- disable releases render cost
+- route inspection still works
+- routine speed overlay updates use stable-key diffs
+- no worker added unless Phase 0-2 already proved computation dominates
+
+Rollback:
+
+- feature flag routes speed overlay back to legacy RouteMap path
+
+Explicit non-goals:
+
+- no bike extraction
+- no WebGL/Canvas migration
+- no score or route-paint changes
+
+Stop conditions:
+
+- route hitbox click success regresses
+- layer count grows after repeated toggles
+- speed controller still depends on full road arrays in React state
+
+---
+
+## 9. Phase 4 - Extract Bike Infrastructure Overlay
+
+Objective:
+
+- Create a bike overlay controller using the same runtime, lifecycle, and diff contract.
+
+Architectural boundary established:
+
+- Bike overlay uses the shared viewport data plane and does not create a second scheduler.
+
+Expected files/modules touched:
+
+- `BikeOverlayController`
+- bike overlay selector
+- `bike_infra_v1` or successor profile materialization path
+- profile-cache adapter tests
+- bike overlay lifecycle tests
+
+Logic removed from RouteMap:
+
+- bike overlay layer group refs
+- bike overlay source selection
+- bike road filtering loops
+- bike all-road render keys
+- bike `clearLayers()` routine update path
+- bike overlay metrics
+
+Tests:
+
+- nonzero blue-road fixture
+- 20 bike toggles
+- speed plus bike together
+- duplicate acquisition guard
+- no large synchronous burst
+- bike overlay noninteractive paint
+
+Telemetry:
+
+- active bike profile
+- bike profile cache hit/miss/stale/invalid
+- bike feature count
+- blue-road rendered count
+- renderer apply timing
+- duplicate geometry/acquisition count
+
+Acceptance gate:
+
+- `bike_infra_v1` is proven as a bounded hot-path materialized profile, or docs/code choose a replacement key and migrate consistently
+- no second viewport scheduler
+- speed and bike reuse coordinated viewport state
+- duplicate geometry and duplicate acquisition are measured and bounded
+
+Rollback:
+
+- feature flag routes bike overlay back to legacy RouteMap path
+
+Explicit non-goals:
+
+- no full bike-profile redesign beyond materializing the bounded hot path
+- no route scoring changes
+- no worker unless evidence gate already triggered
+
+Stop conditions:
+
+- bike fixture returns zero roads
+- profile declaration is mistaken for materialized cache
+- eye overlay creates blocking bursts above budget
+
+---
+
+## 10. Phase 5 - Interaction Ownership
+
+Objective:
+
+- Introduce the map interaction arbiter and authoritative inspection surfaces.
+
+Architectural boundary established:
+
+- Visual paint does not own final selection. One arbiter resolves route and road candidates.
+
+Expected files/modules touched:
+
+- `MapInteractionArbiter`
+- route hitbox owner
+- viewport road inspection owner
+- RouteMap click wiring
+- interaction tests
+
+Logic removed from RouteMap:
+
+- click competition between route hitboxes and overlay roads
+- direct speed-paint road click selection
+- stale overlay click ownership
+
+Tests:
+
+- analyzed route precedence
+- off-route road selection
+- overlap tie-breaking
+- mobile touch tolerance
+- click immediately after pan/zoom
+- click with speed and bike overlays enabled
+- cleanup after overlay disable
+- stale hit geometry rejection
+
+Telemetry:
+
+- click receiver
+- candidate owner list
+- arbitration winner
+- rejected candidates
+- generation and target hashes
+
+Acceptance gate:
+
+- intended target succeeds at documented tolerance
+- deterministic receiver recorded
+- no hidden visual overlay intercepts input
+- no stale inspector overwrite from old generation
+
+Rollback:
+
+- arbiter runs diagnostic-only while current route click path remains active
+
+Explicit non-goals:
+
+- no inspector rewrite
+- no ownership resolver change
+- no scoring change
+
+Stop conditions:
+
+- route segment inspection becomes less reliable
+- visual paint remains independently interactive by default
+
+---
+
+## 11. Phase 6 - Worker and Renderer Decision Gate
+
+Objective:
+
+- Re-run profiling with real nonzero-road fixtures and decide whether to move compute, renderer, both, or neither.
+
+Architectural boundary established:
+
+- Technology choice is evidence-driven.
+
+Expected files/modules touched:
+
+- benchmark reports
+- optional decision artifact
+- no production runtime change unless separately approved
+
+Logic removed from RouteMap:
+
+- none in this gate
+
+Tests:
+
+- dense nonzero-road fixtures
+- speed only
+- bike only
+- both overlays
+- mobile and desktop where available
+
+Telemetry:
+
+- in-process indexed compute timing
+- worker candidate timing if prototyped
+- Leaflet SVG object counts
+- Leaflet mutation timing
+- paint/compositing observations where measurable
+- memory trend
+- click success
+
+Acceptance gate:
+
+- written decision compares in-process compute, worker compute, Leaflet SVG, Leaflet Canvas, custom/batched Canvas, and WebGL/vector-grid/vector-tile direction where relevant
+- computation-dominant -> move compute executor to worker
+- renderer/paint-dominant -> change renderer
+- both dominant -> do both
+- neither dominant -> keep simpler implementation
+
+Rollback:
+
+- no cutover in this phase
+
+Explicit non-goals:
+
+- no technology migration by fashion
+- no worker that copies enormous arrays back and forth
+- no renderer rewrite without hit-testing plan
+
+Stop conditions:
+
+- benchmark data is zero-road or inconclusive
+- cache timing is confused with render timing
+
+---
+
+## 12. Phase 7 - RouteMap Composition Cleanup and Controlled Cutover
+
+Objective:
+
+- Remove dead RouteMap effects/refs after controllers prove ownership.
+
+Architectural boundary established:
+
+- RouteMap is a composition shell for map, panes, controllers, and compact callbacks.
+
+Expected files/modules touched:
+
+- `src/components/RouteMap.tsx`
+- controller mounting module
+- compact prop/callback adapters
+- fallback flags
+
+Logic removed from RouteMap:
+
+- dead viewport road effects
+- dead overlay refs
+- dead all-road render keys
+- dead layer group creation
+- dead direct overlay click handlers
+- dead request state
+
+Tests:
+
+- full UX overlay lifecycle suite
+- route inspection suite
+- RouteMap smoke tests
+- manual Medford/Batsto and nonzero-road fixture
+
+Telemetry:
+
+- RouteMap render count
+- controller owner counts
+- layer/listener/timer/request counts
+- line-count reduction may be reported but is not the gate
+
+Acceptance gate:
+
+- responsibility removal is complete for migrated surfaces
+- legacy fallback removed only after explicit gates pass
+- no route truth/scoring/ownership/RXON/cache/history changes
+
+Rollback:
+
+- retain fallback flags until production validation passes
+
+Explicit non-goals:
+
+- no broad prop cleanup unrelated to migrated responsibilities
+- no inspector rewrite
+
+Stop conditions:
+
+- any migrated owner lacks tests
+- visual behavior diverges without an explicit product decision
+
+---
+
+## 13. Phase 8 - Production Validation
+
+Objective:
+
+- Validate runtime on real browsers, devices, cache states, and route states before final promotion.
+
+Architectural boundary established:
+
+- Production cutover requires both lifecycle correctness and rider-visible responsiveness.
+
+Expected files/modules touched:
+
+- validation reports
+- rollback flag documentation
+- no new architecture unless failures require follow-up docs
+
+Logic removed from RouteMap:
+
+- none; cleanup already happened in Phase 7
+
+Tests and manual matrix:
+
+- desktop Chrome
+- desktop Safari where available
+- mobile Safari
+- mobile Chrome
+- reduced-motion behavior
+- low-memory/device-budget behavior
+- warm cache
+- cold cache
+- sparse geography
+- dense geography
+- speed only
+- bike only
+- both overlays
+- route loaded
+- no route loaded
+- repeated pan/zoom/toggle
+- road selection
+
+Telemetry:
+
+- all regression gates from Section 3
+- console warnings/errors
+- memory recovery after disable/destroy
+- layer/path/listener/timer/request counts
+
+Acceptance gate:
+
+- rollback flags defined for each major cutover
+- hard refresh no longer required to restore correctness
+- rider-visible partial/stale state appears when material
+- production behavior does not cross forbidden architecture boundaries
+
+Rollback:
+
+- disable new runtime/controllers by flag and restore legacy path
+
+Explicit non-goals:
+
+- no feature expansion
+- no route analysis changes
+
+Stop conditions:
+
+- mobile interaction remains degraded
+- layer/listener/timer/request growth persists
+- route truth boundary regresses
+
+---
+
+## 14. First Implementation Slice
+
+The first production-grade slice should include:
+
+1. Phase 0 deterministic fixtures and benchmark
+2. Phase 1 runtime boundary
+3. Phase 2 request cancellation and coverage correctness
+4. initial Phase 3 speed-overlay lifecycle extraction
+
+Do not combine the first slice with:
+
+- WebGL migration
+- full bike-profile redesign
+- worker rollout
+- broad RouteMap rewrite
+- route analysis changes
+- scoring changes
+- database redesign
+
+The first slice must still include:
+
+- typed contracts
+- cancellation
+- cleanup
+- diagnostics
+- deterministic fixtures
+- regression tests
+- rollback path
+
+---
+
+## 15. Open Decisions
+
+Open decisions for Phase 6 or later:
+
+- whether the compute executor moves to a Worker
+- whether SVG remains viable after diff/lifecycle repair
+- whether Canvas/WebGL/vector-grid is needed
+- whether `bike_infra_v1` or `viewport_bike_infra_v1` becomes the standardized profile key
+- exact per-device retained/rendered feature caps after nonzero-road benchmarks
+- exact click tolerance by pointer class after interaction tests
+
+---
+
+## 16. Done Criteria
+
+EXEC-056 is complete when:
+
+- RouteMap no longer owns viewport-road hydration or speed/bike overlay data-plane logic
+- speed and bike overlays share one viewport data plane
+- profile-aware cache metrics are separated from renderer metrics
+- full viewport road universes are outside React state
+- every Leaflet layer/listener/timer/animation frame/request/hitbox has a named owner
+- normal interaction uses render diffs instead of full overlay rebuilds
+- hydration is cancellable and generation-safe
+- road selection is deterministic
+- repeated overlay and segment-click workflows are stable
+- `bike_infra_v1` materialization is proven or corrected before bike overlay promotion
+- worker and renderer decisions have been made from measured nonzero-road evidence
+- no forbidden route truth, scoring, ownership, RXON, `route_cache`, `route_history`, or DB boundary changed
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System

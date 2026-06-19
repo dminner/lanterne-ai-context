@@ -34617,6 +34617,855 @@ Before runtime sweep implementation:
 
 ---
 
+## Source File: docs/02-architecture/design/ds-061-viewport_road_runtime_architecture_diagram.md
+
+# DS-061 Diagram - Viewport Road Runtime Architecture
+
+**Status:** Illustrative companion diagram
+**Date:** 2026-06-18
+**Related:** ADR-057, DS-061, EXEC-056, ASS-031
+
+```mermaid
+flowchart TB
+  subgraph Truth["Canonical Route Truth Boundary"]
+    RouteTruth["Route-indexed evidence\nownership spans\nscoring inputs\nroute risk paint"]
+    RouteInspector["Route inspector receipts\nroute segment hitboxes"]
+  end
+
+  subgraph Sources["Viewport Data Sources"]
+    ProfileCache["Profile-aware road cache\nviewport_speed\nbike_infra_v1 when materialized\nfuture overlay profiles"]
+    OwnedFallback["Owned-road/source fallback\ncache miss / stale / invalid"]
+    CacheGateway["ViewportRoadCacheGateway\ncache/source receipts\nhit/miss/stale/invalid\npayload bytes"]
+    ProfileCache --> CacheGateway
+    OwnedFallback --> CacheGateway
+  end
+
+  subgraph Runtime["ViewportRoadRuntime - Data Plane"]
+    Scheduler["Hydration scheduler\nrequest id\ngeneration id\nAbortController\nqueued latest bounds"]
+    Coverage["Coverage receipts\nrequested/loading\ncache-complete/source-complete\npartial/empty/failed/cancelled/stale/invalid"]
+    Frame["Active runtime frame\ncurrent viewport\nnear ring\nsmall trailing window\npurge-before-merge"]
+    Registry["Feature registry\nstable feature keys\ngeometry revisions\nprofile facets\neviction metadata"]
+    Index["Spatial index + compute executor\nin-process now\nworker-ready later"]
+    Snapshot["Compact React snapshot\nphase/generation/counts\ncoverage/degraded state\nno full road arrays"]
+
+    CacheGateway --> Scheduler
+    Scheduler --> Coverage
+    Coverage --> Frame
+    Frame --> Registry
+    Registry --> Index
+    Coverage --> Snapshot
+    Registry --> Snapshot
+  end
+
+  subgraph Selectors["Overlay Selectors"]
+    SpeedSelector["Speed selector\nstress/speed buckets\nroad-stress overlay facts"]
+    BikeSelector["Bike selector\nbike facility buckets\nnoninteractive by default"]
+    Registry --> SpeedSelector
+    Registry --> BikeSelector
+  end
+
+  subgraph Diff["Render Diff Boundary"]
+    SpeedDiff["Speed render diff\nadd/remove/restyle/retain\nno routine clearLayers"]
+    BikeDiff["Bike render diff\nadd/remove/restyle/retain\nno routine clearLayers"]
+    SpeedSelector --> SpeedDiff
+    BikeSelector --> BikeDiff
+  end
+
+  subgraph Controllers["Overlay Controllers - Main Thread"]
+    SpeedController["SpeedOverlayController\nrenderer ownership\npane/group membership\nmetrics\ncleanup"]
+    BikeController["BikeOverlayController\nrenderer ownership\npane/group membership\nmetrics\ncleanup"]
+    Renderer["Renderer adapter\nLeaflet SVG now\nCanvas/WebGL/vector future gate\nno Leaflet objects in data plane"]
+    SpeedDiff --> SpeedController
+    BikeDiff --> BikeController
+    SpeedController --> Renderer
+    BikeController --> Renderer
+  end
+
+  subgraph MapShell["RouteMap Composition Shell"]
+    LeafletMap["Leaflet map instance\npanes\nmap-wide modes"]
+    Controls["Compact UI callbacks\ncontrol state from snapshot"]
+    LeafletMap --> Renderer
+    Snapshot --> Controls
+  end
+
+  subgraph Interaction["MapInteractionArbiter"]
+    RouteCandidates["Route candidates\nanalyzed route hitboxes\nhighest priority"]
+    RoadCandidates["Viewport road inspection candidates\noff-route roads\nexplicit inspection surface"]
+    BaseMap["Base-map interaction\nlowest priority"]
+    Arbiter["One authoritative selection result\nroute > road inspection > base map\nstale generation rejected"]
+    RouteCandidates --> Arbiter
+    RoadCandidates --> Arbiter
+    BaseMap --> Arbiter
+  end
+
+  RouteInspector --> RouteCandidates
+  SpeedController -. "visual paint ordinarily noninteractive" .-> RoadCandidates
+  BikeController -. "visual paint noninteractive by default" .-> RoadCandidates
+  Arbiter --> RouteInspector
+
+  RouteTruth -. "does not feed viewport cache as truth" .-> Sources
+  Runtime -. "presentation/runtime only\nnot route truth" .-> Truth
+
+  classDef truth fill:#fff4d6,stroke:#a66f00,color:#332100
+  classDef source fill:#e8f3ff,stroke:#2c6da3,color:#0a2940
+  classDef runtime fill:#ecfdf3,stroke:#2d7a46,color:#0d3018
+  classDef diff fill:#f4edff,stroke:#7657b7,color:#261447
+  classDef main fill:#fff0f3,stroke:#b94a62,color:#42121d
+  classDef interaction fill:#f2f2f2,stroke:#666,color:#222
+
+  class RouteTruth,RouteInspector truth
+  class ProfileCache,OwnedFallback,CacheGateway source
+  class Scheduler,Coverage,Frame,Registry,Index,Snapshot,SpeedSelector,BikeSelector runtime
+  class SpeedDiff,BikeDiff diff
+  class SpeedController,BikeController,Renderer,LeafletMap,Controls main
+  class RouteCandidates,RoadCandidates,BaseMap,Arbiter interaction
+```
+
+## Reading Notes
+
+- The runtime data plane is not route truth. It consumes viewport cache/source data for presentation.
+- React receives compact snapshots only. Full road universes, indexes, and renderer registries remain outside React state.
+- Overlay controllers own Leaflet rendering cost and cleanup. Disabling an overlay releases its renderer cost.
+- Normal updates flow through stable-key render diffs rather than whole-layer clears.
+- `MapInteractionArbiter` owns click outcomes. Visual paint does not independently own final selection.
+- The compute executor is worker-ready, but a worker is not required until nonzero-road benchmarks prove computation dominates.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-061-viewport_road_runtime_overlay_lifecycle_and_render_diff_spec.md
+
+# DS-061 - Viewport Road Runtime, Overlay Lifecycle, and Render Diff Spec
+
+**Status:** Draft for implementation
+**Date:** 2026-06-18
+**Owner:** Derek Minner
+**Filename:** `ds-061-viewport_road_runtime_overlay_lifecycle_and_render_diff_spec.md`
+**ADR Parent:** [ADR-057](../../03-adrs/adr-057-viewport_road_data_plane_and_overlay_ownership.md)
+**Related:** ASS-031, DS-018, DS-031, DS-032, DS-035, DS-052, ADR-047, ADR-052, EXEC-056
+**Diagram:** [DS-061 Viewport Road Runtime Architecture Diagram](./ds-061-viewport_road_runtime_architecture_diagram.md)
+
+---
+
+## 1. Purpose
+
+This specification makes ADR-057 implementable.
+
+It defines the viewport road runtime, request model, feature identity, active frame, overlay lifecycle, render diff contract, renderer adapter, interaction arbiter, React snapshot boundary, diagnostics, budgets, and must-not rules needed to move viewport-road logic out of RouteMap incrementally.
+
+This spec refines and extends DS-018. DS-018 continues to govern moving viewport windows, progressive hydration, purge-before-merge, and client budgets.
+
+---
+
+## 2. Scope
+
+In scope:
+
+- `ViewportRoadRuntime`
+- source/cache adapters
+- compute executor
+- feature registry
+- spatial index
+- profile selector
+- render-diff builder
+- speed overlay controller
+- bike overlay controller
+- renderer adapter
+- map interaction arbiter
+- React snapshot adapter
+- RouteMap composition shell
+- diagnostics collector
+
+Out of scope:
+
+- route scoring
+- route ownership resolver
+- canonical route evidence
+- HPMS/DOT/OSM selection policy
+- RXON runtime loading
+- `route_cache`
+- `route_history`
+- database writes and migrations
+- mandatory workerization
+- mandatory renderer migration
+- broad RouteMap rewrite
+
+---
+
+## 3. Responsibility Model
+
+| Component | Responsibilities | Forbidden responsibilities |
+| --- | --- | --- |
+| `ViewportRoadRuntime` | generation, active profiles, coverage, moving-window retention, budgets, feature registry, compact snapshots | Leaflet objects, route truth, scoring, drawers, popups |
+| source/cache adapters | profile-aware cache reads, owned fallback reads, cache/source receipts | renderer timing claims, shared-cache browser authority, score selection |
+| compute executor | index build, candidate lookup, clipping, simplification, dedupe, display bucketing | Leaflet mutation, DOM/SVG/Canvas/WebGL mutation |
+| feature registry | stable feature keys, geometry revisions, profile facets, eviction metadata | joined all-road-ID invalidation strings |
+| spatial index | bounded active-frame lookup by bbox and zoom | route ownership resolution |
+| profile selector | active overlay profile requirements and fetch policy | visual rendering or click ownership |
+| render-diff builder | stable-key add/remove/geometry/style/retain diffs | direct Leaflet object mutation |
+| speed overlay controller | speed style, diff application, renderer lifecycle, metrics | independent viewport scheduler, route scoring, direct click competition |
+| bike overlay controller | bike-infra style, diff application, renderer lifecycle, metrics | independent viewport scheduler, route scoring, default interactive paint |
+| renderer adapter | mount, apply, clear, destroy, metrics | data-plane state, cache access, route evidence authority |
+| map interaction arbiter | click candidate arbitration and one selection result | visual paint ownership of final selection |
+| React snapshot adapter | compact immutable status for UI controls and diagnostics | full road arrays, geometry universes, Leaflet registries |
+| RouteMap shell | map creation, panes, controller mounting, compact callbacks | viewport road universes, cache coverage, overlay request machines |
+| diagnostics collector | bounded counts/timings/hashes | raw route/user data, full geometry, unbounded logs |
+
+---
+
+## 4. Current Code Findings That Shape This Spec
+
+The current viewport acquisition code is speed-centric:
+
+- `fetchViewportRoadContextIncremental` accepts `profile?: 'speed' | 'all'`.
+- profile-cache reads use `VIEWPORT_SPEED_PROFILE`.
+- `RoadTileProfile` declares `bike_infra_v1`, but non-speed profile filtering currently returns broad rows.
+- `VIEWPORT_OVERLAY_REGISTRY` declares `bike_lanes` with `evidenceProfileKey: 'bike_infra_v1'`.
+- schema/migration checks allow `bike_infra_v1`, and some draft docs mention `viewport_bike_infra_v1`.
+
+Conclusion:
+
+```text
+bike_infra_v1 is currently a declared/incomplete profile, not a proven bounded hot-path materialized profile.
+```
+
+Therefore EXEC-056 must include a dedicated phase to make bike-infra profile materialization real, bounded, and measurable before using it as proof of bike overlay runtime performance.
+
+---
+
+## 5. Runtime Layer Model
+
+```text
+Profile caches and owned-road fallback
+                  |
+                  v
+        ViewportRoadRuntime
+  generation / coverage / retention /
+  budgets / feature registry / index
+                  |
+                  v
+        Overlay-specific selectors
+                  |
+                  v
+          Compact render diffs
+                  |
+                  v
+ SpeedOverlayController / BikeOverlayController
+                  |
+                  v
+       Leaflet renderer on main thread
+
+Road and route candidates
+                  |
+                  v
+      MapInteractionArbiter
+                  |
+                  v
+       One authoritative selection result
+```
+
+Boundary rules:
+
+- viewport cache descriptor != route truth
+- cache record != active runtime feature
+- runtime feature != Leaflet layer
+- Leaflet paint != click ownership
+- presentation != evidence authority
+
+---
+
+## 6. Stable Runtime Feature Identity
+
+Do not use joined all-road-ID strings as the core invalidation mechanism.
+
+The same source road may appear in multiple tiles, serve multiple overlay profiles, carry schema/source-version changes, receive geometry revisions, or become ineligible outside the retained window. Identity must support these cases.
+
+Illustrative contract:
+
+```ts
+type ViewportFeatureKey = string;
+
+interface GeoBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+interface LatLon {
+  lat: number;
+  lon: number;
+}
+
+interface ViewportRoadFeature {
+  featureKey: ViewportFeatureKey;
+  sourceRoadId: string;
+  sourceVersion: string;
+  schemaVersion: string;
+  geometryRevision: string;
+  bbox: GeoBounds;
+  geometry: readonly LatLon[];
+  pointCount: number;
+  firstSeenGeneration: number;
+  lastTouchedGeneration: number;
+  facets: {
+    speed?: ViewportSpeedFacet;
+    bikeInfra?: ViewportBikeFacet;
+  };
+}
+
+interface ViewportSpeedFacet {
+  profileKey: 'viewport_speed';
+  stageKey: string;
+  styleBucket: string;
+  confidence: 'high' | 'medium' | 'low' | 'unknown';
+}
+
+interface ViewportBikeFacet {
+  profileKey: 'bike_infra_v1' | 'viewport_bike_infra_v1';
+  facilityClass: string;
+  styleBucket: string;
+  confidence: 'high' | 'medium' | 'low' | 'unknown';
+}
+```
+
+`featureKey` should be derived from stable source ID, source version, schema version, geometry revision, and profile facet identity. Style-only changes must not create new geometry identity.
+
+---
+
+## 7. Request Contract
+
+Every viewport acquisition request must carry:
+
+```ts
+type ViewportRequestTrigger =
+  | 'initial_activation'
+  | 'pan_completion'
+  | 'zoom_completion'
+  | 'major_jump'
+  | 'overlay_profile_change'
+  | 'route_mode_reset'
+  | 'retry';
+
+type ViewportDeviceBudgetClass = 'mobile_low' | 'mobile' | 'desktop' | 'desktop_dense';
+
+interface ViewportRuntimeRequest {
+  requestId: number;
+  generationId: number;
+  bounds: GeoBounds;
+  zoom: number;
+  trigger: ViewportRequestTrigger;
+  movementBias?: { lat: number; lon: number };
+  activeProfiles: readonly string[];
+  deviceBudgetClass: ViewportDeviceBudgetClass;
+  cancellationSignal: AbortSignal;
+  cacheSourcePolicy: 'cache_first' | 'source_refresh' | 'cache_only' | 'source_only';
+  maximumOutputBudget: {
+    retainedFeatures: number;
+    renderedFeatures: number;
+    vertices: number;
+  };
+}
+```
+
+Requests may include profile-specific options, but those options must not change route truth.
+
+---
+
+## 8. Generation and Cancellation Rules
+
+The runtime is latest-generation-wins.
+
+Rules:
+
+1. Material viewport changes create a new generation.
+2. Superseded requests are cancelled where the adapter supports cancellation.
+3. Adapters that cannot abort must still be stale-rejected before commit.
+4. Queued-latest bounds coalescing is allowed.
+5. Cleanup must happen in `finally` or equivalent completion code.
+6. No busy flag may remain permanently stuck after success, failure, cancellation, or destruction.
+7. No result may commit after controller destruction.
+8. Coverage must not advance based only on request initiation.
+
+An old request must be both:
+
+- ignored if it returns stale
+- cancelled where the underlying adapter supports cancellation
+
+---
+
+## 9. Coverage Contract
+
+Coverage state must distinguish:
+
+- `requested`
+- `loading`
+- `cache_complete`
+- `source_complete`
+- `partial`
+- `explicitly_empty`
+- `failed`
+- `cancelled`
+- `stale`
+- `invalid`
+
+Illustrative contract:
+
+```ts
+interface ViewportCoverageReceipt {
+  generationId: number;
+  boundsHash: string;
+  activeProfiles: readonly string[];
+  state:
+    | 'requested'
+    | 'loading'
+    | 'cache_complete'
+    | 'source_complete'
+    | 'partial'
+    | 'explicitly_empty'
+    | 'failed'
+    | 'cancelled'
+    | 'stale'
+    | 'invalid';
+  tileCounts: {
+    requested: number;
+    cacheHit: number;
+    cacheMiss: number;
+    stale: number;
+    invalid: number;
+    sourceFetched: number;
+  };
+  zeroRoadReason?: 'valid_empty_area' | 'cache_miss' | 'source_unavailable' | 'profile_not_materialized' | 'superseded' | 'unknown';
+}
+```
+
+A failed request or ambiguous zero-road result must not mark a viewport as authoritatively covered.
+
+Tile/profile completeness rolls up into viewport coverage only when all required active profiles have either complete cache/source coverage, explicit valid empty receipts, or documented partial/degraded state.
+
+---
+
+## 10. Cache Integration
+
+The runtime consumes:
+
+- `viewport_speed`
+- `bike_infra_v1` after it is proven materialized
+- `viewport_bike_infra_v1` if the profile-cache storage contract standardizes that name
+- future overlay profiles
+- stale cache rows
+- misses
+- invalid schema/source versions
+- owned-source fallback
+- partial profile hydration
+
+The runtime must preserve server-authorized shared-cache writes.
+
+The browser may read shared cache data but must not publish unvalidated shared profile rows.
+
+Profile integration requirements:
+
+- stale rows may be renderable only when policy says stale-usable
+- invalid schema/source versions must not silently render as current
+- partial profiles must be visible in diagnostics and UI state
+- `bike_infra_v1` requires a dedicated implementation phase if current inspection shows broad or incomplete runtime behavior
+
+---
+
+## 11. Active Runtime Frame
+
+The active runtime frame is separate from persistent cache and React.
+
+It contains:
+
+- current viewport
+- near retention ring
+- optional small trailing window
+- feature registry
+- per-profile eligibility
+- eviction metadata
+- current generation
+- coverage receipts
+- compact status snapshot
+
+Major pans use purge-before-merge:
+
+1. classify old retained features by current viewport, near ring, and trailing window
+2. purge stale/distant features before merging newly hydrated features
+3. preserve active route hitboxes and selected inspection targets separately
+4. merge incoming features under the active generation
+5. emit compact snapshot and render diffs
+
+---
+
+## 12. Runtime State Machine
+
+```text
+idle
+  -> activating
+  -> loading
+  -> ready
+  -> refreshing
+  -> ready
+  -> degraded
+  -> failed
+  -> destroying
+  -> destroyed
+```
+
+Allowed transitions:
+
+- `idle -> activating`: first overlay/profile demand or prewarm.
+- `activating -> loading`: scheduler starts generation request.
+- `loading -> ready`: required coverage is cache/source complete.
+- `loading -> degraded`: partial, stale-only, or budget-limited coverage.
+- `loading -> failed`: no usable data and no valid fallback.
+- `ready -> refreshing`: pan, zoom, major jump, profile change, or retry.
+- `refreshing -> ready/degraded/failed`: completion with coverage receipt.
+- any non-destroyed state -> `destroying`: map unload or controller teardown.
+- `destroying -> destroyed`: all layers/listeners/timers/requests cleaned.
+
+Cleanup obligations:
+
+- cancel active requests
+- clear timers and animation frames
+- detach listeners
+- reject stale callbacks
+- release controller-owned references
+
+---
+
+## 13. Overlay State Machine
+
+```text
+disabled
+  -> enabling
+  -> rendering
+  -> visible
+  -> updating
+  -> visible
+  -> disabling
+  -> disabled
+```
+
+Rules:
+
+- disabling during fetch releases renderer cost but does not necessarily destroy shared runtime data if another overlay remains active
+- if one overlay remains active, shared runtime acquisition continues for required profiles only
+- if both overlays are disabled, runtime may shut down or retain a bounded warm frame by explicit policy
+- re-enable must produce equivalent output to first enable without hard refresh
+- map destroy forces `destroying/destroyed` on all overlay controllers
+- superseded requests cannot commit overlay diffs
+- renderer partial failure moves overlay to degraded and records recovery action
+
+---
+
+## 14. Render Diff Contract
+
+```ts
+interface RenderFeature<TStyle> {
+  featureKey: ViewportFeatureKey;
+  geometryRevision: string;
+  geometryRef?: string;
+  geometry?: readonly LatLon[];
+  style: TStyle;
+  interactive: boolean;
+  priority: number;
+}
+
+interface OverlayRenderDiff<TStyle> {
+  generationId: number;
+  frameId: number;
+  added: RenderFeature<TStyle>[];
+  removedKeys: ViewportFeatureKey[];
+  geometryChanged: RenderFeature<TStyle>[];
+  styleChanged: Array<{
+    featureKey: ViewportFeatureKey;
+    style: TStyle;
+  }>;
+  unchangedCount: number;
+  fullResetReason?: string;
+}
+```
+
+Requirements:
+
+- stable-key ownership
+- idempotent apply
+- stale-diff rejection
+- chunked application for large diffs
+- per-frame work budget
+- generation check before each batch
+- rollback or recovery after partial failure
+
+Full reset is allowed only for:
+
+- map replacement
+- renderer replacement
+- pane reconstruction
+- incompatible schema/version transition
+- unrecoverable runtime corruption
+- test setup/teardown
+
+Routine pan, zoom, cache arrival, profile change, or toggle is not a full-reset event.
+
+---
+
+## 15. Renderer Contract
+
+```ts
+interface RenderReceipt {
+  generationId: number;
+  added: number;
+  removed: number;
+  geometryChanged: number;
+  styleChanged: number;
+  unchanged: number;
+  durationMs: number;
+  partial: boolean;
+}
+
+interface OverlayRendererMetrics {
+  activeRenderObjectCount: number;
+  activeInteractiveObjectCount: number;
+  activeLayerCount: number;
+  lastApplyMs: number;
+  longestFrameApplyMs: number;
+}
+
+interface ViewportOverlayRenderer<TStyle> {
+  mount(map: L.Map, pane: string): void;
+  apply(diff: OverlayRenderDiff<TStyle>): Promise<RenderReceipt>;
+  clear(reason: string): void;
+  destroy(): void;
+  getMetrics(): OverlayRendererMetrics;
+}
+```
+
+The renderer interface must not leak Leaflet objects into the data plane.
+
+Leaflet SVG, Leaflet Canvas, custom Canvas, WebGL, or vector-grid renderers can satisfy this contract if they provide the same lifecycle, diff, metrics, and deterministic selection integration.
+
+---
+
+## 16. Main-Thread Frame Budgeting
+
+Large diffs must not monopolize the event loop.
+
+Apply policy:
+
+- use `requestAnimationFrame` or equivalent frame-yielding scheduler
+- prefer elapsed-time budgets over fixed feature counts alone
+- check cancellation between batches
+- check generation before each batch
+- prioritize currently visible/high-value roads
+- yield before map input becomes unresponsive
+
+Do not use arbitrary delays as a substitute for lifecycle correctness.
+
+---
+
+## 17. Interaction Contract
+
+There is one map interaction arbiter.
+
+Required policy:
+
+- analyzed route hitbox precedence
+- route edit/detour hitbox precedence where active
+- off-route viewport-road inspection precedence after route hitboxes
+- visual overlays noninteractive by default
+- explicit pointer/touch tolerance by device class
+- deterministic overlapping-road tie-breaking
+- pan/drag suppression
+- stale hit geometry cleanup after viewport updates
+- selected-road details obtained independently of the paint layer
+
+Illustrative contract:
+
+```ts
+interface InteractionCandidate {
+  candidateKey: string;
+  owner: 'route_hitbox' | 'route_edit' | 'viewport_road_inspection' | 'visual_overlay' | 'base_map';
+  generationId: number;
+  distancePx: number;
+  priority: number;
+  targetHash: string;
+}
+
+interface InteractionArbitrationResult {
+  requestId: number;
+  clickGenerationId: number;
+  winner: InteractionCandidate | null;
+  rejected: readonly InteractionCandidate[];
+  reason: 'winner_priority' | 'distance_tiebreak' | 'stale_generation' | 'drag_suppressed' | 'no_candidate';
+}
+```
+
+---
+
+## 18. React Contract
+
+React may consume a compact runtime snapshot:
+
+```ts
+interface ViewportRuntimeReactSnapshot {
+  phase: 'idle' | 'activating' | 'loading' | 'ready' | 'refreshing' | 'degraded' | 'failed';
+  generationId: number;
+  pending: boolean;
+  coverageState: ViewportCoverageReceipt['state'];
+  activeProfiles: readonly string[];
+  retainedFeatureCount: number;
+  renderedFeatureCount: number;
+  interactiveFeatureCount: number;
+  firstPaintMs?: number;
+  warningCount: number;
+  errorCount: number;
+}
+```
+
+This snapshot may drive:
+
+- loading indicators
+- overlay availability
+- diagnostics
+- coverage warnings
+- error state
+- control state
+
+It must not expose:
+
+- full road arrays
+- full geometry universes
+- spatial indexes
+- Leaflet objects
+- renderer registries
+- request internals
+
+---
+
+## 19. Error and Degradation Policy
+
+Principle:
+
+```text
+overlay fidelity degrades before map responsiveness degrades
+```
+
+Degradation states:
+
+- cache unavailable -> source fallback or degraded cache warning
+- owned source unavailable -> stale cache if allowed, otherwise partial/failed
+- stale cache only -> degraded with freshness warning
+- partial viewport -> material coverage warning
+- feature budget exceeded -> drop lower-priority features and record budget trim
+- renderer overload -> chunk diff, reduce feature budget, or degraded renderer state
+- worker unavailable -> in-process compute executor fallback
+- worker crash -> cancel generation, fall back or fail visibly
+- profile schema mismatch -> invalid profile coverage and no silent render as current
+
+The rider must be told when the shown overlay is materially partial or stale.
+
+---
+
+## 20. Diagnostics
+
+Carry forward ASS-031 diagnostics and add:
+
+- runtime generation
+- active profile set
+- per-profile cache hit/miss/stale/invalid
+- coverage state
+- feature-registry count
+- active render-object count
+- added/removed/restyled counts
+- stale diffs rejected
+- cancelled requests
+- worker/in-process computation timing
+- renderer apply timing
+- per-frame apply duration
+- interaction-layer count
+- click receiver/arbitration result
+- memory trend
+- RouteMap render count
+
+Diagnostics must remain bounded, gated, and count/timing/hash-only.
+
+Forbidden diagnostics:
+
+- raw route geometry
+- raw road names
+- user/private route data
+- full road arrays
+- full cache payloads
+- unbounded console logs
+- `JSON.stringify` of full payloads on the interaction path
+
+---
+
+## 21. Provisional Performance Budgets
+
+These budgets are provisional because ASS-031 did not obtain a nonzero-road eye-overlay benchmark.
+
+| Budget | Target | Basis |
+| --- | ---: | --- |
+| ordinary overlay operation long task | 0 tasks over 50ms | browser responsiveness threshold |
+| render batch frame budget | target <= 8ms, hard stop <= 12ms | leave frame time for input/paint |
+| speed toggle lifecycle | zero net growth after 20 toggles | ASS-031 regression gate |
+| bike toggle lifecycle | zero net growth after 20 toggles with nonzero fixture roads | ASS-031 + fixture repair gate |
+| stale generation commits | 0 | correctness invariant |
+| warm pan-to-updated-paint | provisional <= 250ms first visible diff | must be remeasured on fixtures |
+| warm toggle-to-first-paint | provisional <= 250ms first visible diff | must be remeasured on fixtures |
+| maximum retained features, mobile | provisional <= 4,000 | DS-018 mobile-first policy; refine with fixtures |
+| maximum retained features, desktop | provisional <= 12,000 | below current old hook max; refine with fixtures |
+| maximum rendered features, mobile SVG | provisional <= 750 | SVG/path-count caution |
+| maximum rendered features, desktop SVG | provisional <= 1,500 | SVG/path-count caution |
+| disable/destroy cleanup | requests/listeners/timers/layers return to baseline | lifecycle invariant |
+| deterministic click success | 100% inside documented tolerance on fixtures | interaction correctness |
+
+Budgets must be adjusted only with measured evidence and updated docs.
+
+---
+
+## 22. Must-Nots
+
+DS-061 explicitly prohibits:
+
+- full viewport road universes in React state
+- Leaflet objects in worker messages
+- Leaflet objects in data-plane state
+- browser-authoritative writes to shared road caches
+- routine all-layer clears
+- all-road joined render keys
+- independent speed-overlay click handlers
+- duplicate speed and bike viewport schedulers
+- coverage claims derived only from requested bounds
+- silent stale-result commits
+- a worker that simply copies enormous arrays back and forth
+- route truth contamination by viewport descriptors
+
+---
+
+## 23. Acceptance Criteria
+
+DS-061 is satisfied when:
+
+- speed and bike overlays share one viewport data plane
+- `bike_infra_v1` or its chosen successor is proven as a real bounded hot-path profile before being treated as such
+- full viewport road universes are outside React state
+- profile-aware cache metrics are distinct from renderer metrics
+- normal pan/zoom/toggle uses stable-key render diffs
+- every layer/listener/timer/request/animation frame/hitbox has an owner record
+- superseded viewport requests are cancellable where supported
+- stale generations cannot commit
+- deterministic road selection works under overlapping overlays
+- diagnostics are bounded and safe
+- RouteMap is smaller by responsibility, not merely by line count
+- route truth, scoring, ownership, RXON runtime, `route_cache`, `route_history`, and DB boundaries are preserved
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
@@ -45901,4 +46750,494 @@ The implementation is accepted when:
 - three-hour rollups remain available for validation only
 - Planned Ride Safety uses the temporal model without mutating Baseline Safety Score
 - every scenario result contains a receipt with cohort, hour, traffic factor, multiplier, source version, and confidence
+
+
+---
+
+## Source File: docs/03-adrs/adr-057-viewport_road_data_plane_and_overlay_ownership.md
+
+# ADR-057 - Viewport Road Data Plane and Overlay Ownership
+
+**Status:** Proposed
+**Date:** 2026-06-18
+**Owner:** Derek Minner
+**Related:** ASS-031, ADR-045, ADR-047, ADR-052, DS-018, DS-031, DS-032, DS-035, DS-052, DS-061, EXEC-056
+
+**Diagram:** [DS-061 Viewport Road Runtime Architecture Diagram](../02-architecture/design/ds-061-viewport_road_runtime_architecture_diagram.md)
+
+---
+
+## 1. Context
+
+ASS-031 and `docs/diagnostics/viewport-performance-audit.md` found that repeated map interaction degradation is primarily a viewport runtime and rendering lifecycle problem, not a route truth problem.
+
+Measured evidence:
+
+- Medford/Batsto route load produced a 4,923ms main-thread long task.
+- Stable analyzed route state held roughly 332-337 SVG paths and 149-150 interactive paths.
+- Repeated zoom/toggle flows reached 493 SVG paths.
+- Ten speed overlay toggles produced 240 `layeradd` events and 115 `layerremove` events.
+- Viewport hydration is request-ID guarded, but superseded requests are not cancellable.
+- Speed overlay paint is interactive and can compete with analyzed-route hitboxes.
+- The eye/bike overlay heavy nonzero-road path was not reproduced locally because hydration returned zero source roads, but static code shows O(roads * coords) filtering and per-road `L.polyline` construction.
+
+Current code also shows a material profile-cache fact: `bike_infra_v1` exists as a declared profile key in schema/types and as a viewport overlay registry key, but the active viewport road acquisition path still exposes only `profile: 'speed' | 'all'`, reads `VIEWPORT_SPEED_PROFILE`, and falls back to broad rows for non-speed profile filtering. Therefore `bike_infra_v1` must be treated as a declared/incomplete profile until a bounded hot-path materialization phase proves otherwise.
+
+The current `RouteMap` owns too many responsibilities:
+
+- viewport road universe state
+- viewport request state machines
+- cache coverage interpretation
+- speed and bike road filtering loops
+- all-road render keys
+- Leaflet layer groups and registries
+- visual overlay click handlers
+- route hitbox click handling
+- listener and timer cleanup
+- diagnostics and render counters
+
+This concentration makes it hard to fix responsiveness without accidentally changing route scoring, route ownership, route-indexed evidence, RXON runtime loading, `route_cache`, `route_history`, or database behavior.
+
+---
+
+## 2. Decision
+
+Lanterne will introduce one coordinated viewport-road runtime outside `RouteMap` and outside large React state.
+
+Working name:
+
+```text
+ViewportRoadRuntime
+```
+
+The runtime owns:
+
+- current viewport generation
+- bounds and zoom inputs
+- active overlay profile requirements
+- cache reads and owned/source fallback
+- request scheduling
+- cancellation
+- stale-generation rejection
+- coverage state
+- moving-window retention
+- eviction and budgets
+- feature identity
+- geometry deduplication
+- spatial index
+- overlay-ready selectors
+- compact runtime status snapshots
+
+The runtime does not own:
+
+- Leaflet map instances
+- Leaflet panes
+- Leaflet LayerGroups
+- DOM, SVG, Canvas, or WebGL objects
+- popups and drawers
+- route scoring
+- route ownership
+- canonical route evidence
+- road-click UI presentation
+
+RouteMap becomes a composition shell. It creates or receives the Leaflet map, establishes panes, mounts controllers, wires compact UI callbacks, and coordinates map-wide modes. It must progressively stop owning viewport road universes, overlay request machines, cache coverage, road filtering loops, all-road render keys, per-overlay Leaflet registries, and click competition between visual overlays.
+
+---
+
+## 3. Target Architecture
+
+```text
+Profile caches and owned-road fallback
+                  |
+                  v
+        ViewportRoadRuntime
+  generation / coverage / retention /
+  budgets / feature registry / index
+                  |
+                  v
+        Overlay-specific selectors
+                  |
+                  v
+          Compact render diffs
+                  |
+                  v
+ SpeedOverlayController / BikeOverlayController
+                  |
+                  v
+       Leaflet renderer on main thread
+
+Road and route candidates
+                  |
+                  v
+      MapInteractionArbiter
+                  |
+                  v
+       One authoritative selection result
+```
+
+Conceptual layer distinctions:
+
+```text
+route risk paint != viewport road overlay
+viewport cache descriptor != route truth
+cache record != active runtime feature
+runtime feature != Leaflet layer
+Leaflet paint != click ownership
+presentation != evidence authority
+```
+
+---
+
+## 4. Relationship To Existing Architecture
+
+| Existing document | Continues to govern |
+| --- | --- |
+| ADR-045 / DS-031 | Canonical route-indexed evidence and route truth. |
+| DS-032 | Worker-streaming patterns for route construction and route-scale presentation. |
+| ADR-047 / DS-035 | Profile-cache, substrate, profile descriptor, and hydration-source semantics. |
+| DS-018 | Moving viewport window, progressive hydration, purge-before-merge, and client budgets. |
+| ASS-031 | Measured viewport lifecycle and rendering failure evidence. |
+| ADR-057 | Runtime ownership boundaries between data, render, interaction, React, and RouteMap. |
+| DS-061 | Concrete runtime contracts, state machines, lifecycle rules, diff rules, and budgets. |
+| EXEC-056 | Safe strangler migration and acceptance gates. |
+
+ADR-057 and DS-061 refine and extend DS-018. They do not replace it. DS-018 remains the viewport hydration and client-budget policy. ADR-057 adds ownership boundaries and a RouteMap strangler direction that DS-018 anticipated but did not fully specify.
+
+ADR-047 and DS-035 remain the source of truth for profile-aware cache semantics. ADR-057 does not invent a parallel cache architecture.
+
+ADR-045 and DS-031 remain the source of truth for route-indexed evidence. Viewport runtime descriptors are presentation/runtime features and cannot become route evidence authority.
+
+---
+
+## 5. Responsibility Ownership
+
+| Responsibility | Target owner | Forbidden owner |
+| --- | --- | --- |
+| viewport road request scheduling | `ViewportRoadRuntime` | `RouteMap` effect loops |
+| profile-aware cache reads | cache/source adapter | overlay renderer |
+| moving-window retention | runtime active frame | React component state |
+| spatial index and candidate lookup | runtime compute executor | Leaflet layer groups |
+| speed display selection | speed overlay selector/controller | route scoring pipeline |
+| bike display selection | bike overlay selector/controller | route scoring pipeline |
+| Leaflet layer registry | overlay controller/renderer adapter | data plane |
+| click arbitration | `MapInteractionArbiter` | visual paint layer handlers |
+| route hitbox truth | route inspection owner | speed/bike paint |
+| renderer object cleanup | overlay controller | cache adapter |
+| compact control state | React snapshot adapter | full road arrays in React state |
+
+Every extraction must move a complete responsibility:
+
+- state
+- requests
+- subscriptions
+- Leaflet objects
+- cleanup
+- diagnostics
+- tests
+
+Moving an existing effect unchanged into a hook does not count as architectural extraction.
+
+---
+
+## 6. Cache Role
+
+The profile-aware road cache is an upstream data source for the runtime.
+
+It should improve:
+
+- warm viewport acquisition
+- coverage continuity
+- time to first useful data
+- dependence on live source queries
+- repeated-session reuse
+
+It does not solve:
+
+- Leaflet layer churn
+- per-road path creation
+- React rerendering
+- hitbox conflict
+- stale listeners
+- retained render objects
+- expensive renderer paint
+
+A fully hydrated cache may expose renderer bottlenecks more clearly by delivering many roads quickly. Therefore diagnostics must report cache-hit improvements separately from render/apply improvements.
+
+The browser may read shared cache data. It must not become the authority that publishes unvalidated shared profile rows. Server-authorized shared-cache writes remain governed by ADR-047/DS-035 and existing profile-cache authority contracts.
+
+---
+
+## 7. React State Boundary
+
+Large road arrays, geometry collections, indexes, and renderer registries must not live in React state.
+
+React may consume compact immutable snapshots:
+
+- phase
+- generation
+- pending state
+- coverage state
+- counts
+- degraded/error state
+- first-paint timing
+- active profile state
+- diagnostics summary
+- stable controller handle
+
+The implementation may use `useSyncExternalStore`, a controller subscription, or an equivalent external store boundary. The architectural requirement is that React subscribes to compact snapshots instead of becoming the hydration cache.
+
+---
+
+## 8. Overlay Controller Ownership
+
+Each overlay controller exclusively owns:
+
+- its renderer adapter
+- pane/group membership
+- Leaflet object registry
+- style calculation from approved runtime facts
+- render diff application
+- frame-budget scheduling
+- clear/destroy behavior
+- overlay-specific metrics
+
+Disabling an overlay must release all of its Leaflet rendering and interaction cost. The bounded runtime data plane may retain reusable data independently, especially when another overlay still needs it.
+
+Re-enabling an overlay must produce output equivalent to first activation without requiring a hard refresh.
+
+---
+
+## 9. Differential Rendering
+
+Normal pan, zoom, cache arrival, profile change, and style change must use stable-key diffs.
+
+The default update operation is:
+
+- add changed features
+- remove expired features
+- restyle changed features
+- retain unchanged features
+
+The default update operation is not:
+
+- `clearLayers()`
+- recreate every road
+
+Full reset is allowed only for explicit lifecycle events:
+
+- map replacement
+- renderer replacement
+- pane reconstruction
+- incompatible schema/version transition
+- unrecoverable runtime corruption
+
+A routine pan or toggle is not automatically a full-reset event.
+
+---
+
+## 10. Interaction Ownership
+
+Visual speed and bike paint must not independently compete for clicks.
+
+Lanterne will define one explicit map interaction arbitration policy:
+
+```text
+canonical analyzed-route hitbox
+    has precedence over
+off-route viewport-road inspection
+    has precedence over
+base-map interaction
+```
+
+Visual overlay paint should ordinarily be noninteractive. Selection should be resolved through a dedicated inspection surface/controller using stable geometry and an explicit pointer/touch tolerance policy.
+
+Click diagnostics must record:
+
+- click generation
+- receiver owner
+- arbitration winner
+- rejected candidate owners
+- target kind
+- target ID hash
+- counts only
+
+---
+
+## 11. Worker Policy
+
+The architecture boundary is the data plane, not the worker.
+
+The runtime must define a replaceable compute executor boundary with:
+
+- an in-process implementation
+- a future Web Worker implementation
+
+Worker-eligible work:
+
+- spatial-index creation
+- bounds candidate lookup
+- geometry clipping
+- geometry simplification
+- deduplication
+- profile classification
+- display bucketing
+- compact diff construction
+
+Main-thread-only work:
+
+- Leaflet
+- map events
+- panes
+- layer mutation
+- DOM/SVG/Canvas/WebGL integration
+- popup and drawer presentation
+
+A worker is not mandatory until a nonzero-road benchmark proves computation is the dominant remaining cost. "Not mandatory yet" must not become an excuse to create an interface that cannot later move behind a worker.
+
+---
+
+## 12. Renderer Policy
+
+Lanterne will not prematurely mandate SVG, Leaflet Canvas, custom Canvas, WebGL, vector-grid, or vector tiles.
+
+The runtime requires a renderer adapter boundary. Lifecycle, data flow, and differential updates come first.
+
+Decision rule after nonzero-road profiling:
+
+- computation-dominant -> move compute executor to worker
+- path creation / DOM count / paint / compositing dominant -> change renderer
+- both dominant -> do both
+- neither dominant after lifecycle repair -> keep simpler implementation
+
+Any renderer migration must preserve interaction arbitration and route hitbox semantics.
+
+---
+
+## 13. RouteMap Strangler Policy
+
+Use a strangler migration. Do not authorize a big-bang RouteMap rewrite.
+
+RouteMap should progressively become responsible for:
+
+- creating or receiving the Leaflet map
+- establishing panes
+- mounting controllers
+- wiring compact UI callbacks
+- coordinating map-wide mode changes
+
+RouteMap should no longer own:
+
+- viewport road universes
+- overlay request state machines
+- cache coverage
+- road filtering loops
+- all-road render keys
+- per-overlay Leaflet object registries
+- click competition between visual overlays
+
+Extraction order:
+
+1. runtime boundary and owner inventory
+2. cache/source adapter metrics
+3. external viewport road store
+4. cancellable scheduler and coverage receipts
+5. shared speed/bike data plane
+6. speed overlay controller
+7. bike overlay controller and real bounded `bike_infra_v1` materialization
+8. map interaction arbiter
+9. RouteMap responsibility deletion
+10. worker and renderer decision gates
+
+---
+
+## 14. Rejected Alternatives
+
+Continue patching RouteMap effects:
+
+- rejected because it preserves unclear ownership and repeated regressions.
+
+Big-bang RouteMap rewrite:
+
+- rejected because it risks route truth, inspector, route paint, and map lifecycle regressions.
+
+Blindly add a worker:
+
+- rejected because ASS-031 did not prove computation is the dominant cost after renderer/lifecycle churn.
+
+Assume cache hydration fixes rendering:
+
+- rejected because fast cache hits can feed more roads into the renderer and expose SVG/Leaflet bottlenecks.
+
+Place all viewport roads in context/React state:
+
+- rejected because it repeats the large-payload React churn identified by ASS-031 and DS-018.
+
+Clear and rebuild every overlay on each update:
+
+- rejected because routine pan/zoom/toggle should use stable-key diffs.
+
+Let every visual overlay own click handlers:
+
+- rejected because road selection must be deterministic and route inspection has precedence.
+
+Immediately rewrite the map in WebGL without benchmarks:
+
+- rejected because renderer selection must follow measured post-lifecycle costs.
+
+---
+
+## 15. Consequences and Tradeoffs
+
+Benefits:
+
+- clear ownership for every mutable viewport resource
+- measurable cache, compute, render, and interaction phases
+- shared acquisition for speed and bike overlays
+- deterministic road selection
+- RouteMap responsibility reduction without a rewrite
+- future worker and renderer flexibility
+
+Costs:
+
+- more architecture before visible fixes
+- transitional adapters while old RouteMap effects remain
+- test burden for owners, cancellation, diffs, and selection
+- nonzero-road fixtures are required before valid promotion gates
+
+---
+
+## 16. Non-Goals
+
+ADR-057 does not:
+
+- change route scoring
+- change ownership resolver behavior
+- change HPMS/DOT/OSM evidence selection
+- change route-indexed evidence truth
+- enable RXON runtime loading
+- change `route_cache`
+- change `route_history` reload
+- add database writes
+- add migrations
+- require a worker
+- require a renderer migration
+- rewrite RouteMap
+
+---
+
+## 17. Acceptance Implications
+
+The architecture is satisfied only when:
+
+- one viewport data plane feeds speed and bike overlays
+- no full viewport road universe enters React state
+- every Leaflet layer, listener, timer, request, animation frame, and hitbox has an owner
+- superseded requests cannot commit and are cancelled where supported
+- coverage distinguishes loading, cache-complete, source-complete, partial, empty, failed, cancelled, stale, and invalid
+- routine updates do not clear and rebuild entire road overlays
+- road selection is deterministic under all overlay combinations
+- disabling an overlay releases its renderer cost
+- cache-hit improvements are measured separately from render/apply improvements
+- worker and renderer decisions are backed by nonzero-road measurements
+- route risk paint, scoring, ownership, route inspection truth, RXON runtime, `route_cache`, `route_history`, and DB boundaries remain unchanged
 
