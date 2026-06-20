@@ -59584,6 +59584,605 @@ Non-critical/deferred work:
 
 ---
 
+## Source File: docs/04-execution/exec-059-route-indexed-evidence-single-truth-hard-cutover.md
+
+# EXEC-059 - Route-Indexed Evidence Single-Truth Hard Cutover
+
+Status: Owner-authorized implementation; traffic first; old HPMS production pipeline must be removed before closeout
+Date: 2026-06-20
+Evaluated origin/main: `21705e6887d988c8050e0c73e47c6fc6bf360816`
+Branch: `codex/route-indexed-evidence-single-truth-cutover`
+Worktree: `/tmp/lanterne-evidence-single-truth-39CF7n`
+Related: ADR-045, ADR-054, DS-015, DS-031, DS-055, EXEC-051, EXEC-052, EXEC-053, EXEC-058
+Phase 0 report: `docs/04-execution/reports/exec-059-phase-0-traffic-authority-and-legacy-deletion-audit.md`
+Phase 1 report: `docs/04-execution/reports/exec-059-phase-1-hpms-source-transport-and-projection-isolation.md`
+Re-entry report: `docs/04-execution/reports/route-indexed-evidence-single-truth-reentry.md`
+
+## 1. Owner Decision
+
+```text
+ownerDecision = hard_cutover_to_route_indexed_evidence_single_truth
+ownerDecisionBy = Derek Minner
+ownerDecisionDate = 2026-06-20
+authorizedCapability = route_indexed_traffic_single_truth_cutover
+authorizedScope = fully_wire_selected_hpms_truth_and_remove_legacy_hpms_pipeline
+followOnSequence = traffic_then_speed_limit_then_shoulder_then_bike_infra
+```
+
+EXEC-052 explicitly prohibited legacy removal. EXEC-059 is the new execution authority for the owner-authorized deletion of competing production HPMS traffic truth paths.
+
+Phase 0 owner checkpoint:
+
+```text
+ownerDecision = approve_exec059_phase0_and_proceed_to_hpms_source_isolation
+ownerDecisionBy = Derek Minner
+ownerDecisionDate = 2026-06-20
+authorizedCapability = legal_hpms_source_transport_and_projection_isolation
+authorizedScope = exec059_phase1_only_no_scoring_or_ui_cutover
+trafficAuthorityAudit = accepted
+legacyDeletionMap = accepted_as_phase_plan
+singularEndState = accepted
+runtimeState = unchanged
+Phase0Status = complete
+Phase1Authorization = authorized
+Phase2Authorization = unauthorized
+```
+
+Phase 0 accepts the traffic-authority and legacy-deletion inventory. It authorizes isolation of the legal HPMS source transport and route projection only. It does not authorize scoring, presentation, cache/history, feature-flag, or legacy-runtime deletion changes yet.
+
+## 2. Numbering Collision Audit
+
+`EXEC-059` was free on evaluated `origin/main`.
+
+Last existing top-level execution files before allocation:
+
+- `exec-054-ride-plan-scenario-engine-temporal-safety-poc.md`
+- `exec-055-temporal-traffic-volume-and-nighttime-risk-context-implementation-plan.md`
+- `exec-056-hourly-temporal-risk-model-implementation-plan.md`
+- `exec-057-viewport_overlay_runtime_and_routemap_strangler_plan.md`
+- `exec-058-long-route-temporal-axis-and-scale-program.md`
+
+Allocated document:
+
+```text
+docs/04-execution/exec-059-route-indexed-evidence-single-truth-hard-cutover.md
+```
+
+## 3. Prerequisite Gate
+
+This work may run only after EXEC-058 Phase 2A/2B has landed on `origin/main`.
+
+Verified on evaluated `origin/main`:
+
+- `docs/04-execution/reports/exec-058-phase-2a-2b-hpms-backed-temporal-poc-implementation.md` exists.
+- The report includes `ownerDecision = approve_exec058_phase2_hpms_backed_temporal_poc_closeout`.
+- The bounded selected-HPMS temporal vertical is marked complete.
+- `docs/04-execution/exec-058-long-route-temporal-axis-and-scale-program.md` pauses broad temporal/scenario expansion and sends work back to HPMS evidence attachment hardening.
+
+## 4. Singular End-State Architecture
+
+The final production pipeline is:
+
+```text
+RouteAxis
+  -> HPMS source acquisition/cache
+  -> HPMS route source projection
+  -> traffic_aadt candidate spans
+  -> RouteIndexedEvidenceLedger
+  -> traffic_aadt_baseline selector
+  -> RouteSurfaceTruthBundle traffic slot
+  -> canonical scoring input adapter
+  -> computeSegmentRisk / computeCrossingRisk / canonical rollup
+  -> canonical score trace and receipts
+  -> sealed presentation/read model
+  -> RouteMap, heatmap, inspector, explanation, cue, and other subscribers
+```
+
+Contextual temporal projection remains downstream:
+
+```text
+selected stable traffic
+  + RouteTimeBinding
+  -> temporal/scenario projection
+```
+
+Contextual projection must not write back into stable route truth.
+
+## 5. No Dual-Reality Rule
+
+There will not be two production traffic realities.
+
+The final runtime must not ask:
+
+```text
+Which traffic engine should I use?
+```
+
+It may only ask:
+
+```text
+Is selected route-indexed traffic valid, partial, unresolved, conflict, stale, or blocked?
+```
+
+Production runtime must remove:
+
+- legacy HPMS traffic truth path
+- `USE_ROUTE_INDEXED_TRAFFIC_TRUTH`
+- `legacy_v1` traffic engine runtime
+- full-route legacy traffic fallback
+- per-span legacy traffic fallback
+- route-analysis truthRun traffic authority
+- route_cache or route_history traffic truth authority
+- baseline scoring traffic-time adjustment
+- presentation-local traffic recomputation
+
+Temporary legacy comparison may remain only in tests, pinned fixtures, or explicit offline/admin diagnostics that are not imported by production truth, scoring, or presentation code.
+
+## 6. One Canonical Scoring Engine
+
+EXEC-059 must use the existing canonical DS-015 math and current canonical scoring seams.
+
+One scoring engine means:
+
+- one road risk calculation authority
+- one crossing risk calculation authority
+- one route rollup authority
+- one Route Risk Per Mile authority
+- one canonical receipt/score trace
+
+Do not create:
+
+- scenario-only DS-015 copy
+- V2 DS-015 copy
+- copied traffic-factor formulas
+- copied crossing formulas
+- copied speed/shoulder/bike formulas
+- legacy scorer beside a route-indexed scorer
+- mutable `ScoringLedger` unless a current accepted contract already requires it
+
+If the existing canonical analysis artifact or score trace is what prior discussion called the scoring ledger, consolidate there.
+
+## 7. Raw HPMS Code That May Remain
+
+Raw HPMS transport may remain only when it serves the approved upstream source boundary.
+
+Potentially retained:
+
+- HPMS proxy
+- HPMS network client
+- HPMS tile/source cache
+- raw response parsing
+- source capture fixtures
+- route-indexed source projection
+- admin diagnostics that inspect actual source-projection results without becoming truth
+
+Retained code must be reachable only through source-acquisition or source-projection boundaries.
+
+It must not:
+
+- enrich truthRuns directly
+- populate scoring input directly
+- populate RouteMap props directly
+- populate inspector values directly
+- decide selected truth
+- spread values by road name/ref inside route analysis
+- write completed-analysis traffic truth
+
+If an old file mixes legitimate source acquisition with legacy enrichment, extract the legitimate source transport, update source projection to use it, and delete the direct-enrichment portions when no legal caller remains.
+
+## 8. Legacy HPMS Runtime To Remove
+
+Inventory and remove all production forms of:
+
+- direct HPMS enrichment into route-analysis truthRuns
+- direct HPMS enrichment into heatmap segments
+- direct HPMS reads from scoring
+- direct HPMS reads from RouteMap
+- direct HPMS reads from inspectors/cards
+- direct HPMS reads from cue presentation
+- road-name/ref-based AADT propagation outside ledger selection
+- nearest-road AADT spreading
+- truthRun AADT propagation
+- local-area predicted AADT silent production fallback
+- road-class AADT fallback outside a registered candidate/selection policy
+- `resolveCanonicalTraffic` or equivalent fallback ladders acting as alternate traffic truth
+- old selected/resolved traffic objects populated independently of `RouteSurfaceTruthBundle`
+- legacy traffic ownership branches inside route-analysis
+- traffic truth mode switching
+- old route_cache traffic truth reuse
+- old route_history full-analysis traffic truth reuse
+- legacy traffic-time adjustment inside baseline scoring
+- presentation-local cars-per-minute calculations acting as authority
+- UI-side traffic bucket calculations
+- duplicate traffic values carried by unrelated stores with independent lifecycle
+
+Historical docs and pinned comparison fixtures may retain legacy terminology. Production source must not.
+
+## 9. Baseline Versus Temporal Traffic
+
+Baseline canonical risk uses selected stable all-day traffic evidence.
+
+Baseline scoring must not depend on:
+
+- planned start time
+- browser-local hour
+- cue-sheet time
+- `traffic-time.ts`
+- temporal AADT-equivalent exposure
+- scenario pace
+- actual progress
+
+Planned/scenario traffic remains:
+
+```text
+selected stable AADT
+  + sealed scenario temporal axis
+  -> temporal traffic projection
+```
+
+If a display needs scenario traffic, it must consume the approved scenario projection/read model. It must not call old traffic-time helpers.
+
+## 10. Route Overlays Versus Viewport All-Roads Overlays
+
+EXEC-059 owns the route traffic hard cutover. It does not need to build the final rider-facing viewport all-roads overlay UI unless separately authorized.
+
+Required split:
+
+```text
+shared raw source transport/cache
+  -> normalized source evidence
+  -> route projection
+  -> RouteIndexedEvidenceLedger
+  -> selected route truth
+  -> route overlay subscriber
+
+shared raw source transport/cache
+  -> normalized source evidence
+  -> geographic viewport/tile projection
+  -> ViewportEvidenceReadModel
+  -> viewport all-roads overlay subscriber
+```
+
+`RouteIndexedEvidenceLedger` is route-version and route-axis scoped. It must not be populated with every surrounding viewport road. Do not convert arbitrary viewport roads into fake route spans.
+
+RouteMap must ultimately receive two clearly separated sealed props/read models:
+
+- `routeEvidenceOverlays`
+- `viewportEvidenceOverlays`
+
+RouteMap may toggle visibility, render, inspect, apply visual styling, and handle feature selection. It may not fetch evidence, normalize source records, project source data, select route truth, reconcile route and viewport disagreements, promote viewport features into route truth, or recompute AADT/speed/shoulder/bike values.
+
+Traffic viewport overlay is a successor program after traffic route cutover closes. It must use a `ViewportEvidenceReadModel`, not raw HPMS directly in RouteMap.
+
+## 11. Cache Separation
+
+Keep these cache concepts distinct:
+
+Source/geographic cache:
+
+- stores normalized or raw geographic source facts
+- reusable across routes
+- suitable for future viewport all-roads queries and future route projection
+
+RouteIndexedTruthCache:
+
+- route-version scoped
+- stores selected route truth only
+- not a viewport cache
+
+Viewport read-model cache:
+
+- bounds/tile/layer/version scoped
+- stores bounded render-ready evidence artifacts
+- not route truth
+- not scoring authority
+
+Do not use:
+
+- completed-analysis `route_cache` as selected route truth
+- `route_history` as traffic truth authority
+- RouteIndexedTruthCache to store every road in the viewport
+- viewport cache as selected route truth
+
+Absence of durable selected-truth storage means recomputation, not legacy fallback.
+
+## 12. Phases
+
+### Phase 0 - Current Reality And Deletion Map
+
+Status: complete. Owner checkpoint accepted the Phase 0 traffic-authority audit and legacy-deletion inventory.
+
+Create:
+
+```text
+docs/04-execution/reports/exec-059-phase-0-traffic-authority-and-legacy-deletion-audit.md
+```
+
+For every relevant symbol/file, classify:
+
+- `retain_upstream_source_transport`
+- `retain_route_indexed_source_projection`
+- `retain_ledger`
+- `retain_selector`
+- `retain_stable_truth`
+- `retain_canonical_scorer`
+- `retain_score_trace`
+- `replace_with_selected_truth_adapter`
+- `replace_with_read_model`
+- `delete_legacy_runtime`
+- `archive_or_test_only`
+- `unrelated`
+
+### Phase 1 - Consolidate Source Acquisition And Projection
+
+Status: implemented_pending_architecture_review. Phase 1 isolated legal HPMS source transport and route projection only. It does not authorize Phase 2, scoring, presentation, cache/history, feature-flag, or legacy-runtime deletion changes.
+
+Implemented paths:
+
+- legal source transport path: `src/lib/evidence-sources/hpms/transport.ts`
+- normalized source contract: `src/lib/evidence-sources/hpms/hpms-source.ts`
+- route projection path: `src/lib/source-projection/hpms-traffic-aadt.ts`
+- viewport-compatible source seam: `HpmsGeographicSourceBundle`
+
+Phase 1 checkpoint:
+
+```text
+Phase1Status = implemented_pending_architecture_review
+Phase2Authorization = unauthorized
+temporaryLegacyCallerCount = 2
+immediatelyRemovedIllegalCallerCount = 0
+remainingLegacyDeletionPhases = Phase 2 selector/stable-truth wiring, Phase 3 scoring cutover, Phase 4 trace/read-model cutover, Phase 5 subscriber cutover, Phase 6 feature flag removal, Phase 7 legacy deletion closeout
+blockers = durable storage/schema not assessed; edge/proxy contract not changed; legacy route-analysis caller still fenced pending later deletion; viewport read model not implemented
+```
+
+Establish one upstream HPMS entry:
+
+- one raw HPMS acquisition/cache seam
+- one HPMS-to-route source projector
+- one `traffic_aadt` candidate contract
+- route-axis id/digest carried
+- half-open route-distance spans
+- source refs and source version
+- units and basis
+- directional conversion metadata
+- provenance, confidence, and diagnostics
+
+All route ingestion modes must reach the same source-projection contract: GPX, manual draw, RWGPS, RUSA/vault, saved/reloaded geometry, route edits, and detours.
+
+### Phase 2 - One Ledger And One Selected Traffic Truth
+
+All traffic candidates enter `RouteIndexedEvidenceLedger.traffic_aadt`.
+
+Only the selector may produce `traffic_aadt_baseline`.
+
+The selected snapshot must preserve selected spans, unresolved spans, conflict spans, rejected refs, route coverage, source lineage, provenance, confidence, selector version, and receipts.
+
+Do not infer missing traffic silently, promote unresolved, convert conflict to selected, spread neighboring AADT into gaps, use route names to bypass selection, use presentation state, or use legacy truthRuns.
+
+### Phase 3 - Singular Canonical Scoring Input
+
+Create or harden one pure scoring-input adapter:
+
+```text
+RouteSurfaceTruthBundle
+  + stable route geometry/ownership context
+  -> CanonicalScoringInputBundle
+```
+
+Traffic must reach continuous road traffic, crossing traffic, road-risk rollup, crossing-risk rollup, Total Route Risk, Route Risk Per Mile, explanation, and receipt calculations through this adapter.
+
+When selected traffic is unresolved where score-bearing traffic is required, mark coverage incomplete and emit the typed blocker or partial canonical result required by DS-015. Do not use old traffic, zero, hidden class fallback, or neighboring values.
+
+### Phase 4 - One Canonical Score Trace / Receipt Artifact
+
+The canonical score trace must explain the exact selected evidence used.
+
+Each road/crossing contribution should reference:
+
+- route span/event
+- selected traffic baseline span id
+- stable artifact id/digest
+- selected ledger refs
+- source refs
+- traffic basis
+- confidence
+- unresolved/conflict status
+- future speed/shoulder/bike refs when onboarded
+- formula/model version
+- contribution values
+
+Final trace must not carry raw HPMS rows, raw ledger candidate objects, alternate legacy traffic values, full source payloads, or presentation state.
+
+### Phase 5 - Make All Presentation Surfaces Subscribers
+
+Choose or harden one sealed analysis read-model boundary. It may be an expanded `ActiveTruthView`, a dedicated `RouteAnalysisView`, or another accepted read model.
+
+Wire:
+
+- RouteMap traffic overlay/card
+- heatmap route paint
+- SegmentInspector
+- traffic provenance/receipt panel
+- route score explanation
+- analysis drawer/scorecard
+- cue sheet stable traffic display
+- already-approved temporal/scenario traffic display
+- admin diagnostics
+- saved/reloaded route presentation
+
+Subscriber rules:
+
+- no raw HPMS
+- no ledger candidates
+- no selector calls
+- no scoring calls
+- no traffic-time calls
+- no local traffic propagation
+- no truthRuns-as-evidence
+- no candidate promotion
+- no writes upstream
+
+### Phase 6 - Cache, History, And Reload Cutover
+
+There must be no cached alternate traffic authority.
+
+Required policy:
+
+- legacy completed-analysis route_cache entries are not accepted as current traffic truth
+- old traffic markers are rejected
+- legacy traffic fields from cached SafetyResult are ignored as authority
+- route_history full_analysis traffic is ignored as authority
+- saved routes reload geometry/provenance and re-enter the singular analysis pipeline
+- old analysis payloads may remain historical data but cannot seed selected traffic
+- new writes must not persist raw ledger candidates or raw HPMS
+- no old/new truth-engine switch remains
+
+### Phase 7 - Delete The Legacy Runtime
+
+Delete production code, exports, configuration, and tests whose only purpose is maintaining the old traffic authority.
+
+Replace rollback-to-legacy tests with architecture absence tests proving:
+
+- only route-indexed traffic authority exists
+- no production flag can re-enable legacy traffic
+- no production caller reaches raw HPMS outside source projection
+- no production caller reads legacy traffic from truthRuns
+- no production UI calculates traffic
+- no cache/history path resurrects old traffic
+- no baseline scorer uses traffic-time
+- no hidden fallback exists
+
+## 13. End-To-End Acceptance
+
+Use pinned real fixtures and real application seams.
+
+At minimum:
+
+- Medford/Batsto
+- John's Waterfall
+- representative complete coverage
+- representative unresolved/conflict coverage
+- GPX route
+- manual route
+- saved/reloaded route
+- route edit/detour
+- temporal POC regression
+
+For selected spans, all surfaces must share:
+
+- AADT value
+- units
+- traffic basis
+- source refs
+- stable artifact digest
+- selected span id
+- receipt ids
+- confidence
+- route-distance boundaries
+
+For unresolved/conflict spans, prove:
+
+- no old traffic appears
+- no zero appears
+- no class fallback appears silently
+- no neighboring value leaks
+- UI shows incomplete/unresolved state
+- score coverage is honest
+
+## 14. Temporal POC Regression
+
+Preserve the completed temporal architecture:
+
+- selected stable traffic artifact remains unchanged
+- temporal projection receives matching artifact digest
+- no raw HPMS enters temporal code
+- removal of legacy `traffic-time.ts` baseline authority does not break the new temporal projector
+- unsupported explicit-stop integration remains honestly blocked where applicable
+
+Do not expand temporal scope, wire Planned Ride Risk, add scenario UI, add weather/wind/services, or write scenario storage.
+
+## 15. Reusable Evidence-Layer Onboarding Template
+
+For every new stable evidence layer:
+
+- register layer
+- define value and units
+- define source transport
+- define source projection
+- emit route-indexed candidate evidence
+- define provenance/confidence
+- define unresolved/conflict behavior
+- define truth selector
+- add `RouteSurfaceTruthBundle` slot
+- add canonical scoring-input adapter
+- add score-trace receipts
+- add sealed read-model fields
+- wire UI subscribers
+- define cache/version policy
+- add complete/partial/conflict fixtures
+- delete old direct pipeline
+- add absence guards
+
+Next sequence:
+
+1. `speed_limit`
+2. `shoulder`
+3. `bike_infra`
+
+Do not implement those layers in this traffic hard-cutover pass. Do not generalize prematurely into a giant framework.
+
+## 16. Stop Conditions
+
+Stop and report rather than compromise the architecture if:
+
+- a route ingestion mode cannot produce selected traffic without the legacy path
+- route-axis identity cannot be reconciled
+- stable selection lacks required receipts
+- scoring requires raw HPMS
+- a UI requires direct ledger access
+- old cache traffic is required to load a route
+- removal requires a schema migration not yet approved
+- canonical DS-015 math would need to be copied
+- the only solution is to preserve production dual truth
+- temporal POC would need raw HPMS
+- speed/shoulder/bike work is required before traffic can close
+
+Do not re-enable legacy fallback. Report the exact earliest blocker.
+
+## 17. Closeout Gate
+
+Closeout requires:
+
+- production runtime has one traffic authority
+- `USE_ROUTE_INDEXED_TRAFFIC_TRUTH` has no production use
+- `legacy_v1` has no production use
+- full-route and per-span legacy fallbacks have no production use
+- baseline scoring does not import or call `traffic-time.ts`
+- raw HPMS is reachable only through source acquisition/projection
+- route-analysis truthRuns do not act as traffic evidence
+- route_cache and route_history cannot resurrect old traffic
+- canonical score trace names selected stable traffic evidence
+- RouteMap, heatmap, SegmentInspector, explanation, cue, and analysis drawers read sealed read models only
+- temporal POC regression passes
+- route-versus-viewport overlay split is documented
+- speed/shoulder/bike successor map is recorded
+- tests, focused typecheck, full typecheck, ESLint, build, `git diff --check`, and whitespace scan are reported honestly
+
+The implementation report must be:
+
+```text
+docs/04-execution/reports/exec-059-route-indexed-evidence-single-truth-cutover-implementation.md
+```
+
+The owner decision at implementation report time remains:
+
+```text
+ownerDecision = pending_closeout_review
+```
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
