@@ -31810,7 +31810,7 @@ Rules:
 - A sweep must not perform full stable route analysis once per candidate.
 - Selected stable truth, baseline DS-015 risk artifacts/reference, route geometry, and route axis are reused.
 - Objective adapters rank evaluated views only.
-- Domain adapters and planned safety evaluation remain single-scenario contracts.
+- Domain adapters and Planned Ride Risk evaluation remain single-scenario contracts.
 - Sweep results stay in memory or local ephemeral cache unless a later persistence gate approves otherwise.
 - Do not store 96 durable route analyses for a 15-minute daily sweep.
 - Do not place every full slice-heavy candidate view in presentation state.
@@ -33731,7 +33731,7 @@ Does not own:
 
 - route truth.
 - domain logic.
-- planned safety formulas.
+- Planned Ride Risk formulas.
 - objective ranking policy.
 - presentation.
 - source fetching.
@@ -33770,7 +33770,7 @@ Rules:
 - It does not enumerate an unbounded search space.
 - It does not evaluate scenarios.
 - It does not mutate domain outputs.
-- It does not mutate planned safety outputs.
+- It does not mutate Planned Ride Risk outputs.
 
 ### 2.5 Presentation
 
@@ -34346,7 +34346,7 @@ For each unique candidate:
 3. resolve or reuse elapsed route-binding template.
 4. bind candidate absolute start time.
 5. run approved `ScenarioDomainAdapters`.
-6. run planned safety preview/score only if DS-058 and later gates allow it.
+6. consume complete Planned Ride Risk only if DS-058 and later gates allow it.
 7. produce `RidePlanScenarioView`.
 8. hand evaluated view by reference to the Phase 5 objective adapter.
 9. never allow objective ranking to mutate the evaluated view.
@@ -34362,7 +34362,7 @@ Rules:
 - soft preferences rank eligible candidates.
 - tie-breakers are deterministic and receipt-backed.
 - objective adapter consumes evaluated scenario views by reference.
-- objective adapter does not recompute domain outputs or planned safety.
+- objective adapter does not recompute domain outputs or Planned Ride Risk.
 - no hidden scalar blender across unrelated domains.
 - POC ranking remains rule-based or lexicographic unless DS-059 explicitly approves another policy.
 - blocked or unresolved candidates remain visible with reasons.
@@ -34370,9 +34370,11 @@ Rules:
 
 ---
 
-## 20. Ranked Windows
+## 20. Deferred Ranked Windows / Plateaus
 
-For departure-time sweeps, adjacent candidates that are materially equivalent under the objective policy should be grouped into `ScenarioWindowResult` objects.
+Exact quarter-hour candidate evaluation and exact top-ranked modeled-candidate output are active. Adjacent equivalent-window or plateau presentation remains a pending rider/product decision in the EXEC-058 Rider Judgment Register.
+
+If a later owner decision accepts adjacent-window presentation, departure-time sweeps may group adjacent candidates that are materially equivalent under the objective policy into `ScenarioWindowResult` objects.
 
 Conceptual fields:
 
@@ -34402,7 +34404,7 @@ Rules:
 - material equivalence must be governed by a versioned `materialEquivalencePolicyId`.
 - window grouping must not cross material discontinuities such as hard-constraint pass/fail changes, blocked/unresolved status changes, light-state/night-window transitions, temporal risk factor changes, traffic profile/profile-version changes, clock-day/DST ambiguity boundaries, or objective primary-driver changes.
 - do not claim 10:45 is meaningfully better than 11:00 when the model cannot support that precision.
-- prefer rider-facing windows or plateaus over one magic minute.
+- do not replace the exact top-ranked quarter-hour candidate with a rider-facing window or plateau until that later presentation decision is accepted.
 - result must say "best within the evaluated candidate set and assumptions," not globally optimal.
 - result must disclose requested and effective resolution.
 - result must disclose unresolved/blocked candidate coverage.
@@ -34521,7 +34523,7 @@ Therefore:
 - 15-minute evaluation resolution does not imply 15-minute empirical traffic calibration.
 - ranking copy must distinguish evaluation resolution from source/model resolution.
 - small modeled differences must not be presented as scientific certainty.
-- contiguous equivalent candidates should become windows.
+- adjacent equivalent-window or plateau presentation remains pending and is not required for the first exact-quarter-hour result.
 
 ---
 
@@ -34534,7 +34536,7 @@ Sweep orchestration may consume:
 - approved route transforms.
 - route-time binding.
 - approved domain outputs.
-- approved planned safety output/preview.
+- approved complete Planned Ride Risk output.
 - Phase 5 objective adapter.
 
 It may not consume:
@@ -34580,7 +34582,7 @@ Required assertions:
 - no route geometry analysis occurs per candidate.
 - changing start time can change temporal projections.
 - same route may have lower traffic but higher nighttime context risk.
-- adjacent equivalent candidates group into one window.
+- adjacent equivalent candidate windowing remains deferred unless the later plateau/window presentation decision is accepted.
 - partial results are labeled provisional.
 - cancellation prevents stale events/results.
 - DST-transition ambiguity blocks or warns according to contract.
@@ -34611,7 +34613,7 @@ Phase 6 approves only this contract.
 Before runtime sweep implementation:
 
 - DS-060 must be accepted or revised.
-- DS-058 and DS-059 must remain authoritative for planned safety and objective ranking.
+- DS-058 and DS-059 must remain authoritative for Planned Ride Risk and objective ranking.
 - `RidePlanScenarioEngine` must evaluate one sealed scenario cleanly.
 - worker-first orchestration must be designed.
 - fixture tests and measured performance gates must pass.
@@ -48581,7 +48583,7 @@ That closes the stable route-indexed traffic vertical enough to plan the next la
 
 Lanterne should eventually answer questions such as:
 
-- What is the safest time to ride this route?
+- What start time produces the lowest modeled Planned Ride Risk for this route?
 - Should I ride clockwise or counterclockwise?
 - What if I start from a different point on a loop?
 - What start time minimizes traffic risk?
