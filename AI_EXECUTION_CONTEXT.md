@@ -58361,7 +58361,7 @@ EXEC-057 is complete when:
 
 # EXEC-058 - Long-Route Temporal Axis And Scale Program
 
-Status: Phase 1 complete; Phase 2 corrected and authorized as pure temporal foundation plus selected-HPMS vertical POC; not implemented
+Status: Phase 1 complete; Phase 2 complete as approved bounded pure temporal foundation plus fixture-faithful selected-HPMS vertical POC; Phase 3 unauthorized
 Date: 2026-06-20
 Evaluated main: `04477deeeb9aa635092bea98099158cf032dc34d`
 Related: ADR-036 (Proposed), ADR-045, ADR-055, DS-031, DS-032, DS-056, DS-062, DS-063, DS-064, EXEC-054, EXEC-055, EXEC-056, res-003, res-003b
@@ -59012,8 +59012,21 @@ ownerDecisionDate = 2026-06-20
 authorizedCapability = hpms_backed_long_route_temporal_poc
 authorizedScope = pure_temporal_foundation_plus_selected_hpms_vertical_integration
 Phase2ImplementationAuthorization = authorized_bounded_temporal_foundation_plus_selected_hpms_vertical_poc
-implementationState = not_implemented
+implementationState = complete_bounded_poc
 ```
+
+Implementation report: `docs/04-execution/reports/exec-058-phase-2a-2b-hpms-backed-temporal-poc-implementation.md`
+
+Closeout decision:
+
+```text
+ownerDecision = approve_exec058_phase2_hpms_backed_temporal_poc_closeout
+ownerDecisionBy = Derek Minner
+ownerDecisionDate = 2026-06-20
+authorizedResult = bounded_hpms_backed_temporal_poc_complete
+```
+
+Final architecture-hardening review is recorded in the implementation report. Phase 2 is `complete_bounded_poc`; this does not authorize Phase 3, DS-066, worker implementation, product wiring, dogfood, default-on behavior, or production release.
 
 This supersedes the interpretation that Phase 2 ends after pure temporal primitives. It does not supersede DS-065's pure ownership boundary.
 
@@ -59024,7 +59037,7 @@ Phase 2 may be implemented as one bounded vertical slice with two subphases.
 Status:
 
 ```text
-authorized_not_implemented
+complete
 ```
 
 Authorized implementation:
@@ -59053,7 +59066,7 @@ Authorized implementation:
 Status:
 
 ```text
-authorized_not_implemented
+complete_for_supported_cases
 ```
 
 Authorized implementation:
@@ -59095,7 +59108,7 @@ temporalMechanicsProof =
   may_use_deterministic_prepared_stable_inputs
 
 hpmsVerticalProof =
-  must_begin_from_selected_stable_hpms_artifact_or_faithful_fixture
+  fixture_faithful_hpms_vertical_complete
 
 productionAttachmentProof =
   deferred_post_poc_hardening
@@ -59125,7 +59138,7 @@ Phase 2 may not implement:
 
 Phase 3 and later remain unchecked and unauthorized.
 
-POC closeout requires:
+POC closeout outcome:
 
 ```text
 temporalFoundation =
@@ -59134,8 +59147,14 @@ temporalFoundation =
 selectedHpmsTemporalVertical =
   complete
 
+hpmsFixtureClassification =
+  fixture_faithful_hpms_vertical
+
 DS063Adapter =
-  complete_for_supported_cases
+  complete_for_supported_stop_inclusive_cases
+
+explicitStopDs063Integration =
+  deferred_ds063_stop_plateau_unsupported
 
 rawHpmsNoLeakAudit =
   passed
@@ -59167,40 +59186,46 @@ scoringContamination =
 productionHpmsAttachment =
   deferred_post_poc_hardening
 
+productionTemporalAccuracy =
+  blocked
+
 plannedRiskRuntime =
   blocked
 
 productionRelease =
   blocked
+
+Phase3ImplementationAuthorization =
+  unauthorized
 ```
 
-After this bounded POC closes, stop broad scenario expansion. Do not begin weather, wind, services/open-hours, objective runtime, broad scenario UI, or production rollout. Return to HPMS evidence-attachment hardening, prove ledger -> selection -> stable artifact -> subscriber consistency, repair cache/version invalidation, and establish the reusable second-evidence-layer onboarding template.
+After this bounded POC closeout, stop broad scenario expansion. Do not begin weather, wind, services/open-hours, objective runtime, broad scenario UI, Planned Ride Risk runtime, or production temporal rollout. Return to HPMS evidence-attachment hardening, prove source projection -> ledger candidate integrity -> stable selection -> stable artifact construction -> subscriber consistency, repair cache/version invalidation, and establish the reusable second-evidence-layer onboarding template. Temporal architecture is preserved, not discarded, and is operationally paused after the bounded POC until Derek explicitly reopens it.
 
 The post-POC HPMS evidence-attachment hardening handoff is absent on evaluated main `04477deeeb9aa635092bea98099158cf032dc34d`. Its absence does not block this Phase 2 scope correction; EXEC-058 carries the mandatory post-POC HPMS return rule, and a dedicated handoff may be created at POC closeout.
 
 Checklist:
 
-- [ ] Implement DS-065 types and validation.
-- [ ] Implement stop schedule canonicalization/digest.
+- [x] Implement DS-065 types and validation.
+- [x] Implement stop schedule canonicalization/digest.
 - [ ] Implement prepared time-zone span validation/digest.
-- [ ] Implement piecewise planned elapsed-time binding.
-- [ ] Implement arrival/departure behavior at stops.
-- [ ] Implement planned versus actual stop object separation.
-- [ ] Implement stop reconciliation state handling for deterministic fixtures.
-- [ ] Implement actual-adjusted remaining-route projection semantics.
-- [ ] Preserve immutable planned binding for plan-versus-actual comparison.
-- [ ] Preserve stop-inclusive elapsed pace as a first-class aggregate timing strategy.
-- [ ] Block explicit stops with a pace profile that already includes stops.
-- [ ] Block moving-versus-elapsed basis mismatch without a named conversion policy.
-- [ ] Implement fixed-zone compatibility.
+- [x] Implement piecewise planned elapsed-time binding.
+- [x] Implement arrival/departure behavior at stops.
+- [x] Implement planned versus actual stop object separation.
+- [x] Implement stop reconciliation state handling for deterministic fixtures.
+- [x] Implement actual-adjusted remaining-route projection semantics.
+- [x] Preserve immutable planned binding for plan-versus-actual comparison.
+- [x] Preserve stop-inclusive elapsed pace as a first-class aggregate timing strategy.
+- [x] Block explicit stops with a pace profile that already includes stops.
+- [x] Block moving-versus-elapsed basis mismatch without a named conversion policy.
+- [x] Implement fixed-zone compatibility.
 - [ ] Implement route-positioned IANA-zone selection.
-- [ ] Implement DST conversion from absolute instants.
-- [ ] Keep output immutable and structured-clone compatible.
-- [ ] Keep source fetching out.
-- [ ] Keep storage out.
-- [ ] Keep scoring out.
-- [ ] Add deterministic tests.
-- [ ] Validate 4,000-mile timing without a worker as correctness evidence only.
+- [x] Implement DST conversion from absolute instants.
+- [x] Keep output immutable and structured-clone compatible.
+- [x] Keep source fetching out.
+- [x] Keep storage out.
+- [x] Keep scoring out.
+- [x] Add deterministic tests.
+- [x] Validate 4,000-mile timing without a worker as correctness evidence only.
 - [ ] Leave browser-scale claims for later phases.
 - [ ] Keep automatic GPS stop detection runtime deferred.
 - [ ] Keep GPS numeric thresholds field-measurement deferred.
