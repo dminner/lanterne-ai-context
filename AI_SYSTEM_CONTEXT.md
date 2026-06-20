@@ -3413,9 +3413,9 @@ Route Safety Score must remain:
 | ADR-034 | Master Route Expeditions and Windowed Long-Route Analysis | Draft | DS-014 |
 | ADR-045 | Route-Indexed Evidence Platform | Accepted | DS-031 |
 | ADR-054 | RouteIndexedEvidenceLedger No-Leak Architecture | Accepted | DS-055 |
-| ADR-055 | Ride Plan Scenario Engine and Planned Ride Safety Score | Accepted Architecture | DS-056 |
+| ADR-055 | Ride Plan Scenario Engine and Planned Ride Risk | Accepted Architecture | DS-056, DS-058, DS-064 accepted component-adaptation contract |
 | ADR-056 | Temporal Motor-Vehicle Risk Context and Traffic Volume Split | Proposed; superseded for active temporal model kernel by ADR-057 / DS-062 | DS-057 |
-| ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Accepted for hourly architecture and detached kernel; scenario/scoring integration deferred | DS-062, DS-063 accepted projection contract |
+| ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Accepted for hourly architecture and detached kernel; scenario/scoring integration deferred | DS-062, DS-063 accepted projection contract, DS-064 accepted component-adaptation contract |
 | ADR-058 | Viewport Road Data Plane and Overlay Ownership | Proposed | DS-061 |
 
 ---
@@ -3466,14 +3466,15 @@ Route Safety Score must remain:
 | DS-053 | Local Prediction Builder | DS-015, DS-017, DS-022, DS-029, DS-031, DS-043, DS-046, DS-048 | Draft |
 | DS-054 | Admin Cache Cell Visualizer | DS-031, DS-034, DS-035, DS-050, DS-052, DS-053 | Draft |
 | DS-055 | RouteIndexedEvidenceLedger No-Leak Spec | ADR-054, DS-031, DS-043, DS-044, DS-047 | Draft |
-| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062, DS-063 | Draft |
+| DS-056 | Ride Plan Scenario Engine and Objective Adapter Spec | ADR-055, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062, DS-063, DS-064 | Draft |
 | DS-057 | Temporal Traffic Volume and Nighttime Motor-Vehicle Risk Context Spec | ADR-056, ADR-055, DS-056, DS-015, DS-031 | Draft; superseded for active temporal model kernel by DS-062 hourly temporal spec |
-| DS-058 | Planned Ride Safety Score Contract | ADR-055, ADR-056, DS-015, DS-031, DS-056, DS-057 | Draft |
+| DS-058 | Planned Ride Risk Contract | ADR-055, ADR-056, DS-015, DS-031, DS-056, DS-057, DS-062, DS-063, DS-064 | Draft; filename retains superseded planned_ride_safety_score wording for link stability |
 | DS-059 | Scenario Objective Adapter Contract | ADR-055, DS-056, DS-058, DS-060 | Draft |
 | DS-060 | Scenario Sweep Contract | ADR-055, DS-056, DS-058, DS-059 | Draft |
 | DS-061 | Viewport Road Runtime, Overlay Lifecycle, and Render Diff Spec | ADR-058, DS-018, DS-031, DS-032, DS-035, DS-052 | Reserved for viewport road-data-plane / overlay-ownership packet; draft |
-| DS-062 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056, DS-057 lineage, DS-058 | Accepted for detached model-kernel implementation; scenario/scoring integration deferred |
+| DS-062 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056, DS-057 lineage, DS-058, DS-063, DS-064 | Accepted for detached model-kernel implementation; scenario/scoring integration deferred |
 | DS-063 | Hourly Temporal Scenario Projection Contract | ADR-055, ADR-057, DS-031, DS-056, DS-058, DS-062, EXEC-055, EXEC-056 | Accepted for headless prepared-input projection implementation; runtime not yet implemented |
+| DS-064 | Motor-Vehicle Temporal Component Adaptation And Coverage Contract | ADR-055, ADR-057, DS-015, DS-031, DS-056, DS-058, DS-062, DS-063, EXEC-055, EXEC-056 | Accepted for temporal component-adaptation contract only; runtime not implemented; preview, score, presentation, storage, and production deferred |
 
 ---
 
@@ -3492,9 +3493,9 @@ ADR-021 governs the existence and rules of the OSM variable registry. DS-004 is 
 An earlier draft of the ride computer tile system was incorrectly numbered DS-008. DS-008 is the Route Corridor Model (ADR-019 companion). The ride computer tile system is DS-012. The earlier draft is superseded and should be deleted.
 
 ### Hourly temporal model lineage
-ADR-057 and DS-062 define the active hourly temporal model architecture and detached model-kernel specification. DS-063 accepts the headless prepared-input scenario projection contract around that kernel; runtime is not yet implemented, and scoring/presentation/persistence remain deferred. ADR-056 and DS-057 remain lineage for the conceptual split between traffic exposure and per-pass/contextual risk; their two-profile curves, broad night buckets, and fixed 1.60 / 2.10 broad-night factors are not runtime authority.
+ADR-057 and DS-062 define the active hourly temporal model architecture and detached model-kernel specification. DS-063 accepts the headless prepared-input scenario projection contract around that kernel. DS-064 accepts the follow-on motor-vehicle temporal component-adaptation and coverage contract as contract-only; it reuses canonical DS-015 scoring seams and authorizes no runtime, preview, score, presentation, storage, or production behavior. ADR-056 and DS-057 remain lineage for the conceptual split between traffic exposure and per-pass/contextual risk; their two-profile curves, broad night buckets, and fixed 1.60 / 2.10 broad-night factors are not runtime authority.
 
-EXEC-056 is the active hourly temporal model implementation plan. EXEC-055 remains lineage and retains the double-counting audit gate before any planned-risk or Planned Ride Safety integration.
+EXEC-056 is the active hourly temporal model implementation plan. EXEC-055 remains lineage and retains the double-counting audit gate before any Planned Ride Risk integration. After accepted Phase 6A, the next gate is deciding whether to authorize a bounded headless road temporal-adaptation proof; complete component runtime, planned-risk preview, score, UI, storage, and production remain blocked.
 
 ### DS-061 reservation
 DS-061 is reserved for the viewport road-data-plane / overlay-ownership packet tied to ADR-058 and EXEC-057. DS-062 is therefore the hourly temporal model specification.
@@ -7133,7 +7134,17 @@ Total Route Risk = policy-calibrated sum(continuous-road risk points, crossing-e
 Route Risk Per Mile = Total Route Risk / Route Miles
 ```
 
-The road and crossing breakouts are the most honest detail-level safety signals. The combined Route Safety Score is still useful, but it is a declared product calibration: it chooses how to place continuous-road exposure and crossing-event exposure onto one scale. That choice is evidence-informed by crash and severity patterns that make sustained road exposure the backbone, but it is not a discovered physical law. Route Family Rank is the rider-facing simplification derived from the combined comparison basis. A 1-100 score, school-like curve, or A-F band is not canonical.
+The road and crossing breakouts are the most honest detail-level safety signals. Total Route Risk and Route Risk Per Mile are declared product calibrations: they choose how to place continuous-road exposure and crossing-event exposure onto one scale. That choice is evidence-informed by crash and severity patterns that make sustained road exposure the backbone, but it is not a discovered physical law. **Safety Rank** is the selected rider-facing cohort-relative simplification derived from Route Risk Per Mile within a pinned comparison universe. `Route Family Rank` may remain as internal or historical lineage/alias language, but Safety Rank is current rider-facing terminology. A 1-100 score, school-like curve, or A-F band is not canonical.
+
+Directionality:
+
+- higher risk means less safe
+- lower risk means safer
+- no inversion is allowed in risk fields
+- no 0-100 normalized Safety Score is canonical
+- no A-F grade is canonical
+- "Risk Score" may be a rider-facing label for Route Risk Per Mile
+- do not create a second normalized risk-score field unless a later explicit contract authorizes it
 
 ## 1. Architectural Decision
 
@@ -7170,7 +7181,7 @@ The canonical route artifact must therefore preserve:
 - `modelVersion`
 - evidence and cache version metadata
 
-Route Family Rank may be computed later from `routeRiskPerMile`, but it is a projection that must carry its own route-family and network metadata. A route detail or admin surface may not present the combined score or rank without preserving road-vs-crossing breakout values close enough for interpretation.
+Safety Rank may be computed later from `routeRiskPerMile`, but it is a cohort-relative projection that must carry its own cohort/family and snapshot metadata. A route detail or admin surface may not present the combined risk label or rank without preserving road-vs-crossing breakout values close enough for interpretation.
 
 Projection layers may not compute alternate score truth. They may only interpret the canonical route artifact for a named network, universe, UI context, or cache version.
 
@@ -7779,26 +7790,39 @@ Each label must be backed by trace evidence, not hand-written vibes.
 
 The canonical model outputs risk. Rider-facing comparison is a projection.
 
-### 11.1 Rank
+### 11.1 Safety Rank
 
-Rank compares combined `routeRiskPerMile` against a selected route network.
+Safety Rank compares canonical `routeRiskPerMile` against a named cohort or route family and a pinned cohort/corpus snapshot.
 
 ```text
-Rank = ordinal position by ascending Route Risk Per Mile within the selected network
+Safety Rank = ordinal or percentile position by ascending Route Risk Per Mile within the selected cohort snapshot
 ```
 
-The safest route in the selected network is rank `#1`.
+The safest route in the selected cohort snapshot is rank `#1`.
 
-A rank is meaningless without:
+Safety Rank is:
 
-- network name
-- network version
-- route inclusion rules
-- model version
-- evidence snapshot / scoring run id
-- ranking timestamp
+- cohort-relative
+- derived from canonical Route Risk Per Mile
+- tied to a named cohort or route family
+- tied to a cohort/corpus snapshot
+- comparative rather than absolute
+- not an A-F grade
+- not a transformed substitute for canonical risk
 
-Every route may belong to multiple networks. The same route can therefore have multiple valid ranks.
+Required conceptual metadata:
+
+- `safetyRank`
+- `rankDirection`
+- `cohortId`
+- `cohortLabel`
+- `cohortSnapshotId`
+- `cohortSize`
+- `rankModelVersion`
+- `riskArtifactRef`
+- `generatedAt`
+
+Every route may belong to multiple cohorts. The same route can therefore have multiple valid Safety Ranks.
 
 Examples:
 
@@ -7809,18 +7833,21 @@ Examples:
 - Gravel-adjacent Exclusion Rank
 - User-library Rank
 
-Only combined `routeRiskPerMile` is the default Route Family Rank basis. `roadRiskPerMile`, `crossingRiskPerMile`, `crossingRiskPerEvent`, and `totalRouteRisk` remain visible because the combined rank is a product-weighted summary and the domain breakouts are often the clearer rider signal. `totalRouteRisk` must not be the default rank basis unless a projection explicitly says it is ranking total accumulated risk.
+Only combined `routeRiskPerMile` is the default Safety Rank basis. `roadRiskPerMile`, `crossingRiskPerMile`, `crossingRiskPerEvent`, and `totalRouteRisk` remain visible because the combined rank is a product-weighted summary and the domain breakouts are often the clearer rider signal. `totalRouteRisk` must not be the default rank basis unless a projection explicitly says it is ranking total accumulated risk.
 
-### 11.2 Route Family Rank
+### 11.2 Route Family Rank Lineage
 
-Route Family Rank is the launch rider-facing simplification derived from `routeRiskPerMile` within a named family or comparison universe.
+`Route Family Rank` is legacy/internal lineage for the current rider-facing Safety Rank concept when the cohort is a route family.
 
-It may be shown as an ordinal, percentile, or concise family-relative label, but it must not use school-like A-F grading and must not imply a universal 1-100 safety scale.
+Safety Rank may be shown as an ordinal, percentile, or concise cohort-relative label, but it must not use school-like A-F grading and must not imply a universal 1-100 safety scale.
 
-Every Route Family Rank must carry:
+Every Safety Rank must carry:
 
-- network name and version
+- cohort name/version or route-family name/version
 - model version
+- cohort snapshot id
+- cohort size
+- risk artifact reference
 - percentile basis
 - whether ties are dense-rank, ordinal, or percentile-smoothed
 
@@ -30948,9 +30975,9 @@ Tests should treat violations as architecture failures, not product polish issue
 **Status:** Draft for planning
 **Date:** 2026-06-17
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
-**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062, DS-063, exec-052, exec-053, exec-054, exec-056
+**Related:** ADR-006, ADR-023, ADR-045, ADR-054, DS-015, DS-031, DS-055, DS-057, DS-058, DS-059, DS-060, DS-062, DS-063, DS-064, exec-052, exec-053, exec-054, exec-056
 
-> 2026-06-19 temporal update: future scenario temporal-risk adapters should use ADR-057 / DS-062 hourly temporal risk as the active detached kernel and DS-063 as the accepted headless prepared-input scenario projection contract. Scoring remains under DS-058 and later gates. The earlier DS-057 two-profile traffic and broad nighttime factor shape remains lineage only for the traffic-exposure versus per-pass-risk separation.
+> 2026-06-19 temporal update: future scenario temporal-risk adapters should use ADR-057 / DS-062 hourly temporal risk as the active detached kernel and DS-063 as the accepted headless prepared-input scenario projection contract. DS-064 owns the accepted contract-only motor-vehicle temporal component-adaptation contract between DS-063 projections and any later DS-058 Planned Ride Risk layer; it reuses canonical DS-015 scoring seams and does not redefine road or crossing math. Planned Ride Risk remains under DS-058 and later gates. The earlier DS-057 two-profile traffic and broad nighttime factor shape remains lineage only for the traffic-exposure versus per-pass-risk separation.
 
 ---
 
@@ -30996,6 +31023,8 @@ Scenario outputs may carry both:
 - `scenarioDistM`
 
 Scenario layers do not mutate stable truth, route geometry, the evidence ledger, or `RouteIndexedTruthCache`.
+
+Hourly temporal scenario projection belongs to DS-063. Motor-vehicle temporal component adaptation belongs to DS-064. Planned score or preview rollup belongs to DS-058. Objective adapters may consume only approved outputs by reference; they do not compute temporal projections, adapt motor-vehicle components, redefine DS-015 math, or create planned scores.
 
 ---
 
@@ -31234,7 +31263,8 @@ Allowed `domain` values:
 Allowed `scoreEligibility` values:
 
 - `baseline_safety_score_input`
-- `planned_ride_safety_score_input`
+- `planned_ride_risk_input`
+- `planned_ride_safety_score_input` (legacy alias; superseded by `planned_ride_risk_input`)
 - `route_reality_index`
 - `condition_index`
 - `objective_only`
@@ -31244,8 +31274,8 @@ Allowed `scoreEligibility` values:
 Default eligibility rules:
 
 - no scenario adapter becomes `baseline_safety_score_input` by default
-- traffic temporal volume may be `planned_ride_safety_score_input` for Planned Ride Safety Score or planned ride risk preview only after the planned-score contract allows it
-- temporal motor-vehicle risk context may be `planned_ride_safety_score_input` only after calibration/research gate
+- traffic temporal volume may be `planned_ride_risk_input` for Planned Ride Risk only after DS-058 allows it
+- temporal motor-vehicle risk context may be `planned_ride_risk_input` only after calibration/research gate
 - light, UV, weather, temperature, and wind are `condition_index` by default
 - service access and transport access are `route_reality_index` or `objective_only` by default
 - POI likely-open status is logistics, objective, or display by default
@@ -31319,7 +31349,7 @@ Traffic and temporal risk remain separate:
 - `TrafficTemporalVolumeProfile` estimates volume or exposure opportunity.
 - `TemporalMotorVehicleRiskContext` estimates contextual risk per interaction or severity context.
 - They must not collapse into one generic traffic multiplier.
-- Combined planned score contribution belongs to the Planned Ride Safety Score contract, not inside either adapter.
+- Combined Planned Ride Risk contribution belongs to DS-058, not inside either adapter.
 
 Phase 2 registry stubs:
 
@@ -31434,8 +31464,8 @@ Rules:
 - Objective adapters may not compute `RouteTimeBinding`.
 - Objective adapters may not compute `ScenarioTrafficProjection`.
 - Objective adapters may not compute `ScenarioTemporalMotorVehicleRiskProjection`.
-- Objective adapters may not compute Planned Ride Safety Score or planned ride risk preview.
-- Objective adapters may not alter domain adapter outputs, rewrite scenario projections, or patch Planned Ride Safety Score to make a candidate rank better.
+- Objective adapters may not compute Planned Ride Risk.
+- Objective adapters may not alter domain adapter outputs, rewrite scenario projections, or patch Planned Ride Risk to make a candidate rank better.
 - Objective adapters may not mutate route geometry, RouteMap state, cue-sheet state, stable route truth, route caches, or scoring formulas.
 - Phase 5 is docs-only; no runtime objective adapter is approved.
 
@@ -31445,7 +31475,7 @@ Airport access is one objective adapter example. It is not a special architectur
 
 `optimize_safety`:
 
-- primary objective: minimize Planned Ride Safety Score risk or `riskPlannedRidePerMile`
+- primary objective: minimize `plannedRouteRiskPerMile`
 - hard constraints: no blocked route-indexed traffic truth if policy requires; no temporal model calibration blockers
 - soft preferences: shorter dark exposure; better bailout density
 - tie breakers: earlier service access; lower unresolved distance
@@ -31453,7 +31483,7 @@ Airport access is one objective adapter example. It is not a special architectur
 `optimize_access_air`:
 
 - primary objective: minimize airport start/end logistics friction
-- hard constraints: Planned Ride Safety Score must remain below the approved risk threshold
+- hard constraints: Planned Ride Risk must remain below the approved risk threshold
 - soft preferences: rail access; service availability; lower night exposure
 - tie breakers: lower traffic temporal exposure
 
@@ -31466,17 +31496,17 @@ Airport access is one objective adapter example. It is not a special architectur
 
 ---
 
-## 9. ScenarioSafetyScorer
+## 9. ScenarioPlannedRiskScorer
 
-`ScenarioSafetyScorer` is the only planned safety combination layer named by this spec.
+`ScenarioPlannedRiskScorer` is the only planned risk combination layer named by this spec.
 
-The Planned Ride Safety Score contract is defined by DS-058:
+The Planned Ride Risk contract is defined by DS-058:
 
 ```text
 docs/02-architecture/design/ds-058-planned_ride_safety_score_contract.md
 ```
 
-`ScenarioSafetyScorer` may compute a Planned Ride Safety Score or planned ride risk preview only after that contract and later gates approve runtime behavior.
+`ScenarioPlannedRiskScorer` may compute Planned Ride Risk only after that contract and later gates approve runtime behavior.
 
 Inputs:
 
@@ -31486,17 +31516,23 @@ Inputs:
 - bike support, speed, railroad-crossing hazard, and other approved stable safety inputs as applicable
 - approved contextual modifiers only
 
-Rail transport access is not a Planned Ride Safety Score input by default. It belongs to `ScenarioAccessProjection`, route reality, or objective scoring unless a later ADR explicitly says otherwise.
+Rail transport access is not a Planned Ride Risk input by default. It belongs to `ScenarioAccessProjection`, route reality, or objective scoring unless a later ADR explicitly says otherwise.
 
-Score eligibility declared by a scenario adapter does not grant score authority. It only says that an output may be consumed by `ScenarioSafetyScorer` or a planned-risk preview layer after the planned-score contract, double-counting audit, and calibration gates approve that use.
+Score eligibility declared by a scenario adapter does not grant risk authority. It only says that an output may be consumed by `ScenarioPlannedRiskScorer` after the Planned Ride Risk contract, double-counting audit, and calibration gates approve that use.
 
 Outputs:
 
-- `scorePlannedRideSafety`, if a full planned score is approved
-- `plannedRideRiskPreview`, if preview-only output is approved
-- `riskPlannedRidePerMile`
-- `deltaFromBaselineSafetyScore`, if a normalized planned score exists
-- `deltaFromBaselineRiskPerMile`
+- `plannedRoadRiskTotal`
+- `plannedCrossingRiskTotal`
+- `plannedTotalRouteRisk`
+- `plannedRoadRiskPerMile`
+- `plannedCrossingRiskPerMile`
+- `plannedRouteRiskPerMile`
+- `deltaRoadRiskTotal`
+- `deltaCrossingRiskTotal`
+- `deltaTotalRouteRisk`
+- `deltaRouteRiskPerMile`
+- `percentDeltaFromBaselineRouteRiskPerMile`
 - scenario traffic volume contribution
 - temporal motor-vehicle risk context contribution
 - explanation receipts
@@ -31516,7 +31552,7 @@ Avoid `effectiveAadt` as durable truth. Avoid `liveTraffic`, `actualTraffic`, an
 Critical rule:
 
 ```text
-Do not multiply the normalized 0-100 Safety Score directly.
+Do not multiply a normalized display value directly.
 ```
 
 Preferred model:
@@ -31528,8 +31564,9 @@ Preferred model:
 
 Forbidden:
 
-- taking Baseline Safety Score 0-100 and multiplying it by traffic or night factors.
-- applying one opaque route-level final score multiplier when slice-level recomputation is possible.
+- producing normalized 0-100 planned score or A-F grade.
+- taking a normalized display value and multiplying it by traffic or night factors.
+- applying one opaque route-level final risk multiplier when slice-level recomputation is possible.
 - combining `TrafficTemporalVolumeProfile` and `TemporalMotorVehicleRiskContext` inside either adapter.
 
 Any POC simplification must be:
@@ -31553,7 +31590,7 @@ The Phase 3 expanded traffic/time split contract is:
 docs/04-execution/reports/exec-054-phase-3-temporal-traffic-and-safety-split.md
 ```
 
-That contract is docs-only and defines `TrafficTemporalVolumeProfile`, `TemporalMotorVehicleRiskContext`, the POC profile ids, the neutral/default risk context, calibration gates, clock requirements, missing coverage behavior, and the Planned Ride Safety Score boundary. It does not implement traffic projection or scoring.
+That contract is docs-only and defines `TrafficTemporalVolumeProfile`, `TemporalMotorVehicleRiskContext`, the POC profile ids, the neutral/default risk context, calibration gates, clock requirements, missing coverage behavior, and the Planned Ride Risk boundary. It does not implement traffic projection or scoring.
 
 The hourly temporal scenario projection contract is:
 
@@ -31647,22 +31684,22 @@ Rules:
 
 - Do not bake production coefficients without calibration/research gate.
 - `temporal_motor_vehicle_risk_context_neutral_v1` has `calibrationStatus = neutral`.
-- Neutral context may expose receipts/diagnostics but cannot increase or decrease Planned Ride Safety Score.
+- Neutral context may expose receipts/diagnostics but cannot increase or decrease Planned Ride Risk.
 - Neutral context cannot be used as a hidden multiplier.
 - Neutral context cannot imply empirical crash certainty.
 - Non-neutral variants require ADR-056/DS-057 receipt policy.
 - Non-neutral variants are not production calibrated.
-- Score eligibility does not grant score authority.
-- Any non-neutral factor must pass Phase 4 planned-score approval and a later calibration/research gate before production score influence.
-- Light, glare, darkness, and visibility must not directly enter Planned Ride Safety Score by default.
-- They may affect Planned Ride Safety Score only through an explicitly approved `TemporalMotorVehicleRiskContext` model with versioned assumptions, receipts, and calibration/research gate.
+- Score eligibility does not grant Planned Ride Risk authority.
+- Any non-neutral factor must pass Phase 4 planned-risk approval and a later calibration/research gate before production risk influence.
+- Light, glare, darkness, and visibility must not directly enter Planned Ride Risk by default.
+- They may affect Planned Ride Risk only through an explicitly approved `TemporalMotorVehicleRiskContext` model with versioned assumptions, receipts, and calibration/research gate.
 - Do not claim empirical crash certainty without backing data.
 
 This changes risk per vehicle interaction or severity context. It is not traffic volume.
 
-Traffic temporal volume and temporal motor-vehicle risk context remain separate. A later Planned Ride Safety Score contract may combine them outside the adapters. The combined planned safety contribution happens in `ScenarioSafetyScorer` or a planned-risk preview layer, not inside either adapter. No generic traffic multiplier may combine volume and risk context, and no route-level opaque final score multiplier is approved.
+Traffic temporal volume and temporal motor-vehicle risk context remain separate. DS-058 may combine them outside the adapters for Planned Ride Risk after road and crossing completeness gates are satisfied. The combined planned risk contribution happens in `ScenarioPlannedRiskScorer`, not inside either adapter. No generic traffic multiplier may combine volume and risk context, and no route-level opaque final risk multiplier is approved.
 
-Phase 3 does not implement or authorize Planned Ride Safety Score computation. `TrafficTemporalVolumeProfile` may become `planned_ride_safety_score_input` only after Phase 4 approval. `TemporalMotorVehicleRiskContext` may become `planned_ride_safety_score_input` only after calibration/research gate plus Phase 4 approval. Baseline Safety Score remains unchanged.
+Phase 3 does not implement or authorize Planned Ride Risk computation. `TrafficTemporalVolumeProfile` may become `planned_ride_risk_input` only after Phase 4 approval. `TemporalMotorVehicleRiskContext` may become `planned_ride_risk_input` only after calibration/research gate plus Phase 4 approval. Baseline DS-015 risk artifacts and durable Safety Rank remain unchanged.
 
 ---
 
@@ -31723,7 +31760,7 @@ Access/transport mode semantics:
 - services/resupply are route reality and service-gap inputs
 - emergency/support access is a future domain and is not implied by public transit proximity alone
 
-Access/transport may affect Objective Score or Route Reality Index. It does not automatically affect Baseline Safety Score or Planned Ride Safety Score.
+Access/transport may affect Objective Score or Route Reality Index. It does not automatically affect baseline DS-015 risk artifacts, Safety Rank, or Planned Ride Risk.
 
 POI open/closed caveats:
 
@@ -31771,7 +31808,7 @@ DS-060 owns:
 Rules:
 
 - A sweep must not perform full stable route analysis once per candidate.
-- Selected stable truth, Baseline Safety Score/reference, route geometry, and route axis are reused.
+- Selected stable truth, baseline DS-015 risk artifacts/reference, route geometry, and route axis are reused.
 - Objective adapters rank evaluated views only.
 - Domain adapters and planned safety evaluation remain single-scenario contracts.
 - Sweep results stay in memory or local ephemeral cache unless a later persistence gate approves otherwise.
@@ -31843,7 +31880,7 @@ It must not:
 - implement durable scenario storage
 - wire RouteMap directly
 - make cue sheet the owner of start time/speed
-- change Baseline Safety Score
+- change baseline DS-015 risk artifacts or durable Safety Rank
 - mutate `RouteIndexedTruthCache`
 - claim live traffic
 - claim night-risk coefficients are production-calibrated
@@ -32326,32 +32363,43 @@ Required warnings include:
 
 ## Source File: docs/02-architecture/design/ds-058-planned_ride_safety_score_contract.md
 
-# DS-058 - Planned Ride Safety Score Contract
+# DS-058 - Planned Ride Risk Contract
 
 **Status:** Draft for planning
 **Date:** 2026-06-17
 **ADR Parent:** [ADR-055](../../03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md)
-**Related:** DS-015, DS-031, DS-056, DS-057, DS-059, DS-062, ADR-045, ADR-054, ADR-056, ADR-057, EXEC-054, EXEC-055, EXEC-056
+**Related:** DS-015, DS-031, DS-056, DS-057, DS-059, DS-062, DS-063, DS-064, ADR-045, ADR-054, ADR-056, ADR-057, EXEC-054, EXEC-055, EXEC-056
 
-> 2026-06-18 temporal update: the active detached temporal model kernel is ADR-057 / DS-062 hourly temporal risk. DS-063 owns the headless scenario projections. Planned Ride Safety may consume hourly temporal outputs only after a separate scenario projection gate, the exec-055 double-counting audit, and this planned-score contract approve integration. It must not use DS-057's earlier two-profile / broad-night-bucket runtime assumptions.
+> Filename note: this file retains `ds-058-planned_ride_safety_score_contract.md` for link stability. The active title and authority are **DS-058 - Planned Ride Risk Contract**. The earlier "Planned Ride Safety Score" filename wording is legacy/superseded terminology.
+
+> 2026-06-18 temporal update: the active detached temporal model kernel is ADR-057 / DS-062 hourly temporal risk. DS-063 owns the headless scenario projections. Planned Ride Risk may consume hourly temporal outputs only after a separate scenario projection gate, the exec-055 double-counting audit, and this planned-risk contract approve integration. It must not use DS-057's earlier two-profile / broad-night-bucket runtime assumptions.
 >
-> 2026-06-19 double-counting audit update: EXEC-056 Phase 5 / EXEC-055 Phase 6 owner decision is `approve_neutral_aadt_component_recompute_path_contract_only`. Current Baseline Safety Score double-counting was not detected, but future planned-risk composition remains blocked beyond this contract-only approval. The approved path recomputes score-bearing DS-015 traffic components from explicit neutral all-day AADT using `ScenarioTrafficProjection.hourlyAADTEquivalent`. `ScenarioTemporalMotorVehicleRiskProjection.normalizedPerPassMultiplier` is a separate future contextual input whose component placement remains unresolved. `combinedHourlyFactorDiagnosticOnly` is diagnostic only and is not a scoring input. This update does not authorize Planned Ride Safety Score, planned-risk preview, score delta, UI, storage, or production runtime.
+> 2026-06-19 double-counting audit update: EXEC-056 Phase 5 / EXEC-055 Phase 6 owner decision is `approve_neutral_aadt_component_recompute_path_contract_only`. Current baseline DS-015 risk double-counting was not detected, but future Planned Ride Risk composition remains blocked beyond this contract-only approval. The approved path recomputes score-bearing DS-015 traffic components from explicit neutral all-day AADT using `ScenarioTrafficProjection.hourlyAADTEquivalent`. `ScenarioTemporalMotorVehicleRiskProjection.normalizedPerPassMultiplier` is a separate future contextual input whose component placement remains unresolved. `combinedHourlyFactorDiagnosticOnly` is diagnostic only and is not a scoring input. This update does not authorize Planned Ride Risk runtime, UI, storage, or production runtime.
+>
+> 2026-06-19 component-adaptation update: DS-064 accepts the motor-vehicle temporal component-adaptation and planned-risk coverage contract as contract-only. It treats `normalizedPerPassMultiplier` as `motor_vehicle_local_risk_product_v1`, a POC modeled-unvalidated harm-context multiplier applied exactly once after canonical DS-015 road/crossing seams produce motor-vehicle local risk. DS-064 authorizes no component runtime, planned-risk preview, score, rollup, UI, storage, formula fork, or production behavior.
 
 ---
 
 ## 1. Purpose
 
-This spec defines the contract between Baseline Safety Score and a future Planned Ride Safety Score or planned ride risk preview.
+This spec defines the contract between canonical DS-015 baseline risk artifacts and future **Planned Ride Risk**.
 
 It does not implement scoring. It defines inputs, boundaries, receipts, fallback policy, warnings, and test gates for later implementation.
 
-The core rule is:
+The core rules are:
 
 ```text
-Do not multiply the normalized 0-100 Safety Score directly.
+Road Risk Total = sum of canonical continuous-road risk contributions
+Crossing Risk Total = sum of eligible canonical crossing-event risk contributions
+Total Route Risk = policy-calibrated sum of Road Risk Total and Crossing Risk Total
+Road Risk Per Mile = Road Risk Total / Route Miles
+Crossing Risk Per Mile = Crossing Risk Total / Route Miles
+Route Risk Per Mile = Total Route Risk / Route Miles
 ```
 
-Scenario factors apply only to approved raw or component-level motor-vehicle risk seams. That risk may then be rolled up and normalized through an approved scoring policy.
+Higher risk means less safe. Lower risk means safer. No inversion is allowed in risk fields. No normalized 0-100 Safety Score or A-F grade is canonical. A rider-facing "Risk Score" label may refer to Route Risk Per Mile, but it must not create a second normalized risk-score field.
+
+Scenario factors apply only to approved raw or component-level motor-vehicle risk seams. Planned Ride Risk rolls up through the canonical DS-015 risk model and remains a risk output, not a normalized score.
 
 The active audit recommendation further narrows the traffic-volume seam:
 
@@ -32370,37 +32418,40 @@ Active temporal authority:
 
 - ADR-057 / DS-062 own the active hourly temporal model and detached kernel.
 - DS-063 owns the headless prepared-input scenario projections.
+- DS-064 owns the accepted contract-only motor-vehicle temporal component-adaptation contract and coverage requirements.
 - DS-057's two-profile traffic curves are lineage only.
 - DS-057's old `1.15`, `1.60`, and `2.10` broad nighttime factors are lineage only.
 - `hourlyAADTEquivalent` is the future traffic-volume input, not a score multiplier.
-- `normalizedPerPassMultiplier` is a separate future contextual input, not yet placed on likelihood, severity, or local risk.
+- `normalizedPerPassMultiplier` is a separate contextual input. DS-064 accepts `motor_vehicle_local_risk_product_v1` placement for a later POC; runtime remains blocked.
 - `combinedHourlyFactorDiagnosticOnly` is not a scoring input.
 
 ---
 
-## 2. Score Concepts
+## 2. Risk Concepts
 
-### 2.1 Baseline Safety Score
+### 2.1 Baseline Route Risk
 
-Baseline Safety Score is the durable stable route analysis score.
+Baseline Route Risk is the durable stable route analysis artifact.
 
 It answers:
 
 ```text
-What is the stable motor-vehicle safety profile of this route?
+What is the stable motor-vehicle risk profile of this route?
 ```
 
 Rules:
 
 - It is based on selected stable route truth.
-- It is the stable score for saved route analysis and route-to-route comparison.
+- It is the stable risk artifact for saved route analysis and route-to-route comparison.
 - It does not depend on planned start time, pace, direction, start offset, route-time binding, weather forecast, UV forecast, wind forecast, or scenario objective.
-- It must not be renamed, overwritten, replaced, or mutated by planned ride scoring.
+- It exposes Road Risk Total, Crossing Risk Total, Total Route Risk, Route Risk Per Mile, and related DS-015 fields.
+- It may carry a durable Safety Rank tied to a named cohort snapshot.
+- It must not be renamed, overwritten, replaced, or mutated by Planned Ride Risk.
 - It remains separate from scenario outputs.
 
-### 2.2 Planned Ride Safety Score
+### 2.2 Planned Ride Risk
 
-Planned Ride Safety Score is scenario-specific.
+Planned Ride Risk is scenario-specific.
 
 It answers:
 
@@ -32426,49 +32477,66 @@ Rules:
 - It must carry assumptions, receipts, warnings, model versions, and deltas from baseline.
 - It must be labeled planned, modeled, and scenario-specific.
 - It remains narrowly scoped to motor-vehicle collision/injury risk unless a later ADR explicitly expands it.
-- It must not overwrite Baseline Safety Score.
+- It must not overwrite baseline risk or durable Safety Rank.
+- It must not produce normalized 0-100 score, A-F grade, `scorePlannedRideSafety`, or `deltaFromBaselineSafetyScore`.
 
-### 2.3 Planned Ride Risk Preview
+### 2.3 Complete-Coverage Requirement
 
-A planned ride risk preview is allowed before the full Planned Ride Safety Score is approved.
+Planned Ride Risk is valid only when both score-bearing domains are successfully recomputed:
 
-Rules:
+```text
+road complete + crossing complete -> Planned Ride Risk may resolve
+road complete + crossing incomplete -> Planned Ride Risk blocked
+crossing complete + road incomplete -> Planned Ride Risk blocked
+```
 
-- No planned ride risk preview is approved by the current double-counting audit.
-- A road-only preview may be considered only under a separate explicit owner gate.
-- Any road-only preview must say `partial_motor_vehicle_coverage`.
-- A preview must not leave crossings silently at baseline while claiming complete planned safety.
-- It must be clearly labeled preview.
-- It may show directional risk movement and slice deltas.
-- It must not present itself as the official headline Safety Score.
-- It must not overwrite Baseline Safety Score.
-- It must carry the same receipt and warning discipline as a planned score.
+Required blocker examples:
+
+- `crossing_temporal_recompute_unavailable`
+- `crossing_candidate_universe_incomplete`
+- `crossing_route_location_unresolved`
+- `crossing_traffic_basis_unresolved`
+- `road_temporal_recompute_unavailable`
+- `motor_vehicle_coverage_incomplete`
+
+A blocked result:
+
+- is treated as a system/data contract failure
+- is not rider-facing Planned Ride Risk
+- does not produce Risk Per Mile
+- does not produce a percent delta
+- does not participate in optimal-start ranking
+
+Admin/debug diagnostics may expose the blocker and intermediate road-only evidence, but road-only temporal output must not be exposed as Planned Ride Risk, partial Planned Risk, headline risk, Safety Rank, or modeled optimal-start input.
 
 ### 2.4 Objective Ranking Use
 
-DS-059 defines how scenario objectives may rank planned safety outputs.
+DS-059 defines how scenario objectives may rank Planned Ride Risk outputs.
 
-Objective adapters may consume an approved planned safety score or preview by reference, but they must not compute, mutate, rename, or redefine Baseline Safety Score, Planned Ride Safety Score, or planned ride risk preview.
+Objective adapters may consume approved Planned Ride Risk by reference, but they must not compute, mutate, rename, or redefine baseline DS-015 risk artifacts, Safety Rank, or Planned Ride Risk.
 
 ---
 
 ## 3. Normalized Score Boundary
 
-The 0-100 Safety Score is a normalized rider-facing output.
+Normalized 0-100 Safety Score, letter grades, and "Planned Ride Safety Score" are legacy/superseded terminology for this active scenario path.
 
-Approved policy:
+Active policy:
 
 - Apply scenario modifiers to raw or component-level motor-vehicle risk.
-- Roll up scenario risk through a documented aggregation policy.
-- Normalize through the approved scoring policy.
-- Preserve the same score direction and rider meaning as Baseline Safety Score if a normalized planned score is produced.
-- Version any changed normalization policy as an explicit scoring contract.
+- Roll up scenario risk through the canonical DS-015 aggregation policy or an explicitly versioned scenario aggregation policy.
+- Emit Planned Ride Risk fields with normal risk direction: positive deltas are riskier, negative deltas are less risky.
+- Keep Safety Rank separate as cohort-relative interpretation over baseline Route Risk Per Mile.
 
 Forbidden:
 
-- taking Baseline Safety Score 0-100 and multiplying it by traffic or night factors.
+- producing normalized 0-100 Planned Safety Score.
+- producing A-F planned grade.
+- producing `scorePlannedRideSafety`.
+- producing `deltaFromBaselineSafetyScore`.
+- taking any normalized display value and multiplying it by traffic or night factors.
 - applying one opaque route-level final score multiplier when slice-level recomputation is possible.
-- using a score delta without showing the risk basis behind it.
+- using a display delta without showing the risk basis behind it.
 
 ---
 
@@ -32483,16 +32551,16 @@ For each scoring slice:
 3. Consume `ScenarioTrafficProjection`.
 4. Consume `ScenarioTemporalMotorVehicleRiskProjection`.
 5. Recompute the DS-015 traffic factor from neutral all-day AADT using `ScenarioTrafficProjection.hourlyAADTEquivalent` and the approved traffic-volume basis/lane/directional policy.
-6. Defer `ScenarioTemporalMotorVehicleRiskProjection.normalizedPerPassMultiplier` application until this contract or a follow-up component-recompute specification approves the exact component seam.
+6. Defer `ScenarioTemporalMotorVehicleRiskProjection.normalizedPerPassMultiplier` application until a later runtime gate authorizes component recompute under DS-064.
 7. Recompute scenario slice risk.
 8. Roll up scenario slice risk using a documented aggregation policy.
-9. Produce Planned Ride Safety Score or planned ride risk preview with deltas and receipts.
+9. Produce Planned Ride Risk with deltas and receipts.
 
 This model is preferred because it keeps traffic volume, temporal motor-vehicle context, and baseline road risk visible instead of hiding them inside a final multiplier.
 
 `combinedHourlyFactorDiagnosticOnly` is diagnostic only. It must not be used as score input.
 
-Crossings require a separate component policy because DS-015 crossing risk uses `sqrt(trafficFactor)` and a cap. Full Planned Ride Safety Score remains blocked until continuous road and crossing component coverage are both accepted.
+Crossings require a separate component policy because DS-015 crossing risk uses `sqrt(trafficFactor)` and a cap. Planned Ride Risk remains blocked until continuous road and crossing component coverage are both accepted.
 
 The road traffic recompute seam is contract-ready only for the traffic component:
 
@@ -32508,15 +32576,15 @@ stableSpeedSeverity =
   DS-015 speed severity from stable speed input
 ```
 
-Final scenario risk remains undefined until per-pass component placement is approved.
+Final scenario risk remains undefined until DS-064's accepted contract-only per-pass component placement and coverage contract is implemented in a reviewed headless component runtime.
 
 ---
 
-## 5. POC Fallback Model
+## 5. Historical Unauthorized POC Fallback Lineage
 
-The POC fallback is documented lineage only unless a later owner decision explicitly accepts it. The Phase 5 double-counting audit approves only the neutral AADT component recompute contract path.
+The old POC fallback is documented lineage only. It is not authorized by the Phase 5 double-counting audit, DS-064, or this Planned Ride Risk contract.
 
-Allowed:
+Historical shape, not current permission:
 
 - Apply the traffic volume multiplier and temporal motor-vehicle risk factor only to stable motor-vehicle slice risk.
 - Label `calculationMode` as a POC approximation.
@@ -32525,14 +32593,21 @@ Allowed:
 - Include `deltaFromBaselineSliceRisk`.
 - Include a receipt showing why fallback mode was used.
 
-Forbidden:
+Current active rule:
+
+- component recomputation from explicit stable inputs is the only active path
+- multiplying stable motor-vehicle slice risk, crossing risk, route risk, cached risk, or normalized score remains unauthorized
+- road-only rider-facing output remains unauthorized
+- preview-style Planned Ride Risk remains blocked
+
+Still forbidden:
 
 - multiplying non-motor hazards.
 - multiplying surface/perception risk.
 - multiplying remoteness, fatigue, weather, UV, wind, temperature, services, access, or POI status.
 - treating fallback output as production scoring.
 
-The POC fallback is excluded from production scoring and remains unauthorized for the current temporal integration gate.
+The POC fallback is excluded from production scoring and remains unauthorized for the current temporal integration gate. It must not be read as implementation permission.
 
 ---
 
@@ -32543,7 +32618,7 @@ Approved inputs:
 - sealed `RidePlanScenarioContext`
 - `ScenarioRouteTransform`
 - `RouteTimeBinding`
-- selected stable route safety truth
+- selected stable route risk truth
 - selected stable AADT / traffic baseline
 - `ScenarioTrafficProjection`
 - `ScenarioTemporalMotorVehicleRiskProjection`
@@ -32572,9 +32647,9 @@ Forbidden inputs:
 
 ---
 
-## 7. PlannedRideSafetyOutput
+## 7. PlannedRideRiskOutput
 
-A Planned Ride Safety Score or planned ride risk preview must emit an output envelope with at least:
+Planned Ride Risk must emit an output envelope with at least:
 
 - `outputLayerId`
 - `modelVersion`
@@ -32582,21 +32657,29 @@ A Planned Ride Safety Score or planned ride risk preview must emit an output env
 - `scenarioContextDigest`
 - `routeTransformDigest`
 - `routeTimeBindingDigest`
-- `baselineSafetyScoreRef`
-- `baselineRiskPerMileRef` or equivalent stable risk reference
-- `plannedRiskPerMile` or `riskPlannedRidePerMile`
-- `scorePlannedRideSafety` if full score is approved
-- `plannedRideRiskPreview` if only preview is approved
-- `deltaFromBaselineSafetyScore` if normalized planned score exists
-- `deltaFromBaselineRiskPerMile`
+- `plannedRoadRiskTotal`
+- `plannedCrossingRiskTotal`
+- `plannedTotalRouteRisk`
+- `plannedRoadRiskPerMile`
+- `plannedCrossingRiskPerMile`
+- `plannedRouteRiskPerMile`
+- `baselineRoadRiskTotalRef`
+- `baselineCrossingRiskTotalRef`
+- `baselineTotalRouteRiskRef`
+- `baselineRouteRiskPerMileRef`
+- `deltaRoadRiskTotal`
+- `deltaCrossingRiskTotal`
+- `deltaTotalRouteRisk`
+- `deltaRouteRiskPerMile`
+- `percentDeltaFromBaselineRouteRiskPerMile`
 - `calculationMode`
 - `aggregationPolicyId`
-- `isPreview`
 - `isProductionCalibrated`
 - `sourceBasis`
 - `calibrationStatus`
-- `canonicalCoverage`
-- `scenarioCoverage`
+- `roadComponentCoverage`
+- `crossingComponentCoverage`
+- `coverage`
 - `confidence`
 - `receipts`
 - `assumptions`
@@ -32610,6 +32693,12 @@ Rules:
 - `generatedAt` must not be part of `scenarioContextDigest` semantic equality.
 - Outputs are not durable route truth.
 - Outputs must not be written to `RouteIndexedTruthCache`, `route_cache`, or `route_history` as truth.
+- positive risk delta means riskier.
+- negative risk delta means less risky.
+- zero means unchanged under model precision.
+- `percentDeltaFromBaselineRouteRiskPerMile = ((plannedRouteRiskPerMile - baselineRouteRiskPerMile) / baselineRouteRiskPerMile) * 100`.
+- if baseline risk is zero, missing, blocked, or unresolved, percentage delta is unavailable and must carry a typed unresolved reason.
+- do not divide by zero.
 
 ---
 
@@ -32649,7 +32738,7 @@ Rules:
 
 - They remain separate inputs.
 - Neither adapter combines them internally.
-- `ScenarioSafetyScorer` or a planned-risk preview layer combines them.
+- a future Planned Ride Risk component/rollup layer combines them only after the road and crossing completeness gates are satisfied.
 - Combination must be visible in receipts.
 - No generic traffic multiplier may combine volume and risk context.
 - No opaque route-level final score multiplier is approved.
@@ -32658,7 +32747,7 @@ Rules:
 
 ## 10. Temporal Coefficient Policy
 
-The old DS-057 coefficients are lineage only for the active hourly-temporal path. ADR-057 / DS-062 replace them with the hourly detached kernel, and DS-063 owns scenario projection. The old values below may remain useful for historical comparison, but they are not authorized runtime inputs for Planned Ride Safety.
+The old DS-057 coefficients are lineage only for the active hourly-temporal path. ADR-057 / DS-062 replace them with the hourly detached kernel, and DS-063 owns scenario projection. The old values below may remain useful for historical comparison, but they are not authorized runtime inputs for Planned Ride Risk.
 
 Approved POC ids:
 
@@ -32707,6 +32796,8 @@ approve_neutral_aadt_component_recompute_path_contract_only
 
 That decision approves only the neutral AADT to hourly AADT-equivalent to DS-015 traffic recompute architecture. It does not approve per-pass application, road risk output, crossing temporalization, road-only preview, route rollup, normalized score, UI, dogfood, default-on behavior, or production.
 
+DS-064 is the accepted contract-only follow-on contract for temporal component adaptation around canonical DS-015 seams. Until a later runtime gate is approved and implemented, per-pass application, road risk output, crossing temporalization, and coverage claims remain blocked.
+
 ---
 
 ## 12. Missing And Unknown Behavior
@@ -32727,13 +32818,13 @@ Rules:
 
 ## 13. Receipt Requirements
 
-Every planned score or preview must explain:
+Every Planned Ride Risk result or blocked diagnostic must explain:
 
 - scenario context consumed
 - route transform consumed
 - route-time binding consumed
 - selected stable truth consumed
-- baseline score/risk reference
+- baseline risk reference
 - traffic profile id and version
 - selected AADT source ref
 - local hour derivation
@@ -32803,8 +32894,10 @@ Rules:
 - Never call it observed traffic.
 - Never call POC nighttime coefficients production calibrated.
 - Never imply empirical crash certainty.
-- Always preserve Baseline Safety Score as the stable route score.
-- If both scores appear, explain that Baseline is stable route truth and Planned changes with ride timing.
+- Always preserve baseline Road Risk, Crossing Risk, Total Route Risk, Route Risk Per Mile, and durable Safety Rank as stable route artifacts.
+- If baseline and planned risk appear together, explain that baseline risk is stable route truth and Planned Ride Risk changes with ride timing.
+- Do not call positive risk delta "percent safer."
+- Do not derive any planned percentage from Safety Rank.
 
 ---
 
@@ -32812,7 +32905,8 @@ Rules:
 
 Runtime implementation must not proceed without tests proving:
 
-- Baseline Safety Score is unchanged when planned start time changes.
+- Baseline DS-015 risk artifacts are unchanged when planned start time changes.
+- durable Safety Rank is unchanged when planned start time changes.
 - Stable route truth is unchanged when planned start time changes.
 - `RouteIndexedTruthCache` is unchanged after scenario planning.
 - Changing start time changes `RouteTimeBinding`.
@@ -32824,15 +32918,22 @@ Runtime implementation must not proceed without tests proving:
 - No scenario output writes to `route_cache`.
 - No scenario output writes to `route_history`.
 - No scenario output writes to `RouteIndexedTruthCache`.
-- RouteMap does not compute planned score.
+- RouteMap does not compute Planned Ride Risk.
 - Cue sheet does not own scenario context.
 - `traffic-time.ts` is not stacked with `TrafficTemporalVolumeProfile`.
-- Planned score or preview carries receipts and deltas.
+- Planned Ride Risk carries receipts and deltas.
 - No normalized 0-100 score is directly multiplied.
+- no normalized Planned Safety Score is produced.
+- no A-F grade is produced.
+- no `scorePlannedRideSafety` or `deltaFromBaselineSafetyScore` field is produced.
+- positive risk delta is riskier and negative risk delta is less risky.
+- percentage delta is unavailable when baseline Route Risk Per Mile is zero, missing, blocked, or unresolved.
 - DS-015 traffic-basis adapter matrix blocks ambiguous basis and hidden conversion.
 - `combinedHourlyFactorDiagnosticOnly` cannot be used as a score input.
 - Cached risk without temporal basis and component decomposition is reference-only.
-- Crossings cannot remain baseline while output claims complete Planned Ride Safety coverage.
+- Crossings cannot remain baseline while output claims complete Planned Ride Risk coverage.
+- road-only temporal evidence blocks rider-facing Planned Ride Risk.
+- candidates with incomplete motor-vehicle coverage cannot participate in risk ranking.
 - `normalizedPerPassMultiplier` is not applied before component placement is approved.
 
 ---
@@ -32841,24 +32942,25 @@ Runtime implementation must not proceed without tests proving:
 
 Phase 4 approves only this contract.
 
-Before runtime planned-score integration:
+Before runtime Planned Ride Risk integration:
 
 - DS-058 must be accepted or revised.
 - ADR-057 / DS-062 must be accepted or revised for the hourly model architecture and detached kernel.
 - Phase 6 double-counting audit must be complete.
-- Planned-score implementation must decide whether output is preview-only or official Planned Ride Safety Score.
-- Per-pass component placement must be accepted for road and crossing components.
-- Full planned score requires accepted crossing temporalization and coverage receipts.
+- DS-064 or a successor must be accepted for component recompute, coverage, and per-pass placement.
+- Planned Ride Risk requires accepted road and crossing temporalization and coverage receipts.
 - Non-neutral temporal motor-vehicle risk coefficients must pass the calibration/research gate before production scoring use.
-- Tests must prove Baseline Safety Score and stable route truth remain unchanged.
+- Tests must prove baseline DS-015 risk artifacts, durable Safety Rank, and stable route truth remain unchanged.
 
 ---
 
 ## 18. Non-Goals
 
 - No runtime scoring implementation.
-- No Safety Score formula change.
-- No Planned Ride Safety Score runtime implementation.
+- No DS-015 canonical risk formula change.
+- No normalized Planned Safety Score runtime implementation.
+- No Planned Ride Risk runtime implementation.
+- No scenario Safety Rank.
 - No UI implementation.
 - No RouteMap behavior change.
 - No cue-sheet behavior change.
@@ -32895,12 +32997,14 @@ Objective adapters answer:
 Which evaluated scenario best serves the chosen planning objective, and why?
 ```
 
+The chosen planning objective, hard constraints, and priorities come from rider-selected policy. Objective output is a modeled result under selected inputs and assumptions; it is not prescriptive real-world advice.
+
 They do not answer:
 
 ```text
 What is this route?
 What are the domain projections for this scenario?
-What is the planned safety score?
+What is the Planned Ride Risk?
 What route geometry should we create?
 ```
 
@@ -32930,10 +33034,10 @@ under these assumptions?
 What bounded scenario output exists for this sealed scenario?
 ```
 
-`ScenarioSafetyScorer` or a planned-risk preview answers:
+`ScenarioPlannedRiskScorer` answers:
 
 ```text
-What is the planned motor-vehicle safety output for this sealed scenario, if approved?
+What is the Planned Ride Risk for this sealed scenario, if approved?
 ```
 
 `ScenarioObjectiveAdapter` answers:
@@ -33051,9 +33155,9 @@ Not allowed:
 - Objective adapters may not fetch external sources.
 - Objective adapters may not compute `ScenarioTrafficProjection`.
 - Objective adapters may not compute `ScenarioTemporalMotorVehicleRiskProjection`.
-- Objective adapters may not compute Planned Ride Safety Score.
+- Objective adapters may not compute Planned Ride Risk.
 - Objective adapters may not mutate evaluated domain outputs.
-- Objective adapters may not mutate planned scores or previews.
+- Objective adapters may not mutate Planned Ride Risk.
 - Objective adapters may not mutate stable route truth.
 - Objective adapters may not change route geometry.
 - Objective adapters may not reroute.
@@ -33072,7 +33176,7 @@ Examples:
 - no scenario with missing `RouteTimeBinding`.
 - no scenario with missing clock context.
 - no scenario with blocked stable route truth.
-- no scenario with calibration blocker when objective requires planned safety.
+- no scenario with calibration blocker when objective requires Planned Ride Risk.
 - no scenario with POI/service open status claimed as known when source says unknown.
 - no scenario that requires unsupported reverse/start-offset transform.
 - no scenario that requires source fetching not approved in the current phase.
@@ -33151,7 +33255,7 @@ Minimum conceptual output:
 - `scenarioSetId`
 - `generatedAt`
 - `rankedScenarioIds`
-- `winningScenarioId`
+- `topRankedScenarioId`
 - `rejectedScenarioIds`
 - `blockedScenarioIds`
 - `rankingPolicyId`
@@ -33173,8 +33277,8 @@ Rules:
 - `generatedAt` must not be part of `scenarioContextDigest` semantic equality.
 - Objective output is not durable route truth.
 - Objective output must not be written to `RouteIndexedTruthCache`, `route_cache`, or `route_history` as truth.
-- Objective output must not be presented as Baseline Safety Score.
-- Objective output must not be presented as Planned Ride Safety Score.
+- Objective output must not be presented as baseline DS-015 risk.
+- Objective output must not be presented as Planned Ride Risk.
 
 ---
 
@@ -33205,30 +33309,32 @@ Rank evaluated scenarios by planned motor-vehicle risk.
 
 Allowed inputs:
 
-- planned ride risk preview or Planned Ride Safety Score if DS-058 permits.
+- complete Planned Ride Risk if DS-058 permits.
 - `ScenarioTrafficProjection`.
 - `ScenarioTemporalMotorVehicleRiskProjection`.
-- Baseline Safety Score reference.
+- baseline DS-015 risk artifact reference.
 - unresolved coverage and confidence.
 
 Rules:
 
-- Must not compute planned safety itself.
-- Must not multiply the 0-100 Safety Score.
-- Must not mutate planned ride risk preview or Planned Ride Safety Score.
-- Must preserve Baseline Safety Score.
-- May rank by `riskPlannedRidePerMile`, `plannedRideRiskPreview`, or `scorePlannedRideSafety` only if the output is approved by DS-058 and later gates.
-- If only preview exists, ranking must be labeled preview-based.
+- Must not compute Planned Ride Risk itself.
+- Must not multiply any normalized display value.
+- Must not mutate Planned Ride Risk.
+- Must preserve baseline DS-015 risk artifacts and durable Safety Rank.
+- Ranks complete candidates from lowest to highest `plannedRouteRiskPerMile`.
+- A candidate with incomplete motor-vehicle coverage, including incomplete crossing temporal recomputation, is blocked for risk ranking.
+- No road-only temporal output may rank as if complete.
 
 Example hard constraints:
 
-- no planned-safety output missing when objective requires it.
-- no double-counting audit blocker if planned-risk output is used.
+- no Planned Ride Risk output missing when objective requires it.
+- no double-counting audit blocker if Planned Ride Risk output is used.
+- no crossing coverage blocker when ranking by risk.
 - no production-calibration claim for POC nighttime coefficients.
 
 Example soft preferences:
 
-- lower planned risk.
+- lower `plannedRouteRiskPerMile`.
 - less high-risk nighttime exposure.
 - lower unresolved traffic/risk coverage.
 
@@ -33249,11 +33355,11 @@ Allowed inputs:
 - `ScenarioAccessProjection` or future transport access output.
 - route reality/access outputs.
 - scenario time if service timing is later approved.
-- planned safety output only as constraint or secondary preference, not as access truth.
+- Planned Ride Risk output only as constraint or secondary preference, not as access truth.
 
 Rules:
 
-- Rail access is logistics/access, not Planned Ride Safety Score input by default.
+- Rail access is logistics/access, not Planned Ride Risk input by default.
 - Do not infer train frequency or bike policy unless a prepared source input exists.
 - Unknown service/bike policy must remain unknown.
 - Do not fetch live transit data in Phase 5.
@@ -33263,7 +33369,7 @@ Example hard constraints:
 
 - require access projection available if objective is selected.
 - no claimed rail availability without source.
-- planned safety must remain below rider-specified threshold if provided.
+- Planned Ride Risk must remain below rider-specified threshold if provided.
 
 Example soft preferences:
 
@@ -33274,7 +33380,7 @@ Example soft preferences:
 
 Example tie-breakers:
 
-- lower planned motor-vehicle risk.
+- lower Planned Ride Risk.
 - earlier bailout availability.
 - fewer access warnings.
 
@@ -33289,7 +33395,7 @@ Allowed inputs:
 - `ScenarioAccessProjection`.
 - transport access outputs.
 - route start/end or scenario start-offset context.
-- planned safety output as constraint or secondary preference.
+- Planned Ride Risk output as constraint or secondary preference.
 
 Rules:
 
@@ -33302,7 +33408,7 @@ Rules:
 Example hard constraints:
 
 - candidate must have valid route transform.
-- candidate must satisfy planned safety threshold if provided.
+- candidate must satisfy Planned Ride Risk threshold if provided.
 - no unsupported start-offset/direction candidate.
 
 Example soft preferences:
@@ -33330,7 +33436,7 @@ Allowed inputs:
 - POI likely-open status when available.
 - remoteness/service-gap outputs.
 - `RouteTimeBinding`.
-- planned safety as constraint or secondary preference.
+- Planned Ride Risk as constraint or secondary preference.
 
 Rules:
 
@@ -33354,7 +33460,7 @@ Example soft preferences:
 
 Example tie-breakers:
 
-- lower planned safety risk.
+- lower Planned Ride Risk.
 - better bailout access.
 - fewer unknown POI statuses.
 
@@ -33370,7 +33476,7 @@ Allowed inputs:
 - `RouteTimeBinding`.
 - `ScenarioRouteTransform`.
 - condition outputs only if later approved.
-- planned safety as constraint or secondary preference.
+- Planned Ride Risk as constraint or secondary preference.
 
 Rules:
 
@@ -33426,7 +33532,7 @@ Required behavior:
 - Unknown rail/service availability does not become available.
 - Unknown POI hours do not become open or closed.
 - Unknown light state remains neutral/unresolved per DS-057.
-- Unknown planned safety output blocks `optimize_safety` unless preview-free mode is explicitly allowed.
+- Missing, blocked, or incomplete Planned Ride Risk blocks `optimize_safety` unless a non-risk objective mode is explicitly selected.
 - Unresolved coverage must appear in objective output warnings and receipts.
 - Objective adapter may rank an unresolved candidate lower, block it, or mark it inconclusive, but it must say which.
 
@@ -33464,11 +33570,11 @@ Objective adapters do not:
 - erase or soften degradation disclosures.
 - claim requested-grid or global optimality for degraded effective sweeps.
 
-Partial sweep results must not become final recommendations.
+Partial sweep results must not become final objective results.
 
-Degraded-but-complete sweep results may be ranked and recommended only within the effective evaluated candidate set.
+Degraded-but-complete sweep results may be ranked and surfaced only within the effective evaluated candidate set.
 
-Recommendation explanations must include effective resolution and degradation receipts. Objective adapters cannot claim requested-grid, full 15-minute-grid, or global optimality when the sweep result is degraded.
+Objective result explanations must include effective resolution and degradation receipts. Objective adapters cannot claim requested-grid, full 15-minute-grid, or global optimality when the sweep result is degraded.
 
 ---
 
@@ -33478,7 +33584,7 @@ This spec defines presentation constraints only. It does not implement UI.
 
 Allowed future presentation:
 
-- UI may display objective winner, ranking, reasons, hard-constraint failures, and warnings.
+- UI may display modeled optimum, top-ranked candidate, ranking, reasons, hard-constraint failures, and warnings.
 - UI may show "best start window" or "best direction" only after scenario sweep contract and implementation gates.
 - UI may show objective-specific explanations.
 
@@ -33488,8 +33594,16 @@ Not allowed:
 - Cue sheet computes objective ranking.
 - SegmentInspector computes objective ranking.
 - UI local state becomes objective authority.
-- Objective output is shown as Baseline Safety Score.
-- Objective output is shown as Planned Ride Safety Score unless it actually references approved planned safety output.
+- Objective output is shown as baseline DS-015 risk.
+- Objective output is shown as Planned Ride Risk unless it actually references complete approved DS-058 output.
+
+Terminology rules:
+
+- use `topRankedScenarioId` for the top modeled candidate.
+- use modeled optimum, top-ranked candidate, comparison result, or objective result.
+- avoid victory/contest language for rider-facing authority.
+- "optimal" always means optimal under the selected model, inputs, objective, and constraints.
+- do not say "you should leave at this time," "take this route," or "this is the correct choice."
 
 ---
 
@@ -33498,13 +33612,13 @@ Not allowed:
 Runtime implementation must not proceed without tests proving:
 
 - objective adapter cannot mutate domain outputs.
-- objective adapter cannot mutate Planned Ride Safety Score or preview.
-- objective adapter cannot mutate Baseline Safety Score.
+- objective adapter cannot mutate Planned Ride Risk.
+- objective adapter cannot mutate baseline DS-015 risk artifacts or durable Safety Rank.
 - objective adapter cannot change route geometry.
 - objective adapter cannot call source fetchers.
 - objective adapter cannot compute `RouteTimeBinding`.
-- `optimize_safety` ranks lower planned risk above higher planned risk when constraints equal.
-- `optimize_safety` blocks or warns when planned-risk output is missing.
+- `optimize_safety` ranks lower `plannedRouteRiskPerMile` above higher `plannedRouteRiskPerMile` when constraints equal.
+- `optimize_safety` blocks when Planned Ride Risk is missing, blocked, or motor-vehicle coverage is incomplete.
 - `optimize_access_rail` does not treat rail access as safety input.
 - `optimize_access_air` does not treat airport access as roadside bailout.
 - `optimize_service_gap_early` preserves unknown POI status.
@@ -33524,10 +33638,10 @@ Phase 5 approves only this contract.
 Before runtime objective implementation:
 
 - DS-059 must be accepted or revised.
-- DS-058 must remain authoritative for planned safety score semantics.
+- DS-058 must remain authoritative for Planned Ride Risk semantics.
 - Phase 6 scenario sweep contract must define candidate budgets and sweep behavior.
 - Required domain outputs must have approved adapters or explicit fixture inputs.
-- Tests must prove objective adapters cannot mutate source outputs, scores, stable truth, route geometry, or storage.
+- Tests must prove objective adapters cannot mutate source outputs, Planned Ride Risk, baseline risk artifacts, Safety Rank, stable truth, route geometry, or storage.
 
 ---
 
@@ -33538,7 +33652,7 @@ Before runtime objective implementation:
 - No RouteMap changes.
 - No cue-sheet changes.
 - No scoring code changes.
-- No Planned Ride Safety Score runtime implementation.
+- No Planned Ride Risk runtime implementation.
 - No route geometry optimization.
 - No rerouting.
 - No source fetching for rail, air, services, POI hours, weather, UV, wind, or live traffic.
@@ -33679,7 +33793,7 @@ A sweep must not perform full stable route analysis once per candidate.
 Required shared work:
 
 - selected stable route truth is resolved once per sweep.
-- Baseline Safety Score/reference is resolved once per sweep.
+- baseline DS-015 risk artifact/reference is resolved once per sweep.
 - route geometry and route axis are reused.
 - no raw source or evidence selection runs per candidate.
 - no HPMS, OSM, weather, POI, or external source fetch occurs per candidate.
@@ -33692,7 +33806,7 @@ Recommended factoring:
 - elapsed route-binding template: once per unique transform plus pace profile.
 - absolute clock binding: derived per departure candidate.
 - time-dependent domain outputs: evaluated per candidate.
-- planned safety output or preview: evaluated per candidate if approved.
+- Planned Ride Risk: evaluated per candidate if approved.
 - objective ranking: after candidate evaluation.
 
 ```text
@@ -33811,6 +33925,50 @@ Rules:
 - a degraded 30-minute or 60-minute effective grid can still have `executionStatus = complete` if every effective candidate was evaluated.
 - the full 96-candidate result must match direct evaluation of the same 96 candidate contexts regardless of evaluation order.
 
+### 6.2 Quarter-Hour Result Presentation
+
+The exact 15-minute lattice is evaluated at local quarter-hour starts:
+
+- `:00`
+- `:15`
+- `:30`
+- `:45`
+
+The main planning card may display one exact modeled optimum, for example:
+
+```text
+Modeled Optimal Start: 7:15 AM
+```
+
+Equivalent wording may be used, but "optimal" always means optimal under the selected model, inputs, objective, and constraints. It is not prescriptive real-world advice.
+
+The main planning card also carries:
+
+- Planned Risk / Route Risk Per Mile.
+- percent delta from Baseline Risk Per Mile.
+- confidence/coverage state.
+
+Drill-down presentation lists every evaluated start time and shows:
+
+- Planned Risk Per Mile.
+- absolute delta.
+- percent delta.
+- road/crossing breakouts.
+- confidence/coverage.
+- modeled drivers/tradeoffs.
+
+Pending owner decision:
+
+- whether adjacent equivalent quarter-hour candidates receive a plateau/window label on the main card.
+
+Risk ranking rules:
+
+- every risk-ranked candidate must have complete Planned Ride Risk before ranking.
+- blocked crossing coverage blocks that candidate.
+- rank from lowest to highest `plannedRouteRiskPerMile`.
+- no candidate with incomplete motor-vehicle coverage may become the modeled optimum or rank as if complete.
+- "optimal" means lowest modeled risk under rider-selected inputs, objective, and constraints, not prescriptive advice.
+
 ---
 
 ## 7. Direction Sweep
@@ -33919,7 +34077,7 @@ Required reporting:
 - effective dimensions.
 - every degradation reason.
 - `fidelityStatus = degraded` when effective dimensions differ from requested dimensions.
-- `recommendationStatus` limits when degradation narrows the effective candidate set.
+- `objectiveResultStatus` limits when degradation narrows the effective candidate set.
 - requested work estimates.
 - effective work estimates after degradation.
 
@@ -34057,7 +34215,7 @@ Main thread must not:
 
 - synchronously loop through scenario candidates.
 - call domain adapters candidate-by-candidate.
-- compute planned score candidate-by-candidate.
+- compute Planned Ride Risk candidate-by-candidate.
 - rank results.
 - retain every full candidate view in React state.
 
@@ -34119,7 +34277,7 @@ Rules:
 
 - cancellation token is checked between candidates and inside chunked route-position evaluation.
 - after cancellation, no stale candidate result may enter the next run.
-- cancelled results may exist for diagnostics but cannot be presented as final recommendation.
+- cancelled results may exist for diagnostics but cannot be presented as final objective result.
 - partial best-so-far must be labeled provisional.
 - cancellation must not write storage or mutate stable truth.
 
@@ -34252,7 +34410,7 @@ Rules:
 
 ---
 
-## 21. Execution, Fidelity, And Recommendation Status
+## 21. Execution, Fidelity, And Objective Result Status
 
 Execution status describes whether the effective candidate set finished evaluating.
 
@@ -34271,9 +34429,9 @@ Allowed `fidelityStatus` values:
 - `exact`
 - `degraded`
 
-Recommendation status describes whether a result can become a recommendation.
+Objective result status describes whether a result can become a modeled objective result.
 
-Allowed `recommendationStatus` values:
+Allowed `objectiveResultStatus` values:
 
 - `final_within_effective_set`
 - `provisional`
@@ -34281,17 +34439,17 @@ Allowed `recommendationStatus` values:
 
 Rules:
 
-- exact and complete means every requested/effective candidate was evaluated and may produce a final recommendation within the requested candidate set.
+- exact and complete means every requested/effective candidate was evaluated and may produce a final objective result within the requested candidate set.
 - degraded and complete means every effective candidate was evaluated, but effective dimensions differ from requested dimensions.
-- degraded and complete may produce a final recommendation only within the effective evaluated candidate set.
+- degraded and complete may produce a final objective result only within the effective evaluated candidate set.
 - degraded and complete must disclose degradation, effective resolution, candidate coverage, and assumptions.
 - degraded and complete must not claim requested-grid, full 15-minute-grid, or global optimality.
 - degraded and complete copy may say "Best within the evaluated 30-minute departure windows and current assumptions."
 - degraded and complete copy must not say "Best 15-minute departure window."
 - partial means evaluation did not complete the effective planned candidate set.
 - partial results may show best-so-far only as provisional.
-- partial results must not become final recommendations.
-- blocked, cancelled, and failed results must not produce automatic recommendations.
+- partial results must not become final objective results.
+- blocked, cancelled, and failed results must not produce automatic modeled optima.
 - blocked results explain the blocker.
 
 ---
@@ -34310,7 +34468,7 @@ Conceptual fields:
 - `objectivePolicyVersion`
 - `executionStatus`
 - `fidelityStatus`
-- `recommendationStatus`
+- `objectiveResultStatus`
 - `requestedDimensions`
 - `effectiveDimensions`
 - `requestedCandidateCount`
@@ -34414,7 +34572,7 @@ Required assertions:
 - duplicate context digests are evaluated once.
 - fixed pace is reused.
 - stable truth is resolved once.
-- Baseline Safety Score remains unchanged.
+- baseline DS-015 risk artifacts and durable Safety Rank remain unchanged.
 - `RouteIndexedTruthCache` remains unchanged.
 - `route_cache` remains unchanged.
 - `route_history` remains unchanged.
@@ -34469,7 +34627,7 @@ Before runtime sweep implementation:
 - No RouteMap changes.
 - No cue-sheet changes.
 - No scoring code changes.
-- No Planned Ride Safety Score runtime implementation.
+- No Planned Ride Risk runtime implementation.
 - No domain adapter runtime.
 - No source fetching.
 - No route geometry optimization.
@@ -35338,7 +35496,7 @@ DS-061 is satisfied when:
 Status: Accepted for detached model-kernel implementation; scenario/scoring integration deferred
 Date: 2026-06-18
 Parent ADR: ADR-057 — Hourly Temporal Motor-Vehicle Risk Model
-Related: ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, DS-063, EXEC-056
+Related: ADR-055, DS-056, DS-057 lineage, DS-058 planned-score contract, DS-063, DS-064, EXEC-056
 Primary source artifact: Lanterne_Temporal_Risk_Model_2022_2024_Hourly.xlsx
 
 Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-06-19
@@ -35348,6 +35506,8 @@ Owner decision: accept_hourly_model_architecture_and_kernel_only, recorded 2026-
 > Authority note: DS-062 is active for the detached hourly temporal model kernel only. It does not authorize ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score integration, planned-risk preview, UI, storage, or stable-truth writes.
 
 > Projection note: DS-063 defines the accepted headless prepared-input scenario projection contract around this kernel. DS-062 remains the kernel authority; DS-063 owns prepared scenario inputs, route-local clock conversion, output envelopes, semantic digests, unresolved/fallback behavior, and no-write/no-leak rules for the scenario adapter.
+
+> Component note: DS-064 owns any future motor-vehicle component application of `normalizedPerPassMultiplier`. DS-062 does not authorize direct scenario risk application behind DS-064.
 
 > First-slice fallback note: DS-062 lists the detached kernel fallback surface. DS-063 narrows the first scenario projection slice to no fallback, `route_majority`, `explicit_urban_proxy`, or `explicit_rural_proxy`; `max_combined_factor_for_hour` is deferred from that first projection slice.
 
@@ -35500,13 +35660,20 @@ Application precondition:
 - `legacy_time_adjusted` blocks to avoid stacking with legacy `traffic-time.ts`
 - `unknown` blocks until the baseline basis is resolved
 
+Scenario composition authority:
+
+- DS-063 Phase 4 projections remain scoreless.
+- `temporalMotorVehicleRiskContribution` and `applyHourlyTemporalRiskToMotorVehicleContribution` are detached-kernel lineage/test/application-helper surfaces only.
+- They are not the active scenario composition seam and must not bypass DS-064.
+- DS-064 owns any future component application of `normalizedPerPassMultiplier`.
+
 Output:
 
 - selected cohort/hour row
 - hourlyTrafficFactor
 - hourlyAADTEquivalent
 - normalizedPerPassMultiplier
-- temporalMotorVehicleRiskContribution
+- temporalMotorVehicleRiskContribution, detached-kernel lineage/test helper only
 - model-kernel receipt object
 - confidence metadata
 - deterministic warnings
@@ -35517,7 +35684,7 @@ Runtime steps:
 2. Select hour from explicit route-local arrival hour.
 3. Read traffic share and normalized per-pass multiplier.
 4. Compute HourlyAADTEquivalent as stable AADT multiplied by HourlyTrafficFactor.
-5. Apply NormalizedPerPassMultiplier only to the motor-vehicle risk contribution.
+5. Application helpers may apply NormalizedPerPassMultiplier only to a motor-vehicle risk contribution in detached-kernel tests or lineage examples; active scenario component application is deferred to DS-064.
 6. Emit receipt.
 
 The detached kernel must not claim to produce ScenarioTrafficProjection, ScenarioTemporalMotorVehicleRiskProjection, Planned Ride Safety Score, planned-risk preview, RidePlanScenarioView, RouteMap props, durable truth, or storage writes.
@@ -36554,6 +36721,1222 @@ The exact next implementation slice is:
 ```text
 Implement a headless, worker-compatible hourly temporal scenario projection that consumes only ScenarioFoundationResult, ScenarioTemporalStableInputBundle, HourlyTemporalProjectionPolicy, and the detached hourlyTemporalRiskV1 kernel; emits separate ScenarioTrafficProjection and ScenarioTemporalMotorVehicleRiskProjection envelopes; preserves semantic digest policy; blocks unresolved inputs by default; and performs no scoring, UI, fetching, storage, or durable truth writes.
 ```
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-064-motor_vehicle_component_recompute_and_coverage_contract.md
+
+# DS-064 — Motor-Vehicle Temporal Component Adaptation And Coverage Contract
+
+**Status:** Accepted — Temporal Component Adaptation Contract Only; Canonical DS-015 Math Reused; Runtime, Preview, Score, Presentation, And Production Deferred
+**Date:** 2026-06-19
+**ADR Parents:** ADR-055, ADR-057
+**Related:** DS-015, DS-031, DS-056, DS-058, DS-062, DS-063, EXEC-055, EXEC-056
+
+---
+
+## 1. Purpose
+
+This design specification defines the contract for a future headless motor-vehicle temporal component adaptation layer.
+
+It is the missing gate between:
+
+- DS-063's headless hourly temporal projections, and
+- DS-058's future planned ride safety score or preview.
+
+The contract exists because future planned-risk composition must not multiply a cached route score, cached crossing risk, cached road risk, stable `localRisk`, or normalized 0-100 Safety Score by a temporal multiplier. It must adapt prepared scenario traffic inputs into existing canonical DS-015 road and crossing scoring seams, then apply owner-approved temporal context exactly once with receipts.
+
+This document does not authorize runtime implementation. It only defines the contract that a future owner decision may approve.
+
+---
+
+## 2. Non-Goals
+
+This contract does not authorize:
+
+- component adaptation runtime
+- production component runtime
+- road-only runtime
+- crossing runtime
+- planned-risk preview
+- Planned Ride Safety Score
+- score delta
+- normalized 0-100 planned score
+- route risk per mile
+- route rollup
+- normalization
+- letter grade
+- objective adapters
+- scenario sweeps
+- UI, React, Leaflet, RouteMap, cue-sheet, or presentation work
+- source fetching
+- stable-truth selection
+- writes to Supabase, migrations, storage, `route_cache`, `route_history`, RXON, or `RouteIndexedTruthCache`
+- `traffic-time.ts` changes
+- durable route truth mutation
+- dogfood
+- production release or default-on behavior
+
+---
+
+## 3. Authority
+
+Authoritative predecessors:
+
+- DS-015 owns the stable motor-vehicle scoring formulas and thresholds.
+- DS-031 owns route-indexed evidence discipline.
+- DS-056 owns scenario engine boundaries.
+- DS-058 owns future planned score or preview output.
+- DS-062 owns the detached hourly temporal kernel.
+- DS-063 owns prepared-input hourly temporal projections.
+- EXEC-055 / EXEC-056 Phase 5 owns the double-counting audit and the contract-only neutral AADT recompute path.
+
+Canonical road scoring remains owned by:
+
+- `src/lib/safety-scoring.ts`
+- `computeSegmentRisk`
+- `src/shared/scoring/ds015-contract.ts`
+- approved shared DS-015 helpers and constants
+
+Canonical crossing scoring remains owned by:
+
+- `src/lib/safety-scoring.ts`
+- `computeCrossingRisk`
+- `isDs015CrossingScoreEligible`
+- approved shared DS-015 crossing helpers and constants
+
+DS-064 owns only the temporal component-adaptation contract between DS-063 projection outputs and a later DS-058 planned-score or preview layer. DS-064 does not invent road risk math, invent crossing risk math, fork DS-015, create a second scorer, authorize copied or independently maintained formulas, or approve changes to `safety-scoring.ts`.
+
+Any duplicated equations in this document are non-authoritative illustration. They must remain behaviorally identical to canonical DS-015, and implementation must call approved shared seams rather than copy formulas.
+
+DS-064 owns:
+
+- prepared stable component inputs
+- route-distance alignment
+- scenario traffic adaptation
+- basis-aware AADT/lane conversion
+- mirror-baseline recomputation
+- temporal projection joins
+- per-pass semantic placement
+- crossing candidate-universe completeness
+- crossing route-location requirements
+- baseline/scenario crossing eligibility comparison
+- coverage status
+- adjustment ledgers
+- receipts and digests
+- runtime budgets
+
+DS-064 does not own:
+
+- canonical road formula
+- canonical crossing formula
+- DS-015 thresholds
+- DS-015 traffic anchors
+- DS-015 speed severity
+- crossing likelihood cap
+- crossing width/control/movement factors
+- route normalization or score rollup
+
+No-fork invariant:
+
+- no Phase 6B implementation may duplicate or independently maintain canonical DS-015 road or crossing equations
+- allowed: call an existing canonical function, call an extracted shared canonical component helper, or adapt prepared inputs into an existing canonical function
+- forbidden: copy formulas into `src/lib/ride-plan-scenario/`, maintain parallel traffic anchors, maintain parallel crossing caps/constants, create scenario-only versions of DS-015 equations, or let scenario and baseline scoring drift
+
+Canonical future flow:
+
+```text
+ScenarioFoundationResult
+  + ScenarioMotorVehicleStableInputBundle
+  + ScenarioTrafficProjection
+  + ScenarioTemporalMotorVehicleRiskProjection
+  + MotorVehicleTemporalComponentAdaptationPolicy
+  + canonical DS-015 scoring seams
+  -> ScenarioMotorVehicleComponentRecomputeOutput
+     -> road motor-vehicle contributions
+     -> crossing motor-vehicle contributions
+     -> coverage and adjustment receipts
+```
+
+The output is headless, in-memory, route-indexed, immutable, and scoreless. It is not durable truth.
+
+---
+
+## 4. Owner Posture
+
+Owner decision:
+
+```text
+approve_motor_vehicle_component_recompute_contract_only
+```
+
+Owner decision by: Derek Minner.
+
+Owner decision date: 2026-06-19.
+
+Authorized capability:
+
+```text
+motor_vehicle_temporal_component_adaptation_contract
+```
+
+Authorized scope:
+
+```text
+contract_only_reuse_canonical_ds015_no_runtime
+```
+
+Evaluated commit:
+
+```text
+dfee8c2f4cf55392279d1e691be7ab7cc9c1d281
+```
+
+Plain-language decision:
+
+```text
+Approve the temporal adapter architecture that feeds scenario traffic inputs into existing canonical DS-015 road and crossing scoring seams and places the modeled harm-context multiplier exactly once. Do not approve, redefine, copy, or fork the existing DS-015 road or crossing formulas.
+```
+
+Decision alternatives:
+
+- `approve_motor_vehicle_component_recompute_contract_only`
+- `keep_contract_only_and_fix_blockers`
+- `defer_until_crossing_route_location_exists`
+- `defer_until_crossing_candidate_universe_exists`
+- `defer_until_per_pass_semantics_are_revised`
+- `defer_until_stable_component_input_bundle_exists`
+- `reject_component_recompute_scope`
+
+Architecture verdict:
+
+```text
+accepted as a temporal component-adaptation contract-only gate
+```
+
+This owner decision accepts the DS-064 temporal component-adaptation contract around the existing canonical DS-015 scoring authority. It does not approve new road or crossing formulas and does not authorize Phase 6B runtime, planned-risk preview, score, rollup, UI, storage, production, or `traffic-time.ts` changes.
+
+---
+
+## 5. Required Inputs
+
+The future temporal adaptation layer may consume only:
+
+- `ScenarioFoundationResult`
+- `ScenarioMotorVehicleStableInputBundle`
+- `ScenarioTrafficProjection`
+- `ScenarioTemporalMotorVehicleRiskProjection`
+- `MotorVehicleTemporalComponentAdaptationPolicy`
+- canonical DS-015 functions or extracted shared canonical component helpers required to adapt prepared inputs into existing road and crossing scoring seams
+
+It must not consume:
+
+- `RidePlanScenarioDraft`
+- RouteMap or cue-sheet state
+- raw HPMS rows
+- raw evidence candidates
+- mutable route-analysis controller state
+- cached normalized scores
+- cached route risk as planned-risk input
+- `traffic-time.ts`
+- `combinedHourlyFactorDiagnosticOnly` as a score input
+- stable truth selectors or source clients
+
+---
+
+## 6. ScenarioMotorVehicleStableInputBundle
+
+The stable input bundle is a prepared, immutable, route-indexed input envelope. It is not produced by this contract.
+
+Minimum fields:
+
+- `schemaVersion`
+- `stableMotorVehicleInputBundleId`
+- `routeAxisId`
+- `routeAxisDigest`
+- `routeAxisRevision`, when available
+- `totalDistM`
+- `intervalSemantics = half_open`
+- `scoreModelVersion`
+- `stableSelectionDigest`
+- `roadSpans`
+- `crossingEvents`
+- `sourceModelVersions`
+- `assumptions`
+- `warnings`
+- `diagnostics`
+- `preflightWorkEstimate`, when a future runtime is authorized
+
+Semantic digest:
+
+```text
+stableMotorVehicleInputDigest
+```
+
+The digest includes stable output-affecting semantics and excludes `generatedAt`, trace-only ids, human-readable warning text, diagnostics text, and presentation labels.
+
+---
+
+## 7. Road Stable Spans
+
+Road spans must exactly partition `[0,totalDistM)` using half-open intervals.
+
+Every road span must carry:
+
+- `stableRoadSpanId`
+- `canonicalStartDistM`
+- `canonicalEndDistM`
+- `status = selected | unresolved | conflict`
+- `scoreDomainType = road | path`
+- `lengthM`
+- stable speed input and provenance
+- stable traffic input and provenance
+- `aadt`
+- `aadtUnits = vehicles_per_day`
+- `trafficVolumeBasis`
+- `baselineTemporalBasis`
+- lane count and lane-count basis
+- directional conversion policy and assumptions, when supplied
+- bike facility likelihood factor input
+- shoulder likelihood factor input
+- curvature likelihood input
+- curvature subspans, when material
+- selected stable artifact references and digests
+- confidence
+- warning codes
+
+Allowed `trafficVolumeBasis` values:
+
+- `total_two_way_aadt`
+- `same_direction_aadt`
+- `per_lane_aadt`
+- `right_lane_display_estimate`
+- `unknown`
+
+Allowed `baselineTemporalBasis` values:
+
+- `all_day_aadt_neutral`
+- `legacy_time_adjusted`
+- `unknown`
+
+Only `all_day_aadt_neutral` may proceed to planned traffic recompute. `legacy_time_adjusted` and `unknown` block the affected traffic recompute span.
+
+No silent divide-by-two or rider-direction reinterpretation is allowed. Any conversion from total two-way AADT to an accepted DS-015 traffic input must be explicit, versioned, and receipted.
+
+Path-domain spans remain route-covered stable inputs, but their continuous road motor-vehicle likelihood is zero under DS-015 unless a future scoring contract changes that rule.
+
+Path-domain rules:
+
+- path-domain motor-vehicle road likelihood remains zero
+- no harm-context multiplier turns zero motor-road likelihood into positive road risk
+- temporal motor-vehicle risk must not be applied to non-motor path hazards
+- a motor-vehicle crossing event on or across a path may remain a crossing candidate if its event contract independently supports it
+- crossing events must not be globally deleted merely because an adjacent road span is path-domain
+
+---
+
+## 8. Crossing Stable Events
+
+Crossings are discrete route-indexed events, not road spans.
+
+The prepared crossing input must contain the full stable candidate universe needed to evaluate both baseline and scenario eligibility. It must not contain only:
+
+- events already included in the baseline score
+- events already marked `scoreEligible`
+- events surviving a presentation filter
+- events available only through `crossingDetails` output
+
+Candidate universe receipt fields:
+
+- `candidateUniverseId`
+- `candidateUniverseDigest`
+- `candidateCount`
+- `locatedCandidateCount`
+- `unlocatedCandidateCount`
+- `excludedUpstreamCount`
+- `upstreamCandidatePolicyId`
+- source/provenance summary
+- `completenessStatus = complete | partial | unknown`
+
+Complete crossing temporalization requires `completenessStatus = complete`. A partial or unknown candidate universe blocks complete crossing coverage. No candidate may disappear silently.
+
+Every prepared crossing candidate must carry:
+
+- `stableCrossingEventId`
+- `canonicalDistM`
+- `scenarioDistM`, after transform
+- `routeAxisId`
+- `routeAxisDigest`
+- route-location confidence
+- projection method
+- location receipt
+- `eventType`
+- `candidateUniversePolicyId`
+- `candidateState = candidate_resolved | candidate_unresolved | candidate_conflict`
+- `baselineEligibilityState = included | excluded | blocked`
+- `scenarioEligibilityState = included | excluded | blocked`, after scenario projection joins
+- baseline score eligibility and reason
+- scenario eligibility recompute inputs
+- crossed or entered road speed input and provenance
+- crossed or entered road traffic input and provenance
+- `aadt`
+- `aadtUnits = vehicles_per_day`
+- `trafficVolumeBasis`
+- `baselineTemporalBasis`
+- lane or width input and provenance
+- traffic-lane basis, when distinct from width lanes
+- control input and provenance
+- movement input and provenance
+- stable artifact references and digests
+- confidence
+- warning codes
+
+Route-location rules:
+
+- latitude/longitude alone is not enough
+- segment index alone is not enough
+- presentation identity is not enough
+- array position is not enough
+- a crossing joins to the unique half-open Phase 4 projection span containing `canonicalDistM`
+- route-end events use one explicit endpoint policy
+- ambiguous, duplicate, out-of-range, or unlocated events remain typed blockers or unresolved events
+- no crossing may snap to a temporal span by nearest array index
+
+The candidate universe must include score-bearing and non-score-bearing candidates that could become score-bearing under scenario traffic recompute. A future implementation must not use a baseline-filtered `crossingConflicts` array as the only crossing universe.
+
+Scenario crossing eligibility must be recomputed from accepted scenario inputs. It must not silently inherit baseline eligibility when scenario `hourlyAADTEquivalent` changes an eligibility threshold.
+
+Baseline eligibility:
+
+- recompute with stable all-day neutral traffic
+- use the accepted DS-015 eligibility model version
+
+Scenario eligibility:
+
+- recompute with scenario hourly AADT-equivalent traffic
+- use the same DS-015 eligibility model version
+
+Eligibility receipts:
+
+- `baselineScoreEligible`
+- `scenarioScoreEligible`
+- `baselineEligibilityInputs`
+- `scenarioEligibilityInputs`
+- `eligibilityModelVersion`
+- `eligibilityThresholds`
+- `eligibilityChanged`
+- `eligibilityChangeReason`
+
+Rules:
+
+- never reuse baseline eligibility as scenario eligibility
+- never evaluate only baseline-eligible events
+- threshold entry and threshold exit are explicit and may create discontinuous deltas
+- do not add hysteresis silently
+- any future union or hysteresis policy requires its own versioned contract
+- a prepared crossing candidate exists independently of whether it contributes under one scenario
+- an excluded contribution must not be encoded as a missing candidate
+
+If a crossing candidate lacks route-axis location, lane/AADT basis, baseline temporal basis, or selected stable references, the crossing recompute coverage is incomplete. A planned output may not claim complete motor-vehicle coverage while such events are unresolved.
+
+---
+
+## 9. Road Temporal Adaptation
+
+For a selected road span with `baselineTemporalBasis = all_day_aadt_neutral`:
+
+```text
+prepared stable road input
+selected stable neutral AADT
+  -> ScenarioTrafficProjection.hourlyAADTEquivalent
+  -> basis-aware DS-015 traffic input
+  -> existing DS-015 traffic resolver
+  -> existing canonical road component seam
+  -> motorVehicleHarmContextMultiplier exactly once
+  -> scenarioRoadContextualMotorVehicleRisk
+```
+
+The scenario adapter changes only the traffic input and later contextual multiplier. Stable DS-015 infrastructure, shoulder, curvature, path-domain, and speed-severity behavior remain canonical and unchanged.
+
+The following is non-authoritative explanatory pseudocode. It must remain behaviorally identical to canonical DS-015 and must not be copied as scenario-only formula code:
+
+```text
+scenarioDs015TrafficInput =
+  basis-aware conversion from ScenarioTrafficProjection.hourlyAADTEquivalent
+
+scenarioRoadLikelihood =
+  path domain ? 0 :
+    sum over stable curvature subspans:
+      lengthMiles
+      * scenarioDs015TrafficFactor
+      * stableFacilityLikelihoodFactor
+      * stableShoulderLikelihoodFactor
+      * stableCurvatureFactor
+
+stableRoadSeverity =
+  DS-015 speed severity from stable speed input
+
+scenarioRoadBaseMotorVehicleRisk =
+  scenarioRoadLikelihood * stableRoadSeverity
+
+scenarioRoadContextualMotorVehicleRisk =
+  scenarioRoadBaseMotorVehicleRisk * motorVehicleHarmContextMultiplier
+```
+
+If the current public API does not expose a safe reusable road component seam, Phase 6B must identify the missing seam and recommend extracting a shared canonical helper later. It must not copy `computeSegmentRisk` into the temporal module and must not authorize runtime until parity can be guaranteed.
+
+The adaptation must not multiply:
+
+- existing stable traffic factor
+- stable `localRisk`
+- stable road risk
+- route risk
+- cached risk
+- normalized score
+- `hourlyTrafficFactor` directly onto likelihood or risk
+
+A multiplier of `1.0` is neutral. Negative, non-finite, missing, or unsupported harm-context multipliers block the component. Do not add undocumented clipping, smoothing, or caps.
+
+---
+
+## 10. Mirror Baseline Recompute
+
+Scenario deltas must not compare newly recomputed scenario components against cached `localRisk`, cached route risk, or normalized scores.
+
+Mirror baseline exists to provide an apples-to-apples scenario comparison using the same canonical DS-015 seams. It is not a new baseline scorer.
+
+The mirror baseline uses:
+
+- canonical DS-015 functions
+- the exact same stable component inputs
+- the exact same DS-015 model version
+- stable all-day neutral AADT
+- the exact same lane/basis adapter policy
+- no scenario traffic adjustment
+- `motorVehicleHarmContextMultiplier = 1.0`
+- the same stable speed, infrastructure, shoulder, curvature, width, control, and movement facts
+
+Required mirror baseline fields:
+
+- `baselineDs015TrafficFactor`
+- `baselineLocalLikelihood`
+- `baselineLocalSeverity`
+- `baselineBaseMotorVehicleRisk`
+- `baselineContextualMotorVehicleRisk`
+- `baselineComponentContentDigest`
+
+Required scenario fields:
+
+- `scenarioDs015TrafficFactor`
+- `scenarioLocalLikelihood`
+- `stableLocalSeverity`
+- `scenarioBaseMotorVehicleRisk`
+- `scenarioContextualMotorVehicleRisk`
+- `scenarioComponentContentDigest`
+- `deltaFromMirrorBaselineComponentRisk`
+
+Rules:
+
+- cached risk may be carried as a comparison reference only
+- cached risk does not define the mathematical baseline
+- a delta is valid only when baseline and scenario use matching stable inputs, DS-015 version, traffic/lane basis policy, and component policy
+- mirror baseline must reproduce canonical component behavior within an exact declared tolerance
+- if mirror baseline cannot reproduce canonical behavior, runtime blocks and reports a parity failure
+- do not create compensating scenario math for parity failure
+- no normalized score delta is authorized
+
+---
+
+## 11. Per-Pass Placement
+
+The accepted semantic placement for later POC review is:
+
+```text
+perPassComponentApplication = motor_vehicle_local_risk_product_v1
+```
+
+Semantic alias:
+
+```text
+motorVehicleHarmContextMultiplier =
+  ScenarioTemporalMotorVehicleRiskProjection.normalizedPerPassMultiplier
+```
+
+`motorVehicleHarmContextMultiplier` is a versioned POC motor-vehicle harm-context multiplier applied exactly once after canonical local likelihood and stable speed severity have produced canonical motor-vehicle local risk.
+
+It is not called:
+
+- a pure likelihood multiplier
+- a pure severity multiplier
+- a rewrite of speed severity
+- a crash probability
+- a darkness factor
+- a traffic factor
+- production-calibrated
+
+Interpretation:
+
+- modeled time-dependent motor-vehicle fatal-harm context
+- POC / modeled-unvalidated
+- applies only to motor-vehicle local risk
+- applies exactly once
+- accepting this contract approves a modeling interpretation for a later headless POC
+- accepting this contract does not establish empirical causal decomposition or production calibration
+- Derek decided this semantic placement, not DS-015's existing formulas
+- does not apply to surface, weather, wind, fatigue, remoteness, services, access, non-motor hazards, route rollup, or normalized score
+
+Road contextual placement illustration:
+
+```text
+scenarioRoadMotorVehicleComponentRisk =
+  scenarioRoadBaseMotorVehicleRisk
+  * motorVehicleHarmContextMultiplier
+```
+
+Crossing contextual placement illustration:
+
+```text
+scenarioCrossingMotorVehicleComponentRisk =
+  scenarioCrossingBaseMotorVehicleRisk
+  * motorVehicleHarmContextMultiplier
+```
+
+The multiplier must be applied at most once per resolved motor-vehicle component. Receipts must expose `perPassAdjustmentCount`.
+
+`combinedHourlyFactorDiagnosticOnly` remains diagnostic only. It must never be used for component recompute, planned risk, route rollup, score delta, or normalized score.
+
+---
+
+## 12. Crossing Temporal Adaptation
+
+For a selected crossing event with `baselineTemporalBasis = all_day_aadt_neutral`:
+
+```text
+prepared route-located crossing candidate
+selected stable neutral crossing AADT
+  -> ScenarioTrafficProjection.hourlyAADTEquivalent
+  -> basis-aware DS-015 traffic input
+  -> existing DS-015 traffic resolver
+  -> existing crossing eligibility policy
+  -> existing canonical crossing risk seam
+  -> motorVehicleHarmContextMultiplier exactly once
+  -> scenarioCrossingContextualMotorVehicleRisk
+```
+
+The temporal contract does not alter sqrt traffic-factor behavior, crossing lambda base, crossing likelihood cap, width factor, control factor, movement factor, speed severity, or existing eligibility thresholds.
+
+The missing crossing work is complete candidate universe, `canonicalDistM`, route-axis identity, explicit traffic/lane/temporal basis, deterministic projection join, baseline and scenario eligibility receipts, and coverage completeness.
+
+The following is non-authoritative explanatory pseudocode. It must remain behaviorally identical to canonical DS-015 and must not be copied as scenario-only formula code:
+
+```text
+scenarioCrossingTrafficInput =
+  basis-aware conversion from ScenarioTrafficProjection.hourlyAADTEquivalent
+
+scenarioCrossingLikelihood =
+  min(
+    CrossingLikelihoodCap,
+    BaseCrossingLikelihood
+      * sqrt(scenarioDs015TrafficFactor)
+      * stableWidthFactor
+      * stableControlFactor
+      * stableMovementFactor
+  )
+
+crossedRoadSpeedSeverity =
+  DS-015 speed severity from stable crossed or entered road speed input
+
+scenarioCrossingBaseMotorVehicleRisk =
+  scenarioCrossingLikelihood * crossedRoadSpeedSeverity
+
+scenarioCrossingContextualMotorVehicleRisk =
+  scenarioCrossingBaseMotorVehicleRisk * motorVehicleHarmContextMultiplier
+```
+
+Rules:
+
+- crossing traffic recompute uses the crossing's own traffic basis, not the nearest road span unless a versioned point-to-span join policy explicitly says so
+- scenario eligibility is recomputed before contribution status is finalized
+- non-eligible events may be emitted as traced unresolved or non-contributing events with receipts
+- no baseline crossing risk may be multiplied by traffic or temporal factors
+- no crossing can remain silently baseline while output claims complete planned motor-vehicle coverage
+- apply the harm-context multiplier after the DS-015 crossing likelihood cap
+- do not apply the harm-context multiplier before the cap
+- do not alter stable crossed-road speed severity
+- do not apply the harm-context multiplier again during route rollup
+- preserve `sqrt(scenarioDs015TrafficFactor)`, `DS015_CROSSING_LAMBDA_BASE`, `DS015_CROSSING_LAMBDA_CAP`, stable width factor, stable control factor, stable movement factor, and stable speed severity
+- do not reuse the generic road formula for crossings
+- crossing traffic basis adaptation must follow the accepted Phase 5 matrix
+- if the current public API does not expose a safe reusable crossing component seam, Phase 6B must identify the missing seam and recommend extracting a shared canonical helper later
+
+---
+
+## 13. Component Interval Atomization
+
+Road component calculations must not assign one temporal value to a long stable road span by midpoint alone.
+
+The future component interval planner must split at the sorted union of:
+
+- stable road-span boundaries
+- `ScenarioTrafficProjection` boundaries
+- `ScenarioTemporalMotorVehicleRiskProjection` boundaries
+- stable curvature-subspan boundaries
+- path/motor-road domain boundaries
+- traffic-basis boundaries
+- lane-basis boundaries
+- confidence/provenance boundaries
+- scenario transform boundaries
+- route start and end
+
+Rules:
+
+- final road component intervals are half-open
+- intervals exactly partition `[0,totalDistM)`
+- no overlap
+- no hidden gap
+- unresolved/conflict coverage remains explicit
+- one traffic span and one risk-context span must uniquely cover every resolved component interval
+- do not join by array index
+- do not join by presentation segment
+- do not rely on midpoint selection before material boundaries are split
+- both `scenarioDistM` and `canonicalDistM` remain explicit
+- no output per coordinate or meter
+
+---
+
+## 14. Merge Rules
+
+Adjacent road contributions may merge only when all material semantics match:
+
+- stable input identity
+- traffic projection content
+- risk-context projection content
+- traffic/lane basis
+- DS-015 factors
+- harm-context multiplier
+- confidence
+- provenance
+- adjustment ledger
+- model/policy versions
+- coverage/fidelity status
+
+Do not merge across:
+
+- traffic changes
+- local-hour changes
+- temporal model-cell changes
+- curvature changes
+- infrastructure changes
+- shoulder changes
+- lane/basis changes
+- unresolved/conflict boundaries
+
+Crossing events do not merge.
+
+---
+
+## 15. Point-To-Span Join Policy
+
+Traffic and temporal projections are span outputs. Crossing events are point outputs.
+
+Future recompute must define a deterministic point-to-span join:
+
+- join key is canonical route distance
+- half-open span semantics apply
+- `canonicalDistM = totalDistM` snaps to the final material endpoint only for receipt purposes
+- snap epsilon is explicit and versioned
+- no hidden nearest-neighbor by coordinate
+- no cue-sheet row identity as semantic truth
+- joined projection refs are included in receipts and semantic digests
+
+If a crossing event cannot join exactly one traffic projection span and exactly one temporal risk projection span, the event is unresolved.
+
+---
+
+## 16. Execution Budgets
+
+Because road spans, projection spans, and curvature/provenance boundaries are intersected client-side, Phase 6B requires explicit work limits before runtime authorization.
+
+Required future budget policy:
+
+- `maxFinalRoadComponentIntervals`
+- `maxPreparedCrossingCandidates`
+- `maxAdjustmentLedgerEntries`
+- `maxCompactReceiptReferences`
+- serialized output byte measurement
+- preflight work estimate
+- elapsed-time measurement
+- over-budget typed blocker
+- no silent truncation
+- no silent coarsening
+- no output per coordinate or meter
+- worker-compatible plain cloneable output
+
+No product SLA is approved.
+
+Phase 6B runtime is blocked until conservative POC caps are approved from measured fixtures. The contract-only owner decision may still proceed while runtime budgets remain an explicit implementation gate.
+
+---
+
+## 17. Coverage Model
+
+The output must carry independent coverage dimensions:
+
+- `roadCoverageStatus`
+- `crossingCandidateCoverageStatus`
+- `crossingEligibilityCoverageStatus`
+- `trafficProjectionCoverageStatus`
+- `perPassProjectionCoverageStatus`
+- `overallMotorVehicleComponentCoverageStatus`
+
+Allowed coverage values:
+
+- `complete`
+- `partial`
+- `none`
+- `blocked`
+
+Complete motor-vehicle component coverage requires:
+
+- complete road span partition
+- complete crossing candidate universe
+- route-axis identity consistency
+- all required stable road and crossing inputs selected or explicitly unresolved
+- all selected traffic inputs marked `all_day_aadt_neutral`
+- exact projection joins
+- no unresolved required crossing route locations
+- no missing scenario eligibility inputs for candidate events that could affect coverage
+- full road traffic coverage
+- full road per-pass coverage
+- complete crossing candidate universe
+- all crossing candidates route-located or explicitly resolved under approved policy
+- full crossing traffic coverage
+- full crossing per-pass coverage
+
+Partial output may exist, but it must say which component family is incomplete. It must not present itself as full planned safety.
+
+If crossings are incomplete:
+
+- `overallMotorVehicleCoverage` cannot be full
+- output must say `partial_motor_vehicle_coverage`
+- no output may be called Planned Ride Safety Score
+- no road-only preview is authorized by this contract
+- no route rollup is authorized
+
+---
+
+## 18. Adjustment Ledger
+
+Every output must expose a deterministic adjustment ledger.
+
+Maintain separate baseline and scenario ledgers.
+
+Required counters in both ledgers:
+
+- `trafficVolumeAdjustmentCount`
+- `perPassAdjustmentCount`
+- `legacyTrafficTimeAdjustmentCount`
+- `combinedDiagnosticFactorApplicationCount`
+- `normalizedScoreMultiplierCount`
+- `cachedRiskMultiplierCount`
+
+Mirror baseline invariants:
+
+- `trafficVolumeAdjustmentCount = 0`
+- `perPassAdjustmentCount = 0`
+- `legacyTrafficTimeAdjustmentCount = 0`
+- `combinedDiagnosticFactorApplicationCount = 0`
+- `normalizedScoreMultiplierCount = 0`
+- `cachedRiskMultiplierCount = 0`
+
+Resolved scenario contextual component invariants:
+
+- resolved traffic-adjusted components have `trafficVolumeAdjustmentCount = 1`
+- resolved temporal harm-context components have `perPassAdjustmentCount = 1`
+- unresolved components have zero adjustment counts for the unresolved part
+- `legacyTrafficTimeAdjustmentCount = 0`
+- `combinedDiagnosticFactorApplicationCount = 0`
+- `normalizedScoreMultiplierCount = 0`
+- `cachedRiskMultiplierCount = 0`
+- traffic projection is the one volume adjustment
+- harm-context multiplier is the one per-pass/context adjustment
+- route aggregation must not increment either count
+
+Duplicates block. Unknown basis blocks. Legacy plus scenario adjustment blocks. Any violation blocks planned score or preview integration.
+
+---
+
+## 19. Output Envelope
+
+Future output type:
+
+```text
+ScenarioMotorVehicleComponentRecomputeOutput
+```
+
+Minimum fields:
+
+- `schemaVersion`
+- `outputId`
+- `scenarioId`
+- `scenarioContextDigest`
+- `routeTransformDigest`
+- `routeTimeBindingDigest`
+- `stableInputDigest`
+- `trafficProjectionContentDigest`
+- `riskProjectionContentDigest`
+- `componentRecomputeContentDigest`
+- `mirrorBaselineRoadContributionContentDigest`
+- `scenarioRoadContributionContentDigest`
+- `mirrorBaselineCrossingContributionContentDigest`
+- `scenarioCrossingContributionContentDigest`
+- `routeAxisId`
+- `routeAxisDigest`
+- `totalDistM`
+- `policyVersion`
+- `scoreModelVersion`
+- `roadContributions`
+- `crossingContributions`
+- coverage statuses
+- execution status
+- fidelity status
+- baseline adjustment ledger
+- scenario adjustment ledger
+- compact receipts
+- assumptions
+- warning codes
+- diagnostics
+- generatedAt
+
+It must not include:
+
+- planned score
+- route risk per mile
+- normalized 0-100 score
+- score delta
+- presentation copy
+- storage handles
+- source-fetch handles
+
+---
+
+## 20. Contribution Envelopes
+
+Road contribution spans must carry:
+
+- canonical and scenario coverage
+- stable road span refs
+- traffic projection refs
+- temporal risk projection refs
+- stable traffic basis
+- scenario traffic input after basis conversion
+- scenario DS-015 traffic factor
+- stable facility, shoulder, curvature, and speed inputs
+- baseline DS-015 traffic factor
+- baseline local likelihood
+- baseline local severity
+- baseline base motor-vehicle risk
+- baseline contextual motor-vehicle risk
+- scenario DS-015 traffic factor
+- scenario local likelihood
+- stable local severity
+- scenario base motor-vehicle risk
+- `motorVehicleHarmContextMultiplier`
+- scenario contextual motor-vehicle risk
+- delta from mirror baseline component risk
+- component risk after the accepted DS-064 temporal placement
+- adjustment counters
+- confidence
+- receipts
+- warning codes
+
+Crossing contribution events must carry:
+
+- canonical and scenario event distance
+- stable crossing event refs
+- traffic projection refs
+- temporal risk projection refs
+- baseline and scenario eligibility
+- eligibility receipts
+- scenario DS-015 crossing traffic factor
+- stable width/control/movement/speed inputs
+- baseline crossing likelihood
+- baseline crossed-road speed severity
+- baseline base motor-vehicle risk
+- baseline contextual motor-vehicle risk
+- scenario crossing likelihood
+- stable crossed-road speed severity
+- scenario base motor-vehicle risk
+- `motorVehicleHarmContextMultiplier`
+- scenario contextual motor-vehicle risk
+- delta from mirror baseline component risk
+- component risk after the accepted DS-064 temporal placement
+- adjustment counters
+- confidence
+- receipts
+- warning codes
+
+---
+
+## 21. Receipts
+
+Use compact receipts:
+
+- one component recompute run receipt
+- shared projection input refs
+- per-road-span receipt refs
+- per-crossing-event receipt refs
+
+The run receipt includes:
+
+- scenario digest trio
+- stable input digest
+- projection content digests
+- score model version
+- recompute policy version
+- DS-015 formula identifiers
+- traffic basis adapter version
+- per-pass placement policy
+- mirror baseline policy
+- crossing candidate universe digest
+- crossing eligibility policy
+- adjustment policy
+- source manifest refs
+- generatedAt
+
+Per-contribution receipt refs include only:
+
+- contribution id
+- stable input refs
+- projection span refs
+- formula ids
+- adjustment counts
+- status
+- warning codes
+
+Do not repeat full source manifests, calibration strings, or long provenance text in every contribution.
+
+---
+
+## 22. Semantic Digests
+
+Required digests:
+
+```text
+mirrorBaselineRoadContributionContentDigest
+scenarioRoadContributionContentDigest
+mirrorBaselineCrossingContributionContentDigest
+scenarioCrossingContributionContentDigest
+componentRecomputeContentDigest
+```
+
+They include:
+
+- scenario digest trio
+- stable motor-vehicle input digest
+- traffic projection content digest
+- risk projection content digest
+- DS-015 score model version
+- recompute policy versions
+- traffic basis adapter version
+- lane policy
+- crossing candidate-universe digest
+- crossing eligibility policy
+- per-pass placement policy
+- adjustment policy
+- formula identifiers
+- coverage semantics
+- coverage/fidelity semantics
+- contribution semantics
+- semantic contribution values
+- confidence/provenance semantics that affect output
+
+It excludes:
+
+- `scenarioId`
+- `evaluationId`
+- output instance ids
+- `generatedAt`
+- warning text
+- diagnostics text
+- trace-only ids
+- presentation copy
+
+Identical semantic inputs must produce identical content digests even when generated at different times or for different output instances.
+
+---
+
+## 23. Cached Artifact Policy
+
+Current canonical score traces, cached risk values, completed-analysis scores, route-cache records, route-history records, RXON, and `RouteIndexedTruthCache` views are reference-only unless a future adapter proves neutral temporal basis and component decomposition.
+
+Allowed reference uses:
+
+- cite baseline score/risk ids
+- cite stable score model version
+- compare future output after recompute
+- use score trace as audit evidence for what current runtime emits
+
+Forbidden uses:
+
+- multiply cached road `localRisk`
+- multiply cached crossing `localRisk`
+- multiply `totalRouteRisk`
+- multiply `routeRiskPerMile`
+- multiply `cachedRawRisk`
+- multiply `cachedNormalizedRisk`
+- multiply a 0-100 Safety Score
+- infer crossing candidate completeness from score-bearing crossing details only
+
+Selected stable inputs are preferred over reverse-engineering cached risk.
+
+---
+
+## 24. Confidence
+
+Each contribution must carry structured confidence:
+
+- stable traffic confidence
+- stable speed confidence
+- stable facility/shoulder/curvature confidence for road spans
+- stable width/control/movement confidence for crossing events
+- projection traffic confidence
+- temporal model cell confidence
+- proxy model confidence
+- fallback confidence
+- overall confidence
+- overall confidence reason code
+
+Rules:
+
+- unresolved inputs remain unresolved, not safe or low risk
+- fallback cannot produce high overall confidence
+- unknown traffic basis cannot be silently treated as per-lane or same-direction traffic
+- baseline-filtered crossing universe cannot produce complete crossing coverage
+- confidence semantics enter content digests; human-readable confidence copy does not
+
+---
+
+## 25. Typed Failures
+
+Whole-run blockers must include:
+
+- invalid foundation digest
+- invalid traffic projection digest
+- invalid risk projection digest
+- invalid stable motor-vehicle input digest
+- route-axis mismatch
+- total-distance mismatch
+- invalid road span partition
+- invalid crossing candidate universe
+- missing crossing route location
+- invalid traffic basis
+- unsupported baseline temporal basis
+- invalid point-to-span join
+- invalid recompute policy
+- unsupported per-pass placement policy
+- component interval budget exceeded
+- prepared crossing candidate budget exceeded
+- adjustment ledger budget exceeded
+- receipt reference budget exceeded
+- invalid mirror baseline
+- duplicate temporal adjustment
+- invalid harm-context multiplier
+
+Span/event states remain typed outputs:
+
+- missing AADT
+- conflict AADT
+- legacy time adjusted baseline
+- unknown baseline temporal basis
+- unresolved traffic projection
+- unresolved temporal projection
+- missing crossing route location
+- missing crossing eligibility input
+- crossing candidate universe incomplete
+- baseline eligibility blocked
+- scenario eligibility blocked
+- over budget
+
+Expected incomplete data must not become generic exceptions, zero, safe, or low risk.
+
+---
+
+## 26. Runtime Readiness
+
+Use separate readiness dimensions:
+
+- `roadComponentRuntime = potentially_implementation_ready_after_owner_decision_and_budget_approval`
+- `crossingComponentRuntime = blocked_until_complete_candidate_universe_and_canonical_route_location_exist`
+- `completeComponentRuntime = blocked`
+- `roadOnlyDiagnosticRuntime = deferred_to_separate_owner_decision`
+- `plannedRiskPreview = blocked`
+- `fullPlannedRideSafetyScore = blocked`
+
+The Phase 6A owner decision approves only this contract.
+
+---
+
+## 27. Future Test Contract
+
+Runtime must not proceed without tests proving:
+
+- stable road span split at traffic boundary
+- stable road span split at risk-context boundary
+- stable road span split at curvature boundary
+- exact half-open coverage
+- no midpoint leakage
+- no hidden gap or overlap
+- road spans exactly partition `[0,totalDistM)`
+- road path-domain likelihood remains zero under current DS-015 rules
+- harm-context multiplier does not turn path-domain road likelihood into positive road risk
+- selected neutral AADT recomputes traffic factor exactly once
+- `legacy_time_adjusted` blocks traffic recompute
+- unknown traffic basis blocks or remains explicitly unresolved
+- no divide-by-two occurs without explicit conversion policy
+- mirror baseline uses the same stable inputs and DS-015 version
+- mirror baseline has no temporal adjustments
+- cached risk is ignored as calculation authority
+- delta from mirror baseline is apples-to-apples
+- traffic volume adjustment count is exactly one for resolved traffic components
+- `motorVehicleHarmContextMultiplier` applies after base local risk
+- crossing cap applies before harm-context multiplier
+- multiplier `1.0` is neutral
+- duplicate multiplier application is rejected
+- negative or non-finite multiplier is blocked
+- `combinedHourlyFactorDiagnosticOnly` is never used
+- cached `localRisk`, route risk, and normalized score are never multiplied
+- crossing candidates include non-score-bearing baseline events where scenario eligibility could change
+- baseline-filtered candidate universe is rejected
+- crossing route location is required
+- correct half-open point-to-span join is required
+- route-end endpoint policy is tested
+- crossing eligibility recomputes under scenario traffic input
+- baseline and scenario eligibility are independently recomputed
+- threshold entry and exit are receipted
+- crossing traffic uses sqrt traffic factor and cap
+- missing candidate universe blocks complete coverage
+- road and crossing coverage statuses are independent
+- complete planned motor-vehicle coverage is blocked when crossings are incomplete
+- complete roads plus blocked crossings remains partial overall
+- no complete score claim is emitted
+- no road-only preview is emitted
+- output is immutable and structured-clone compatible
+- no cached risk math
+- no `traffic-time.ts`
+- no combined diagnostic factor
+- no normalized score multiplier
+- no non-motor multiplier
+- no UI, storage, source-fetch, route-cache, route-history, Supabase, or `RouteIndexedTruthCache` writes occur
+
+---
+
+## 28. Implementation Gate
+
+Phase 6A is complete. Derek approved this contract-only temporal component-adaptation gate on 2026-06-19.
+
+The next possible gate is a separate owner decision on whether to implement a bounded headless road temporal-adaptation proof using canonical DS-015 seams, mirror-baseline parity, explicit crossing blockers, and approved client-side budgets. Even if approved, that slice must stop at component outputs and must not roll up to planned risk, planned score, score delta, preview, UI, storage, or production.
 
 
 ---
@@ -41573,7 +42956,9 @@ This system models a ride as a sequence of **pushes**, where:
 
 A push is:
 
-> a bounded execution block of riding, typically up to ~1200 km, defined by a start point, end point, and timing constraints.
+> a bounded execution block of riding, defined by a rider-approved start point, end point, and timing constraints.
+
+The earlier 1200 km language is experience-derived lineage, not a hard product ceiling. Rider-approved push boundaries are authoritative. Lanterne may suggest push boundaries later, but it must not silently enforce a fixed maximum push distance.
 
 The push becomes the primary unit for:
 
@@ -41620,6 +43005,8 @@ The plan is:
 - versioned
 - never silently mutated by the system
 
+EXEC-058 refines this layer into `OriginalPlan` and `CurrentPlan`. `OriginalPlan` is sealed pre-ride intent retained for comparison and postmortem. `CurrentPlan` is the active rider-approved plan revision used for future projection.
+
 ------
 
 ### 3. Actual Ride State
@@ -41629,7 +43016,7 @@ This represents what has actually happened:
 - current route position
 - moving time
 - stopped time
-- recent performance (default: last 60 minutes)
+- observed performance history, when an accepted future policy uses it
 - confirmed stops
 - skipped stops
 
@@ -41638,6 +43025,8 @@ This layer is:
 - event-driven
 - durable across sessions
 - derived from sparse updates (not continuous logging)
+
+V1 future timing uses static rider-supplied Current Plan speed. Last-60-minute automatic pace adaptation, automatic pace decay, and automatic elevation adjustment are deferred and must not be inherited silently from this Proposed ADR.
 
 ------
 
@@ -41659,11 +43048,15 @@ This layer is:
 - explicitly derived from the other three layers
 - never treated as a single opaque value
 
+Control lateness and DNF/cutoff risk do not block scenario computation or prevent the rider from continuing. EXEC-058 records informational plan deficit before caution thresholds, individual-control caution within 15 minutes before closing, individual-control warning when projected late, final-cutoff caution within 60 minutes before cutoff regardless of ride length, and final-cutoff warning when projected finish is late.
+
 ------
 
 ## Separation Principle
 
 These four layers must remain separate.
+
+EXEC-058 further names the operational layers as `OfficialConstraints`, `OriginalPlan`, `CurrentPlan`, `ActualRideState`, and `Guidance`. Those concepts remain separate; guidance is derived and must not silently mutate the plan, actual history, or official constraints.
 
 The system must never collapse them into:
 
@@ -41715,7 +43108,7 @@ Each stop includes:
 
 System behavior:
 
-- detects or confirms stop start and end
+- may later detect stop start/end, or may confirm stop start/end from rider action
 - updates projections after each stop
 - prompts when planned stops are skipped
 - allows stop relocation or removal
@@ -41726,6 +43119,20 @@ Stops influence:
 - future projections
 - stop budget calculations
 
+EXEC-058 refines stop behavior:
+
+- a passed planned stop must not remain silently in the future schedule
+- if a passed-stop prompt remains unresolved for five additional scenario miles after the stop anchor, it auto-resolves as skipped with an explanation/receipt and later correction path
+- unplanned stops contribute to actual elapsed/stopped history but never delete, replace, relocate, shorten, or otherwise modify future planned stops automatically
+- V1 does not prompt the rider to match an unplanned stop to a future planned stop
+- the rider manually edits Current Plan when lived experience changes future stop intentions
+
+Automatic stop detection is future direction, default-on during Ride Mode after more than five stationary minutes, but not DS-065 runtime scope. It may create provisional `ActualStopEvent` records later, but it must not create or mutate `PlannedStopEvent`, `OriginalPlan`, or `CurrentPlan` records. Route-distance movement tolerance, GPS accuracy, jitter handling, background/iOS behavior, false-positive dismissal, and notification timing remain pending owner decisions. Generic stop priors are not approved for V1.
+
+Controls and timed stops are separate: a control is a checkpoint or official-constraint event, while a stop is a duration-bearing timeline event. A control may be passed or checked in without stopping, and a control and stop may be linked while remaining separate objects.
+
+Stops do not inherently create push boundaries. A stop strictly greater than 3 hours automatically creates a provisional push transition, with Undo/override. Stops at or below 3 hours remain in-push by default. A short sleep may remain inside a push. In Ride Mode, a default transition becomes effective when riding resumes after the stop.
+
 ------
 
 ## Projection Engine
@@ -41735,7 +43142,8 @@ The projection engine simulates forward from current state.
 It:
 
 - uses terrain-aware rider model
-- blends with recent observed performance
+- uses static rider-supplied Current Plan speed for V1
+- does not use automatic pace decay or automatic elevation adjustment in V1
 - incorporates planned or actual stops
 - computes arrival times and finish projections
 - evaluates against official constraints
@@ -41771,7 +43179,7 @@ Recalculation triggers:
 
 Default live basis:
 
-> last 60 minutes of moving performance
+> V1 uses static rider-supplied Current Plan speed. Optional observed-pace adaptation, last-60-minute behavior, automatic pace decay, and automatic elevation adjustment are deferred.
 
 ------
 
@@ -41836,7 +43244,7 @@ The system must:
 
 Push Intelligence answers:
 
-> “What happens if I keep going like this, and what should I do next?”
+> “What happens if I keep going like this, and what choices do I have next?”
 
 Not:
 
@@ -41852,7 +43260,7 @@ Advantages:
 - differentiates from traditional bike computers
 - builds naturally on Lanterne’s existing architecture
 - supports both brevets and expedition riding
-- enables prescriptive guidance
+- enables explainable forward guidance
 
 Tradeoffs:
 
@@ -47154,7 +48562,7 @@ Presentation must not run the optimizer, fetch evidence, select candidates, or r
 
 ## Source File: docs/03-adrs/adr-055-ride_plan_scenario_engine_and_planned_ride_safety.md
 
-# ADR-055 - Ride Plan Scenario Engine and Planned Ride Safety Score
+# ADR-055 - Ride Plan Scenario Engine and Planned Ride Risk
 
 Status: Accepted Architecture, Implementation Deferred To exec-054 Gates
 Date: 2026-06-17
@@ -47235,11 +48643,11 @@ It is not route geometry optimization. Rerouting, route alternatives, and automa
 
 ------
 
-## Score And View Concepts
+## Risk And View Concepts
 
-### 1. Baseline Safety Score
+### 1. Baseline Route Risk
 
-Baseline Safety Score is the durable baseline score from stable route truth.
+Baseline Route Risk is the durable baseline risk artifact from stable route truth.
 
 It does not depend on:
 
@@ -47255,9 +48663,13 @@ It does not depend on:
 
 It is suitable for route comparison, saved route analysis, and stable route records.
 
-### 2. Planned Ride Safety Score
+Canonical baseline fields include Road Risk Total, Crossing Risk Total, Total Route Risk, and Route Risk Per Mile. Higher risk means less safe and lower risk means safer. No 0-100 normalized Safety Score or A-F grade is canonical.
 
-Planned Ride Safety Score is scenario-specific.
+Safety Rank is separate: it is a cohort-relative interpretation derived from canonical Route Risk Per Mile and tied to a named cohort/corpus snapshot. Safety Rank never replaces Road Risk, Crossing Risk, Total Route Risk, or Route Risk Per Mile.
+
+### 2. Planned Ride Risk
+
+Planned Ride Risk is scenario-specific.
 
 It may change with:
 
@@ -47270,13 +48682,17 @@ It may change with:
 
 It is not durable route truth.
 
-It may become the prominent displayed score in planning mode, but it must be labeled as scenario-based. It must carry scenario context, assumptions, and receipts.
+Before a date/time scenario is set, canonical baseline risk is primary and Safety Rank may provide cohort-relative context. After a date/time scenario is sealed and complete, Planned Ride Risk may become primary in planning mode, but it must be labeled as scenario-based. It must carry scenario context, assumptions, and receipts.
 
-Planned Ride Safety Score remains limited to motor-vehicle collision/injury risk unless a later ADR explicitly expands it.
+Planned Ride Risk remains limited to motor-vehicle collision/injury risk unless a later ADR explicitly expands it.
 
-Light state, sun glare, darkness, and visibility do not directly enter Planned Ride Safety Score by default. They may influence Planned Ride Safety Score only through an explicitly approved `TemporalMotorVehicleRiskContext` model with versioned assumptions, receipts, and a calibration/research gate.
+Light state, sun glare, darkness, and visibility do not directly enter Planned Ride Risk by default. They may influence Planned Ride Risk only through an explicitly approved `TemporalMotorVehicleRiskContext` model with versioned assumptions, receipts, and a calibration/research gate.
 
-Planned Ride Safety Score must never overwrite, rename, or replace Baseline Safety Score in stored route analysis. Any UI that elevates Planned Ride Safety Score in planning mode must still preserve the Baseline Safety Score as the stable route comparison score.
+Planned Ride Risk must never overwrite, rename, or replace baseline risk or durable Safety Rank in stored route analysis. Any planning mode that elevates Planned Ride Risk must still preserve Baseline Route Risk Per Mile as the visible stable route comparison value. Planned Ride Risk remains scenario-labeled and receipt-backed.
+
+Planned Ride Risk should use the same confidence vocabulary/system and provenance discipline as baseline risk, with scenario-specific temporal coverage, clock confidence, traffic projection confidence, harm-context model confidence, road component coverage, crossing component coverage, route-time assumption receipts, and unresolved blockers. It must not invent an unrelated cosmetic confidence scale.
+
+Planned Ride Risk is valid only when both road temporal recomputation and crossing temporal recomputation complete. Road-only temporal evidence is a blocked/admin diagnostic, not rider-facing Planned Ride Risk, Safety Rank, or modeled optimal-start input.
 
 ### 3. Condition / Route Reality Indices
 
@@ -47294,7 +48710,7 @@ Condition and route reality indices may include:
 - climb timing
 - POI open/closed likelihood
 
-These may influence objective optimization and planning guidance. They do not automatically become narrow Safety Score inputs.
+These may influence objective optimization and planning guidance. They do not automatically become narrow risk inputs.
 
 ### 4. Objective Score
 
@@ -47310,7 +48726,7 @@ Examples:
 - optimize night avoidance
 - optimize wind exposure
 
-Objective Score is not the same as Baseline Safety Score or Planned Ride Safety Score.
+Objective output is not the same as baseline risk, Safety Rank, or Planned Ride Risk.
 
 ------
 
@@ -47351,16 +48767,16 @@ This changes the risk per interaction or severity context. It is not the same th
 
 ------
 
-## Planned Ride Safety Score Policy
+## Planned Ride Risk Policy
 
-Planned Ride Safety Score may incorporate:
+Planned Ride Risk may incorporate:
 
 - time-dependent traffic exposure
 - approved time-dependent motor-vehicle safety context
 
 Time-dependent volume and time-dependent motor-vehicle risk context must remain separable and explainable.
 
-Do not apply an opaque final route-level score multiplier if slice-level recomputation is possible.
+Do not apply an opaque final route-level risk multiplier if slice-level recomputation is possible.
 
 Preferred model:
 
@@ -47372,7 +48788,7 @@ scenario route slice
   + temporal motor-vehicle risk context
   -> recomputed scenario slice risk
   -> explicit rollup policy
-  -> Planned Ride Safety Score
+  -> Planned Ride Risk
 ```
 
 A temporary POC may use simplified factors only when they are:
@@ -47435,7 +48851,7 @@ Not allowed:
 - storing every scenario as durable route truth
 - storing scenario outputs in `RouteIndexedTruthCache`
 - storing temporal exposure as stable traffic truth
-- storing planned ride score as baseline route score
+- storing Planned Ride Risk as baseline route risk or Safety Rank
 
 Future selected stable layers such as `speed_limit`, `bike_infra`, `shoulder`, `surface`, and access/service baselines may become `RouteIndexedTruthCache` sibling layers after their own selection contracts exist. Scenario outputs derived from those layers still remain outside the cache.
 
@@ -47455,8 +48871,8 @@ Scenario evaluation cache keys, if later allowed, must include:
 - Do not implement all domains now.
 - Do not store scenario outputs as durable route truth.
 - Do not mutate `RouteIndexedTruthCache` with temporal data.
-- Do not change Baseline Safety Score definition.
-- Do not make weather, UV, or wind part of narrow Safety Score without a later ADR.
+- Do not change canonical DS-015 baseline risk definitions.
+- Do not make weather, UV, or wind part of narrow motor-vehicle risk without a later ADR.
 - Do not build route geometry optimization.
 - Do not implement automatic rerouting.
 - Do not wire RouteMap directly to raw scenario logic.
@@ -47472,11 +48888,11 @@ Scenario planning becomes a first-class architecture layer, not a cue sheet feat
 
 Baseline route analysis remains stable and durable.
 
-Planned ride scoring can become richer without corrupting Baseline Safety Score or selected route truth.
+Planned Ride Risk can become richer without corrupting baseline risk, durable Safety Rank, or selected route truth.
 
 Traffic scenario work must split volume estimation from temporal motor-vehicle risk context.
 
-Objective optimization can grow without turning every objective into a new score model.
+Objective optimization can grow without turning every objective into a new risk model.
 
 The next implementation plan is exec-054. It must be planning-first and must not mutate stable route truth, scoring policy, route cache, RouteIndexedTruthCache storage, RouteMap, or cue sheet ownership until gated.
 
