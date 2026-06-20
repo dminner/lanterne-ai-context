@@ -3413,7 +3413,7 @@ Route Safety Score must remain:
 | ADR-034 | Master Route Expeditions and Windowed Long-Route Analysis | Draft | DS-014 |
 | ADR-045 | Route-Indexed Evidence Platform | Accepted | DS-031 |
 | ADR-054 | RouteIndexedEvidenceLedger No-Leak Architecture | Accepted | DS-055 |
-| ADR-055 | Ride Plan Scenario Engine and Planned Ride Risk | Accepted Architecture | DS-056, DS-058, DS-064 accepted component-adaptation contract, DS-065 draft temporal-axis contract |
+| ADR-055 | Ride Plan Scenario Engine and Planned Ride Risk | Accepted Architecture | DS-056, DS-058, DS-064 accepted component-adaptation contract, DS-065 accepted temporal-axis contract |
 | ADR-056 | Temporal Motor-Vehicle Risk Context and Traffic Volume Split | Proposed; superseded for active temporal model kernel by ADR-057 / DS-062 | DS-057 |
 | ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Accepted for hourly architecture and detached kernel; scenario/scoring integration deferred | DS-062, DS-063 accepted projection contract, DS-064 accepted component-adaptation contract |
 | ADR-058 | Viewport Road Data Plane and Overlay Ownership | Proposed | DS-061 |
@@ -3475,7 +3475,7 @@ Route Safety Score must remain:
 | DS-062 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056, DS-057 lineage, DS-058, DS-063, DS-064 | Accepted for detached model-kernel implementation; scenario/scoring integration deferred |
 | DS-063 | Hourly Temporal Scenario Projection Contract | ADR-055, ADR-057, DS-031, DS-056, DS-058, DS-062, EXEC-055, EXEC-056 | Accepted for headless prepared-input projection implementation; runtime not yet implemented |
 | DS-064 | Motor-Vehicle Temporal Component Adaptation And Coverage Contract | ADR-055, ADR-057, DS-015, DS-031, DS-056, DS-058, DS-062, DS-063, EXEC-055, EXEC-056 | Accepted for temporal component-adaptation contract only; runtime not implemented; preview, score, presentation, storage, and production deferred |
-| DS-065 | Long-Route Temporal Axis, Stop Schedule, And Time-Zone Span Contract | ADR-045, ADR-055 | Draft for owner decision; no runtime, worker, GPS, live guidance, UI, storage, scoring, or production implementation authorized |
+| DS-065 | Long-Route Temporal Axis, Stop Schedule, And Time-Zone Span Contract | ADR-045, ADR-055 | Accepted — Pure manual temporal foundation contract; DS-063 adapter, worker, GPS, live guidance, UI, persistence, scoring, and production deferred |
 
 ---
 
@@ -3499,7 +3499,7 @@ ADR-057 and DS-062 define the active hourly temporal model architecture and deta
 EXEC-056 is the active hourly temporal model implementation plan. EXEC-055 remains lineage and retains the double-counting audit gate before any Planned Ride Risk integration. After accepted Phase 6A, the next gate is deciding whether to authorize a bounded headless road temporal-adaptation proof; complete component runtime, planned-risk preview, score, UI, storage, and production remain blocked.
 
 ### Long-route temporal-axis lineage
-DS-065 defines the draft long-route temporal-axis, manual stop-schedule, route-positioned time-zone span, and actual-adjusted remaining-route contract for owner review. It relates to ADR-036, ADR-054, DS-031, DS-055, DS-056, DS-063, DS-064, and EXEC-058. It does not authorize runtime, worker, GPS, live guidance, UI, storage, scoring, or production implementation.
+DS-065 defines the accepted long-route temporal-axis, manual stop-schedule, route-positioned time-zone span, and actual-adjusted remaining-route contract. It relates to ADR-036, ADR-054, DS-031, DS-055, DS-056, DS-063, DS-064, and EXEC-058. Acceptance authorizes only the bounded pure manual temporal foundation slice; DS-063 adapter, worker, GPS, live guidance, UI, persistence, scoring, and production remain deferred.
 
 ### DS-061 reservation
 DS-061 is reserved for the viewport road-data-plane / overlay-ownership packet tied to ADR-058 and EXEC-057. DS-062 is therefore the hourly temporal model specification.
@@ -30983,7 +30983,7 @@ Tests should treat violations as architecture failures, not product polish issue
 
 > 2026-06-19 temporal update: future scenario temporal-risk adapters should use ADR-057 / DS-062 hourly temporal risk as the active detached kernel and DS-063 as the accepted headless prepared-input scenario projection contract. DS-064 owns the accepted contract-only motor-vehicle temporal component-adaptation contract between DS-063 projections and any later DS-058 Planned Ride Risk layer; it reuses canonical DS-015 scoring seams and does not redefine road or crossing math. Planned Ride Risk remains under DS-058 and later gates. The earlier DS-057 two-profile traffic and broad nighttime factor shape remains lineage only for the traffic-exposure versus per-pass-risk separation.
 
-> 2026-06-20 DS-065 temporal-axis update: DS-065 is the authority for final planning-speed terminology, explicit manual stop schedules, route-positioned time-zone spans, planned long-route temporal-axis semantics, and actual-adjusted remaining-route semantics. The current scenario foundation remains v1/simple with historical `manual_constant_elapsed_speed`, `stopModel=none`, and forward/start-zero behavior. DS-065 does not change runtime by itself; a later implementation and cutover gate is required.
+> 2026-06-20 DS-065 temporal-axis update: DS-065 is the accepted authority for final planning-speed terminology, explicit manual stop schedules, route-positioned time-zone spans, planned long-route temporal-axis semantics, and actual-adjusted remaining-route semantics. The current scenario foundation remains v1/simple with historical `manual_constant_elapsed_speed`, `stopModel=none`, and forward/start-zero behavior. DS-065 acceptance does not change current runtime by itself; a future adapter and cutover gate is mandatory before DS-065 v2 temporal axes can feed DS-063 or other runtime consumers.
 
 ---
 
@@ -37953,7 +37953,7 @@ The next possible gate is a separate owner decision on whether to implement a bo
 
 # DS-065 — Long-Route Temporal Axis, Stop Schedule, And Time-Zone Span Contract
 
-**Status:** Draft for owner decision; no temporal runtime, worker, GPS, live guidance, UI, storage, scoring, or production implementation authorized
+**Status:** Accepted — Pure Manual Long-Route Temporal Foundation Contract; DS-063 Adapter, Worker, GPS, UI, Storage, Scoring, And Production Deferred
 **Date:** 2026-06-20
 **ADR Parents:** ADR-045, ADR-055
 **Related:** ADR-036, ADR-054, DS-031, DS-055, DS-056, DS-063, DS-064, EXEC-054, EXEC-056, EXEC-058, EXEC-058 Rider Judgment Register
@@ -38020,6 +38020,40 @@ ADR-045 and DS-031 provide route-distance discipline. ADR-055 and DS-056 provide
 ADR-036 remains Proposed lineage. RES-003b remains research. No RES-003b formula, threshold, heuristic, storage delta, or runtime behavior becomes accepted DS-065 authority through this document.
 
 Current v1 scenario foundation remains unchanged. DS-065 supersedes final planning-speed terminology and long-route temporal semantics, but it does not change runtime by itself.
+
+## Owner Decision
+
+Owner decision:
+
+```text
+approve_long_route_temporal_axis_foundation
+```
+
+Owner decision by:
+
+```text
+Derek Minner
+```
+
+Owner decision date:
+
+```text
+2026-06-20
+```
+
+Authorized capability:
+
+```text
+long_route_temporal_axis_foundation
+```
+
+Authorized scope:
+
+```text
+manual_planned_and_actual_adjusted_temporal_foundation_only
+```
+
+This decision approves DS-065's pure temporal foundation contract and a later bounded implementation slice. It does not approve direct DS-063 integration, worker execution, GPS behavior, presentation, scoring, persistence, or production use.
 
 ## 4. Contract Inputs And Outputs
 
@@ -38091,7 +38125,7 @@ Meaning:
 - planned stops add elapsed duration at route position
 - stop duration is not smeared across prior route distance
 
-`ScenarioStopSchedule` is required by the strategy contract. Whether an explicitly acknowledged empty schedule is allowed is a pending owner decision. If allowed, the empty schedule must carry an explicit acknowledgment that no stops are planned, must warn that arrival estimates may be optimistic, and must not infer stops.
+`ScenarioStopSchedule` is required by the strategy contract. Empty moving-pace schedules are explicitly deferred. The first bounded implementation requires at least one stop; an empty schedule blocks as `empty_stop_schedule_not_acknowledged`. The rider may instead select `stop_inclusive_planned_average`.
 
 ### 5.3 Double-Counting Blocker
 
@@ -38364,7 +38398,7 @@ Consumer examples:
 
 ## 12. Route-Start And Route-End Stops
 
-These are pending owner decisions in the Rider Judgment Register.
+These are explicitly deferred owner decisions. They do not block accepting DS-065 as a contract, but they block the corresponding first bounded implementation cases until separately decided.
 
 Route-start question:
 
@@ -38394,11 +38428,16 @@ route_end_arrival_finishes_route_v1
 
 Under this recommendation, route finish time is arrival at `totalDistM`. Any duration-bearing dwell at `totalDistM` is post-arrival dwell or a push/expedition transition event, not part of the completed route finish time unless a future owner decision says otherwise.
 
-Owner decision remains:
+First bounded implementation behavior:
 
 ```text
-pending_review
+route_start_stop_semantics = explicitly_deferred
+duration-bearing planned stop at scenarioDistM = 0 -> route_start_stop_policy_unresolved
+route_end_stop_semantics = explicitly_deferred
+duration-bearing planned stop at totalDistM -> route_end_stop_policy_unresolved
 ```
+
+Do not guess whether `plannedStartInstant` means route-origin arrival or wheels-rolling departure for a route-start dwell. Do not let post-arrival dwell silently alter route finish time.
 
 ## 13. Co-Located Stop Ordering
 
@@ -38459,7 +38498,7 @@ Recommended policy for owner review:
 push_transition_dual_owned_v1
 ```
 
-Under this recommendation, draft threshold classification is a planning policy, sealed `stopScope` is plan semantics and enters the plan digest, and guidance uses the sealed value rather than reclassifying it privately. The Rider Judgment Register still marks ownership as pending.
+Policy ownership is explicitly deferred. For the first bounded implementation, runtime does not auto-classify sealed stop scope. Sealed input must carry explicit resolved `stopScope`; absent sealed scope blocks as `push_transition_scope_unresolved`. The greater-than-three-hour policy may produce a draft/provisional suggestion only. Do not silently decide whether this belongs solely to plan semantics, guidance, or both.
 
 ## 15. Planned Temporal-Axis Equations
 
@@ -38643,7 +38682,7 @@ Scenario-zone spans derive through `ScenarioRouteTransform`.
 
 ## 19. Time-Zone Boundary Ownership
 
-Recommended deterministic versioned policy for owner review:
+Recommended deterministic versioned policy:
 
 ```text
 downstream_half_open_span_owns_boundary_v1
@@ -38664,11 +38703,14 @@ A stop exactly at a zone boundary:
 - records the chosen zone and policy in receipts
 - never depends on browser locale
 
-Owner decision remains:
+Boundary ownership is explicitly deferred:
 
 ```text
-pending_review
+exact_timezone_boundary_ownership = explicitly_deferred
+multi-zone runtime exact-boundary case -> exact_timezone_boundary_policy_unresolved
 ```
+
+Fixed-zone and fixed-offset compatibility may proceed. `downstream_half_open_span_owns_boundary_v1` remains the recommended policy, not the owner-approved policy.
 
 ## 20. DST Behavior
 
@@ -39166,6 +39208,10 @@ stop_reconciliation_conflict
 digest_unavailable
 digest_mismatch
 unsupported_scheduled_transport_authority
+route_start_stop_policy_unresolved
+route_end_stop_policy_unresolved
+exact_timezone_boundary_policy_unresolved
+push_transition_scope_unresolved
 ```
 
 Unknown must never silently become:
@@ -39397,40 +39443,61 @@ timeZoneSpanContract = ready
 officialClockSeparation = ready
 DS063Compatibility = adapter_required
 preparedStableInputDependency = bounded_for_contract
-Phase2ImplementationAuthorization = recommended
+Phase2ImplementationAuthorization = authorized_bounded_foundation_only
 ```
 
-Drafting alone never authorizes runtime.
+This authorization is bounded to the deterministic manual foundation slice. It does not authorize direct DS-063 integration, workers, GPS, UI, fetching, storage, scoring, dogfood, default-on behavior, or production.
 
-## 41. Owner Decision Boundary
+## 41. Authorized Future Phase 2 Slice
 
-Recommended owner decision:
+Phase 2 may later implement only:
 
-```text
-approve_long_route_temporal_axis_foundation
-```
+- DS-065 types
+- validation
+- deterministic canonicalization
+- semantic digests
+- manual `stop_inclusive_planned_average`
+- manual `moving_pace_with_explicit_stops` with at least one interior stop
+- interior stop anchors where `0 < scenarioDistM < totalDistM`
+- explicit resolved `stopScope`
+- stop arrival/departure semantics
+- stop-time inverse results
+- fixed-timezone compatibility
+- fixed-offset compatibility
+- pure planned temporal-axis output
+- pure actual-adjusted remaining-route output
+- immutable structured-clone-safe results
+- typed blockers
+- deterministic fixtures/tests
+- default-off runtime-decision contract
 
-Requested future capability:
+Phase 2 may not implement:
 
-```text
-long_route_temporal_axis_foundation
-```
+- route-start or route-end timed stops
+- exact multi-timezone boundary behavior
+- empty moving-pace schedules
+- automatic push classification in sealed runtime
+- DS-063 integration
+- workers
+- GPS
+- alert delivery
+- UI
+- fetching
+- storage
+- scoring
+- production
 
-Requested future scope:
+## 42. Explicit Deferrals
 
-```text
-manual_planned_and_actual_adjusted_temporal_foundation_only
-```
+These deferred rider decisions remain implementation blockers or unsupported cases until separately decided:
 
-Codex may recommend this decision. Codex may not record Derek's decision.
+- `route_start_stop_semantics`: `explicitly_deferred`; duration-bearing planned stop at `scenarioDistM = 0` blocks as `route_start_stop_policy_unresolved`.
+- `route_end_stop_semantics`: `explicitly_deferred`; duration-bearing planned stop at `totalDistM` blocks as `route_end_stop_policy_unresolved`.
+- `exact_timezone_boundary_ownership`: `explicitly_deferred`; fixed-zone/fixed-offset compatibility may proceed, while multi-zone runtime boundary cases block as `exact_timezone_boundary_policy_unresolved`; `downstream_half_open_span_owns_boundary_v1` remains recommended only.
+- `moving_pace_empty_stop_schedule`: `explicitly_deferred`; `moving_pace_with_explicit_stops` requires at least one stop and empty schedule blocks as `empty_stop_schedule_not_acknowledged`.
+- `push_transition_policy_ownership`: `explicitly_deferred`; sealed runtime input must carry explicit resolved `stopScope`, and absent scope blocks as `push_transition_scope_unresolved`.
 
-Owner decision remains:
-
-```text
-pending_review
-```
-
-## 42. Explicit Exclusions
+## 43. Explicit Exclusions
 
 This DS does not authorize:
 

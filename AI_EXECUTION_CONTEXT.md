@@ -58361,7 +58361,7 @@ EXEC-057 is complete when:
 
 # EXEC-058 - Long-Route Temporal Axis And Scale Program
 
-Status: Complete - current-state and program-boundary audit accepted; DS-065 contract drafting authorized; no runtime authorized
+Status: Phase 1 complete - DS-065 accepted as pure manual long-route temporal foundation contract; bounded Phase 2 foundation authorized but not implemented
 Date: 2026-06-20
 Evaluated main: `f511d259be984e71af9ea00c267764d26587e6a0`
 Related: ADR-036 (Proposed), ADR-045, ADR-055, DS-031, DS-032, DS-056, DS-062, DS-063, DS-064, EXEC-054, EXEC-055, EXEC-056, res-003, res-003b
@@ -58809,31 +58809,35 @@ docs/04-execution/reports/exec-058-rider-judgment-register.md
 
 DS-065 cannot be accepted until every DS-065 rider decision is resolved or explicitly deferred. The register is authoritative for rider-facing judgment calls that must not be silently settled by architecture or implementation agents.
 
-Phase 1 draft state as of 2026-06-20:
+Phase 1 closeout state as of 2026-06-20:
 
 ```text
 evaluatedCommit = c67d67eb912c6904ae6c48865ce11b5f59293174
-ownerDecision = pending_review
-contractReadiness = ready_for_owner_review
-recommendedDecision = approve_long_route_temporal_axis_foundation
-authorizedCapabilityRequested = long_route_temporal_axis_foundation
-authorizedScopeRequested = manual_planned_and_actual_adjusted_temporal_foundation_only
+ownerDecision = approve_long_route_temporal_axis_foundation
+ownerDecisionBy = Derek Minner
+ownerDecisionDate = 2026-06-20
+contractReadiness = ready
+authorizedCapability = long_route_temporal_axis_foundation
+authorizedScope = manual_planned_and_actual_adjusted_temporal_foundation_only
 runtimeState = not_implemented
+implementationAuthorization = bounded_foundation_only
 DS063Compatibility = adapter_required
 preparedStableInputDependency = bounded_for_contract
 productionTemporalAccuracy = blocked
 ```
 
-Unresolved rider decisions remain:
+Phase 1 is complete as a contract-only closeout. DS-065 is accepted. This records Derek's owner decision and authorizes only the bounded Phase 2 foundation slice; it does not mark implementation started.
 
-- `route_start_stop_semantics`
-- `route_end_stop_semantics`
-- `exact_timezone_boundary_ownership`
-- `moving_pace_empty_stop_schedule`
-- `push_transition_policy_ownership`
-- `res003b_individual_formula_decisions`
+Explicitly deferred rider decisions remain:
 
-Phase 2 remains unauthorized until Derek reviews and approves the contract.
+- `route_start_stop_semantics`: duration-bearing route-start stops block as `route_start_stop_policy_unresolved`
+- `route_end_stop_semantics`: duration-bearing route-end stops block as `route_end_stop_policy_unresolved`
+- `exact_timezone_boundary_ownership`: multi-zone runtime boundary cases block as `exact_timezone_boundary_policy_unresolved`
+- `moving_pace_empty_stop_schedule`: empty moving-pace schedules block as `empty_stop_schedule_not_acknowledged`
+- `push_transition_policy_ownership`: absent sealed `stopScope` blocks as `push_transition_scope_unresolved`
+- `res003b_individual_formula_decisions`: RES-003b remains research pending line-item owner review
+
+DS-063 adapter or DS-063 revision is a separate later gate. Production stable-input readiness remains an external dependency pending post-POC HPMS evidence-attachment hardening.
 
 Checklist:
 
@@ -58998,7 +59002,51 @@ Decision outcomes:
 
 ## 7. Phase 2 - Pure Long-Route Temporal Foundation
 
-No implementation begins before Phase 1 owner approval.
+Authorization:
+
+```text
+Phase2ImplementationAuthorization = authorized_bounded_foundation_only
+implementationState = not_implemented
+```
+
+The bounded Phase 2 foundation may later implement only:
+
+- DS-065 types
+- validation
+- deterministic canonicalization
+- semantic digests
+- manual `stop_inclusive_planned_average`
+- manual `moving_pace_with_explicit_stops` with at least one interior stop
+- interior stop anchors where `0 < scenarioDistM < totalDistM`
+- explicit resolved `stopScope`
+- stop arrival/departure semantics
+- stop-time inverse results
+- fixed-timezone compatibility
+- fixed-offset compatibility
+- pure planned temporal-axis output
+- pure actual-adjusted remaining-route output
+- immutable structured-clone-safe results
+- typed blockers
+- deterministic fixtures/tests
+- default-off runtime-decision contract
+
+Phase 2 may not implement:
+
+- route-start or route-end timed stops
+- exact multi-timezone boundary behavior
+- empty moving-pace schedules
+- automatic push classification in sealed runtime
+- DS-063 integration
+- workers
+- GPS
+- alert delivery
+- UI
+- fetching
+- storage
+- scoring
+- production
+
+Phase 3 and later remain unchecked and unauthorized.
 
 Checklist:
 
