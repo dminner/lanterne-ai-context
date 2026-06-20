@@ -57373,7 +57373,7 @@ Phase 6A is a completed contract-only gate. It does not authorize implementation
 
 ### Phase 6B — Headless Motor-Vehicle Temporal Component Adaptation Runtime
 
-Status: deferred after long-route readiness evidence; computational shape appears plausible, but chunked-worker runtime, browser/mobile scale, multi-time-zone correctness, and multi-day stop-schedule correctness remain unproven.
+Status: deferred after long-route readiness evidence; computational shape appears plausible, but chunked-worker runtime, browser/mobile scale, multi-time-zone correctness, and route-positioned stop-schedule correctness remain unproven.
 
 Readiness report:
 
@@ -57440,18 +57440,18 @@ Current readiness findings:
 - chunked worker architecture: contract required before runtime authorization; peak work must be bounded by chunk size, not total route length
 - fixedTimezone4000MileRuntimeScale: unproven pending real browser/mobile evidence and real route-scale semantic-boundary evidence
 - multiTimezone4000MileCorrectness: blocked pending route-distance-indexed `RouteTimeZoneSpan` architecture
-- multiDayStopScheduleCorrectness: blocked pending explicit route-distance-indexed stop events and downstream arrival-time discontinuity tests
+- routePositionedStopScheduleCorrectness: blocked pending explicit route-distance-indexed stop events, downstream arrival-time discontinuity tests, planned/actual stop reconciliation, and passed-stop behavior
 - browserDesktopScale, mobileChromiumScale, and mobileSafariScale: unproven
 - crossing blocker: crossings remain blocked by missing candidate-universe digest and canonical route-axis location; complete component runtime remains blocked
 
 Do not authorize `approve_bounded_headless_road_temporal_adaptation_proof` until the 4,000-mile fixed-timezone scale gate, chunk-size invariant semantics, cancellation behavior, browser/mobile evidence, timezone correctness blockers, and stop-schedule correctness blockers are resolved or explicitly accepted.
 
-Multi-day stop/sleep correctness blocker:
+Route-positioned stop-schedule correctness blocker:
 
-- constant elapsed speed may remain a coarse `smoothed_elapsed_pace` mode
-- it must not claim exact multi-day arrival-hour correctness
-- exact multi-day temporal planning requires explicit stop events by route distance
-- an eight-hour sleep stop at mile `700` must shift every downstream arrival time by eight hours at that route position
+- constant elapsed speed may remain a first-class aggregate `smoothed_elapsed_pace` mode
+- it must not claim exact individual-stop arrival-hour correctness
+- exact stop-aware temporal planning requires explicit stop events by route distance
+- a ten-minute control, thirty-minute lunch, mechanical stop, sleep stop, or rest day must shift every downstream arrival time by its duration at that route position
 - off-bike time must not be smeared gradually across upstream route distance
 - changing a stop duration must change the downstream `RouteTimeBinding` digest and temporal projections
 
@@ -57477,7 +57477,7 @@ Current implementation blockers:
 - prepared stable road component bundle does not yet exist
 - 4,000-mile fixed-timezone scale is unproven for real route density and real browser/mobile execution
 - multi-timezone route-local temporal correctness is blocked
-- explicit multi-day stop/sleep schedule correctness is blocked
+- explicit route-positioned stop-schedule correctness is blocked
 - chunked worker runtime is not implemented or authorized
 - component interval/receipt/output budgets are provisional per-chunk candidates only and are not approved as whole-route caps
 - crossing candidate universe is not route-indexed as a stable prepared input
@@ -58355,31 +58355,64 @@ EXEC-057 is complete when:
 
 # EXEC-058 - Long-Route Temporal Axis And Scale Program
 
-Status: Draft execution program; Phase 0 audit complete from current-state evidence; no runtime authorized
-Date: 2026-06-19
+Status: Complete - current-state and program-boundary audit accepted; DS-065 contract drafting authorized; no runtime authorized
+Date: 2026-06-20
 Evaluated main: `2b72e219bf4d08dc5bf63acb23f2a1fd780d553a`
-Related: ADR-045, ADR-055, DS-031, DS-032, DS-056, DS-062, DS-063, DS-064, EXEC-054, EXEC-055, EXEC-056
+Related: ADR-036 (Proposed), ADR-045, ADR-055, DS-031, DS-032, DS-056, DS-062, DS-063, DS-064, EXEC-054, EXEC-055, EXEC-056, res-003, res-003b
 Phase 0 report: `docs/04-execution/reports/exec-058-phase-0-long-route-temporal-current-state-audit.md`
 
 ## 1. Program Thesis
 
-Lanterne must support a truthful planned timeline for multi-day routes and execute route-scale temporal projection in bounded browser workers.
+Lanterne must support a truthful route-distance-indexed timeline for rides of any length and execute route-scale temporal projection in bounded browser workers.
+
+Lanterne supports two honest ways to plan time:
+
+1. Give one overall elapsed pace that already includes stops.
+2. Give moving pace and explicitly plan stop locations and durations.
+
+Both modes are valid for a 200K, a club century, a single push, an expedition leg, or a multi-day ride. The system never counts stop time twice. During a ride, actual lived time becomes authoritative behind the rider, while only the remaining future plan is projected ahead.
 
 EXEC-058 exists to make the scenario timeline correct and scalable for routes up to the 4,000-mile product target. A valid 4,000-mile route must not be rejected merely because total semantic intervals exceed one worker chunk's budget.
 
 This program is the successor gate for the route-time and route-scale blockers recorded in EXEC-056 Phase 6B. It does not reopen completed EXEC-056 decisions.
 
-Recommended next owner decision after Phase 0:
+Phase 0 owner decision:
 
 ```text
 proceed_to_long_route_temporal_axis_contract
+```
+
+Decision by: Derek Minner.
+
+Decision date: 2026-06-20.
+
+Authorized capability:
+
+```text
+long_route_temporal_axis_contract_drafting
+```
+
+Authorized scope:
+
+```text
+ds065_docs_only_no_runtime
+```
+
+Next phase:
+
+```text
+Draft DS-065 Long-Route Temporal Axis, Stop Schedule, And Time-Zone Span Contract.
 ```
 
 ## 2. Ownership
 
 EXEC-058 owns:
 
-- explicit multi-day stop schedules
+- generic route-distance-indexed stop schedules for rides and pushes of any length
+- planned versus actual stop separation
+- stop reconciliation semantics
+- actual-adjusted remaining-route time semantics
+- push and expedition timing compatibility
 - route-distance-indexed time-zone context
 - long-route `RouteTimeBinding` semantics
 - chunked worker execution
@@ -58399,6 +58432,10 @@ EXEC-058 does not own:
 - route rollup
 - UI
 - presentation
+- stop editor UX
+- live GPS controller integration
+- organic stop inference
+- durable push or expedition persistence
 - durable persistence
 
 ## 3. Companion Specs Reserved
@@ -58453,19 +58490,47 @@ base motion elapsed time
   -> planned absolute arrival/departure time
 ```
 
-A sleep stop creates an elapsed-time jump at one route position. It must not be smeared across upstream miles.
+A stop creates an elapsed-time jump at one route position. The stop may be a five-minute control, water refill, bathroom stop, ten-minute resupply, thirty-minute lunch, cafe stop, mechanical stop, ferry or transport pause, sleep stop, rest day, or other rider-defined stop. It must not be smeared across upstream miles.
 
 ### D. Avoid stop double counting
 
 A pace profile explicitly marked as smoothed elapsed pace or includes stops must not also receive an explicit stop schedule.
 
-The contract must distinguish:
+The contract must distinguish two mutually exclusive first-class timing strategies:
 
-- `smoothed_elapsed_speed_includes_stops`
-- `moving_speed_excludes_stops`
-- future piecewise motion profile
+- `smoothed_elapsed_pace`: the rider supplies `elapsedSpeedKph` or equivalent total average speed that already includes expected stops and off-bike time. This is a first-class aggregate timing strategy for riders who plan using an all-in average speed. Optional future stop annotations must be non-time-bearing unless the rider switches strategies.
+- `moving_pace_with_explicit_stops`: the rider supplies `expectedMovingSpeedKph`; explicit `ScenarioStopSchedule` events add elapsed time at route position and are not smeared upstream.
 
 Explicit stop schedules are compatible only with a base motion model that excludes those stops, unless a separately versioned conversion policy exists.
+
+`smoothed_elapsed_pace` may be highly reliable for total elapsed duration, overall finish time, and broad downstream arrival estimates. Its limitation is spatial specificity: it does not place stop time at individual route locations and therefore cannot claim exact local-hour behavior immediately before and after a specific control, lunch, sleep, or other stop. `moving_pace_with_explicit_stops` is more spatially explicit, not automatically more empirically accurate for every rider.
+
+Rules for `smoothed_elapsed_pace`:
+
+- no time-bearing stop schedule may also apply
+- no stop time is added separately
+- optional future stop annotations must be non-time-bearing unless the rider switches strategies
+- no stop priors are added
+- no hidden control penalties are added
+- the strategy may be used for a 200K, push, expedition leg, or longer route
+
+Rules for `moving_pace_with_explicit_stops`:
+
+- the rider supplies moving speed excluding stops
+- zero or more explicit planned stop events may apply
+- each stop adds elapsed duration at its route position
+- stops may be short or long
+- controls, meals, bathroom, resupply, cafe, mechanical, transport, sleep, and rest are all valid
+- sleep does not automatically create a push boundary
+- the strategy is valid for rides of any length
+
+No automatic conversion between the two strategies is approved.
+
+Required blocker:
+
+```text
+smoothed_elapsed_pace + time-bearing explicit stops -> stop_time_double_counting
+```
 
 ### E. Chunking is operational, not semantic
 
@@ -58502,9 +58567,87 @@ It does not calculate:
 - score delta
 - grade
 
+### H. Stops are generic ride-scenario primitives
+
+`ScenarioStopSchedule` is not expedition-only, overnight-only, brevet-only, GPS-only, or saved-route-only. It is a generic ride-scenario timing primitive that may be consumed by:
+
+- standalone `RidePlanScenario`
+- one push
+- a push inside an expedition
+- later actual-adjusted projection
+
+The first implementation scope is manual planned stops only. Automatic stop inference, distance-based organic stop priors, POI-derived stops, and control fetching remain future Push Intelligence work after explicit planning modes are stable.
+
+### I. Planned, actual, and guidance layers remain separate
+
+The architecture keeps these layers separate:
+
+- official constraints
+- rider plan
+- actual ride state
+- guidance/projection
+
+The original planned binding remains immutable for plan-versus-actual comparison. Observed history records actual position, clock, moving time, stopped time, and completed/skipped/relocated/unplanned stops. Actual-adjusted future binding starts from current actual position and instant, uses lived history behind the rider, and applies only remaining future assumptions ahead of the rider.
+
+Required future formula:
+
+```text
+actual instant at current route position
+  + predicted remaining motion time
+  + remaining future planned stop duration
+  -> future projected absolute instant
+```
+
+Completed route history is never recalculated from the original plan. Completed planned stops are not applied again. Skipped stops are removed from remaining future duration. Unplanned completed stops are already included in actual elapsed history.
+
+### J. Push and expedition compatibility
+
+DS-065 defines generic temporal primitives. Later Push Intelligence may consume those primitives rather than defining a competing stop/timing model.
+
+Expected relationship:
+
+```text
+RidePlanScenario timing primitives
+  -> PushPlan timing
+  -> Actual Push State overlay
+  -> Push Guidance
+```
+
+A push is a bounded execution block for pacing, stop planning, actual progress, and guidance. It may contain zero, one, or many stops, including sleep, and it is not necessarily one calendar day. A stop is a zero-distance elapsed-time event inside a ride scenario or push; it does not automatically end or start a push. A push boundary is an execution/reconciliation boundary and may include a between-push layover, but it is not inferred merely from a stop duration.
+
+An expedition chains push plans and push results, may carry between-push layovers or transition state, and must not flatten all push stop schedules into one mutable list. DS-065 must not depend on future push database tables.
+
 ## 5. Phase 0 - Program Boundary And Current-State Audit
 
-Status: complete for evidence inventory only; docs-only; no runtime authorized.
+Status: complete - current-state and program-boundary audit accepted; DS-065 contract drafting authorized; no runtime authorized.
+
+Owner decision:
+
+```text
+proceed_to_long_route_temporal_axis_contract
+```
+
+Decision by: Derek Minner.
+
+Decision date: 2026-06-20.
+
+Authorized capability:
+
+```text
+long_route_temporal_axis_contract_drafting
+```
+
+Authorized scope:
+
+```text
+ds065_docs_only_no_runtime
+```
+
+Next phase:
+
+```text
+Draft DS-065 Long-Route Temporal Axis, Stop Schedule, And Time-Zone Span Contract.
+```
 
 Checklist:
 
@@ -58518,6 +58661,9 @@ Checklist:
 - [x] Inventory cancellation and stale-request conventions.
 - [x] Inventory browser/mobile test tooling.
 - [x] Inventory real-route corpus length and semantic density.
+- [x] Inventory ADR-036 and Push Intelligence research lineage without promoting ADR-036 beyond Proposed.
+- [x] Inventory planned versus actual stop and guidance separation.
+- [x] Inventory push, expedition, and stop ownership boundaries.
 - [x] Confirm no runtime behavior changes.
 - [x] Define proposed DS-065 and DS-066 boundaries.
 - [x] Recommend whether an additional ADR is necessary.
@@ -58550,16 +58696,30 @@ docs/02-architecture/design/ds-065-long_route_temporal_axis_stop_schedule_and_ti
 Checklist:
 
 - [ ] Define base motion profile semantics.
-- [ ] Distinguish moving speed from smoothed elapsed speed.
-- [ ] Define `ScenarioStopSchedule`.
+- [ ] Define `smoothed_elapsed_pace`.
+- [ ] Define `moving_pace_with_explicit_stops`.
+- [ ] Define mutual-exclusion/double-counting rule.
+- [ ] Define generic `ScenarioStopSchedule`.
+- [ ] Confirm stops are valid for rides and pushes of any length.
+- [ ] Define broad stop kinds, not sleep-only.
 - [ ] Define `ScenarioStopEvent`.
 - [ ] Define stop source, confidence, assumptions, and warnings.
 - [ ] Define cumulative downstream stop-duration behavior.
 - [ ] Define arrival and departure semantics at an exact stop distance.
 - [ ] Define multiple/co-located stop ordering.
 - [ ] Define rest-day and multi-day stop support.
+- [ ] Define planned versus actual stop separation.
+- [ ] Define stop reconciliation states.
+- [ ] Define actual-adjusted remaining-route semantics.
+- [ ] Define passed-stop behavior.
+- [ ] Define current-stop behavior.
+- [ ] Define push compatibility.
+- [ ] Define expedition chaining compatibility.
+- [ ] Define push boundary versus stop distinction.
+- [ ] Define pace-basis compatibility.
 - [ ] Define stop-schedule digest ownership.
 - [ ] Prohibit explicit-stop double counting with pace that already includes stops.
+- [ ] Define stop and actual-adjusted digest ownership.
 - [ ] Define `RouteTimeZoneSpanBundle`.
 - [ ] Define `RouteTimeZoneSpan` half-open coverage.
 - [ ] Define IANA time-zone requirements.
@@ -58573,6 +58733,8 @@ Checklist:
 - [ ] Define backward compatibility with current simple POC binding.
 - [ ] Define no-fetch/no-storage rules.
 - [ ] Define tests and typed blockers.
+- [ ] Define first implementation as manual only.
+- [ ] Defer automatic stop inference and stop priors.
 - [ ] Obtain owner decision before implementation.
 
 Required core model:
@@ -58596,15 +58758,55 @@ At a stop point, the future binding must be able to distinguish:
 
 Downstream route spans use departure-adjusted elapsed time. The stop adds time but never route distance.
 
+`ScenarioStopSchedule` must include schedule id, schedule version, timing strategy, events, assumptions, warnings, and schedule digest. `ScenarioStopEvent` must include planned stop id, scenario distance, canonical distance, planned duration seconds, kind, source, optional label, confidence, assumptions, and warnings.
+
+Required stop kinds:
+
+- `control`
+- `meal`
+- `resupply`
+- `bathroom`
+- `rest`
+- `sleep`
+- `mechanical`
+- `transport`
+- `other`
+
+Required planned-stop sources:
+
+- `manual`
+- `official_control`
+- `imported_plan`
+- `modeled_later`
+
+Stop durations must be finite and non-negative. Same-distance stops require deterministic ordering. Start and end stops require explicit policy. Stop events are semantic and enter timing digests; `generatedAt` and presentation labels do not define semantic equality. No POI, control, or source fetching is allowed inside the timing engine.
+
+Planned and actual stop objects remain separate:
+
+- `PlannedStopEvent`: rider intent, versioned plan, planned route position, and planned duration.
+- `ActualStopEvent`: what occurred, actual start/end/location/duration/source/confidence.
+- `StopReconciliation`: explicit relationship between planned and actual state, with statuses such as `completed_as_planned`, `completed_early`, `completed_late`, `shortened`, `extended`, `skipped`, `relocated`, `unplanned_stop`, and `unresolved`.
+
+When the rider reaches or passes a planned stop location, that planned stop must enter an explicit reconciliation state: `completed`, `skipped`, `relocated`, `still_in_progress`, or `unresolved`. It must not remain silently in the remaining future schedule. If unresolved, guidance may warn or prompt, but it must not automatically assume the full planned duration still occurs downstream.
+
+When the rider is presently stopped at a planned or unplanned stop, future projection may use actual elapsed stop time so far, an explicit rider-provided intended departure, remaining planned duration when policy allows, or an unresolved warning. It must not invent an exact departure time silently.
+
+Actual adjustment must preserve pace-basis compatibility. `smoothed_elapsed_pace` compares actual progress against an elapsed-performance basis that includes stopped time and has no separate future stop schedule to add. `moving_pace_with_explicit_stops` may recalibrate remaining motion time from actual moving performance, while completed actual stop time remains in history and remaining planned stops are added separately. A moving-versus-elapsed basis mismatch blocks unless a named versioned conversion policy exists.
+
 First implementation scope after owner approval:
 
-- manual constant moving speed
-- manual explicit stop schedule
+- aggregate stop-smoothed planning mode: manual total elapsed speed, no time-bearing explicit stops, and explicit disclosure that stop time is spatially smoothed rather than route-positioned
+- explicit planning mode: manual moving speed, manual route-distance stop schedule, and generic short and long stops
+- actual-adjusted foundation: actual current position/time anchor, immutable planned binding, completed actual history behind the rider, and remaining future plan ahead
 - prepared time-zone spans
+- deterministic fixtures only
 - no stop inference
 - no POI-derived stops
 - no control fetching
 - no time-zone source fetching
+- no live GPS controller integration
+
+Neither planning mode requires expedition support to be valid or testable.
 
 Decision outcomes:
 
@@ -58625,8 +58827,13 @@ Checklist:
 - [ ] Implement prepared time-zone span validation/digest.
 - [ ] Implement piecewise planned elapsed-time binding.
 - [ ] Implement arrival/departure behavior at stops.
-- [ ] Preserve simple smoothed-elapsed mode as explicitly coarse.
+- [ ] Implement planned versus actual stop object separation.
+- [ ] Implement stop reconciliation state handling for deterministic fixtures.
+- [ ] Implement actual-adjusted remaining-route projection semantics.
+- [ ] Preserve immutable planned binding for plan-versus-actual comparison.
+- [ ] Preserve stop-inclusive elapsed pace as a first-class aggregate timing strategy.
 - [ ] Block explicit stops with a pace profile that already includes stops.
+- [ ] Block moving-versus-elapsed basis mismatch without a named conversion policy.
 - [ ] Implement fixed-zone compatibility.
 - [ ] Implement route-positioned IANA-zone selection.
 - [ ] Implement DST conversion from absolute instants.
@@ -58640,6 +58847,12 @@ Checklist:
 
 Required tests:
 
+- 200K with total elapsed speed and no explicit stops
+- 200K with moving speed plus three ten-minute controls
+- 200K with moving speed plus thirty-minute lunch
+- short ride with one cafe stop
+- mechanical stop
+- 600K with controls plus sleep
 - one sleep stop shifts all downstream times
 - upstream times remain unchanged
 - multiple stops accumulate
@@ -58647,6 +58860,25 @@ Required tests:
 - stop at route start
 - stop at route end
 - co-located stops follow deterministic policy
+- skipped stop removes planned future duration
+- relocated stop changes only after explicit reconciliation
+- unplanned completed stop affects downstream only
+- elapsed pace plus time-bearing stop schedule blocks
+- moving pace without stop assumptions discloses that no stopped time is included
+- moving pace plus explicit stops calculates correctly
+- elapsed pace does not add inferred stop priors
+- actual time before a stop leaves future stop intact
+- completed stop removes planned future duration
+- extended actual stop affects downstream only
+- original planned binding remains unchanged
+- future projection begins at actual position and instant
+- moving/elapsed basis mismatch blocks
+- 200K push supports controls/lunch
+- sleep may remain inside one push
+- push boundary is not inferred from stop duration
+- expedition chains separate push schedules
+- between-push layover is not an in-push stop
+- push reconciliation does not mutate completed push plan silently
 - stop at time-zone boundary
 - fixed offset
 - fixed IANA winter/summer
@@ -58656,7 +58888,7 @@ Required tests:
 - missing time-zone coverage blocks
 - changing stop duration changes relevant digests
 - changing chunk policy does not affect timing digests
-- smoothed elapsed mode clearly discloses approximation
+- smoothed elapsed mode clearly discloses the spatially smoothed stop assumption
 
 ## 8. Phase 3 - Chunked Temporal Scenario Worker Contract
 
@@ -58738,7 +58970,7 @@ Checklist:
 - [ ] Measure total route interval count separately from per-chunk count.
 - [ ] Prove no quadratic joins.
 - [ ] Test at 10, 12, and 15 mph.
-- [ ] Include explicit sleep/control stops.
+- [ ] Include explicit control, meal, mechanical, and sleep stops.
 - [ ] Complete fixed-zone 4,000-mile synthetic proof.
 - [ ] Keep crossings blocked.
 - [ ] Keep output scoreless.
@@ -58751,6 +58983,7 @@ Fixtures:
 - mixed-density 4,000-mile route
 - dense route over 10,000 intervals
 - adversarial valid route around existing 37,334 interval evidence
+- 200K route with controls and lunch
 - multi-day route with recurring sleep stops
 - cancellation at early, middle, and late chunk
 - over-budget single chunk
@@ -58766,7 +58999,7 @@ Checklist:
 - [ ] Use route-distance-indexed IANA-zone spans.
 - [ ] Cross at least three time-zone boundaries.
 - [ ] Include DST transition fixtures.
-- [ ] Include multiple sleep stops.
+- [ ] Include multiple route-positioned controls, meals, mechanical stops, and sleep stops.
 - [ ] Include at least one long control/rest stop.
 - [ ] Verify absolute travel time remains continuous except stop jumps.
 - [ ] Verify local clock changes at time-zone boundaries.
@@ -58899,9 +59132,16 @@ EXEC-058 does not authorize:
 - objective ranking
 - scenario sweeps
 - weather/source fetching
+- stop editor
+- GPS tracking integration
+- stop detection
 - automatic stop inference
+- distance-based stop priors
 - POI-derived stop inference
+- control fetching
 - time-zone source fetching inside `RouteTimeBinding`
+- durable push persistence
+- durable expedition persistence
 - durable scenario storage
 - Supabase schema changes
 - dogfood
