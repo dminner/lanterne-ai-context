@@ -57117,6 +57117,16 @@ Authorized Phase 4 capability: headless_hourly_temporal_scenario_projection
 Authorized Phase 4 scope: prepared_inputs_projection_only
 Next required gate: Design and validate the chunked worker execution seam plus route-time-zone and explicit stop-schedule contracts before any temporal road-component runtime authorization.
 
+Successor program:
+
+Further work on `ScenarioStopSchedule`, `RouteTimeZoneSpan`, long-route `RouteTimeBinding`, chunked temporal worker execution, and 4,000-mile browser/mobile validation continues in:
+
+```text
+docs/04-execution/exec-058-long-route-temporal-axis-and-scale-program.md
+```
+
+EXEC-058 owns the route-time correctness and route-scale execution gates required before any future Phase 6B temporal road-adaptation runtime authorization. EXEC-056 remains the hourly temporal-risk and projection lineage plan.
+
 ## 1. Objective
 
 Replace the earlier broad temporal model with an hourly temporal motor-vehicle risk model, but only as a detached model kernel until architecture review accepts the next gate.
@@ -58337,6 +58347,595 @@ EXEC-057 is complete when:
 - `bike_infra_v1` materialization is proven or corrected before bike overlay promotion
 - worker and renderer decisions have been made from measured nonzero-road evidence
 - no forbidden route truth, scoring, ownership, RXON, `route_cache`, `route_history`, or DB boundary changed
+
+
+---
+
+## Source File: docs/04-execution/exec-058-long-route-temporal-axis-and-scale-program.md
+
+# EXEC-058 - Long-Route Temporal Axis And Scale Program
+
+Status: Draft execution program; Phase 0 audit complete from current-state evidence; no runtime authorized
+Date: 2026-06-19
+Evaluated main: `2b72e219bf4d08dc5bf63acb23f2a1fd780d553a`
+Related: ADR-045, ADR-055, DS-031, DS-032, DS-056, DS-062, DS-063, DS-064, EXEC-054, EXEC-055, EXEC-056
+Phase 0 report: `docs/04-execution/reports/exec-058-phase-0-long-route-temporal-current-state-audit.md`
+
+## 1. Program Thesis
+
+Lanterne must support a truthful planned timeline for multi-day routes and execute route-scale temporal projection in bounded browser workers.
+
+EXEC-058 exists to make the scenario timeline correct and scalable for routes up to the 4,000-mile product target. A valid 4,000-mile route must not be rejected merely because total semantic intervals exceed one worker chunk's budget.
+
+This program is the successor gate for the route-time and route-scale blockers recorded in EXEC-056 Phase 6B. It does not reopen completed EXEC-056 decisions.
+
+Recommended next owner decision after Phase 0:
+
+```text
+proceed_to_long_route_temporal_axis_contract
+```
+
+## 2. Ownership
+
+EXEC-058 owns:
+
+- explicit multi-day stop schedules
+- route-distance-indexed time-zone context
+- long-route `RouteTimeBinding` semantics
+- chunked worker execution
+- route computation manifests
+- cancellation and stale-request behavior
+- 4,000-mile correctness evidence
+- desktop and mobile browser performance evidence
+- the later re-entry decision for bounded temporal road adaptation
+
+EXEC-058 does not own:
+
+- canonical DS-015 scoring formulas
+- temporal risk coefficients
+- crossing evidence acquisition
+- planned-risk preview
+- Planned Ride Safety Score
+- route rollup
+- UI
+- presentation
+- durable persistence
+
+## 3. Companion Specs Reserved
+
+Future companion design specs are reserved but not created in this pass:
+
+- DS-065 - Long-Route Temporal Axis, Stop Schedule, And Time-Zone Span Contract
+- DS-066 - Chunked Temporal Scenario Worker And Route Manifest Contract
+
+No new ADR is created by Phase 0. ADR-045 already provides route-indexed and worker-first authority. ADR-055 already provides scenario-engine authority. A new ADR is recommended only if a later browser/mobile gate requires server-assisted execution, changes durable truth ownership, or creates another irreversible architecture direction.
+
+## 4. Program Invariants
+
+### A. Route distance remains the canonical join key
+
+All stop events and time-zone spans attach through canonical or scenario route distance.
+
+They must never attach by:
+
+- array index
+- GPX point index
+- presentation segment
+- cue row
+- OSM way id alone
+
+### B. Absolute travel time and route-local clock are separate
+
+Absolute instant at route position is derived from:
+
+```text
+planned start instant
+  + base motion elapsed time
+  + cumulative explicit stop duration
+```
+
+Route-local clock is derived from:
+
+```text
+absolute instant
+  + time-zone span active at that route position
+```
+
+Time zones do not change elapsed duration.
+
+### C. Motion time and stops are separate
+
+The future exact model is:
+
+```text
+base motion elapsed time
+  + cumulative stop duration at prior route positions
+  -> planned absolute arrival/departure time
+```
+
+A sleep stop creates an elapsed-time jump at one route position. It must not be smeared across upstream miles.
+
+### D. Avoid stop double counting
+
+A pace profile explicitly marked as smoothed elapsed pace or includes stops must not also receive an explicit stop schedule.
+
+The contract must distinguish:
+
+- `smoothed_elapsed_speed_includes_stops`
+- `moving_speed_excludes_stops`
+- future piecewise motion profile
+
+Explicit stop schedules are compatible only with a base motion model that excludes those stops, unless a separately versioned conversion policy exists.
+
+### E. Chunking is operational, not semantic
+
+Changing:
+
+- chunk length
+- chunk interval cap
+- worker message boundaries
+
+must not change:
+
+- arrival times
+- local clocks
+- semantic route spans
+- temporal projections
+- final semantic digests
+
+### F. No whole-route 4,096 interval cap
+
+A valid 4,000-mile route may have tens of thousands of semantic intervals. Any `4096` figure may be evaluated only as provisional per-chunk vocabulary.
+
+### G. No scoring contamination
+
+EXEC-058 produces timing and execution substrate only.
+
+It does not calculate:
+
+- motor-vehicle risk
+- road contributions
+- crossing contributions
+- route risk
+- planned-risk preview
+- score
+- score delta
+- grade
+
+## 5. Phase 0 - Program Boundary And Current-State Audit
+
+Status: complete for evidence inventory only; docs-only; no runtime authorized.
+
+Checklist:
+
+- [x] Pin the evaluated main commit.
+- [x] Inventory scenario pace and stop-model semantics.
+- [x] Inventory `RouteTimeBinding` clock and digest semantics.
+- [x] Inventory current fixed-time-zone support.
+- [x] Inventory current route-crossing-time-zone blocker.
+- [x] Inventory Phase 6B synthetic long-route evidence.
+- [x] Inventory existing Web Worker infrastructure.
+- [x] Inventory cancellation and stale-request conventions.
+- [x] Inventory browser/mobile test tooling.
+- [x] Inventory real-route corpus length and semantic density.
+- [x] Confirm no runtime behavior changes.
+- [x] Define proposed DS-065 and DS-066 boundaries.
+- [x] Recommend whether an additional ADR is necessary.
+- [x] Produce the Phase 0 report.
+
+Acceptance:
+
+- every current seam and blocker is evidence-backed
+- no stale root documentation is treated as code authority
+- no implementation is approved
+- no scoring work is mixed into the program
+- EXEC-056 points to EXEC-058 as successor
+
+Decision outcomes:
+
+- `proceed_to_long_route_temporal_axis_contract`
+- `revise_program_boundary`
+- `defer_until_route_time_foundation_cleanup`
+- `defer_until_worker_infrastructure_audit`
+- `require_new_architecture_adr`
+
+## 6. Phase 1 - Long-Route Temporal Axis Contract
+
+Future deliverable:
+
+```text
+docs/02-architecture/design/ds-065-long_route_temporal_axis_stop_schedule_and_timezone_contract.md
+```
+
+Checklist:
+
+- [ ] Define base motion profile semantics.
+- [ ] Distinguish moving speed from smoothed elapsed speed.
+- [ ] Define `ScenarioStopSchedule`.
+- [ ] Define `ScenarioStopEvent`.
+- [ ] Define stop source, confidence, assumptions, and warnings.
+- [ ] Define cumulative downstream stop-duration behavior.
+- [ ] Define arrival and departure semantics at an exact stop distance.
+- [ ] Define multiple/co-located stop ordering.
+- [ ] Define rest-day and multi-day stop support.
+- [ ] Define stop-schedule digest ownership.
+- [ ] Prohibit explicit-stop double counting with pace that already includes stops.
+- [ ] Define `RouteTimeZoneSpanBundle`.
+- [ ] Define `RouteTimeZoneSpan` half-open coverage.
+- [ ] Define IANA time-zone requirements.
+- [ ] Define route-end and exact-boundary policy.
+- [ ] Define DST behavior from absolute instants.
+- [ ] Define stop-at-time-zone-boundary ordering.
+- [ ] Define fixed-zone compatibility mode.
+- [ ] Define route-crossing-time-zone behavior.
+- [ ] Define unresolved time-zone coverage behavior.
+- [ ] Define `RouteTimeBinding` v2 semantic digest rules.
+- [ ] Define backward compatibility with current simple POC binding.
+- [ ] Define no-fetch/no-storage rules.
+- [ ] Define tests and typed blockers.
+- [ ] Obtain owner decision before implementation.
+
+Required core model:
+
+```text
+plannedStartInstant
+  + baseMotionElapsedAtDistance
+  + cumulativeStopDurationBeforeOrAtDistance
+  -> absolute arrival/departure instant
+
+absolute instant
+  + time-zone span selected by route position
+  -> route-local calendar and clock fields
+```
+
+At a stop point, the future binding must be able to distinguish:
+
+- arrival instant
+- departure instant
+- stop duration
+
+Downstream route spans use departure-adjusted elapsed time. The stop adds time but never route distance.
+
+First implementation scope after owner approval:
+
+- manual constant moving speed
+- manual explicit stop schedule
+- prepared time-zone spans
+- no stop inference
+- no POI-derived stops
+- no control fetching
+- no time-zone source fetching
+
+Decision outcomes:
+
+- `approve_long_route_temporal_axis_foundation`
+- `revise_stop_schedule_contract`
+- `revise_timezone_span_contract`
+- `defer_until_digest_ownership_is_resolved`
+- `keep_docs_only`
+
+## 7. Phase 2 - Pure Long-Route Temporal Foundation
+
+No implementation begins before Phase 1 owner approval.
+
+Checklist:
+
+- [ ] Implement DS-065 types and validation.
+- [ ] Implement stop schedule canonicalization/digest.
+- [ ] Implement prepared time-zone span validation/digest.
+- [ ] Implement piecewise planned elapsed-time binding.
+- [ ] Implement arrival/departure behavior at stops.
+- [ ] Preserve simple smoothed-elapsed mode as explicitly coarse.
+- [ ] Block explicit stops with a pace profile that already includes stops.
+- [ ] Implement fixed-zone compatibility.
+- [ ] Implement route-positioned IANA-zone selection.
+- [ ] Implement DST conversion from absolute instants.
+- [ ] Keep output immutable and structured-clone compatible.
+- [ ] Keep source fetching out.
+- [ ] Keep storage out.
+- [ ] Keep scoring out.
+- [ ] Add deterministic tests.
+- [ ] Validate 4,000-mile timing without a worker as correctness evidence only.
+- [ ] Leave browser-scale claims for later phases.
+
+Required tests:
+
+- one sleep stop shifts all downstream times
+- upstream times remain unchanged
+- multiple stops accumulate
+- rest-day duration works
+- stop at route start
+- stop at route end
+- co-located stops follow deterministic policy
+- stop at time-zone boundary
+- fixed offset
+- fixed IANA winter/summer
+- spring forward
+- fall back
+- route crossing multiple zones
+- missing time-zone coverage blocks
+- changing stop duration changes relevant digests
+- changing chunk policy does not affect timing digests
+- smoothed elapsed mode clearly discloses approximation
+
+## 8. Phase 3 - Chunked Temporal Scenario Worker Contract
+
+Future deliverable:
+
+```text
+docs/02-architecture/design/ds-066-chunked_temporal_scenario_worker_and_route_manifest_contract.md
+```
+
+Checklist:
+
+- [ ] Reuse ADR-045, DS-031, and DS-032 worker-first principles.
+- [ ] Define route computation manifest.
+- [ ] Define semantic chunk boundaries.
+- [ ] Define chunk input/output digests.
+- [ ] Define ordered chunk identity.
+- [ ] Define chunk prefix state.
+- [ ] Carry cumulative motion/stop timing into each chunk.
+- [ ] Carry active time-zone span state into each chunk.
+- [ ] Define chunk-size-independent route digest.
+- [ ] Define compact worker request/response types.
+- [ ] Define progress events without full arrays.
+- [ ] Define completed-chunk events.
+- [ ] Define cancellation.
+- [ ] Define stale-request rejection.
+- [ ] Define failure and retry semantics.
+- [ ] Define over-budget blockers.
+- [ ] Define per-chunk versus per-route measurements.
+- [ ] Define compact receipt interning.
+- [ ] Define memory-release expectations.
+- [ ] Define no React/Leaflet/DOM payloads.
+- [ ] Define no-storage behavior.
+- [ ] Define no-score behavior.
+- [ ] Obtain owner decision before worker implementation.
+
+Required chunk prefix state or equivalent:
+
+- chunk canonical start/end distance
+- absolute planned instant at chunk start
+- base motion elapsed at chunk start
+- cumulative stop duration before chunk start
+- active time-zone span at chunk start
+- relevant policy/model digests
+
+Required invariants:
+
+- chunk size does not change semantic output
+- chunk boundaries do not double-count stops
+- chunk boundaries do not lose time-zone transitions
+- no gap or overlap
+- no contribution appears twice
+- final semantic digest is chunk-size invariant
+- `generatedAt` and `elapsedMs` remain non-semantic
+
+Decision outcomes:
+
+- `approve_chunked_temporal_worker_harness`
+- `revise_worker_manifest_contract`
+- `defer_until_chunk_invariance_is_proven`
+- `defer_until_browser_harness_exists`
+- `keep_docs_only`
+
+## 9. Phase 4 - Chunked Worker Harness And Fixed-Zone 4,000-Mile Proof
+
+Checklist:
+
+- [ ] Implement only a headless/default-off worker harness.
+- [ ] Do not wire application controllers or UI.
+- [ ] Process ordered bounded chunks.
+- [ ] Support routes with more than 4,096 total intervals.
+- [ ] Preserve exact half-open coverage.
+- [ ] Preserve unresolved/conflict coverage.
+- [ ] Prove chunk-size equivalence.
+- [ ] Prove cancellation.
+- [ ] Prove stale-request rejection.
+- [ ] Measure worker message sizes.
+- [ ] Measure serialized bytes.
+- [ ] Measure chunk-local working-set proxies.
+- [ ] Measure total route interval count separately from per-chunk count.
+- [ ] Prove no quadratic joins.
+- [ ] Test at 10, 12, and 15 mph.
+- [ ] Include explicit sleep/control stops.
+- [ ] Complete fixed-zone 4,000-mile synthetic proof.
+- [ ] Keep crossings blocked.
+- [ ] Keep output scoreless.
+- [ ] Keep output in-memory.
+- [ ] Obtain owner decision before further runtime expansion.
+
+Fixtures:
+
+- sparse 4,000-mile route
+- mixed-density 4,000-mile route
+- dense route over 10,000 intervals
+- adversarial valid route around existing 37,334 interval evidence
+- multi-day route with recurring sleep stops
+- cancellation at early, middle, and late chunk
+- over-budget single chunk
+- malformed partition
+
+No whole-route 4,096 interval blocker is allowed.
+
+## 10. Phase 5 - Multi-Time-Zone And Stop-Schedule Long-Route Correctness
+
+Checklist:
+
+- [ ] Prepare a 4,000-mile multi-zone fixture.
+- [ ] Use route-distance-indexed IANA-zone spans.
+- [ ] Cross at least three time-zone boundaries.
+- [ ] Include DST transition fixtures.
+- [ ] Include multiple sleep stops.
+- [ ] Include at least one long control/rest stop.
+- [ ] Verify absolute travel time remains continuous except stop jumps.
+- [ ] Verify local clock changes at time-zone boundaries.
+- [ ] Verify stop duration shifts all downstream times.
+- [ ] Verify stop duration is not smeared upstream.
+- [ ] Verify local-hour traffic projection changes correctly.
+- [ ] Verify weekday/weekend transitions.
+- [ ] Verify chunk boundaries at stops/time zones are invariant.
+- [ ] Verify missing time-zone coverage remains unresolved.
+- [ ] Compare against independently calculated golden timestamps.
+- [ ] Keep source acquisition out.
+- [ ] Keep scoring out.
+
+Required fixture outcome:
+
+- exact expected absolute arrival/departure instants
+- exact expected local clock at selected route distances
+- exact cumulative stop duration
+- exact active IANA zone
+- deterministic digest
+
+## 11. Phase 6 - Desktop And Mobile Browser Scale Gate
+
+Checklist:
+
+- [ ] Use existing browser tooling where available.
+- [ ] Measure desktop Chromium.
+- [ ] Measure mobile Chromium or representative Android device.
+- [ ] Measure Mobile Safari or real iOS device.
+- [ ] Measure worker startup.
+- [ ] Measure chunk execution.
+- [ ] Measure worker transfer/message sizes.
+- [ ] Measure cancellation responsiveness.
+- [ ] Measure UI/main-thread responsiveness.
+- [ ] Confirm no giant final worker message.
+- [ ] Confirm no whole-route arrays enter React state.
+- [ ] Confirm peak work remains chunk-bounded.
+- [ ] Confirm 4,000-mile fixed-zone route completes.
+- [ ] Confirm 4,000-mile multi-zone/stop fixture completes correctly.
+- [ ] Define measured approved caps.
+- [ ] Define device limitations honestly.
+- [ ] Define fallback decision if mobile cannot meet requirements.
+
+Do not invent latency or memory SLAs before measurement.
+
+Possible decision outcomes:
+
+- `approve_measured_client_worker_budgets`
+- `approve_desktop_only_keep_mobile_blocked`
+- `defer_until_mobile_worker_optimization`
+- `require_server_assisted_architecture_adr`
+- `reduce_retained_detail_not_semantic_accuracy`
+- `keep_runtime_blocked`
+
+A failure on mobile must not be "fixed" by silently truncating a valid 4,000-mile route.
+
+## 12. Phase 7 - Temporal Road-Adaptation Re-Entry Gate
+
+This phase revisits the deferred EXEC-056 Phase 6B runtime.
+
+Required preconditions:
+
+- DS-065 accepted and implemented
+- DS-066 accepted and worker harness implemented
+- explicit stop schedule correctness passed
+- multi-time-zone correctness passed
+- chunk-size semantic invariance passed
+- fixed-zone 4,000-mile proof passed
+- multi-zone 4,000-mile proof passed
+- browser/mobile gate decision recorded
+- measured budgets approved
+- canonical DS-015 parity still passes
+- crossings remain explicit blockers unless separately resolved
+- no score/preview/rollup/UI work has leaked in
+
+Decision outcomes:
+
+- `approve_bounded_headless_road_temporal_adaptation_proof`
+- `approve_desktop_diagnostic_only`
+- `defer_until_mobile_scale`
+- `defer_until_crossing_substrate`
+- `defer_until_real_transcontinental_fixture`
+- `keep_runtime_blocked`
+
+Even an approval permits only:
+
+- headless road contributions
+- canonical DS-015 reuse
+- mirror baseline
+- explicit crossing blockers
+- partial motor-vehicle coverage
+- no route rollup
+- no score
+- no UI
+- no persistence
+- no production
+
+## 13. Phase 8 - Handoff
+
+Future deliverable:
+
+```text
+docs/04-execution/reports/exec-058-long-route-temporal-program-handoff.md
+```
+
+Checklist:
+
+- [ ] Pin architecture commits.
+- [ ] Pin DS-065 and DS-066 decisions.
+- [ ] Pin timing implementation commit.
+- [ ] Pin worker implementation commit.
+- [ ] Pin browser/mobile evidence.
+- [ ] Pin approved budgets.
+- [ ] Pin remaining blockers.
+- [ ] Pin exact next authorized slice.
+- [ ] Confirm no scoring/UI/storage contamination.
+
+## 14. Program-Wide Exclusions
+
+EXEC-058 does not authorize:
+
+- Planned Ride Safety Score
+- planned-risk preview
+- route risk rollup
+- normalized score
+- grade
+- crossing temporalization
+- RouteMap integration
+- cue-sheet ownership
+- objective ranking
+- scenario sweeps
+- weather/source fetching
+- automatic stop inference
+- POI-derived stop inference
+- time-zone source fetching inside `RouteTimeBinding`
+- durable scenario storage
+- Supabase schema changes
+- dogfood
+- default-on behavior
+- production
+
+## 15. Phase Dependency Graph
+
+```text
+Phase 0 current-state audit
+  -> Phase 1 DS-065 temporal-axis contract
+    -> Phase 2 pure long-route temporal foundation
+      -> Phase 3 DS-066 worker/manifest contract
+        -> Phase 4 fixed-zone chunked worker proof
+          -> Phase 5 multi-zone + stop-schedule correctness
+            -> Phase 6 browser/mobile scale gate
+              -> Phase 7 temporal road-adaptation re-entry gate
+                -> Phase 8 handoff
+```
+
+Critical path:
+
+```text
+DS-065 -> RouteTimeBinding v2 correctness -> DS-066 -> chunked worker proof -> browser/mobile measurement -> Phase 6B re-entry decision
+```
+
+Non-critical/deferred work:
+
+- crossing candidate universe
+- planned-risk preview
+- score rollup
+- UI and RouteMap integration
+- durable storage
+- automatic stop or time-zone source acquisition
 
 
 ---
