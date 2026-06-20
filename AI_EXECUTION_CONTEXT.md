@@ -58367,6 +58367,7 @@ Evaluated main: `f511d259be984e71af9ea00c267764d26587e6a0`
 Related: ADR-036 (Proposed), ADR-045, ADR-055, DS-031, DS-032, DS-056, DS-062, DS-063, DS-064, EXEC-054, EXEC-055, EXEC-056, res-003, res-003b
 Phase 0 report: `docs/04-execution/reports/exec-058-phase-0-long-route-temporal-current-state-audit.md`
 Rider Judgment Register: `docs/04-execution/reports/exec-058-rider-judgment-register.md`
+RES-003b rider-decision matrix: `docs/04-execution/reports/exec-058-res-003b-rider-decision-matrix.md`
 
 ## 1. Program Thesis
 
@@ -58441,6 +58442,8 @@ EXEC-058 does not own:
 - stop editor UX
 - live GPS controller integration
 - organic stop inference
+- automatic stop detection runtime
+- stop timers, chimes, notifications, service workers, or native alarm delivery
 - durable push or expedition persistence
 - durable persistence
 
@@ -58450,6 +58453,8 @@ Future companion design specs are reserved but not created in this pass:
 
 - DS-065 - Long-Route Temporal Axis, Stop Schedule, And Time-Zone Span Contract
 - DS-066 - Chunked Temporal Scenario Worker And Route Manifest Contract
+
+As of this rider-decision packet, DS-065 does not yet exist on `main`; DS-065 drafting remains the next architecture gate.
 
 No new ADR is created by Phase 0. ADR-045 already provides route-indexed and worker-first authority. ADR-055 already provides scenario-engine authority. A new ADR is recommended only if a later browser/mobile gate requires server-assisted execution, changes durable truth ownership, or creates another irreversible architecture direction.
 
@@ -58584,7 +58589,94 @@ It does not calculate:
 - a push inside an expedition
 - later actual-adjusted projection
 
-The first implementation scope is manual planned stops only. Automatic stop inference, distance-based organic stop priors, POI-derived stops, and control fetching remain future Push Intelligence work after explicit planning modes are stable.
+The first implementation scope is manual planned stops only. Automatic stop inference, distance-based organic stop priors, POI-derived stops, transport timetable fetching, and control fetching remain future Push Intelligence work after explicit planning modes are stable.
+
+Automatic actual-stop detection is an approved future direction but not an EXEC-058 runtime authorization. The rider-facing product semantics are:
+
+- `automaticActualStopDetectionDirection = approved_future_direction`
+- `initialRuntimeAuthorization = deferred`
+- future Ride Mode detection is intended to be default-on when Ride Mode is visible
+- a rider qualifies as potentially stopped when filtered route-progress speed remains below 1 mph continuously for five minutes under acceptable observation quality
+- once qualified, the provisional stop begins at the earliest trustworthy sample in that qualifying window, usually approximately current time minus five minutes
+- missing, stale, inaccurate, or discontinuous samples must not be blindly backdated
+- the detected object is a provisional `ActualStopEvent`, not a `PlannedStopEvent`, `CurrentPlan` edit, `OriginalPlan` edit, confirmed stop truth, or push boundary by itself
+
+Conceptual rule:
+
+```text
+filteredRouteProgressSpeedMph < 1
+  continuously for 5 minutes
+  under acceptable observation quality
+  -> provisional ActualStopEvent candidate
+```
+
+Future observation quality must be a versioned engineering policy, not a vague boolean. DS-065 may reserve `GpsStopObservationQualityPolicy` with policy id/version, maximum accepted accuracy radius, maximum sample age, minimum valid sample count, maximum permitted observation gap, required route-projection confidence, source capability, assumptions, and warnings. Exact numeric browser thresholds are not owner-decided in this pass and require field measurement. Native iOS may later use a distinct stronger policy, but a policy change must not change the rider-facing meaning of a stop. Poor GPS quality produces degraded or suspended detection, not invented movement or invented stopping.
+
+Reserved source capabilities:
+
+- `browser_geolocation`
+- `native_location`
+- `head_unit_or_sensor_later`
+
+Future stop-state-machine semantics:
+
+- entering stopped requires filtered route progress below 1 mph continuously for five minutes with sufficient observation quality
+- remaining stopped tolerates limited coordinate wandering and does not toggle because of one noisy point
+- GPS jitter is not forward route progress
+- resuming requires sustained forward route progress and does not occur from one noisy point or one transient speed value
+- uncertain observation preserves provisional or suspended state, avoids flapping, and emits an observation-quality warning or receipt
+
+Exact resume duration, resume distance, smoothing/filter algorithm, route-progress hysteresis, allowable coordinate wander, and sensor-fusion policy are deferred to engineering measurement. The contract must not copy an unspecified bike-head-unit algorithm because a head unit may fuse signals the browser does not have.
+
+Browser foreground/background policy:
+
+- Ride Mode must remain visible for reliable browser-based automatic stop detection
+- when the document/app is hidden, automatic stop observation is suspended or degraded
+- the last trustworthy observation may be retained
+- continuous detection is no longer claimed
+- an observation-gap receipt is created and disclosed when the app returns
+- no ActualStopEvent is manufactured for an unobserved period
+
+No document in EXEC-058 may promise reliable hidden-browser tracking, reliable Safari background timers, reliable browser alarm delivery, or continuous GPS while the page is dormant. Native iOS support is the preferred long-term reliable background solution, but no native implementation is authorized here.
+
+Foreground false-positive behavior:
+
+- a qualified provisional stop surfaces a Break Time state with a visible timer, clear detection status, rider-friendly rotating copy, and a persistent `Not stopped` action
+- the timer begins from the backdated trustworthy provisional stop start
+- choosing `Not stopped` rejects the provisional `ActualStopEvent`, creates no confirmed stop history, edits no plan, changes no future planned stop, and preserves compact observation receipts for diagnostics and calibration
+- no operating-system notification is required for the first browser implementation
+- no extra confidence waiting period is added unless a later versioned engineering policy requires it
+
+Temporal contracts may scaffold future stop-alert capability by emitting a `StopAlertIntent` with alert id, stop/event reference, target instant, requested capability, delivery requirement, capability status, assumptions, and warnings. Temporal contracts do not play sound, request notification permission, own service workers, or guarantee alarm delivery. UI/platform capability code owns delivery later. A foreground web chime is best effort, web notification support is capability-dependent, and native local alarm is the long-term reliable option.
+
+Reserved alert capabilities:
+
+- `visual_timer`
+- `foreground_chime`
+- `web_notification`
+- `native_local_alarm`
+
+Reserved delivery requirements:
+
+- `best_effort`
+- `reliable_native_required`
+
+Reserved capability statuses:
+
+- `available`
+- `unavailable`
+- `permission_required`
+- `foreground_only`
+- `native_required`
+
+Collective-history stop priors:
+
+- V1 future stops come only from rider-explicit planning
+- no community-derived future stop insertion, automatic stop-time penalty, distance-based stop prior, or timing change is allowed without rider-approved plan input
+- V2 may later suggest likely future stops only after an evidence and owner gate
+- future suggestions must be labeled inferred, optional, privacy-reviewed, confidence-bearing, and must not affect timing until the rider accepts them into a CurrentPlan revision
+
+Scheduled transport is a schedule constraint, not merely ordinary dwell duration. Lanterne surfaces projected arrival, scheduled departure, boarding buffer when supplied, conflict or missed-connection state, source/provenance/confidence, and rider choices. Lanterne does not decide whether a ferry/train schedule overrides the ordinary stop plan and must not silently rewrite CurrentPlan. In the first DS-065 implementation, `transport_wait` remains manual duration only; authoritative fixed departures, timetable fetching, recurrence, service calendars, missed-departure behavior, automatic rerouting, and booking assumptions are deferred.
 
 ### I. Planned, actual, and guidance layers remain separate
 
@@ -58735,6 +58827,14 @@ Checklist:
 - [ ] Define five additional scenario miles as the passed-stop unresolved auto-skip threshold.
 - [ ] Define current-stop behavior.
 - [ ] Define future automatic actual-stop detection as default-on in Ride Mode after more than five stationary minutes, provisional ActualStopEvent only, no PlannedStopEvent mutation, and no DS-065 runtime implementation.
+- [ ] Define `GpsStopObservationQualityPolicy` as a future policy reference with numeric calibration deferred to field measurement.
+- [ ] Define browser hidden-state observation as suspended or degraded, with observation-gap receipts and no manufactured stop truth.
+- [ ] Define provisional Break Time surfacing and `Not stopped` dismissal semantics without implementing UI.
+- [ ] Define `StopAlertIntent` as a temporal capability seam while leaving delivery to later UI/platform gates.
+- [ ] Define V1 collective-history stop priors as prohibited and V2 stop suggestions as future evidence-gated behavior only.
+- [ ] Define scheduled transport as a rider-choice schedule constraint; keep `transport_wait` manual duration only.
+- [ ] Reference the RES-003b decision matrix and keep its formulas, thresholds, and heuristics pending line-item owner review.
+- [ ] Note that adjacent quarter-hour material-equivalence windows are downstream presentation consumers, not part of DS-065 sweep implementation.
 - [ ] Define push compatibility.
 - [ ] Define expedition chaining compatibility.
 - [ ] Define push boundary versus stop distinction.
@@ -58817,9 +58917,27 @@ When the rider reaches or passes a planned stop location, that planned stop must
 
 When the rider is presently stopped at a planned or unplanned stop, actual elapsed stop time is authoritative and planned duration remains the comparison baseline. Before planned departure, the system may show the planned departure estimate. After planned departure passes while the rider remains stopped, it must not display a departure in the past as the current forecast; it marks departure `overdue` or `unresolved`, treats current time as the earliest possible departure, and shows any surplus/deficit unobtrusively. The rider may manually edit CurrentPlan. The system must not repeatedly prompt about naps, sleep, future rest, or changing later stops; it must not automatically shorten or extend future stops. Recompute normally when movement resumes.
 
-Automatic actual-stop detection is future direction only. The accepted product direction is default-on during Ride Mode after stationary for more than five minutes, creating a provisional `ActualStopEvent` only. DS-065 must not implement GPS detection runtime, must not create `PlannedStopEvent`, and must not mutate OriginalPlan or CurrentPlan automatically. Route-distance movement tolerance, GPS accuracy requirements, jitter handling, background/iOS behavior, false-positive dismissal, and notification timing remain pending owner decisions.
+Automatic actual-stop detection is future direction only. The accepted product direction is default-on during visible Ride Mode after filtered route-progress speed remains below 1 mph continuously for five minutes under acceptable observation quality, creating a provisional `ActualStopEvent` only. DS-065 must not implement GPS detection runtime, must not create `PlannedStopEvent`, and must not mutate OriginalPlan or CurrentPlan automatically. Product semantics for start backdating, foreground Break Time surfacing, `Not stopped` dismissal, hidden-browser suspension/degradation, and no OS-notification requirement are resolved in the Rider Judgment Register; exact GPS quality, resume, jitter, smoothing, route-progress hysteresis, and sensor-fusion calibration remain deferred to field measurement.
 
-Generic future stop priors are not approved for V1. No distance-based stop prior is added when the rider has planned no stops. RES-003b stop-rate priors remain research hypotheses only.
+Automatic actual-stop detection is now contract-compatible with the final rider decisions in the register, but the runtime remains deferred. DS-065 may define compatible types and references for provisional `ActualStopEvent`, observation quality policy, suspended/degraded observation, observation-gap receipts, Break Time state, `Not stopped` dismissal, and stop-alert intent. DS-065 must not implement geolocation subscriptions, filters, timers, background tracking, notifications, native integrations, false-positive UI, or alarm delivery.
+
+Generic future stop priors are not approved for V1. No distance-based stop prior, collective-history prior, automatic stop-time penalty, or timing change is added when the rider has planned no stops. RES-003b stop-rate priors remain research hypotheses only. V2 suggestions may be drafted later only after an evidence gate covering observation count, rider-specific versus community provenance, route occurrence matching, stop-kind compatibility, confidence, cross-ride consistency, privacy policy, and model/version receipts; suggestions must stay optional until rider acceptance creates a CurrentPlan revision.
+
+Scheduled transport remains rider-choice-driven. In the first DS-065 implementation, `transport_wait` remains manual duration only. Future schedule constraints may expose projected arrival, fixed departure, boarding buffer, conflict/missed-connection state, provenance/confidence, and rider choices such as retain plan, wait, revise duration, revise CurrentPlan, reroute, or ignore the option. They must not silently rewrite CurrentPlan.
+
+Adjacent quarter-hour material-equivalence windows are allowed as downstream presentation language only. The main sweep result still retains one exact Modeled Optimal Start from the 15-minute lattice. A future `StartTimeMaterialEquivalencePolicy` may group adjacent complete candidates into a window only when confidence, coverage, objective, constraints, risk-per-mile difference, and discontinuity rules are compatible. Exact tolerances are deferred to calibration, and equality is not floating-point equality.
+
+Reserved material-equivalence policy fields:
+
+- `policyId`
+- `riskPerMileAbsoluteTolerance`
+- `riskPerMileRelativeTolerance`
+- `confidenceCompatibilityRule`
+- `coverageCompatibilityRule`
+- `discontinuityRules`
+- `deterministicRepresentativeRule`
+
+Architecture and implementation agents may propose engineering defaults, but they may not silently convert "strong GPS", "bike computer behavior", "effectively tied", "a few data points", or "reliable alarm" into permanent product contracts. Vague product intent must be converted into measurable policy fields, explicit calibration status, owner-approved semantics, and deferred numerical calibration where evidence is absent.
 
 Actual adjustment must preserve pace-basis compatibility. `stop_inclusive_planned_average` compares actual progress against an elapsed-performance basis that includes stopped time and has no separate future stop schedule to add. `moving_pace_with_explicit_stops` may recalibrate remaining motion time from actual moving performance, while completed actual stop time remains in history and remaining planned stops are added separately. A moving-versus-elapsed basis mismatch blocks unless a named versioned conversion policy exists.
 
@@ -58874,6 +58992,14 @@ Checklist:
 - [ ] Add deterministic tests.
 - [ ] Validate 4,000-mile timing without a worker as correctness evidence only.
 - [ ] Leave browser-scale claims for later phases.
+- [ ] Keep automatic GPS stop detection runtime deferred.
+- [ ] Keep GPS numeric thresholds field-measurement deferred.
+- [ ] Keep browser hidden-state tracking suspended/degraded rather than guaranteed.
+- [ ] Keep native background support as a later platform gate.
+- [ ] Keep stop-alert delivery, chimes, notifications, service workers, and native alarms out.
+- [ ] Keep V1 future stops rider-explicit with no collective-history priors.
+- [ ] Keep scheduled-transport fixed departure authority, fetching, recurrence, service calendars, missed-departure behavior, automatic rerouting, and booking assumptions out.
+- [ ] Keep RES-003b formulas, thresholds, heuristics, and behavior proposals out unless separately owner-approved.
 
 Required tests:
 
