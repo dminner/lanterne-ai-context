@@ -35922,6 +35922,44 @@ DS-063 is authoritative only for the accepted headless prepared-input scenario a
 
 DS-058 remains authoritative for any later Planned Ride Safety Score or planned-risk preview consumption. Score eligibility in a projection envelope is not score authority.
 
+## 2A. DS-065 Adapter And Selected Stable Traffic Authority
+
+EXEC-058 Phase 2B adds a bounded selected-HPMS temporal vertical POC around this contract. DS-063 runtime is not modified by that scope correction.
+
+Required adapter boundary:
+
+```text
+LongRoutePlannedTemporalAxis
+  -> DS063RouteTimeBindingAdapter
+  -> DS-063 projection input
+```
+
+Rules:
+
+- the adapter is pure
+- the adapter is versioned
+- the adapter is deterministic
+- the adapter produces immutable output
+- the adapter output is structured-clone safe
+- the adapter carries scenario, route-transform, temporal-axis, and stable-artifact digest references
+- the adapter validates route-axis consistency
+- the adapter preserves arrival/departure semantics
+- the adapter rejects unsupported stop plateaus if DS-063 cannot represent them safely
+- the adapter does not mutate DS-065 output
+- the adapter does not mutate current `RouteTimeBinding`
+- the adapter does not query HPMS
+- the adapter does not query the ledger
+- the adapter does not select traffic
+- the adapter does not score
+
+selected stable traffic artifact remains DS-063 input authority for traffic. The POC may consume `StableTrafficBaselineSnapshot`, `RouteSurfaceStableTrafficOutput`, or an equivalent selected stable artifact/fixture that faithfully represents the selected HPMS artifact contract. Stable traffic truth is immutable from DS-063's perspective. It must not use synthetic or manual AADT constants as proof of HPMS integration unless those constants are fixture representations of the stable artifact contract.
+
+Explicit-stop plateau compatibility must be proven before direct use. Phase 2B supports stop-inclusive/no-explicit-stop cases first. Explicit-stop cases are allowed only when the adapter represents them faithfully, which may require interval expansion or boundary handling. Unsupported stop plateaus block, emit a typed reason, and are never flattened or smeared merely to satisfy current DS-063 assumptions.
+
+The adapter and projection must not read raw HPMS, raw evidence candidates, ledger candidates, or legacy truthRuns. They must not emit scores, planned-risk preview, route rollups, score deltas, normalized scores, grades, storage writes, or route truth writes.
+
+The DS-065-to-DS-063 adapter implementation belongs to EXEC-058 Phase 2B. This note does not rewrite DS-063's core projection contract and does not modify runtime.
+
 ## 3. Core Projection Boundary
 
 The only accepted scenario foundation input is `ScenarioFoundationResult`.
@@ -38054,6 +38092,16 @@ manual_planned_and_actual_adjusted_temporal_foundation_only
 ```
 
 This decision approves DS-065's pure temporal foundation contract and a later bounded implementation slice. It does not approve direct DS-063 integration, worker execution, GPS behavior, presentation, scoring, persistence, or production use.
+
+## EXEC-058 Phase 2B Integration Note
+
+DS-065 remains traffic-agnostic. It owns timing strategies, stops, planned and actual-adjusted temporal axes, fixed clock contexts, semantic digests, and blockers.
+
+DS-065 does not fetch HPMS, select HPMS candidates, write the evidence ledger, mutate stable traffic truth, score, or render presentation. It does not add HPMS fields to DS-065 temporal types.
+
+DS-065 output is intended to feed a later selected-stable-traffic adapter outside DS-065 ownership. EXEC-058 Phase 2B owns the bounded selected-HPMS temporal vertical POC across already-approved evidence, stable artifact, DS-065 temporal-axis, and DS-063-compatible projection boundaries.
+
+DS-065 itself never reads HPMS or stable traffic artifacts. DS-065 types do not gain HPMS fields, and acceptance of the vertical POC does not alter DS-065's traffic-agnostic boundary.
 
 ## 4. Contract Inputs And Outputs
 

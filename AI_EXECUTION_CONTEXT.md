@@ -58361,13 +58361,14 @@ EXEC-057 is complete when:
 
 # EXEC-058 - Long-Route Temporal Axis And Scale Program
 
-Status: Phase 1 complete - DS-065 accepted as pure manual long-route temporal foundation contract; bounded Phase 2 foundation authorized but not implemented
+Status: Phase 1 complete; Phase 2 corrected and authorized as pure temporal foundation plus selected-HPMS vertical POC; not implemented
 Date: 2026-06-20
-Evaluated main: `f511d259be984e71af9ea00c267764d26587e6a0`
+Evaluated main: `04477deeeb9aa635092bea98099158cf032dc34d`
 Related: ADR-036 (Proposed), ADR-045, ADR-055, DS-031, DS-032, DS-056, DS-062, DS-063, DS-064, EXEC-054, EXEC-055, EXEC-056, res-003, res-003b
 Phase 0 report: `docs/04-execution/reports/exec-058-phase-0-long-route-temporal-current-state-audit.md`
 Rider Judgment Register: `docs/04-execution/reports/exec-058-rider-judgment-register.md`
 RES-003b rider-decision matrix: `docs/04-execution/reports/exec-058-res-003b-rider-decision-matrix.md`
+Phase 2 scope correction: `docs/04-execution/reports/exec-058-phase-2-hpms-backed-temporal-poc-scope-correction.md`
 
 ## 1. Program Thesis
 
@@ -58449,12 +58450,12 @@ EXEC-058 does not own:
 
 ## 3. Companion Specs Reserved
 
-Future companion design specs are reserved but not created in this pass:
+Future companion design specs:
 
 - DS-065 - Long-Route Temporal Axis, Stop Schedule, And Time-Zone Span Contract
 - DS-066 - Chunked Temporal Scenario Worker And Route Manifest Contract
 
-As of this rider-decision packet, DS-065 does not yet exist on `main`; DS-065 drafting remains the next architecture gate.
+DS-065 is accepted on `main` as the pure manual long-route temporal foundation contract. DS-066 remains reserved for a later worker/manifest contract.
 
 No new ADR is created by Phase 0. ADR-045 already provides route-indexed and worker-first authority. ADR-055 already provides scenario-engine authority. A new ADR is recommended only if a later browser/mobile gate requires server-assisted execution, changes durable truth ownership, or creates another irreversible architecture direction.
 
@@ -59000,35 +59001,107 @@ Decision outcomes:
 - `defer_until_digest_ownership_is_resolved`
 - `keep_docs_only`
 
-## 7. Phase 2 - Pure Long-Route Temporal Foundation
+## 7. Phase 2 - Pure Temporal Foundation And Selected-HPMS Vertical POC
 
 Authorization:
 
 ```text
-Phase2ImplementationAuthorization = authorized_bounded_foundation_only
+ownerDecision = approve_hpms_backed_temporal_poc_vertical_slice
+ownerDecisionBy = Derek Minner
+ownerDecisionDate = 2026-06-20
+authorizedCapability = hpms_backed_long_route_temporal_poc
+authorizedScope = pure_temporal_foundation_plus_selected_hpms_vertical_integration
+Phase2ImplementationAuthorization = authorized_bounded_temporal_foundation_plus_selected_hpms_vertical_poc
 implementationState = not_implemented
 ```
 
-The bounded Phase 2 foundation may later implement only:
+This supersedes the interpretation that Phase 2 ends after pure temporal primitives. It does not supersede DS-065's pure ownership boundary.
+
+Phase 2 may be implemented as one bounded vertical slice with two subphases.
+
+### Phase 2A - Pure Temporal Foundation
+
+Status:
+
+```text
+authorized_not_implemented
+```
+
+Authorized implementation:
 
 - DS-065 types
 - validation
-- deterministic canonicalization
+- canonicalization
 - semantic digests
 - manual `stop_inclusive_planned_average`
-- manual `moving_pace_with_explicit_stops` with at least one interior stop
-- interior stop anchors where `0 < scenarioDistM < totalDistM`
+- manual `moving_pace_with_explicit_stops` with at least one supported interior stop
+- interior route anchors
 - explicit resolved `stopScope`
 - stop arrival/departure semantics
 - stop-time inverse results
-- fixed-timezone compatibility
-- fixed-offset compatibility
-- pure planned temporal-axis output
-- pure actual-adjusted remaining-route output
+- fixed timezone
+- fixed UTC offset
+- planned temporal axis
+- actual-adjusted remaining-route axis
 - immutable structured-clone-safe results
 - typed blockers
-- deterministic fixtures/tests
+- fixtures and tests
 - default-off runtime-decision contract
+
+### Phase 2B - Selected-HPMS Temporal Vertical POC
+
+Status:
+
+```text
+authorized_not_implemented
+```
+
+Authorized implementation:
+
+- consume selected stable traffic artifact
+- validate route-axis and artifact digests
+- adapt DS-065 temporal axis into DS-063-compatible timing input
+- project hourly traffic from selected AADT
+- project temporal motor-vehicle context
+- preserve separate traffic-volume and per-pass/context outputs
+- emit receipts linking outputs to selected HPMS refs
+- emit scoreless scenario bundle
+- prove start-time and pace changes alter the scenario output
+- prove stable HPMS truth remains unchanged
+- prove no raw HPMS access occurs downstream
+- prove no storage writes occur
+
+Corrected vertical architecture:
+
+```text
+selected or fixture-faithful HPMS source evidence
+  -> traffic_aadt route-indexed candidate evidence
+  -> selected traffic_aadt_baseline
+  -> StableTrafficBaselineSnapshot
+  -> RouteSurfaceStableTrafficOutput or equivalent stable artifact
+  -> DS-065 LongRoutePlannedTemporalAxis
+  -> DS063RouteTimeBindingAdapter
+  -> ScenarioTrafficProjection
+  -> ScenarioTemporalMotorVehicleRiskProjection
+  -> scoreless HpmsBackedTemporalScenarioPocResult
+```
+
+The POC must not stop at a manual AADT number feeding temporal math unless that input is explicitly a fixture representation of the same selected stable artifact contract.
+
+Required distinction:
+
+```text
+temporalMechanicsProof =
+  may_use_deterministic_prepared_stable_inputs
+
+hpmsVerticalProof =
+  must_begin_from_selected_stable_hpms_artifact_or_faithful_fixture
+
+productionAttachmentProof =
+  deferred_post_poc_hardening
+```
+
+Phase 2B may touch existing HPMS/traffic modules only where necessary to expose the selected stable traffic artifact through the approved boundary, preserve route-axis distance coverage, preserve selected AADT basis, preserve lineage/provenance/confidence/receipt refs, prove artifact identity/digest consistency, and prevent downstream private reselection.
 
 Phase 2 may not implement:
 
@@ -59036,7 +59109,8 @@ Phase 2 may not implement:
 - exact multi-timezone boundary behavior
 - empty moving-pace schedules
 - automatic push classification in sealed runtime
-- DS-063 integration
+- direct DS-063 v2 consumption without a dedicated adapter
+- changing current DS-063 runtime
 - workers
 - GPS
 - alert delivery
@@ -59044,9 +59118,65 @@ Phase 2 may not implement:
 - fetching
 - storage
 - scoring
+- Planned Ride Risk
+- objective ranking
+- scenario sweeps beyond the bounded POC
 - production
 
 Phase 3 and later remain unchecked and unauthorized.
+
+POC closeout requires:
+
+```text
+temporalFoundation =
+  complete
+
+selectedHpmsTemporalVertical =
+  complete
+
+DS063Adapter =
+  complete_for_supported_cases
+
+rawHpmsNoLeakAudit =
+  passed
+
+stableArtifactImmutability =
+  passed
+
+routeAxisDigestConsistency =
+  passed
+
+unresolvedConflictPreservation =
+  passed
+
+startTimeSensitivity =
+  passed
+
+paceSensitivity =
+  passed
+
+receiptChain =
+  complete
+
+storageContamination =
+  none
+
+scoringContamination =
+  none
+
+productionHpmsAttachment =
+  deferred_post_poc_hardening
+
+plannedRiskRuntime =
+  blocked
+
+productionRelease =
+  blocked
+```
+
+After this bounded POC closes, stop broad scenario expansion. Do not begin weather, wind, services/open-hours, objective runtime, broad scenario UI, or production rollout. Return to HPMS evidence-attachment hardening, prove ledger -> selection -> stable artifact -> subscriber consistency, repair cache/version invalidation, and establish the reusable second-evidence-layer onboarding template.
+
+The post-POC HPMS evidence-attachment hardening handoff is absent on evaluated main `04477deeeb9aa635092bea98099158cf032dc34d`. Its absence does not block this Phase 2 scope correction; EXEC-058 carries the mandatory post-POC HPMS return rule, and a dedicated handoff may be created at POC closeout.
 
 Checklist:
 
