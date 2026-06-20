@@ -58789,10 +58789,16 @@ Decision outcomes:
 
 ## 6. Phase 1 - Long-Route Temporal Axis Contract
 
-Future deliverable:
+Phase 1 deliverable:
 
 ```text
 docs/02-architecture/design/ds-065-long_route_temporal_axis_stop_schedule_and_timezone_contract.md
+```
+
+Phase 1 readiness report:
+
+```text
+docs/04-execution/reports/exec-058-phase-1-long-route-temporal-axis-contract-readiness.md
 ```
 
 Rider judgment prerequisite:
@@ -58802,6 +58808,32 @@ docs/04-execution/reports/exec-058-rider-judgment-register.md
 ```
 
 DS-065 cannot be accepted until every DS-065 rider decision is resolved or explicitly deferred. The register is authoritative for rider-facing judgment calls that must not be silently settled by architecture or implementation agents.
+
+Phase 1 draft state as of 2026-06-20:
+
+```text
+evaluatedCommit = c67d67eb912c6904ae6c48865ce11b5f59293174
+ownerDecision = pending_review
+contractReadiness = ready_for_owner_review
+recommendedDecision = approve_long_route_temporal_axis_foundation
+authorizedCapabilityRequested = long_route_temporal_axis_foundation
+authorizedScopeRequested = manual_planned_and_actual_adjusted_temporal_foundation_only
+runtimeState = not_implemented
+DS063Compatibility = adapter_required
+preparedStableInputDependency = bounded_for_contract
+productionTemporalAccuracy = blocked
+```
+
+Unresolved rider decisions remain:
+
+- `route_start_stop_semantics`
+- `route_end_stop_semantics`
+- `exact_timezone_boundary_ownership`
+- `moving_pace_empty_stop_schedule`
+- `push_transition_policy_ownership`
+- `res003b_individual_formula_decisions`
+
+Phase 2 remains unauthorized until Derek reviews and approves the contract.
 
 Checklist:
 
@@ -58814,7 +58846,7 @@ Checklist:
 - [ ] Define controls versus duration-bearing stops as separate objects with optional links.
 - [ ] Confirm stops are valid for rides and pushes of any length.
 - [ ] Define broad stop kinds, not sleep-only.
-- [ ] Define `ScenarioStopEvent`.
+- [ ] Define `PlannedStopEvent`.
 - [ ] Define stop source, confidence, assumptions, and warnings.
 - [ ] Define cumulative downstream stop-duration behavior.
 - [ ] Define arrival and departure semantics at an exact stop distance.
@@ -58882,18 +58914,18 @@ At a stop point, the future binding must be able to distinguish:
 
 Downstream route spans use departure-adjusted elapsed time. The stop adds time but never route distance.
 
-`ScenarioStopSchedule` must include schedule id, schedule version, timing strategy, events, assumptions, warnings, and schedule digest. `ScenarioStopEvent` must include planned stop id, scenario distance, canonical distance, planned duration seconds, kind, source, optional label, confidence, assumptions, and warnings.
+`ScenarioStopSchedule` must include schedule id, schedule version, timing strategy, events, assumptions, warnings, and schedule digest. `PlannedStopEvent` must include planned stop id, scenario distance, canonical distance, planned duration seconds, kind, source, optional label, confidence, assumptions, and warnings.
 
-Required stop kinds:
+Required planned stop kinds:
 
-- `control`
+- `control_dwell`
 - `meal`
 - `resupply`
 - `bathroom`
 - `rest`
 - `sleep`
 - `mechanical`
-- `transport`
+- `transport_wait`
 - `other`
 
 Required planned-stop sources:
