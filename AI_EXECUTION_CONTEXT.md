@@ -58363,12 +58363,11 @@ EXEC-057 is complete when:
 
 Status: Phase 1 complete; Phase 2 complete as approved bounded pure temporal foundation plus fixture-faithful selected-HPMS vertical POC; Phase 3 unauthorized
 Date: 2026-06-20
-Evaluated main: `04477deeeb9aa635092bea98099158cf032dc34d`
+Evaluated main: `f511d259be984e71af9ea00c267764d26587e6a0`
 Related: ADR-036 (Proposed), ADR-045, ADR-055, DS-031, DS-032, DS-056, DS-062, DS-063, DS-064, EXEC-054, EXEC-055, EXEC-056, res-003, res-003b
 Phase 0 report: `docs/04-execution/reports/exec-058-phase-0-long-route-temporal-current-state-audit.md`
 Rider Judgment Register: `docs/04-execution/reports/exec-058-rider-judgment-register.md`
 RES-003b rider-decision matrix: `docs/04-execution/reports/exec-058-res-003b-rider-decision-matrix.md`
-Phase 2 scope correction: `docs/04-execution/reports/exec-058-phase-2-hpms-backed-temporal-poc-scope-correction.md`
 
 ## 1. Program Thesis
 
@@ -58450,12 +58449,12 @@ EXEC-058 does not own:
 
 ## 3. Companion Specs Reserved
 
-Future companion design specs:
+Future companion design specs are reserved but not created in this pass:
 
 - DS-065 - Long-Route Temporal Axis, Stop Schedule, And Time-Zone Span Contract
 - DS-066 - Chunked Temporal Scenario Worker And Route Manifest Contract
 
-DS-065 is accepted on `main` as the pure manual long-route temporal foundation contract. DS-066 remains reserved for a later worker/manifest contract.
+As of this rider-decision packet, DS-065 does not yet exist on `main`; DS-065 drafting remains the next architecture gate.
 
 No new ADR is created by Phase 0. ADR-045 already provides route-indexed and worker-first authority. ADR-055 already provides scenario-engine authority. A new ADR is recommended only if a later browser/mobile gate requires server-assisted execution, changes durable truth ownership, or creates another irreversible architecture direction.
 
@@ -58790,16 +58789,10 @@ Decision outcomes:
 
 ## 6. Phase 1 - Long-Route Temporal Axis Contract
 
-Phase 1 deliverable:
+Future deliverable:
 
 ```text
 docs/02-architecture/design/ds-065-long_route_temporal_axis_stop_schedule_and_timezone_contract.md
-```
-
-Phase 1 readiness report:
-
-```text
-docs/04-execution/reports/exec-058-phase-1-long-route-temporal-axis-contract-readiness.md
 ```
 
 Rider judgment prerequisite:
@@ -58809,36 +58802,6 @@ docs/04-execution/reports/exec-058-rider-judgment-register.md
 ```
 
 DS-065 cannot be accepted until every DS-065 rider decision is resolved or explicitly deferred. The register is authoritative for rider-facing judgment calls that must not be silently settled by architecture or implementation agents.
-
-Phase 1 closeout state as of 2026-06-20:
-
-```text
-evaluatedCommit = c67d67eb912c6904ae6c48865ce11b5f59293174
-ownerDecision = approve_long_route_temporal_axis_foundation
-ownerDecisionBy = Derek Minner
-ownerDecisionDate = 2026-06-20
-contractReadiness = ready
-authorizedCapability = long_route_temporal_axis_foundation
-authorizedScope = manual_planned_and_actual_adjusted_temporal_foundation_only
-runtimeState = not_implemented
-implementationAuthorization = bounded_foundation_only
-DS063Compatibility = adapter_required
-preparedStableInputDependency = bounded_for_contract
-productionTemporalAccuracy = blocked
-```
-
-Phase 1 is complete as a contract-only closeout. DS-065 is accepted. This records Derek's owner decision and authorizes only the bounded Phase 2 foundation slice; it does not mark implementation started.
-
-Explicitly deferred rider decisions remain:
-
-- `route_start_stop_semantics`: duration-bearing route-start stops block as `route_start_stop_policy_unresolved`
-- `route_end_stop_semantics`: duration-bearing route-end stops block as `route_end_stop_policy_unresolved`
-- `exact_timezone_boundary_ownership`: multi-zone runtime boundary cases block as `exact_timezone_boundary_policy_unresolved`
-- `moving_pace_empty_stop_schedule`: empty moving-pace schedules block as `empty_stop_schedule_not_acknowledged`
-- `push_transition_policy_ownership`: absent sealed `stopScope` blocks as `push_transition_scope_unresolved`
-- `res003b_individual_formula_decisions`: RES-003b remains research pending line-item owner review
-
-DS-063 adapter or DS-063 revision is a separate later gate. Production stable-input readiness remains an external dependency pending post-POC HPMS evidence-attachment hardening.
 
 Checklist:
 
@@ -58851,7 +58814,7 @@ Checklist:
 - [ ] Define controls versus duration-bearing stops as separate objects with optional links.
 - [ ] Confirm stops are valid for rides and pushes of any length.
 - [ ] Define broad stop kinds, not sleep-only.
-- [ ] Define `PlannedStopEvent`.
+- [ ] Define `ScenarioStopEvent`.
 - [ ] Define stop source, confidence, assumptions, and warnings.
 - [ ] Define cumulative downstream stop-duration behavior.
 - [ ] Define arrival and departure semantics at an exact stop distance.
@@ -58919,18 +58882,18 @@ At a stop point, the future binding must be able to distinguish:
 
 Downstream route spans use departure-adjusted elapsed time. The stop adds time but never route distance.
 
-`ScenarioStopSchedule` must include schedule id, schedule version, timing strategy, events, assumptions, warnings, and schedule digest. `PlannedStopEvent` must include planned stop id, scenario distance, canonical distance, planned duration seconds, kind, source, optional label, confidence, assumptions, and warnings.
+`ScenarioStopSchedule` must include schedule id, schedule version, timing strategy, events, assumptions, warnings, and schedule digest. `ScenarioStopEvent` must include planned stop id, scenario distance, canonical distance, planned duration seconds, kind, source, optional label, confidence, assumptions, and warnings.
 
-Required planned stop kinds:
+Required stop kinds:
 
-- `control_dwell`
+- `control`
 - `meal`
 - `resupply`
 - `bathroom`
 - `rest`
 - `sleep`
 - `mechanical`
-- `transport_wait`
+- `transport`
 - `other`
 
 Required planned-stop sources:
@@ -59001,7 +58964,7 @@ Decision outcomes:
 - `defer_until_digest_ownership_is_resolved`
 - `keep_docs_only`
 
-## 7. Phase 2 - Pure Temporal Foundation And Selected-HPMS Vertical POC
+## 7. Phase 2 - Pure Long-Route Temporal Foundation
 
 Authorization:
 
@@ -59201,7 +59164,7 @@ Phase3ImplementationAuthorization =
 
 After this bounded POC closeout, stop broad scenario expansion. Do not begin weather, wind, services/open-hours, objective runtime, broad scenario UI, Planned Ride Risk runtime, or production temporal rollout. Return to HPMS evidence-attachment hardening, prove source projection -> ledger candidate integrity -> stable selection -> stable artifact construction -> subscriber consistency, repair cache/version invalidation, and establish the reusable second-evidence-layer onboarding template. Temporal architecture is preserved, not discarded, and is operationally paused after the bounded POC until Derek explicitly reopens it.
 
-The post-POC HPMS evidence-attachment hardening handoff is absent on evaluated main `04477deeeb9aa635092bea98099158cf032dc34d`. Its absence does not block this Phase 2 scope correction; EXEC-058 carries the mandatory post-POC HPMS return rule, and a dedicated handoff may be created at POC closeout.
+The post-POC HPMS evidence-attachment hardening handoff is now tracked at `docs/04-execution/reports/post-poc-hpms-evidence-attachment-hardening-handoff.md`.
 
 Checklist:
 
@@ -59520,6 +59483,20 @@ Checklist:
 - [ ] Pin remaining blockers.
 - [ ] Pin exact next authorized slice.
 - [ ] Confirm no scoring/UI/storage contamination.
+
+### Post-POC HPMS Evidence Attachment Return Bookmark
+
+This bookmark does not pause, cancel, narrow, or reopen EXEC-058. Temporal work continues through the DS-065 and bounded temporal POC gates already owned by this program.
+
+After DS-065 and agreed temporal POC closeout, return to:
+
+```text
+docs/04-execution/reports/post-poc-hpms-evidence-attachment-hardening-handoff.md
+```
+
+The temporal POC closeout must record that temporal mechanics can be independently tested with prepared stable inputs, while real-route temporal input readiness and production temporal accuracy remain blocked pending HPMS evidence-attachment hardening.
+
+No settled Rider Judgment Register decision is reopened by this bookmark. No automatic temporal restart is authorized after HPMS hardening; Derek explicitly chooses when and how to resume temporal work.
 
 ## 14. Program-Wide Exclusions
 
