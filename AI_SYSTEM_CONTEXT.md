@@ -2847,7 +2847,7 @@ If an index cannot be explained in one sentence to a rider, it should not exist.
 # Lanterne Score Calculation — V3.1 Launch (superseded)
 2026-04-04
 
-> Superseded by [DS-015 - Safety Scoring Model 5.5](../design/ds-015-safety_scoring_model.md). This document remains for lineage only.
+> Superseded by [DS-015 - Safety Scoring Model 5.6](../design/ds-015-safety_scoring_model.md). This document remains for lineage only.
 >
 > Current doctrine: canonical detail-level safety output preserves independent road-risk and crossing-risk values. The combined Route Safety Score is an evidence-informed product calibration, and Route Family Rank is the rider-facing simplification derived from the combined comparison basis. A 0-100 score, A-F grade, route-level crossing-share cap, and nonzero safe-path baseline are legacy V3.1 concepts and must not be treated as current canonical output.
 
@@ -2978,6 +2978,8 @@ Applies ONLY when no dedicated bike facility AND speed ≥ 30 mph:
 ## 8. Crossing Risk Contribution
 
 Replaces the V2/V3.0 left-turn penalty.
+
+**Superseded note (2026-06-22):** canonical crossing math now lives in DS-015 Safety Scoring Model 5.6. The active formula uses `BaseCrossingLikelihood = 0.150`, `CrossingLikelihoodCap = 0.300`, `sqrt(CrossedRoadTrafficFactor)`, launch width/control/movement factors from DS-015, and a severity-side `CrossingContextSeverityFactor`. `uncontrolled_left_across` uses context factor `2.25`; unknown control remains standard context. This analysis note is retained for lineage only.
 
 ```
 CrossingEventContribution = min(E_cap, E0 × √(SpeedFactor × TrafficFactor) × WidthFactor × ControlFactor × MovementFactor)
@@ -6816,7 +6818,7 @@ A crossing is not just "more road." It is a different kind of problem. You may b
 For crossings:
 
 ```text
-Crossing Risk = Crossing Likelihood x Crossed-Road Speed Severity
+Crossing Risk = Crossing Likelihood x Crossing Severity
 ```
 
 Crossing likelihood is shaped by:
@@ -6829,8 +6831,27 @@ Crossing likelihood is shaped by:
 Crossing severity is shaped by:
 
 - speed of the crossed or entered road
+- a narrow context factor for confidently uncontrolled left-across turns
 
 This is why a path can be genuinely safe for miles and still have one crossing that deserves attention. A separated trail should not accumulate fake road risk, but the place where that trail crosses a high-speed arterial still matters.
+
+For DS-015 5.6, an uncontrolled left-across turn is not "any left turn." It is a route-indexed handoff where the rider genuinely turns left across traffic between distinct road families, the entered/crossed road is motor-road domain, and the control evidence is resolved enough to say there is no governing stop sign or signal. Unknown control is not uncontrolled.
+
+When two left-across events have the same entered road, traffic, width, speed, and movement:
+
+```text
+Stop-controlled left:
+  context factor = 1.00
+
+Confidently uncontrolled left-across:
+  context factor = 2.25
+```
+
+Because the likelihood inputs are otherwise held equal, the uncontrolled-left event contributes `2.25x` the crossing risk. Real routes will not always differ by exactly 2.25 because selected traffic, width, movement, eligibility, or speed can differ too.
+
+The 2.25 value is a Lanterne calibration prior based on the NTSB 2019 bicyclist safety study. NTSB Table 7 reports `Bicyclist Left Turn/Merge (Midblock)` at 125 fatalities and about 3,000 estimated crashes, versus `Bicyclist Failed to Yield - Sign-Controlled Intersection` at 165 fatalities and about 9,000 estimated crashes. The ratio is about 2.27, rounded to 2.25 to avoid false precision. NTSB Table 9's adjusted OR 2.096 for fatal/serious midblock injury supports the direction and scale, but Lanterne does not stack that value on top.
+
+The Conflict Points -> left-turn hazard toggle only controls whether this marker is shown. It does not create the event, remove it from scoring, or change Safety Rank.
 
 ## Why Speed Carries Severity
 
@@ -7112,10 +7133,10 @@ Those stories are not the model. The model still has to stand on defensible meth
 
 ## Source File: docs/02-architecture/design/ds-015-safety_scoring_model.md
 
-# DS-015 - Safety Scoring Model 5.5
+# DS-015 - Safety Scoring Model 5.6
 
 **Status:** Canonical
-**Date:** 2026-04-25
+**Date:** 2026-06-22
 **Filename:** `ds-015-safety_scoring_model.md`
 
 ## Purpose
@@ -7245,7 +7266,7 @@ Minimum required fields:
 
 | Field | Meaning | Required use |
 | --- | --- | --- |
-| `modelVersion` | Safety model version, e.g. `ds-015-5.5` | cache key, trace, rank eligibility |
+| `modelVersion` | Safety model version, e.g. `ds-015-5.6` | cache key, trace, rank eligibility |
 | `routeMiles` | Route length in miles | denominator for risk per mile |
 | `totalRouteRisk` | Policy-calibrated sum of road and crossing risk points | combined route score |
 | `routeRiskPerMile` | `totalRouteRisk / routeMiles` | combined comparison basis |
@@ -7421,8 +7442,10 @@ RoadLikelihood_j =
 For each crossing event `i`:
 
 ```text
-CrossingRisk_i = CrossingLikelihood_i * CrossingSpeedSeverityWeight_i
-CrossingSpeedSeverityWeight_i = SpeedSeverityWeight(crossed_or_entered_road_speed_i)
+CrossingRisk_i = CrossingLikelihood_i * CrossingSeverityWeight_i
+CrossingSeverityWeight_i =
+  SpeedSeverityWeight(crossed_or_entered_road_speed_i)
+  * CrossingContextSeverityFactor_i
 CrossingLikelihood_i =
   capped(
     BaseCrossingLikelihood
@@ -7645,10 +7668,11 @@ Crossings are discrete conflict events. They are not smeared into continuous-roa
 Crossing risk uses the same likelihood-versus-severity structure as road risk:
 
 ```text
-Crossing Risk = Crossing Event Likelihood * Crossed-Road Speed Severity
+Crossing Risk = Crossing Event Likelihood * Crossing Severity Weight
 ```
 
 The crossing likelihood side is where the event's conflict structure lives: crossed-road traffic, lanes / width, control, and movement. The severity side is still speed, because severe crossing outcomes are governed primarily by the speed environment of the crossed or entered road.
+DS-015 5.6 adds a narrow crossing context severity factor for confidently uncontrolled left-across route handoffs. This context factor is not a likelihood term and must not be counted in movement or control.
 
 The crossing layer first asks:
 
@@ -7686,7 +7710,11 @@ CrossingLikelihood_i =
       * MovementFactor_i
   )
 
-CrossingRisk_i = CrossingLikelihood_i * CrossingSpeedSeverityWeight_i
+CrossingSeverityWeight_i =
+  SpeedSeverityWeight(crossed_or_entered_road_speed_i)
+  * CrossingContextSeverityFactor_i
+
+CrossingRisk_i = CrossingLikelihood_i * CrossingSeverityWeight_i
 ```
 
 Launch constants:
@@ -7730,9 +7758,10 @@ Lanes crossed may be tagged, imported, geometry-derived, relationship-inferred, 
 | --- | ---: | --- |
 | stop-controlled | 1.00 | Baseline controllable crossing condition. |
 | signalized | 1.05 | Signals often appear where the crossing problem is larger; signal does not automatically mean safer for cyclists without phasing and turning counts. |
+| uncontrolled | 1.00 | Known absence of governing stop/signal control. Neutral likelihood factor; uncontrolled context is represented separately on the severity side only when the event qualifies as `uncontrolled_left_across`. |
 | unknown | 1.025 | Arithmetic mean of known launch states; missing control lowers confidence. |
 
-Unknown control is not the same thing as uncontrolled. If uncontrolled is directly known later, it should be introduced as a separate versioned category.
+Unknown control is not the same thing as uncontrolled. `uncontrolled` means local control evidence was sufficiently hydrated and no governing stop sign or signal was found for the rider's maneuver. `unknown` means control status could not be resolved. Missing OSM tags alone are not proof of an uncontrolled junction.
 
 ### 9.5 Movement Factor
 
@@ -7745,7 +7774,61 @@ Unknown control is not the same thing as uncontrolled. If uncontrolled is direct
 
 Unknown movement should be rare. If it is common, the problem is movement classification quality, not the coefficient.
 
-### 9.6 No Route-Level Crossing Clamp
+### 9.6 Crossing Context Severity Factor
+
+Most crossing events use standard severity context:
+
+| Severity context | CrossingContextSeverityFactor | Use |
+| --- | ---: | --- |
+| `standard` | 1.00 | All ordinary crossings, controlled crossings, path joins/exits, and left-across candidates whose control is unknown. |
+| `uncontrolled_left_across` | 2.25 | A genuine left turn across traffic between distinct route-owned motor-road families where topology/control evidence resolves the rider's maneuver as uncontrolled. |
+
+An `uncontrolled_left_across` rider-facing marker and severity context exist only when all of the following are true:
+
+- the event occurs at an accepted ordered route-path handoff or equivalent canonical route-ownership transition
+- smoothed route bearings classify the maneuver as `left` or `sharp_left`
+- `fromFamilyKey !== toFamilyKey` under the road-family identity policy, including same-name/same-ref continuation handling
+- the crossed or entered road is motor-road domain
+- no governing traffic signal or stop control applies to the rider's incoming approach
+- control status is resolved as `uncontrolled`; unresolved control remains `unknown`
+
+This factor is applied after the crossing-likelihood cap. It represents residual operating-speed/severity context at confidently uncontrolled left-across locations, not an additional claim about crash likelihood. Do not multiply it into `MovementFactor`, `ControlFactor`, or both.
+
+Worked comparison with the same entered road, traffic, width, speed, and left-across movement:
+
+```text
+Stop-controlled left:
+  CrossingContextSeverityFactor = 1.00
+
+Confidently uncontrolled left-across:
+  CrossingContextSeverityFactor = 2.25
+
+Risk_B / Risk_A = 2.25, because all likelihood and speed inputs are otherwise equal.
+```
+
+Actual route risk will not always differ by exactly 2.25 when traffic, width, movement, eligibility, selected speed, or selected road evidence differ.
+
+Evidence basis:
+
+- National Transportation Safety Board, *Bicyclist Safety on US Roadways: Crash Risks and Countermeasures*, NTSB/SS-19/01, adopted November 5, 2019, [official PDF](https://www.ntsb.gov/safety/safety-studies/Documents/SS1901.pdf).
+- Table 7 reports `Bicyclist Left Turn/Merge (Midblock)` at 125 fatalities and approximately 3,000 estimated crashes, ratio `125 / 3,000 = 0.04167`.
+- Table 7 reports `Bicyclist Failed to Yield - Sign-Controlled Intersection` at 165 fatalities and approximately 9,000 estimated crashes, ratio `165 / 9,000 = 0.01833`.
+- Relative ratio `(125 / 3,000) / (165 / 9,000) = 2.2727`; DS-015 uses 2.25 to avoid fake precision because the crash estimates are rounded and the numerator and denominator come from different national datasets.
+- Table 9 reports adjusted OR 2.096, 95% CI 1.750-2.511, for fatal or serious injury at a midblock location compared with other locations while controlling for posted-speed category and urban/rural classification. DS-015 treats this as corroboration for direction and approximate magnitude only; it is not stacked with the 2.25 factor.
+
+Limitations:
+
+- Table 7 compares FARS fatalities with NASS GES/CRSS estimated crashes.
+- `Bicyclist Left Turn/Merge (Midblock)` is broader than Lanterne's exact route classifier.
+- The 2.25 value is an evidence-informed, versioned Lanterne calibration prior, not a nationally published causal coefficient.
+- Lanterne's operational class is `uncontrolled_left_across`; do not claim that every unsigned road handoff is literally classified as "midblock" by NTSB.
+- Future corpus calibration may revise the factor.
+
+Trace requirements for crossing events now include `severityContext`, `contextSeverityFactor`, `speedSeverityWeight`, final `localSeverity`, and `localRisk`. Candidate left-across events rejected for `same_road_family`, `same_ref_continuation`, `insufficient_turn_angle`, `no_proven_route_handoff`, `stop_controlled`, `signalized`, `control_unknown`, `nonmotor_destination`, `topology_unresolved`, or `duplicate_event` should remain inspectable in admin/debug surfaces where available.
+
+The Conflict Points -> `left_turn` hazard toggle is presentation-only. Turning it off hides the marker; it must not alter crossing event construction, crossing risk, route risk, score trace, cache artifacts, or Safety Rank.
+
+### 9.7 No Route-Level Crossing Clamp
 
 Canonical `Total Route Risk` is a product-calibrated sum of score-bearing road and crossing units. The launch model does not apply a route-level crossing-share clamp after summing, because that would make the combined score no longer equal its declared calibration and trace.
 
@@ -7999,6 +8082,7 @@ Source keys:
 | `S-BIKE-ISI` | FHWA Bicycle Intersection Safety Index | Lanes-to-cross, control, and movement relevance for bicyclist intersection conflicts |
 | `S-CMF-FACILITY` | FHWA bicycle treatment CMF direction plus HSM / HSM2 facility and shoulder concepts | Directional support for operating-space mitigation |
 | `S-LOCATION` | NTSB 2019 bicyclist safety study using 2014-2016 U.S. data, including about 65% of bicycle motor-vehicle crashes at intersections and 56% of bicyclist fatalities at midblock locations; NHTSA 2021 bicyclist fatality location summary, including 62% of bicyclist fatalities at non-intersection locations | Intersection-versus-midblock split, crossing importance, and sustained-exposure severity support |
+| `S-NTSB-SS1901` | National Transportation Safety Board, *Bicyclist Safety on US Roadways: Crash Risks and Countermeasures*, NTSB/SS-19/01, adopted November 5, 2019 | Table 7 left-turn/merge midblock fatality-to-estimated-crash calibration and Table 9 midblock fatal/serious injury corroboration |
 | `S-PBCAT` | PBCAT-style bicycle crash typing | Rider-readable movement categories and conflict language |
 | `P-LANTERNE` | Lanterne launch calibration and route pressure-testing policy | Constants, caps, thresholds, tail behavior, and product choices not published as external coefficients |
 | `P-PROVENANCE` | ADR-042, ADR-043, and DS-017 truth-resolution / provenance architecture | Evidence precedence, propagation, confidence, and missing-data behavior |
@@ -8043,9 +8127,11 @@ Source keys:
 | Width factor concept | More lanes crossed means more conflict complexity | `S-BIKE-ISI` | Benchmark-informed / adapted | More crossing width increases exposure time and conflict space. |
 | Width values `1.00 / 1.10 / 1.20 / 1.30` | 1-2 / 3-4 / 5-6 / 7+ lanes | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Width matters, but remains bounded and secondary. |
 | Control factor concept | Stop versus signalized structure matters modestly | `S-BIKE-ISI` | Benchmark-informed / adapted | Signalization changes conflict structure but is not an automatic cyclist safety credit. |
-| Control values `1.00 / 1.05 / 1.025` | Stop / signal / unknown | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Unknown should stay neutral; signalized should proxy slightly larger conflict context. |
+| Control values `1.00 / 1.05 / 1.00 / 1.025` | Stop / signal / uncontrolled / unknown | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Known uncontrolled is neutral on likelihood; unknown should stay neutral-ish and lower confidence. |
 | Movement factor concept | Straight / right / left movement structure matters modestly | `S-BIKE-ISI`, `S-PBCAT` | Benchmark-informed / adapted | Different movements create different conflict problems, especially left-across traffic. |
 | Movement values `1.00 / 1.05 / 1.20 / 1.0833` | Straight / right / left / unknown | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Left is the strongest common conflict class; unknown stays neutral instead of worst-case. |
+| `uncontrolled_left_across` severity context factor 2.25 | Severity-side context for confidently uncontrolled left-across route handoffs | `S-NTSB-SS1901`, `P-LANTERNE` | Evidence-informed calibration prior | NTSB Table 7 fatality-to-estimated-crash ratios imply approximately 2.27x versus sign-controlled failed-yield crashes; DS-015 uses 2.25 and does not stack Table 9 OR 2.096. |
+| Unknown versus uncontrolled distinction | Missing control is not proof of no control | `P-PROVENANCE`, `P-LANTERNE` | Canonical evidence rule | Unknown control receives no uncontrolled-left context factor and emits no uncontrolled-left marker. |
 | Unknown arithmetic-mean fallback rule | Neutral score fallback for missing modifiers | `P-PROVENANCE`, `P-LANTERNE` | Canonical policy | Missingness should lower confidence, not secretly add danger. |
 | Confidence separate from risk | Trust model | `P-PROVENANCE` | Canonical policy | A poorly known risky route must not look safer just because data is missing. |
 | Provenance family vocabulary | Evidence receipt contract | `P-PROVENANCE` | Canonical vocabulary | `observed`, `official_imported`, `geometry_derived`, `relationship_inferred`, `predicted`, `baseline`, and `unknown` prevent evidence claims from collapsing into one vague confidence score. |
@@ -8100,11 +8186,11 @@ The desired launch state is not a prettier display. It is one score-bearing cont
 
 **Status:** Superseded historical snapshot
 **Updated:** 2026-04-25
-**Superseded by:** [DS-015 - Safety Scoring Model 5.5](./ds-015-safety_scoring_model.md)
+**Superseded by:** [DS-015 - Safety Scoring Model 5.6](./ds-015-safety_scoring_model.md)
 
 This document preserves DS-015 5.4 for lineage only. It is not the active authoritative specification for Lanterne's safety model.
 
-If code, admin audit, receipts, scorecard, inspector, analyzed route paint, heatmap, or rider-facing comparative surfaces disagree with the unversioned DS-015 5.5 document, DS-015 5.5 controls until explicitly re-specified.
+If code, admin audit, receipts, scorecard, inspector, analyzed route paint, heatmap, or rider-facing comparative surfaces disagree with the unversioned DS-015 5.6 document, DS-015 5.6 controls until explicitly re-specified.
 
 ## 1. Purpose
 
@@ -15763,7 +15849,7 @@ hazards until a trusted user-report, feed, or detector source exists.
 | Dynamic Hazards | `loose_dog` | Loose dog | No - planned | Rider reports | Reported loose dog or recurring dog chase location. | Time-sensitive unless repeatedly confirmed; must attach to route point/segment. | Non-scoring display/report toggle. |
 | Dynamic Hazards | `pedestrians` | Pedestrians | No - planned | Rider reports; future land-use / trail conflict feeds | Known pedestrian conflict area that affects cycling line choice or speed. | Bounded interval or point cluster; should avoid flagging ordinary pedestrian presence. | Non-scoring display/report toggle. |
 | Dynamic Hazards | `parked_door_swing` | Parked door swing | No - planned | Rider reports; parking lane / curbside activity feeds where available | Report or feed identifies repeated door-zone exposure on the route. | Interval-based; needs persistence or repeated confirmation. | Non-scoring display/report toggle. |
-| Conflict Points | `left_turn` | Left-turn conflict | Yes - crossing model | Canonical crossing/conflict evidence | Route event where the rider turns left across or through conflicting traffic. | Route-owned crossing or turn event. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. |
+| Conflict Points | `left_turn` | Uncontrolled left turn | Yes - crossing model | Canonical `uncontrolled_left_across` crossing/conflict evidence | A genuine left turn across traffic between distinct route-owned roads without a governing stop sign or traffic signal. | Requires accepted ordered route-path handoff/equivalent ownership transition, `left`/`sharp_left` geometry, distinct canonical road family, motor-road conflict, and resolved `control=uncontrolled`. Unknown control does not qualify. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. Stop/signal markers take presentation precedence at the same conflict location. |
 | Conflict Points | `signed_crossing` | Signed crossing | Yes - detector/crossing evidence | Current `stop_crossing`; owned OSM road corridor | Explicit hazard node with `highway=stop`, represented as a displayable signed crossing/control. | Accepted if the node projects within normal route snap. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. |
 | Conflict Points | `signaled_crossing` | Signaled crossing | Yes - detector/crossing evidence | Current `signal_crossing`; owned OSM road corridor | Explicit hazard node with `highway=traffic_signals`, excluding pedestrian-only / crosswalk-signal patterns. | Accepted if the node projects within normal route snap. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. |
 | Pinch Points | `tight_guardrail` | Tight guardrail | No - planned | Rider reports; future roadway edge/barrier feeds | Report identifies a guardrail pinch with little escape room or poor passing margin. | Point or interval; must attach to route and carry confirmation/freshness. | Non-scoring display/report toggle. |
