@@ -59561,6 +59561,920 @@ Non-critical/deferred work:
 
 ---
 
+## Source File: docs/04-execution/exec-059-hpms-debug-panel-field-and-toggle-wiring-plan.md
+
+# EXEC-059 - HPMS Debug Panel Field And Toggle Wiring Plan
+
+Date: 2026-06-21
+
+Owner decision: pending_review
+
+Recommended decision after this docs-only hardening:
+
+```text
+recommendedDecision =
+  approve_exec059_hpms_debug_wiring_implementation
+```
+
+No runtime implementation is authorized by this plan update.
+
+## Purpose
+
+Make the existing HPMS debug controls and existing HPMS inspect drawer fields work end-to-end.
+
+This plan does not invent a new overlay system, a new evidence pipe, a new RouteMap authority, or a new rider-facing traffic product. The contract is the code that already exists:
+
+- `HPMS_DIAGNOSTIC_CONTROL_DEFINITIONS`
+- `V2SS_DEBUG_OVERLAY_IDS`
+- `HpmsDebugSection`
+- `V2SSHpmsInspectDetailPayload`
+- `buildHpmsInspectDetail(...)`
+- the sealed `HpmsDiagnosticReadModel`
+- the existing RouteMap debug feature click handoff
+
+The immediate defect is that HPMS geometry can render while the clicked span still opens a drawer with `detail_status=payload_unavailable` and mostly `Unknown` fields. The map is seeing geometry, but the click target is not carrying or resolving the existing diagnostic payload and selected evidence metadata.
+
+## Current Failure To Fix
+
+Observed on Dam Ride:
+
+```text
+Traffic AADT toggle:
+  controls selected and propagated spans together
+
+Clicked selected span:
+  detail_status=payload_unavailable
+  hpms id = Unknown
+  source evidence = None
+  selected evidence = Unknown
+  selector id/version = Unknown
+  field dictionary = no detail rows available
+
+Drawer message:
+  Raw payload is not available for this selected feature ref.
+  RouteMap still emitted only geometry selection.
+```
+
+Plain English: the source/runtime pipe is alive enough to draw route overlays, but the debug UI is still acting like the clicked feature is anonymous geometry.
+
+## Non-Goals
+
+Do not:
+
+- add new HPMS controls
+- rename existing controls
+- silently assign existing controls new semantics
+- create a new raw HPMS fetch in RouteMap
+- let RouteMap query HPMS, ledger candidates, truthRuns, route cache, or route history
+- change scoring formulas
+- change traffic-time behavior
+- promote diagnostics into selected truth
+- make speed, lane count, shoulder, surface, or pavement HPMS fields score-eligible
+- migrate speed, bike infrastructure, shoulder, or surface selected-truth layers
+- dump unbounded raw HPMS payloads into the drawer
+- use this plan to complete EXEC-059 traffic authority deletion
+
+## Audited Existing Inventory
+
+Current rendered HPMS control count:
+
+```text
+HPMS_DIAGNOSTIC_CONTROL_DEFINITIONS = 23 controls
+HpmsDebugSection rendered controls = 23 controls
+```
+
+`HpmsDebugSection` renders:
+
+```text
+HPMS_DIAGNOSTIC_CONTROL_DEFINITIONS.map(...)
+```
+
+`V2SS_DEBUG_OVERLAY_IDS` also contains the legacy overlay id `hpms_speed`. That id is not currently rendered by `HpmsDebugSection`, is not counted as one of the 23 current HPMS controls, and must not be silently added as a new control in this implementation. If the owner wants it surfaced, record:
+
+```text
+owner_label_decision_required
+```
+
+Current HPMS drawer inventory:
+
+```text
+V2SSHpmsInspectDetailPayload keys = 69
+buildHpmsInspectDetail rendered section rows = 62
+HPMS summary rows for hpms_record refs = 14
+total currently rendered HPMS drawer rows = 76
+```
+
+The implementation must preserve the existing 23-control surface and hydrate the existing 76 rendered HPMS drawer rows.
+
+## Hybrid Diagnostic Boundary
+
+EXEC-059 Phase 1A is a hybrid diagnostic phase. It must expose two separate planes and a crosswalk between them.
+
+### Source Plane - Pre-Ledger
+
+The source plane contains every normalized HPMS source feature actually returned inside the route's approved acquisition windows, including:
+
+- directly projectable source geometry
+- propagated donor source geometry
+- nearby or off-route source geometry
+- projection-rejected source geometry
+- ownership-rejected source geometry
+- source records carrying diagnostic-only fields
+- source records that never enter `RouteIndexedEvidenceLedger`
+
+This plane is not route truth.
+
+Source-plane data may render only under source or diagnostic controls. It may not masquerade as route-indexed candidate evidence.
+
+### Route Evidence Plane - Route-Indexed
+
+The route evidence plane contains only objects with defensible route-distance meaning:
+
+- direct projected candidates
+- propagated route candidates
+- ledger candidates
+- selector decisions
+- selected stable spans
+- scoring-consumed spans
+- presentation-consumed spans
+
+This plane is the only diagnostic plane that may claim route-distance evidence state.
+
+### Crosswalk
+
+The crosswalk connects:
+
+```text
+source feature
+  -> projection attempt
+  -> direct or propagated route candidate
+  -> ledger candidate
+  -> selector decision
+  -> stable span
+  -> scoring trace
+  -> presentation span
+```
+
+The map viewport may clip what is rendered.
+
+The viewport must not decide what source records participated.
+
+## Existing Control Inventory
+
+Every existing HPMS control must either render its corresponding diagnostic surface independently or show a precise unavailable/empty state.
+
+The owning registry for every row below is `HPMS_DIAGNOSTIC_CONTROL_DEFINITIONS`.
+
+The owning component for every row below is `HpmsDebugSection` in `DebugControlCenter.tsx`.
+
+| Control id | Current label | Field filter | Pipeline-stage filter | Compatibility aggregate | Read-model collection it must consume | Count collection | Click-detail collection | Empty-state behavior |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `hpms_all_candidates` | All source candidates | no | no | yes | `sourcePlane.sourceFeatures` plus explicitly staged source-plane refs | `counts.sourceFeaturesNearRoute` | `detailIndex` by source feature/crosswalk refs | `No HPMS source candidates are present.` |
+| `hpms_acquisition_windows` | Acquisition windows | no | yes, source acquisition | no | `acquisitionWindows` | `counts.sourceFeaturesReturned` | `detailIndex` by acquisition window source refs when present | `No HPMS acquisition window diagnostics were emitted upstream.` |
+| `hpms_source_geometry` | Source geometry | no | yes, source plane | no | `sourcePlane.sourceFeatures` | `counts.sourceFeaturesNearRoute` | `detailIndex` by source feature id | `No nearby HPMS source geometry is present in the sealed diagnostic read model.` |
+| `hpms_projected_candidates` | Projected candidates | no | yes, route projection | no | `routeEvidencePlane.projectedCandidates` only | `counts.projectedCandidates` | `detailIndex` by projection/candidate/crosswalk refs | `No HPMS source feature reached route projection.` |
+| `hpms_ownership_compatible` | Ownership compatible | no | yes, ownership compatibility | no | `routeEvidencePlane.projectedCandidates` filtered to ownership-compatible dispositions | `counts.ownershipCompatible` | `detailIndex` by projection/candidate/crosswalk refs | `No ownership-compatible HPMS projected candidates are present.` |
+| `hpms_ownership_rejected` | Ownership rejected | no | yes, pre-ledger ownership rejection | no | `sourcePlane.preLedgerRejections` filtered to `ownership_rejected` | `counts.ownershipRejected` | `detailIndex` by rejection/source/crosswalk refs | `No ownership-rejected HPMS candidates are present.` |
+| `hpms_ledger_candidates` | Ledger candidates | no | yes, ledger candidate | no | `routeEvidencePlane.ledgerCandidates` | `counts.ledgerCandidates` | `detailIndex` by ledger candidate/crosswalk refs | `No traffic_aadt ledger candidate ids were emitted upstream.` |
+| `hpms_selector_selected` | Selector selected | no | yes, direct selector-selected stable traffic | no | `directSelectedStableSpans` derived from `routeEvidencePlane.selectorDecisions` and `routeEvidencePlane.stableTrafficSpans` where not propagated | `counts.selectorSelected` minus propagated-only rows, or explicit direct-selected count | `detailIndex` by selector/stable span refs | `No selected HPMS traffic spans are present.` |
+| `hpms_selector_rejected` | Selector rejected | no | yes, selector rejection only | no | `routeEvidencePlane.selectorDecisions` filtered to `selector_rejected` only | `counts.selectorRejected` | `detailIndex` by selector decision/crosswalk refs | `No selector-rejected HPMS traffic rows are present.` |
+| `hpms_selector_conflict` | Selector conflict | no | yes, selector conflict | no | `routeEvidencePlane.selectorDecisions` filtered to `selector_conflict` | `counts.selectorConflict` | `detailIndex` by selector conflict/crosswalk refs | `No selector conflict spans were emitted upstream.` |
+| `hpms_selector_unresolved` | Selector unresolved | no | yes, selector unresolved | no | `routeEvidencePlane.selectorDecisions` filtered to `selector_unresolved` | `counts.selectorUnresolved` | `detailIndex` by selector unresolved/crosswalk refs | `No selector unresolved spans were emitted upstream.` |
+| `hpms_scoring_consumed` | Scoring consumed | no | yes, scoring consumed | no | `routeEvidencePlane.scoringConsumption` | `counts.scoringConsumed` | `detailIndex` by scoring ref/crosswalk refs | `No HPMS traffic span was consumed by scoring.` |
+| `hpms_presentation_consumed` | Presentation consumed | no | yes, presentation consumed | no | `routeEvidencePlane.presentationConsumption` | `counts.presentationConsumed` | `detailIndex` by presentation ref/crosswalk refs | `No HPMS record reached presentation consumption.` |
+| `hpms_selected` | Selected stable rows | no | yes, stable truth emitted | yes | `allSelectedStableSpans` derived from `routeEvidencePlane.stableTrafficSpans` | `counts.stableTruthSpans` | `detailIndex` by stable span/selector/crosswalk refs | `No selected HPMS stable rows are present.` |
+| `hpms_rejected` | Rejected rows | no | yes, multi-stage rejection aggregate | yes | projection, ownership, ledger, and selector rejection collections with exact stage carried per item | `counts.selectorRejected` plus explicitly reported pre-selector rejected counts | `detailIndex` by exact rejection-stage refs | `No rejected HPMS rows are present.` |
+| `hpms_propagated_spans` | Propagated stable spans | no | yes, propagated stable truth | no | `propagatedStableSpans` derived from `routeEvidencePlane.propagatedCandidates` plus stable span/crosswalk refs | `counts.stableTruthSpans` filtered to propagated spans, or explicit propagated count | `detailIndex` by propagated candidate/stable span/donor refs | `No propagated HPMS stable spans are present.` |
+| `hpms_traffic_aadt` | Traffic AADT | yes | no | no | `trafficAadtFieldDiagnostics` from field dictionary/source and route-evidence refs | `counts.trafficAadtFieldAvailable` | `detailIndex` by field source/crosswalk refs | `No HPMS AADT field was available in the diagnostic model.` |
+| `hpms_speed_limit` | Speed limit | yes | no | no | `fieldDictionary` rows for HPMS speed limit diagnostics | `counts.speedLimitFieldAvailable` | `detailIndex` by source/field refs | `No HPMS speed-limit field is present.` |
+| `hpms_lane_count` | Lane count | yes | no | no | `fieldDictionary` rows for HPMS through-lane diagnostics | `counts.laneCountFieldAvailable` | `detailIndex` by source/field refs | `No HPMS lane-count field is present.` |
+| `hpms_shoulder_type` | Shoulder | yes | no | no | `fieldDictionary` rows for HPMS shoulder diagnostics | `counts.shoulderFieldAvailable` | `detailIndex` by source/field refs | `No HPMS shoulder field is present.` |
+| `hpms_surface_diagnostic` | Surface diagnostic | yes | no | no | `fieldDictionary` rows for HPMS surface diagnostics | `counts.surfaceFieldAvailable` | `detailIndex` by source/field refs | `No HPMS surface field is present.` |
+| `hpms_pavement_condition_diagnostic` | Pavement condition | yes | no | no | `fieldDictionary` rows for IRI/rutting/cracking diagnostics | `counts.pavementFieldAvailable` | `detailIndex` by source/field refs | `No HPMS pavement condition field is present.` |
+| `hpms_functional_class` | Functional class | yes | no | no | `fieldDictionary` rows for HPMS functional class diagnostics | `counts.functionalClassFieldAvailable` | `detailIndex` by source/field refs | `No HPMS functional-class field is present.` |
+
+If a current label cannot truthfully represent the required behavior, record:
+
+```text
+owner_label_decision_required
+```
+
+Do not rename it automatically.
+
+## Projected Geometry Stage Purity
+
+`hpms_projected_candidates` must show only actual route-projected candidate geometry/spans from `routeEvidencePlane.projectedCandidates`.
+
+If projected candidate geometry is unavailable:
+
+- show an exact empty/unavailable state
+- state which upstream receipt is missing
+- do not render source geometry under the projected label
+
+Source geometry belongs only under:
+
+- `hpms_source_geometry`
+- `hpms_all_candidates` compatibility aggregate
+- the applicable source-field diagnostic control
+
+Do not let the same geometry masquerade as two pipeline stages.
+
+## Rejection Stage Separation
+
+Projection rejection, ownership rejection, ledger rejection, and selector rejection are separate dispositions.
+
+Required behavior:
+
+```text
+hpms_ownership_rejected
+  = pre-ledger ownership-compatibility rejection only
+
+hpms_selector_rejected
+  = candidates that entered the ledger and were rejected by the selector only
+
+hpms_rejected
+  = compatibility aggregate that may contain several rejection stages
+    but every rendered item must still carry its exact rejection stage
+```
+
+Do not collapse these stages into one generic rejected state.
+
+## Direct-Selected Versus Propagated Semantics
+
+The existing controls must map to these conceptual collections without adding a new control:
+
+```text
+directSelectedStableSpans
+  -> hpms_selector_selected
+
+propagatedStableSpans
+  -> hpms_propagated_spans
+
+allSelectedStableSpans compatibility aggregate
+  -> hpms_selected
+
+trafficAadtFieldDiagnostics
+  -> hpms_traffic_aadt
+```
+
+Required acceptance:
+
+```text
+A. propagated-only:
+  hpms_propagated_spans on
+  direct selected control off
+  only propagated spans render
+
+B. direct-selected-only:
+  hpms_selector_selected on
+  hpms_propagated_spans off
+  only non-propagated selected spans render
+
+C. both:
+  both controls on
+  both collections render
+
+D. Traffic AADT:
+  controls AADT field diagnostics
+  does not secretly turn either collection on or off
+```
+
+If `hpms_selector_selected` cannot truthfully represent direct-selected-only semantics, record:
+
+```text
+owner_label_decision_required
+```
+
+Do not redefine "selected" silently.
+
+## UI Selection Versus Pipeline Disposition
+
+UI selection and pipeline disposition are separate types.
+
+Allowed `uiSelectionState` values:
+
+- `selected_in_ui`
+- `not_selected_in_ui`
+
+Allowed `pipelineDisposition` values:
+
+- `source_feature`
+- `projection_attempted`
+- `directly_projected`
+- `propagated_to_route`
+- `projection_rejected`
+- `ownership_compatible`
+- `ownership_rejected`
+- `ledger_candidate`
+- `selector_selected`
+- `selector_rejected`
+- `selector_conflict`
+- `selector_unresolved`
+- `stable_truth_emitted`
+- `scoring_consumed`
+- `presentation_consumed`
+- `diagnostic_only`
+
+A UI click may not set or imply a pipeline disposition.
+
+A feature may claim `selector_selected` only when it carries:
+
+- selector id
+- selector version
+- selected evidence id
+- selected layer
+- selected route interval
+- selection receipt ref
+
+The current failure mode is invalid:
+
+```text
+ui selection state = selected_in_ui:selected
+pipeline disposition = selected
+selector id = Unknown
+selected evidence id = Unknown
+selected layer = Unknown
+stable span = Unknown
+```
+
+## Feature-Ref Fallback Policy
+
+Feature-ref fallback may not become a fake source of authoritative HPMS facts.
+
+Allowed fallback:
+
+- display id
+- route start/end distance
+- overlay id
+- parsed state/year/layer only when explicitly labeled:
+
+```text
+computed_identity_basis = feature_ref_parse_v1
+sourceIdentityWarning = parsed_identity_not_authoritative
+```
+
+Forbidden fallback:
+
+- inventing AADT
+- inventing lane count
+- inventing selector status
+- inventing source backend
+- inventing stable truth
+- inventing propagation status
+- treating encoded id text as a raw HPMS row receipt
+
+Explicit upstream values always outrank parsed identifiers.
+
+## One-To-Many Crosswalk Support
+
+A selected or propagated route span may reference:
+
+- multiple source records
+- multiple projection attempts
+- multiple ledger candidates
+- competing selector candidates
+- one or more donor records
+
+Do not resolve every clicked span to one arbitrary best payload.
+
+The detail model must support:
+
+- all source refs
+- all ledger candidate refs
+- selector winner
+- selector losers
+- propagation donor refs
+- ambiguity state
+
+When multiple exact matches remain:
+
+- show ambiguity
+- show all candidate refs
+- do not silently choose by geometry proximity
+
+## Pipeline Count Reconciliation
+
+The implementation must emit a count reconciliation table with:
+
+- source features returned
+- source features considered
+- direct projection successes
+- propagation successes
+- projection rejections
+- explicitly diagnostic-only source features
+- ownership-compatible candidates
+- ownership rejections
+- ledger candidates
+- selector selected
+- selector rejected
+- selector conflict
+- selector unresolved
+- stable spans
+- scoring-consumed spans
+- presentation-consumed spans
+
+Required invariants:
+
+```text
+sourceFeaturesConsidered =
+  directProjectionSuccesses
+  + propagationSuccesses
+  + projectionRejections
+  + ownershipRejections
+  + explicitlyDiagnosticOnly
+
+ledgerCandidates =
+  selectorSelected
+  + selectorRejected
+  + selectorConflict
+  + selectorUnresolved
+```
+
+Every object that disappears must have:
+
+- stage
+- reason
+- receipt ref
+
+## Drawer Field Inventory
+
+Every field already defined by `V2SSHpmsInspectDetailPayload` and rendered by `buildHpmsInspectDetail(...)` must be wired from existing diagnostic/read-model data or show a precise unavailable reason.
+
+The implementation must produce a field-by-field live/test matrix for all 76 currently rendered HPMS drawer rows. A section containing one working field does not make the section complete.
+
+For each rendered drawer row, record:
+
+- available value
+- precise unavailable status
+- authoritative upstream owner
+- receipt ref
+- test fixture
+- live verification status
+
+Hard failures for a visible normalized HPMS feature:
+
+- `detail_status=payload_unavailable`
+- empty field dictionary
+- generic `Unknown` when an exact absence reason exists
+- `status=selected` with no selector receipt
+- propagated status with no propagation receipt
+- selected evidence with no selected evidence id
+
+### Summary refs
+
+- id
+- hpms id
+- status
+- route
+- source backend
+- source feature
+- source evidence
+- selected evidence
+- selected layer
+- selected source type
+- ownership span
+- start m
+- end m
+- point m
+
+### HPMS identity
+
+- source
+- hpms id
+- raw hpms row id available
+- raw hpms row id
+- computed feature id
+- computed row id
+- identity status
+- computed identity basis
+- source identity warning
+- legacy hpms row label
+- state
+- layer
+- year
+- route id
+- route name
+- route number
+
+### Traffic / speed / lanes
+
+- aadt
+- veh/min all
+- veh/min directional
+- speed limit
+- through lanes
+- lane interpretation
+- shoulder type
+- shoulder width right
+- shoulder width left
+- functional class
+
+### Surface / pavement diagnostics
+
+- surface type
+- iri
+- rutting
+- cracking percent
+- facility type
+- access control
+
+### Projection
+
+- projection attempt id
+- projection policy/version
+- direct versus propagated
+- ownership compatibility
+- projection rejection reason
+- overlap m
+- source coverage pct
+- route window coverage pct
+- local route span coverage pct
+- avg distance m
+- max distance m
+- confidence
+- route windows
+
+### Applied spans
+
+- ownership spans
+- osm way ids
+- road labels
+
+### Selection state
+
+- ui selection state
+- pipeline disposition
+- status
+- selector id
+- selector version
+- selected layers
+- rejected layers
+- propagated layers
+- selection reason
+- rejection reason
+- propagation reason
+- ledger candidates
+- selected evidence ids
+- stable span ids
+
+### Field dictionary
+
+- field dictionary rows
+- field classifications
+
+## Raw Payload Policy
+
+Do not require retaining giant raw HPMS responses.
+
+Required flow:
+
+```text
+raw source response
+  -> bounded normalized diagnostic snapshot
+  -> field dictionary
+  -> identity/projection/ledger/selector crosswalk
+  -> raw response released
+```
+
+Acceptable drawer state:
+
+```text
+raw_payload_status =
+  not_retained_by_policy
+```
+
+Unacceptable:
+
+```text
+complete detail object unavailable because raw payload was released
+```
+
+The diagnostic drawer needs normalized receipts, not an unbounded raw dump.
+
+## Default-Off Performance Requirements
+
+When HPMS diagnostics are off:
+
+- do not build heavy source-geometry render models
+- do not populate large React state arrays
+- do not duplicate normalized payloads
+- do not change source acquisition
+- do not change projection
+- do not change ledger insertion
+- do not change selection
+- do not change scoring
+
+When HPMS diagnostics are on:
+
+- upstream engine builds the bounded sealed diagnostic model
+- RouteMap renders only
+- viewport clipping affects rendering only
+- full artifact membership/counts remain stable
+- stale generations are rejected
+
+## Phase 0 - Current-State Proof
+
+- [ ] Prove the exact source-plane collection.
+- [ ] Prove the exact route-evidence-plane collections.
+- [ ] Prove the exact crosswalk failure.
+- [ ] Prove the exact control coupling.
+- [ ] Prove the exact payload divergence.
+- [ ] Record which HPMS controls currently render geometry.
+- [ ] Record which HPMS controls currently do nothing.
+- [ ] Record which controls are coupled through `hpms_traffic_aadt`.
+- [ ] Record which clicked feature refs carry `selectedEvidenceId`, `sourceEvidenceId`, `selectedLayerId`, `selectedValue`, and `selectedTracePayload`.
+- [ ] Confirm the clicked `supabase-hpms-read-proxy:2024:NV:106902:traffic_aadt` span reaches RouteMap as geometry but not as a hydrated inspect payload.
+- [ ] Save a compact fixture for at least one source, one direct-selected, one propagated, one ownership-rejected, and one selector-rejected HPMS feature.
+
+Exit criteria:
+
+- The failure is proven at the handoff boundary, not guessed.
+- The report distinguishes source/runtime absence from UI/detail wiring loss.
+
+## Phase 1 - Existing Detail Handoff
+
+Goal: ensure every rendered HPMS debug feature carries or can resolve the existing detail payload.
+
+- [ ] Audit every HPMS feature builder path.
+- [ ] Ensure overlay features pass the existing enriched `InspectableFeatureRef` fields when available.
+- [ ] Ensure selected stable traffic spans resolve back to the HPMS diagnostic detail payload.
+- [ ] Ensure propagated spans carry donor refs, selected evidence refs, and `pipelineDisposition = propagated_to_route` or `stable_truth_emitted` as appropriate.
+- [ ] Ensure rejected and unresolved refs carry exact stage and reason where available.
+- [ ] Keep RouteMap as renderer/click dispatcher only.
+
+Required enriched ref fields:
+
+- `sourceFeatureId`
+- `sourceEvidenceId`
+- `selectedEvidenceId`
+- `selectedLayerId`
+- `selectedValue`
+- `selectedSourceDisplay`
+- `selectedTracePayload.hpmsDiagnosticDetailPayload`
+- `startDistM`
+- `endDistM`
+- `status`
+- `overlayId`
+
+Do not add HPMS fetching to RouteMap.
+
+Exit criteria:
+
+- A clicked selected HPMS traffic feature opens `detail payload ready` or `partial` with selected evidence metadata.
+- `payload_unavailable` remains valid only for a truly unresolvable ref, and it must include the reason.
+
+## Phase 2 - Control Isolation
+
+Goal: make every existing HPMS control independently meaningful.
+
+- [ ] Separate field overlays from stage overlays.
+- [ ] `hpms_traffic_aadt` shows AADT field availability/status only.
+- [ ] `hpms_selector_selected` shows direct-selected, non-propagated spans.
+- [ ] `hpms_selected` shows compatibility all-selected stable rows.
+- [ ] `hpms_propagated_spans` shows propagated stable spans.
+- [ ] `hpms_rejected` remains compatibility rejected aggregate with exact rejection stage per item.
+- [ ] `hpms_selector_rejected`, `hpms_selector_conflict`, and `hpms_selector_unresolved` remain distinct.
+- [ ] Field controls for speed, lanes, shoulder, surface, pavement, and functional class render diagnostic field features or precise empty states.
+- [ ] Counts and empty states come from `HpmsDiagnosticReadModel`, not RouteMap guesses.
+
+Failing condition to remove:
+
+```text
+Traffic AADT on
+  -> selected and propagated both appear
+Traffic AADT off
+  -> selected and propagated both disappear
+```
+
+Exit criteria:
+
+- Propagated spans can be toggled without direct-selected rows.
+- Direct-selected rows can be toggled without propagated spans.
+- AADT field diagnostics can be toggled without acting as the switch for stable traffic geometry.
+
+## Phase 3 - Drawer Field Hydration
+
+Goal: fill every existing drawer field from the best existing bounded source.
+
+Field precedence:
+
+```text
+explicit hpmsDiagnosticDetailPayload
+  -> detailIndex entry
+  -> source/route crosswalk entry
+  -> source segment diagnostic record
+  -> active evidence / selected trace payload
+  -> allowed non-authoritative feature-ref fallback
+  -> precise unavailable reason
+```
+
+- [ ] Wire identity fields from source refs and computed identity metadata.
+- [ ] Wire AADT, vehicle/min, speed, lane, shoulder, functional class, surface, and pavement fields from the diagnostic field dictionary.
+- [ ] Wire projection fields from projected candidate diagnostics.
+- [ ] Wire selector fields from traffic selector/stable artifact metadata.
+- [ ] Wire propagated fields from propagated stable-span metadata.
+- [ ] Replace generic `Unknown` where the system knows a more precise state.
+- [ ] Keep raw payload collapsed, bounded, and diagnostic-only.
+
+Allowed precise unavailable states include:
+
+- `not_emitted_upstream`
+- `not_applicable_for_overlay`
+- `layer_not_migrated`
+- `diagnostic_only`
+- `selected_trace_missing`
+- `source_payload_omitted_by_policy`
+- `legacy_geometry_only_ref`
+- `parsed_identity_not_authoritative`
+
+Exit criteria:
+
+- The drawer is useful without relying on unbounded raw payload dumps.
+- Field absence explains the actual missing boundary.
+
+## Phase 4 - Detail Ref Matching And Crosswalk Hardening
+
+Goal: clicked refs from every HPMS control resolve to the correct existing detail object or a precise ambiguity/unavailable state.
+
+Match keys to support:
+
+- overlay feature id
+- base id without layer suffix
+- source feature id
+- raw HPMS row id when explicitly available upstream
+- computed HPMS feature id
+- computed row id
+- source evidence id
+- selected evidence id
+- stable span id
+- selector decision id
+- ledger candidate id
+- route span start/end plus source ref
+
+Rules:
+
+- [ ] Matching must be deterministic.
+- [ ] Matching must not promote candidates.
+- [ ] Matching must not read raw HPMS from RouteMap.
+- [ ] Matching must not use truthRuns as evidence.
+- [ ] Matching must prefer exact selected/source evidence ids over fuzzy geometry matches.
+- [ ] When multiple exact matches remain, the drawer must report ambiguity instead of silently choosing one.
+
+Exit criteria:
+
+- Clicking selected, propagated, source geometry, rejected, and field-diagnostic HPMS features yields the correct existing payload, ambiguity list, or precise terminal reason.
+
+## Phase 5 - Exhaustive Live Dam Ride Proof
+
+Use:
+
+```text
+/open/route-corpus/38741893
+```
+
+For every current HPMS control, prove:
+
+- independent toggle-on behavior
+- independent toggle-off behavior
+- correct collection rendered
+- correct count
+- correct click-detail resolution
+- correct empty state
+- route-change stale-state clearing
+- no source fetch caused by toggle
+- no truth mutation
+- no scoring mutation
+
+Controls to verify button-by-button:
+
+- [ ] `hpms_all_candidates`
+- [ ] `hpms_acquisition_windows`
+- [ ] `hpms_source_geometry`
+- [ ] `hpms_projected_candidates`
+- [ ] `hpms_ownership_compatible`
+- [ ] `hpms_ownership_rejected`
+- [ ] `hpms_ledger_candidates`
+- [ ] `hpms_selector_selected`
+- [ ] `hpms_selector_rejected`
+- [ ] `hpms_selector_conflict`
+- [ ] `hpms_selector_unresolved`
+- [ ] `hpms_scoring_consumed`
+- [ ] `hpms_presentation_consumed`
+- [ ] `hpms_selected`
+- [ ] `hpms_rejected`
+- [ ] `hpms_propagated_spans`
+- [ ] `hpms_traffic_aadt`
+- [ ] `hpms_speed_limit`
+- [ ] `hpms_lane_count`
+- [ ] `hpms_shoulder_type`
+- [ ] `hpms_surface_diagnostic`
+- [ ] `hpms_pavement_condition_diagnostic`
+- [ ] `hpms_functional_class`
+
+Compatibility aggregates may overlap other controls only where explicitly documented.
+
+Acceptance fixture:
+
+```text
+supabase-hpms-read-proxy:2024:NV:106902:traffic_aadt
+```
+
+This ref must no longer open as anonymous geometry when the selected/stable diagnostic payload exists elsewhere in the sealed read model.
+
+## Phase 6 - Tests And Guards
+
+Add focused tests for:
+
+- [ ] all 23 `HPMS_DIAGNOSTIC_CONTROL_DEFINITIONS` rows are represented in the dev panel
+- [ ] every rendered HPMS diagnostic control maps to a valid `DebugOverlayId`
+- [ ] `hpms_speed` remains non-rendered unless an owner label decision authorizes it
+- [ ] every control has a count key, map effect, drawer effect, and empty state
+- [ ] projected candidates never render source geometry fallback
+- [ ] rejection stages stay separate
+- [ ] selected and propagated controls are independent
+- [ ] Traffic AADT does not hide independent selected/propagated controls
+- [ ] selected traffic feature refs include selected evidence metadata
+- [ ] propagated feature refs include propagated/donor metadata
+- [ ] rejected refs include exact rejection stage where available
+- [ ] all 76 current drawer rows have value or precise unavailable reason in the fixture matrix
+- [ ] selected traffic span does not return `payload_unavailable`
+- [ ] missing upstream payload produces a precise terminal state
+- [ ] one-to-many crosswalk ambiguity is displayed rather than silently resolved
+- [ ] count reconciliation invariants hold
+- [ ] no HPMS source fetch is imported into RouteMap
+- [ ] no scoring formula changes
+- [ ] no route truth promotion from diagnostics
+- [ ] no raw HPMS dump below the sealed diagnostic payload boundary
+
+Suggested focused commands:
+
+```bash
+npx vitest run \
+  src/components/DebugControlCenter.test.ts \
+  src/lib/route-line-v2/hpms-diagnostic-read-model.test.ts \
+  src/lib/route-line-v2/v2ss-hpms-debug-overlay-model.test.ts \
+  src/lib/route-line-v2/v2ss-inspect-detail-adapters.test.ts \
+  src/components/SegmentInspectorDrawer.test.tsx
+
+npx eslint \
+  src/components/DebugControlCenter.tsx \
+  src/components/RouteMap.tsx \
+  src/pages/Index.tsx \
+  src/lib/route-line-v2/hpms-diagnostic-read-model.ts \
+  src/lib/route-line-v2/v2ss-hpms-debug-overlay-model.ts \
+  src/lib/route-line-v2/v2ss-inspect-detail-adapters.ts
+
+git diff --check
+```
+
+## Phase 7 - Closeout Report
+
+Update the EXEC-059 Phase 1A report or add a Phase 1B report with:
+
+- [ ] exact fields that now hydrate
+- [ ] exact controls that now render independently
+- [ ] exact controls still empty because upstream does not emit data
+- [ ] exact unavailable reasons
+- [ ] Dam Ride screenshot/manual notes
+- [ ] NV selected span detail output
+- [ ] proof RouteMap stayed renderer-only
+- [ ] proof scoring and selected traffic truth did not change
+- [ ] count reconciliation table
+- [ ] source-plane and route-evidence-plane inventories
+- [ ] tests and validation commands
+- [ ] ownerDecision = pending_review
+
+## Final Acceptance Criteria
+
+- [ ] All 23 existing controls work or are truthfully empty.
+- [ ] All current drawer fields are populated or precisely explained.
+- [ ] Nearby/off-route source geometry is visible under source controls.
+- [ ] Direct projected geometry is stage-pure.
+- [ ] Propagated and direct-selected spans are independently toggleable.
+- [ ] Rejection stages remain separate.
+- [ ] Rendered normalized HPMS features do not open as `payload_unavailable`.
+- [ ] Field dictionary is non-empty for visible normalized HPMS features.
+- [ ] Count reconciliation passes.
+- [ ] Generic `Unknown` is not used when the system knows the actual missing boundary.
+- [ ] No raw HPMS fetch, candidate promotion, truthRuns evidence, scoring mutation, or RouteMap truth shortcut is added.
+
+## Final Non-Decision
+
+This plan does not complete EXEC-059 traffic authority cutover or legacy HPMS deletion.
+
+After this plan passes, the next architecture move remains:
+
+```text
+reopen EXEC-059 traffic authority cutover
+  -> one legal HPMS source authority
+  -> legacy HPMS deletion slice
+```
+
+Do not use debug-panel repair as a substitute for that authority cutover.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
