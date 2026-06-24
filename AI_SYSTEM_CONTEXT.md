@@ -48978,6 +48978,7 @@ The route-line v2 topology builder should:
 
 Status: Accepted
 Date: 2026-06-16
+Amended: 2026-06-24 — canonical ActiveTruthView package path corrected to `src/lib/active-truth/`
 Related: ADR-045, ADR-052, ADR-053, ADR-059, DS-031, DS-043, DS-044, DS-047, DS-055, DS-067
 
 ------
@@ -49121,8 +49122,15 @@ The codebase should keep these packages separate:
 - future `src/lib/active-score-ledger`: active scenario semantic score authority
 - `src/lib/route-time`: ride context and route-time binding
 - future `src/lib/temporal-projection`: temporal/context projectors
-- future `src/lib/active-truth-view`: mechanical ActiveScoreLedger projection only
+- future `src/lib/active-truth`: mechanical ActiveScoreLedger projection only
 - presentation components: mechanical ActiveTruthView consumers only
+
+P00 path correction: the immutable audit snapshot named this package
+`src/lib/active-truth-view`. The canonical production package boundary is
+`src/lib/active-truth/`, consistent with DS-055, EXEC-060, and the existing
+repository package root. This corrects package naming only. It does not approve,
+preserve, or certify the current `src/lib/active-truth/` implementation as the
+new mechanical ActiveTruthView authority.
 
 Any code path that violates these package responsibilities is architectural debt and should be removed, not normalized.
 

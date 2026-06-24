@@ -60535,6 +60535,23 @@ test, configuration, or environment change from the contaminated audit snapshot.
 allowlisted documentation blobs were imported. Implementation in every phase P01–P11 is
 clean-room against the controlling authority.
 
+### P00 Additive Correction Lineage
+
+- **Initial P00 import commit:** `7c4bcd42de9b265627d32bd4f579e68476069e00`.
+- **Immutable audit source:** `2c8b6ccd3c97accee90ded200e6d7173ecc4ca93`.
+- **All eight allowlisted authority documents were imported exactly at the initial P00 commit**,
+  each verified byte-for-byte against the audit-source blob manifest.
+- **ADR-054 contained a package-path naming inconsistency** between the audit snapshot
+  (`src/lib/active-truth-view`) and the canonical repository package root.
+- **This additive rework canonically chooses `src/lib/active-truth/`**, consistent with DS-055,
+  EXEC-060, and the existing repository package root.
+- **The change is an explicit owner-authorized P00 amendment** (Derek Minner), made as an additive
+  commit on the existing P00 phase branch — not a restart, rebase, or amend of the initial commit.
+- **The change does not authorize reuse of current production ActiveTruthView composition.** It
+  corrects package naming only; it does not approve, preserve, or certify the existing
+  `src/lib/active-truth/` implementation as the new mechanical ActiveTruthView authority.
+- **The audit repository and audit branches remain unchanged.**
+
 ---
 
 ## 9.2 Canonical Product Terms
@@ -60957,8 +60974,27 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 
 - **Purpose:** Cut the main inspector surfaces to `ActiveTruthView` semantics.
 - **Input contract:** `ActiveTruthView` (P07).
-- **Output contract:** main inspector, traffic details, source/provider, source type, and inspect
-  receipt all read from `ActiveTruthView`.
+- **Output contract:** every one of the following reads exclusively from `ActiveTruthView`:
+  - main inspect panel;
+  - `SegmentInspector` or its successor;
+  - every rider-facing traffic-details dropdown;
+  - every expandable traffic/details row;
+  - traffic value;
+  - provider identity;
+  - source system/backend;
+  - source dataset/type;
+  - provenance;
+  - confidence;
+  - selection class where displayed;
+  - inspect receipt;
+  - mobile and desktop inspector/details variants.
+- **Phase-entry requirement:** before implementation, P08A must inventory every in-scope surface by
+  exact file, symbol, direct caller, direct consumer, and current semantic input. Any unlisted
+  rider-facing traffic/details read discovered during implementation blocks exit.
+- **Exit requirement:** no P08A surface may read selected-evidence snapshots, `HeatmapSegment`
+  traffic semantics, `RouteSpeedSegment` traffic semantics, `RouteSurfaceTruthBundle`,
+  `RigidScoreLedger`, source clients, cache payloads, or history payloads as an alternate
+  rider-facing authority.
 - **Authoritative owner:** `src/lib/presentation/active-truth/`.
 - **Package roots allowed to change:** `src/lib/presentation/active-truth/`, presentation surfaces,
   fixtures, architecture tests.
@@ -60984,8 +61020,22 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 - **Purpose:** Cut analyze-road receipt, cue sheet, cue detail, route summary, route score
   explanation, and mobile/desktop duplicates to `ActiveTruthView`.
 - **Input contract:** `ActiveTruthView` (P07).
-- **Output contract:** all listed surfaces (including mobile/desktop duplicates) read from
-  `ActiveTruthView`.
+- **Output contract:** every one of the following reads exclusively from `ActiveTruthView`:
+  - Analyze road receipt;
+  - Analyze road/details dropdowns;
+  - cue-sheet rows;
+  - cue detail;
+  - route summary;
+  - route score explanation;
+  - notable-driver explanation;
+  - mobile duplicates;
+  - desktop duplicates;
+  - any saved-route duplicate of those surfaces.
+- **Phase-entry requirement:** before implementation, P08B must inventory every in-scope surface by
+  exact file, symbol, direct caller, direct consumer, and current semantic input. An unlisted
+  rider-facing receipt, cue, summary, explanation, or details surface is a phase blocker.
+- **Receipt rule:** receipts must be rendered from upstream immutable receipt references. No P08B
+  surface may reconstruct, recalculate, rerank, infer providers, or apply risk thresholds.
 - **Authoritative owner:** `src/lib/presentation/active-truth/`.
 - **Package roots allowed to change:** presentation surfaces, fixtures, architecture tests.
 - **Package roots forbidden to change:** canonical authority internals.
@@ -61004,19 +61054,48 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 
 ---
 
-### P08C — Quick/Robust Paint Unification
+### P08C — Route Paint And Quick/Robust Parity
 
-- **Purpose:** Guarantee `QuickPaint` and `RobustPaint` share one semantic source.
+- **Purpose:** Guarantee that all finalized rider-facing route paint consumes one semantic source.
+  The purpose and output contract explicitly cover:
+  - all finalized rider-facing route paint;
+  - base/default route paint;
+  - `QuickPaint`;
+  - `RobustPaint`;
+  - zoom-level route paint;
+  - route paint used by inspection hitboxes or route interactions;
+  - paint-derived traffic/risk tooltips;
+  - mechanical geometry aggregation used for rendering.
 - **Input contract:** `ActiveTruthView` over one `ActiveScoreLedger` revision.
-- **Output contract:** `QuickPaint` and `RobustPaint` share **one** `ActiveScoreLedger` id,
-  revision, digest, entries, semantics, source identities, and receipts.
+- **Output contract:** all of the route-paint paths above must consume semantics from the **same
+  `ActiveTruthView` over the same `ActiveScoreLedger` revision** and must share:
+  - `ActiveScoreLedger` id;
+  - revision;
+  - digest;
+  - entry ids;
+  - route intervals;
+  - Road Risk;
+  - Crossing Risk;
+  - Total Risk;
+  - Risk Per Mile;
+  - risk bucket;
+  - notable driver;
+  - provider;
+  - source type;
+  - provenance;
+  - confidence;
+  - selection class;
+  - receipts.
+- **Phase-entry requirement:** before implementation, P08C must inventory every route-paint path by
+  exact file, symbol, direct caller, and direct consumer. An unlisted route-paint path is a blocker.
 - **Authoritative owner:** `src/lib/presentation/active-truth/`.
 - **Package roots allowed to change:** presentation paint adapters, fixtures, architecture tests.
 - **Package roots forbidden to change:** canonical authority internals.
-- **Permitted responsibilities:** only **scheduling, animation, density, reveal timing, and
-  boundary-preserving simplification** may differ between Quick and Robust.
+- **Permitted responsibilities:** rendering may differ only by **scheduling, animation, reveal
+  timing, density, zoom aggregation, geometric simplification that does not cross semantic
+  boundaries, and visual performance strategy.**
 - **Forbidden responsibilities:** any semantic selection, scoring, identity, or digest divergence
-  between Quick and Robust.
+  between any route-paint paths, including Quick and Robust.
 - **Deterministic fixtures:** Quick/Robust parity fixture (§9.9).
 - **Focused tests:** Quick and Robust assert identical id/revision/digest/entries/semantics/source
   identities/receipts.
@@ -61030,13 +61109,30 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 
 ---
 
-### P09 — Fresh / Cache / History Transport
+### P09 — Fresh, Cache, And History Reload Canonical Transport
 
-- **Purpose:** Preserve canonical identity across fresh, cache, and history transport.
+- **Purpose:** Preserve canonical identity across fresh, cache, and history transport. P09
+  explicitly covers both transport and actual product re-entry paths:
+  - fresh analysis completion;
+  - route-cache reload;
+  - route-history reload;
+  - saved-route reopening;
+  - any route restoration path that republishes rider-facing traffic or risk.
 - **Input contract:** An `ActiveScoreLedger` artifact.
 - **Output contract:** `serializeActiveScoreLedgerArtifact(...)` and
   `hydrateActiveScoreLedgerArtifact(...)` preserving exact canonical ids, revisions, digests,
   formulas, model versions, source identities, and receipts.
+- **Required invariant:** the same canonical `ActiveScoreLedger` artifact identity must survive all
+  paths, and every path must mechanically project the same `ActiveTruthView` semantics. Required
+  parity includes: ledger id; revision; digest; entry ids; route intervals; model/formula versions;
+  source identities; provider; provenance; confidence; selection class; score inputs; Road Risk;
+  Crossing Risk; Total Risk; Risk Per Mile; risk bucket; notable driver; receipt references.
+- **Explicitly forbidden:** cache payloads rendering directly; history payloads rendering directly;
+  reconstructing `ActiveTruthView` from display fields; rebuilding traffic; rebuilding scores;
+  source/provider inference; receipt reconstruction; semantic migration hidden inside hydration.
+- **Phase-entry requirement:** before implementation, P09 must inventory the fresh, cache reload,
+  history reload, and saved-route reopening paths by exact file, symbol, direct caller, and direct
+  consumer. An unlisted reload/reopen path is a blocker.
 - **Authoritative owner:** `src/lib/route-analysis-transport/`.
 - **Package roots allowed to change:** `src/lib/route-analysis-transport/`, fixtures, architecture
   tests.
@@ -61180,12 +61276,12 @@ allowed surviving responsibility is mechanical only.
 | `TrafficTruthArtifactProvider` | provider authority for traffic truth | P06–P10 | zero references; guard edge | none |
 | `TrafficScoringInputCutover` | scoring-input selection authority | P05–P10 | zero references | none |
 | `ResolvedTrafficTruth` | selected/resolved traffic authority | P04–P10 | zero references | none |
-| traffic semantics on `HeatmapSegment` | traffic/risk semantics | P08–P10 | semantics stripped; guard edge | geometry/paint geometry only |
-| traffic semantics on `RouteSpeedSegment` | traffic/risk semantics | P08–P10 | semantics stripped | speed geometry only |
-| selected-evidence display snapshots as rider truth | rider-facing truth | P08–P10 | zero rider-truth use | diagnostic display only |
+| traffic semantics on `HeatmapSegment` | traffic/risk semantics | P08C rider-facing paint cutover; P10 final semantic strip and enforcement | semantics stripped; guard edge | geometry/paint geometry only |
+| traffic semantics on `RouteSpeedSegment` | traffic/risk semantics | P08C rider-facing paint cutover; P10 final semantic strip and enforcement | semantics stripped | speed geometry only |
+| selected-evidence display snapshots as rider truth | rider-facing truth | P08A inspector/details cutover and P08B receipt/summary cutover; P10 final zero rider-facing uses | zero rider-truth use | diagnostic display only |
 | current direct `ActiveTruthView` composer | independent projection authority | P07–P10 | replaced by mechanical projection | none |
 | provider reconstruction | provider inference | P06–P10 | zero reconstruction paths | none |
-| presentation traffic calculations | scoring/selection math in presentation | P08–P10 | zero calculations; guard edge | formatting only |
+| presentation traffic calculations | scoring/selection math in presentation | P08A inspector/details cutover, P08B receipt/summary cutover, and P08C route-paint cutover; P10 final zero calculation paths | zero calculations; guard edge | formatting only |
 | receipt reconstruction | receipt creation downstream | P07–P10 | zero reconstruction | none |
 | Quick/Robust semantic selection | independent semantic divergence | P08C–P10 | parity proof | scheduling/animation/density/timing/simplification |
 | cache/history traffic reconstruction | rescoring/reselection on transport | P09–P10 | round-trip identity | serialize/hydrate only |
@@ -61216,7 +61312,12 @@ allowed surviving responsibility is mechanical only.
 - **Main remains untouched until P11.**
 - **No deployment during the rebuild.**
 
-The only final-gate outcomes are: **PROCEED**, **REWORK**, **STOP**.
+**Designated final independent GitHub gate.** The final independent GitHub gate is performed by
+Derek's designated Lanterne Traffic Truth Spine architecture gate in the ChatGPT oversight thread
+through direct inspection of the exact GitHub commit, complete diff, and source. The builder cannot
+satisfy this gate. The skeptical reviewer cannot satisfy this gate. A reviewer PASS is evidence
+submitted to the final gate; it is not permission to advance integration. The final architecture
+gate alone returns **PROCEED**, **REWORK**, or **STOP**.
 
 ---
 
