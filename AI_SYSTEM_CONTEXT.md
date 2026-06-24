@@ -3419,6 +3419,7 @@ Route Safety Score must remain:
 | ADR-056 | Temporal Motor-Vehicle Risk Context and Traffic Volume Split | Proposed; superseded for active temporal model kernel by ADR-057 / DS-062 | DS-057 |
 | ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Accepted for hourly architecture and detached kernel; scenario/scoring integration deferred | DS-062, DS-063 accepted projection contract, DS-064 accepted component-adaptation contract |
 | ADR-058 | Viewport Road Data Plane and Overlay Ownership | Proposed | DS-061 |
+| ADR-059 | Single Route Truth And Score Ledger Pipeline | Accepted | DS-067 |
 
 ---
 
@@ -3477,6 +3478,7 @@ Route Safety Score must remain:
 | DS-062 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056, DS-057 lineage, DS-058, DS-063, DS-064 | Accepted for detached model-kernel implementation; scenario/scoring integration deferred |
 | DS-063 | Hourly Temporal Scenario Projection Contract | ADR-055, ADR-057, DS-031, DS-056, DS-058, DS-062, EXEC-055, EXEC-056 | Accepted for headless prepared-input projection implementation; runtime not yet implemented |
 | DS-064 | Motor-Vehicle Temporal Component Adaptation And Coverage Contract | ADR-055, ADR-057, DS-015, DS-031, DS-056, DS-058, DS-062, DS-063, EXEC-055, EXEC-056 | Accepted for temporal component-adaptation contract only; runtime not implemented; preview, score, presentation, storage, and production deferred |
+| DS-067 | Single Route Truth And Score Ledger Pipeline Spec | ADR-059, ADR-045, ADR-054, DS-015, DS-029, DS-031, DS-032, DS-055 | Accepted for authority closure |
 
 ---
 
@@ -3497,10 +3499,28 @@ An earlier draft of the ride computer tile system was incorrectly numbered DS-00
 ### Hourly temporal model lineage
 ADR-057 and DS-062 define the active hourly temporal model architecture and detached model-kernel specification. DS-063 accepts the headless prepared-input scenario projection contract around that kernel. DS-064 accepts the follow-on motor-vehicle temporal component-adaptation and coverage contract as contract-only; it reuses canonical DS-015 scoring seams and authorizes no runtime, preview, score, presentation, storage, or production behavior. ADR-056 and DS-057 remain lineage for the conceptual split between traffic exposure and per-pass/contextual risk; their two-profile curves, broad night buckets, and fixed 1.60 / 2.10 broad-night factors are not runtime authority.
 
+DS-065 is reserved for the paused EXEC-058 long-route temporal/scenario contract lineage and must not be reused by any other design document. DS-066 is likewise reserved by EXEC-058 lineage for the later chunked temporal scenario worker and route manifest contract.
+
 EXEC-056 is the active hourly temporal model implementation plan. EXEC-055 remains lineage and retains the double-counting audit gate before any Planned Ride Risk integration. After accepted Phase 6A, the next gate is deciding whether to authorize a bounded headless road temporal-adaptation proof; complete component runtime, planned-risk preview, score, UI, storage, and production remain blocked.
 
 ### DS-061 reservation
 DS-061 is reserved for the viewport road-data-plane / overlay-ownership packet tied to ADR-058 and EXEC-057. DS-062 is therefore the hourly temporal model specification.
+
+### Single route truth and score ledger authority
+ADR-059 and DS-067 define the final single-pipe authority model:
+
+```text
+CanonicalRouteAxis
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
+
+ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It is not a ledger, selected truth authority, scorer, fallback path, cache/history authority, or alternate read-model authority.
 
 ---
 
@@ -17686,7 +17706,7 @@ The system must not:
 **Date:** 2026-05-10  
 **Filename:** `ds-031-route_indexed_evidence_layer_spec.md`  
 **ADR Parent:** [ADR-045](../../03-adrs/adr-045-route_indexed_evidence_platform.md)  
-**Related:** [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-025](./ds-025-transition_candidate_claim_and_projection_spec.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md)
+**Related:** [DS-067](./ds-067-single_route_truth_and_score_ledger_pipeline_spec.md), [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-025](./ds-025-transition_candidate_claim_and_projection_spec.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md)
 
 ---
 
@@ -17711,6 +17731,21 @@ This spec is intentionally broader than road ownership. Road ownership is the fi
 - effort metrics such as calories and watts
 
 Breadth of attachment is not breadth of launch scoring. Under DS-015, the launch Route Safety Score is driven only by road exposure and crossing exposure. Future/non-safety layers may attach to the route axis for display, diagnostics, effort, or separate route-reality models, but they are not score-driving for the narrow safety model unless a future versioned DS explicitly promotes them.
+
+DS-067 defines the final single-pipe authority chain for route score semantics:
+
+```text
+CanonicalRouteAxis
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
+
+This spec defines route-indexed evidence attachment. It does not authorize presentation panes, route cache, route history, heatmap/display objects, truth runs, or receipts to become evidence selectors or score authorities.
 
 ---
 
@@ -18045,6 +18080,8 @@ Adapters must not mutate canonical layer evidence.
 
 Downstream consumers must not reach into V2 internals to compensate for missing adapter fields.
 
+After the DS-067 hard cutover, rider-facing adapters are mechanical projections from ActiveTruthView only. They may format or render exact upstream values, but they may not select evidence, create Highway Baseline, derive traffic exposure, score, choose risk buckets, rank notable drivers, reconstruct receipts, repair unknowns, or apply fallback.
+
 ---
 
 ## 11. Required Diagnostics
@@ -18092,6 +18129,7 @@ Do not move to scoring or presentation migration until road ownership spans are 
 The system must not:
 
 - use legacy truth runs as V2 evidence
+- treat legacy truth runs, truthSegments, routeSpeedSegments, HeatmapSegment, displaySegmentsByZoom, route cache, route history, receipts, QuickPaint, RobustPaint, or presentation panes as semantic route score authorities
 - use OSM way id as the canonical route join key
 - use raw GPX point index as the canonical route join key
 - silently convert unresolved spans into score-bearing truth
@@ -18112,7 +18150,7 @@ The system must not:
 **Date:** 2026-05-12  
 **Filename:** `ds-032-worker_streamed_route_construction_and_presentation_spec.md`  
 **ADR Parent:** [ADR-045](../../03-adrs/adr-045-route_indexed_evidence_platform.md)  
-**Related:** [DS-031](./ds-031-route_indexed_evidence_layer_spec.md), [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-024](./ds-024-parallel_bike_facility_capture_and_corridor_ownership_spec.md)
+**Related:** [DS-031](./ds-031-route_indexed_evidence_layer_spec.md), [DS-067](./ds-067-single_route_truth_and_score_ledger_pipeline_spec.md), [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-024](./ds-024-parallel_bike_facility_capture_and_corridor_ownership_spec.md)
 
 ---
 
@@ -18121,6 +18159,8 @@ The system must not:
 This specification defines the V2 route construction pipeline and its streamed presentation contract.
 
 The route identity layer must be built from an ordered OSM graph path, not from "best nearby road per span" ownership. Presentation may run in parallel with identity, enrichment, and scoring, but it is a subscriber to streamed facts and progress events. Presentation must never become a source of route truth.
+
+DS-067 defines the final score authority chain. Streamed presentation events before ActiveScoreLedger availability are progress, diagnostics, neutral route geometry, or blocker state only. Final rider-facing score semantics must publish through a mechanical ActiveTruthView projection of one ActiveScoreLedger revision.
 
 The goals are:
 
@@ -18155,6 +18195,17 @@ But presentation remains read-only:
 facts drive presentation
 presentation does not drive facts
 ```
+
+For finalized rider-facing route score semantics, the required downstream contract is:
+
+```text
+RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
+
+Presentation streams may progressively reveal already-published facts, but they may not select evidence, score, apply fallback, choose risk buckets, rank notable drivers, derive traffic exposure, or create provider labels.
 
 ---
 
@@ -30715,7 +30766,7 @@ Phase D: evidence and Global Unit expansion
 **Status:** Draft for implementation
 **Date:** 2026-06-16
 **ADR Parent:** [ADR-054](../../03-adrs/adr-054-route_indexed_evidence_ledger_no_leak_architecture.md)
-**Related:** DS-031, DS-043, DS-044, DS-047
+**Related:** ADR-059, DS-031, DS-043, DS-044, DS-047, DS-067
 
 ---
 
@@ -30724,6 +30775,19 @@ Phase D: evidence and Global Unit expansion
 This specification makes the ledger-first architecture executable.
 
 The route-distance axis is the canonical coordinate system. `RouteIndexedEvidenceLedger` is the only upstream source boundary for route-indexed evidence. Every later layer consumes selected or composed truth from the immediately prior boundary.
+
+ADR-059 / DS-067 define the final single-pipe authority model:
+
+```text
+CanonicalRouteAxis
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
 
 ## 2. Package Boundaries
 
@@ -30734,9 +30798,11 @@ The route-distance axis is the canonical coordinate system. `RouteIndexedEvidenc
 | RouteIndexedEvidenceLedger | `src/lib/route-evidence` | RouteAxis and source projection outputs |
 | Truth Selection Builders | `src/lib/truth-selection` | RouteIndexedEvidenceLedger only |
 | RouteSurfaceTruthBundle | `src/lib/route-surface-truth` | selected truth snapshots only |
+| RigidScoreLedger | future `src/lib/rigid-score-ledger` | RouteSurfaceTruthBundle only |
+| ActiveScoreLedger | future `src/lib/active-score-ledger` | RigidScoreLedger plus explicitly documented active-scenario inputs |
 | Ride Context / Temporal Binding | `src/lib/route-time` | RouteAxis and ride context |
 | Temporal Projector | `src/lib/temporal-projection` | selected truth baseline and route-time binding |
-| ActiveTruthView | `src/lib/active-truth` | selected stable truth and ride-context temporal ledger state |
+| ActiveTruthView | `src/lib/active-truth` | one ActiveScoreLedger revision only |
 | Presentation | `src/components`, `src/pages` | ActiveTruthView only |
 
 ## 3. No-Leak Invariant
@@ -30745,7 +30811,9 @@ RouteIndexedEvidenceLedger is the only upstream source boundary for route-indexe
 
 Truth builders may consume the ledger.
 TruthBundle may snapshot selected evidence.
-ActiveTruthView may compose selected truth with allowed temporal/context evidence.
+RigidScoreLedger may score only RouteSurfaceTruthBundle outputs.
+ActiveScoreLedger may publish only RigidScoreLedger semantics plus explicitly documented active-scenario state.
+ActiveTruthView may mechanically project one ActiveScoreLedger revision.
 Presentation may read ActiveTruthView only.
 
 Presentation may not query raw HPMS.
@@ -30844,6 +30912,8 @@ The stable traffic output may not carry:
 - scoring outputs
 - presentation or display fields
 
+Under ADR-059 / DS-067, RouteSurfaceTruthBundle and traffic-only partial stable outputs are not rider-facing semantic score authority. They feed RigidScoreLedger. Presentation must not use them as an alternate source of score truth.
+
 Future mapping:
 
 - `selectedEvidenceSnapshots` maps to `RouteSurfaceTruthBundle.selectedEvidenceSnapshots`
@@ -30902,13 +30972,13 @@ All planned and observed clock inputs must include an explicit ISO timezone offs
 
 ## 9. Temporal Projection
 
-Temporal traffic exposure is downstream context:
+Temporal traffic exposure is contextual input to a documented active-scenario path:
 
 ```text
 selected traffic_aadt baseline
   x RouteTimeBinding
   x traffic-time multiplier
-  -> temporal overlay for ActiveTruthView
+  -> documented active-scenario input before ActiveScoreLedger
 ```
 
 Temporal projection must not mutate the ledger or the stable truth bundle.
@@ -30932,7 +31002,7 @@ Temporal exposure span envelopes must use derived-model source/provenance. HPMS 
 
 Given valid stable baseline truth and valid `RouteTimeBinding`, the temporal projection output must partition `[0,totalDistM)` into computed, unresolved baseline, conflict baseline, missing time binding, or missing multiplier intervals.
 
-`traffic_temporal_exposure` must not be added to the route-version evidence ledger layer registry. It is contextual overlay state for ActiveTruthView/RideContext composition, not candidate source truth.
+`traffic_temporal_exposure` must not be added to the route-version evidence ledger layer registry. It is contextual scenario/view evidence, not candidate source truth. Any future rider-facing use must pass through the documented ActiveScoreLedger path before mechanical ActiveTruthView projection.
 
 Temporal projection may not accept raw `traffic_aadt` candidate spans, query raw HPMS, read source-projection internals, inspect legacy `truthRuns`, select/promote candidates, mutate `StableTrafficBaselineSnapshot`, mutate `RouteSurfaceStableTrafficOutput`, mutate `RouteTimeBinding`, create new route-time revisions, or use presentation/scoring adapters.
 
@@ -30962,7 +31032,8 @@ actual progress changes route-time binding
   -> ledger marks temporal layer stale
   -> projector recomputes
   -> ledger accepts new projection if revision matches
-  -> ActiveTruthView reads current ledger state later
+  -> ActiveScoreLedger may consume an approved active-scenario input later
+  -> ActiveTruthView mechanically projects the ActiveScoreLedger revision
 ```
 
 It stores:
@@ -30999,48 +31070,70 @@ It must not mutate:
 - `RouteTimeBinding`
 - `TrafficTemporalExposureProjection`
 
-It may not query raw HPMS, run source projection, run truth selection, build stable truth, compose `ActiveTruthView`, score, heatmap, render presentation, read browser GPS APIs, or inspect legacy `truthRuns`.
+It may not query raw HPMS, run source projection, run truth selection, build stable truth, compose `ActiveTruthView`, build ActiveScoreLedger, score, heatmap, render presentation, read browser GPS APIs, or inspect legacy `truthRuns`.
 
 It stores stable traffic artifact IDs/digests and temporal projection refs only. Stable selected traffic truth remains owned by the stable truth boundary.
 
 ## 11. ActiveTruthView
 
-`ActiveTruthView` is the presentation firewall. It is not a source boundary, selector, projector, scorer, heatmap builder, RouteMap adapter, or mutable ride-context state.
+ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
 
-For the traffic POC, it lives in `src/lib/active-truth/active-truth-view.ts`.
+Conceptually:
 
-It may consume:
+```text
+projectActiveScoreLedgerRevision(
+  activeScoreLedgerRevision,
+  presentationProjectionRequest
+) -> ActiveTruthView
+```
 
-- `RouteSurfaceStableTrafficOutput`
-- `RideContextTemporalLedger`
-- selected traffic baseline snapshot types
+It may only:
 
-It may expose:
+- select fields already present in an ActiveScoreLedger entry
+- select entries by canonical route-distance identity
+- organize those fields into a presentation-consumable shape
+- omit fields irrelevant to a specific pane
+- preserve exact semantic values
+- preserve exact receipt and lineage references
+- preserve the parent ActiveScoreLedger identity
 
-- `viewId`, `viewKind`, `schemaVersion`, `generatedAt`, and deterministic `contentDigest`
-- route/session/axis metadata
-- source refs for stable traffic, ride-context ledger, route-time binding, and accepted temporal projection
-- stable `traffic_aadt_baseline` spans
-- current/stale/empty `traffic_temporal_exposure` layer state
-- route-time summaries
-- typed receipt index for stable traffic, temporal traffic, and ActiveTruthView composition receipts
-- diagnostics
-- `presentation.trafficOverlay`
-- quality summary
-- explicit capabilities showing it cannot promote candidates, fetch raw evidence, recompute traffic exposure, or mutate stable truth
+It may not:
 
-It must validate that:
+- select evidence
+- apply precedence
+- construct Highway Baseline
+- derive scoring traffic
+- derive AADT per lane
+- invoke scoring
+- apply risk thresholds
+- choose a risk bucket
+- rank notable drivers
+- infer source provider
+- substitute selection class for provider
+- substitute confidence for provider
+- repair unknown or unresolved values
+- borrow neighboring values
+- apply fallback
+- round a value that will later participate in calculation
+- create receipts
+- mutate ActiveScoreLedger
+- persist separate semantic state
+- become cache or history authority
 
-- stable artifact id/digest matches the ride-context stable truth refs
-- route axis and total distance match
-- current temporal traffic exposure derives from the stable traffic artifact in the view
-- current temporal traffic exposure matches the current route-time binding id/revision
-- presentation overlay spans are a complete half-open route partition when paintable
-- policy budgets are not exceeded
+Every ActiveTruthView must carry parent ActiveScoreLedger id, parent ActiveScoreLedger revision, parent ActiveScoreLedger digest, active scenario id/version, source ActiveScoreLedger entry ids, canonical route intervals, and upstream receipt ids.
 
-If temporal traffic exposure is missing, the default view may expose a stable-only traffic overlay and must mark temporal paint unavailable. If temporal traffic exposure is stale, the stale layer may remain inspectable in the view, but it must not be painted as current temporal exposure. Any blocking route/source/payload/budget error seals the presentation overlay as invalid.
+ActiveTruthView must not possess an independent semantic identity.
 
-It may not import or call route evidence ledger builders, source projection workers, HPMS projection, truth selection builders, route-time builders, temporal projection functions, traffic-time models, scoring, heatmap, React, Supabase, browser GPS APIs, presentation components, `RouteMap`, or legacy `truthRuns`. It may import selected-truth types for stable input normalization, but it must not run selectors.
+Required invariant:
+
+```text
+activeTruthView.parentActiveScoreLedgerDigest
+  === activeScoreLedger.digest
+```
+
+Any optional projection checksum is non-authoritative transport validation only. It is not a truth identity, score identity, cache key for canonical analysis, or value-selection input.
+
+Historical POC implementations that composed selected stable traffic and ride-context temporal state directly into ActiveTruthView are lineage only after ADR-059 / DS-067. They are not a final rider-facing authority contract and must be migrated to the ActiveScoreLedger -> mechanical ActiveTruthView projection path.
 
 ## 12. Enforcement
 
@@ -38026,6 +38119,596 @@ Runtime must not proceed without tests proving:
 Phase 6A is complete. Derek approved this contract-only temporal component-adaptation gate on 2026-06-19.
 
 The next possible gate is a separate owner decision on whether to implement a bounded headless road temporal-adaptation proof using canonical DS-015 seams, mirror-baseline parity, explicit crossing blockers, and approved client-side budgets. Even if approved, that slice must stop at component outputs and must not roll up to planned risk, planned score, score delta, preview, UI, storage, or production.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-067-single_route_truth_and_score_ledger_pipeline_spec.md
+
+# DS-067 - Single Route Truth And Score Ledger Pipeline Spec
+
+**Status:** Accepted for authority closure
+**Date:** 2026-06-24
+**Filename:** `ds-067-single_route_truth_and_score_ledger_pipeline_spec.md`
+**ADR Parent:** [ADR-059](../../03-adrs/adr-059-single_route_truth_and_score_ledger_pipeline.md)
+**Related:** ADR-045, ADR-054, DS-015, DS-029, DS-031, DS-032, DS-055
+
+---
+
+## 1. Purpose
+
+This specification defines Lanterne's single route truth and score-ledger pipeline.
+
+It closes the ambiguity between selected route evidence, stable route facts, score ledgers, ActiveTruthView, paint policies, and presentation panes.
+
+The final pipeline is exactly:
+
+```text
+CanonicalRouteAxis
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
+
+There is one pipe. Each stage has exactly one authority. The ActiveScoreLedger is the only rider-facing semantic score authority.
+
+---
+
+## 2. Terminology Matrix
+
+| Term | Final status |
+| --- | --- |
+| CanonicalRouteAxis | sole route measurement axis |
+| RouteIndexedEvidenceLedger | sole route-evidence authority |
+| Truth Selection Builders | sole evidence selection stage |
+| RouteBuilders | grouping for docs-defined truth builders |
+| RouteSurfaceTruthBundle | sole selected stable-fact bundle |
+| RigidScoreLedger | sole stable scoring authority |
+| score trace | immutable constituent of RigidScoreLedger |
+| ActiveScoreLedger | sole rider-facing semantic score authority |
+| ActiveTruthView | non-authoritative mechanical projection of ActiveScoreLedger |
+| presentation DTO | non-authoritative projection payload |
+| truthRuns | delete as semantic authority; geometry adapter only if still required |
+| truthSegments | delete as semantic authority; presentation geometry only if required |
+| routeSpeedSegments | delete as semantic authority |
+| HeatmapSegment | presentation/interaction container only |
+| displaySegmentsByZoom | presentation geometry only |
+| QuickPaint | presentation policy |
+| RobustPaint | presentation policy |
+| route_cache | canonical artifact transport only |
+| route_history | canonical artifact transport only |
+
+There is no deprecated compatibility authority as a permitted final state.
+
+---
+
+## 3. Single-Authority Counts
+
+Required final counts:
+
+```text
+canonicalRouteAxesPerRouteRevision = 1
+authoritativeRouteIndexedEvidenceLedgersPerAnalysisRevision = 1
+authoritativeTruthSelectionPipelinesPerAnalysisRevision = 1
+authoritativeRouteSurfaceTruthBundlesPerAnalysisRevision = 1
+authoritativeRigidScoreLedgersPerScoringRevision = 1
+authoritativeActiveScoreLedgersPerScenarioRevision = 1
+authoritativeRiderFacingSemanticSourcesPerScenarioRevision = 1
+```
+
+Required final zero counts:
+
+```text
+independentActiveTruthAuthorities = 0
+independentReadModelAuthorities = 0
+independentScoreTraceAuthorities = 0
+presentationEvidenceSelectors = 0
+presentationScorers = 0
+presentationFallbackAuthorities = 0
+QuickPaintScoreAuthorities = 0
+RobustPaintScoreAuthorities = 0
+cacheScoreAuthorities = 0
+historyScoreAuthorities = 0
+receiptReconstructionAuthorities = 0
+legacyRiderFacingTruthAuthorities = 0
+```
+
+---
+
+## 4. CanonicalRouteAxis
+
+`CanonicalRouteAxis` is the sole route measurement axis for a route revision.
+
+Responsibilities:
+
+- define canonical route distance in meters
+- define half-open route intervals `[startDistM, endDistM)`
+- map route intervals to route geometry for downstream projection and rendering
+- preserve route revision identity
+
+Forbidden:
+
+- evidence selection
+- scoring
+- fallback
+- presentation formatting
+- cache/history truth authority
+
+Raw GPX point index, matcher sample index, OSM way id, HPMS row id, HeatmapSegment id, display segment id, and presentation geometry id are never canonical route join keys.
+
+---
+
+## 5. RouteIndexedEvidenceLedger
+
+`RouteIndexedEvidenceLedger` is the sole route-evidence authority.
+
+It consumes only:
+
+- CanonicalRouteAxis identity
+- normalized source projection outputs
+
+It owns:
+
+- route-indexed evidence candidates
+- layer ids
+- typed values and units
+- route interval or point binding
+- source lineage
+- provenance
+- confidence
+- source record identity
+- projection diagnostics
+- selection eligibility
+- scoring eligibility
+- unresolved diagnostics
+
+It may not:
+
+- select stable truth
+- score
+- infer provider labels for presentation
+- read presentation state
+- query route cache/history as truth
+- create Highway Baseline outside the documented evidence-candidate path
+
+Highway Baseline, when authorized by DS-015/DS-029 source semantics, must enter as a ledger candidate before truth selection. It may not first appear in RouteBuilders, RouteSurfaceTruthBundle, RigidScoreLedger, ActiveScoreLedger, receipts, presentation, cache hydration, or history hydration.
+
+A lane-count item may populate only lane semantics. A traffic-AADT item may populate only traffic semantics. No dimensional inference may occur because two fields both contain numbers.
+
+---
+
+## 6. TruthSelectionBuilders / RouteBuilders
+
+`TruthSelectionBuilders / RouteBuilders` are the sole evidence selection and stable fact construction stage.
+
+They consume only:
+
+- RouteIndexedEvidenceLedger public contracts
+- CanonicalRouteAxis public contracts
+
+They produce only:
+
+- selected stable route facts
+- rejected evidence refs
+- conflict spans
+- unresolved spans
+- stable receipts
+- immutable builder artifacts for RouteSurfaceTruthBundle
+
+They may:
+
+- select stable truth according to DS-029/DS-031/DS-055/DS-067 policies
+- build exact atomic route boundaries from selected evidence boundaries
+- preserve source lineage, provenance, confidence, and rejected refs
+- emit blockers
+
+They may not:
+
+- fetch external evidence
+- read source clients
+- inspect React or Leaflet state
+- inspect display segments
+- score
+- choose risk buckets
+- rank notable drivers
+- create provider labels
+- round values
+- build presentation strings
+- repair missing traffic outside selection policy
+- create scoring fallback
+- mutate RouteIndexedEvidenceLedger
+- read route cache/history as truth
+
+Builder blockers remain blockers. They must not be converted into guessed score-bearing truth.
+
+---
+
+## 7. RouteSurfaceTruthBundle
+
+`RouteSurfaceTruthBundle` is the sole selected stable-fact bundle.
+
+It carries selected route facts and their receipt lineage. It is not a score ledger and is not the rider-facing semantic score source.
+
+It may contain:
+
+- selected road ownership
+- selected traffic baseline
+- selected speed
+- selected bike infrastructure
+- selected shoulder
+- selected surface
+- selected stable hazards when authorized
+- selected fact receipts
+- rejected evidence refs
+- unresolved and conflict spans
+
+It may not contain:
+
+- Road Risk
+- Crossing Risk
+- Total Risk
+- Risk Per Mile
+- active scenario score state
+- presentation formatting
+- QuickPaint or RobustPaint output
+- route cache/history authority
+
+---
+
+## 8. RigidScoreLedger
+
+`RigidScoreLedger` is the sole stable scoring authority.
+
+It consumes only RouteSurfaceTruthBundle outputs and documented scoring policy inputs. It may not consume raw source records, evidence candidates directly, React state, Leaflet layers, HeatmapSegment, cache payloads, history payloads, compact display values, presentation labels, QuickPaint output, or RobustPaint output.
+
+RigidScoreLedger owns:
+
+- exact unrounded score inputs
+- exact factor contributions
+- mitigation inputs
+- Road Risk
+- Crossing Risk
+- Total Risk
+- Risk Per Mile where applicable
+- canonical risk bucket
+- canonical notable-driver ranking
+- deterministic tie-breaks
+- scoring-model version
+- traffic-formula version
+- upstream RouteSurfaceTruthBundle identity
+- upstream RouteIndexedEvidenceLedger evidence identity
+- calculation receipts
+- immutable score trace
+
+No other module may independently calculate canonical Road Risk, Crossing Risk, Total Risk, Risk Per Mile, risk bucket, notable driver, or canonical score trace.
+
+---
+
+## 9. ActiveScoreLedger
+
+`ActiveScoreLedger` is the sole rider-facing semantic score authority.
+
+It consumes only:
+
+- RigidScoreLedger revisions
+- explicitly documented active-scenario inputs
+
+For a default/non-temporal route view, the active scenario is the default scenario revision that preserves the RigidScoreLedger semantics unchanged.
+
+ActiveScoreLedger may:
+
+- select the active scenario revision
+- expose rider-facing semantic score entries
+- preserve RigidScoreLedger lineage
+- preserve upstream RouteSurfaceTruthBundle and evidence lineage
+- preserve immutable revision/digest identity
+
+ActiveScoreLedger may not:
+
+- read RouteIndexedEvidenceLedger candidates
+- select evidence
+- rerun RouteBuilders
+- repair rigid scores
+- invent traffic
+- invent speed
+- apply undocumented temporal logic
+- change scoring formulas
+- change provider identity
+- use display-rounded values
+- accept QuickPaint or RobustPaint as inputs
+
+Every active score entry must retain lineage to:
+
+- one RigidScoreLedger entry
+- its upstream RouteSurfaceTruthBundle artifact
+- its upstream RouteIndexedEvidenceLedger entries
+- the scoring-model version
+- the active-scenario identity
+- immutable revision and digest
+
+---
+
+## 10. Mechanical ActiveTruthView
+
+ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
+
+Conceptual function:
+
+```text
+projectActiveScoreLedgerRevision(
+  activeScoreLedgerRevision,
+  presentationProjectionRequest
+) -> ActiveTruthView
+```
+
+It may only:
+
+- select fields already present in an ActiveScoreLedger entry
+- select entries by canonical route-distance identity
+- organize those fields into a presentation-consumable shape
+- omit fields irrelevant to a specific pane
+- preserve exact semantic values
+- preserve exact receipt and lineage references
+- preserve the parent ActiveScoreLedger identity
+
+It may not:
+
+- select evidence
+- apply precedence
+- construct Highway Baseline
+- derive scoring traffic
+- derive AADT per lane
+- invoke scoring
+- apply risk thresholds
+- choose a risk bucket
+- rank notable drivers
+- infer source provider
+- substitute selection class for provider
+- substitute confidence for provider
+- repair unknown or unresolved values
+- borrow neighboring values
+- apply fallback
+- round a value that will later participate in calculation
+- create receipts
+- mutate ActiveScoreLedger
+- persist separate semantic state
+- become cache or history authority
+
+Every ActiveTruthView must carry:
+
+- parent ActiveScoreLedger id
+- parent ActiveScoreLedger revision
+- parent ActiveScoreLedger digest
+- active scenario id/version
+- source ActiveScoreLedger entry ids
+- canonical route intervals
+- upstream receipt ids
+
+ActiveTruthView must not possess an independent semantic identity.
+
+Required digest invariant:
+
+```text
+activeTruthView.parentActiveScoreLedgerDigest
+  === activeScoreLedger.digest
+```
+
+A projection may optionally carry a non-authoritative structural checksum for transport corruption detection. That checksum is not a truth identity, is not a score identity, cannot be persisted as canonical analysis, cannot choose between competing values, and cannot make the projection authoritative.
+
+---
+
+## 11. PresentationPane Subscriber Contract
+
+Presentation panes publish from ActiveTruthView only.
+
+Presentation panes include:
+
+- RouteMap
+- SegmentInspector
+- RoadInfoCard
+- TruthSection
+- receipt panes
+- score summaries
+- route summaries
+- cue-associated risk displays
+- QuickPaint
+- RobustPaint
+- future temporal presentation surfaces
+
+They may:
+
+- render exact ActiveTruthView values
+- format units
+- apply locale formatting
+- round final displayed values
+- map an upstream canonical risk-style token to CSS
+- aggregate geometry for rendering only
+- animate or progressively reveal already-published facts
+
+They may not:
+
+- access RouteIndexedEvidenceLedger
+- access evidence candidates
+- invoke TruthSelectionBuilders or RouteBuilders
+- access RouteSurfaceTruthBundle as an alternate rider-facing source
+- access RigidScoreLedger as an alternate rider-facing source
+- invoke scoring
+- calculate risk
+- calculate risk deltas
+- choose notable drivers
+- derive traffic exposure
+- create source labels from generic fallback chains
+- reconstruct receipts
+- persist semantic truth
+- cache their own score interpretation
+
+No pane may use another pane's output as input.
+
+---
+
+## 12. QuickPaint And RobustPaint
+
+QuickPaint and RobustPaint are presentation policies over the same ActiveTruthView projection from the same ActiveScoreLedger revision.
+
+They may differ only in:
+
+- draw scheduling
+- animation
+- reveal timing
+- render density
+- zoom aggregation
+- geometric simplification that does not cross semantic boundaries
+- visual performance strategy
+
+They must share:
+
+- parent ActiveScoreLedger id
+- parent ActiveScoreLedger revision
+- parent ActiveScoreLedger digest
+- ActiveScoreLedger entry ids
+- route intervals
+- evidence lineage
+- score inputs
+- Road Risk
+- Crossing Risk
+- Total Risk
+- Risk Per Mile
+- risk bucket
+- notable driver
+- source provider
+- provenance
+- confidence
+- selection classification
+- receipts
+
+There is no Quick evidence, Robust evidence, Quick RouteSurfaceTruthBundle, Robust RouteSurfaceTruthBundle, Quick RigidScoreLedger, Robust RigidScoreLedger, Quick ActiveScoreLedger, Robust ActiveScoreLedger, Quick fallback, Robust fallback, Quick cache truth, or Robust cache truth.
+
+A paint-mode toggle may not trigger source fetching, projection, ledger mutation, evidence selection, RouteBuilder execution, RigidScoreLedger construction, ActiveScoreLedger construction, cache hydration, history hydration, or rescoring.
+
+---
+
+## 13. Hard-Cutover Deletion Contract
+
+The canonical pipe requires hard cutover. The new pipe must not feed the old semantic pipe through a permanent compatibility adapter.
+
+During isolated development:
+
+- the current production implementation may remain untouched
+- the new pipe may run only in tests and diagnostics
+- comparisons may be produced outside rider-facing presentation
+
+At production cutover:
+
+1. activate the new canonical pipe
+2. connect presentation solely through ActiveTruthView
+3. delete or strip all competing semantic authorities in the same cutover program
+4. invalidate incompatible cache/history artifacts
+5. do not retain a rider-facing fallback to the old semantic path
+
+Shadow comparison is allowed only when:
+
+- it is diagnostics-only
+- it cannot feed presentation
+- it cannot feed scoring
+- it cannot change selection
+- it cannot become cache/history truth
+- it is deleted when cutover certification completes
+
+Temporary compatibility code must have a named deletion gate, an owning execution item, a prohibition against rider-facing use, and required removal before production certification.
+
+The cutover must delete or semantically strip at minimum:
+
+- route-analysis score authority
+- route-analysis traffic fallback authority
+- truthRuns score authority
+- truthRuns evidence-selection authority
+- truthSegments score authority
+- routeSpeedSegments score authority
+- HeatmapSegment score authority
+- displaySegmentsByZoom score authority
+- heatmap risk calculation
+- cached display-risk fallback
+- receipt traffic reconstruction
+- receipt score reconstruction
+- inspector traffic repair
+- inspector speed repair
+- inspector scoring
+- sectionDecisionModel current-score calculation
+- sectionDecisionModel risk-threshold application
+- routeScoreExplanation independent notable-driver ranking
+- presentation traffic-exposure derivation
+- generic sourceLabel fallback chains
+- route_cache score reconstruction
+- route_history score reconstruction
+- QuickPaint semantic output
+- RobustPaint semantic output
+- any alternate score trace
+- any independent sealed read-model authority
+
+A surviving structure may remain only when reduced to a pure mechanical presentation or geometry container.
+
+For example, Heatmap/display geometry may survive only if:
+
+- it is produced from ActiveTruthView
+- it carries parent ActiveScoreLedger ids
+- it carries no independent scoring logic
+- it carries no independent evidence selection
+- it carries no fallback
+- its risk style is copied mechanically from upstream
+- it cannot be persisted as canonical semantic truth
+
+Do not label old semantic authority deprecated and leave it executable. Delete it or strip it.
+
+---
+
+## 14. Package Dependency DAG
+
+Required dependency direction:
+
+```text
+source normalization / route projection
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
+
+Forbidden reverse imports:
+
+- RouteIndexedEvidenceLedger -> RouteBuilders
+- RouteIndexedEvidenceLedger -> scoring
+- RouteIndexedEvidenceLedger -> ActiveScoreLedger
+- RouteIndexedEvidenceLedger -> presentation
+- RouteBuilders -> RigidScoreLedger implementation
+- RouteBuilders -> ActiveScoreLedger
+- RouteBuilders -> presentation
+- RigidScoreLedger -> ActiveScoreLedger implementation
+- RigidScoreLedger -> presentation
+- ActiveScoreLedger -> presentation implementation
+- PresentationPanes -> RouteIndexedEvidenceLedger
+- PresentationPanes -> RouteBuilders
+- PresentationPanes -> RigidScoreLedger as authority
+- PresentationPanes -> source clients
+
+Canonical packages must not import React, Leaflet, components, pages, RouteMap, SegmentInspector, heatmap display builders, receipt presentation builders, route cache, route history, QuickPaint, RobustPaint, presentation formatters, or source HTTP clients, except where this spec explicitly identifies the downstream presentation subscriber boundary.
+
+---
+
+## 15. Cache And History
+
+`route_cache` and `route_history` may transport canonical artifacts only after they preserve the canonical artifact ids, revisions, digests, model versions, and invalidation policy required by the upstream authority.
+
+They may not reconstruct score, select evidence, repair missing values, create fallback traffic, infer provider labels, or become rider-facing semantic truth.
+
+Incompatible cache/history artifacts must be invalidated at cutover.
+
 
 
 ---
@@ -45582,7 +46265,7 @@ This ADR does **not** redefine Route Safety Score semantics.
 
 **Status:** Accepted  
 **Date:** 2026-05-10  
-**Related:** [DS-031](../02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md), [DS-030](../02-architecture/design/ds-030-route_analysis_contract.md), [DS-029](../02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-017](../02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md), [EXEC-024](../04-execution/exec-024-route_line_interval_ownership_program.md), ADR-042, ADR-043
+**Related:** [DS-031](../02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md), [DS-067](../02-architecture/design/ds-067-single_route_truth_and_score_ledger_pipeline_spec.md), [DS-030](../02-architecture/design/ds-030-route_analysis_contract.md), [DS-029](../02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-017](../02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md), [EXEC-024](../04-execution/exec-024-route_line_interval_ownership_program.md), [ADR-059](./adr-059-single_route_truth_and_score_ledger_pipeline.md), ADR-042, ADR-043
 
 ---
 
@@ -45641,6 +46324,21 @@ route axis
   -> derived metrics
   -> display / scoring / inspection adapters
 ```
+
+ADR-059 / DS-067 close the final authority chain for rider-facing route score semantics:
+
+```text
+CanonicalRouteAxis
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
+
+ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
 
 ---
 
@@ -45711,6 +46409,8 @@ Downstream scoring, route paint, viewport overlays, hazards, receipts, inspectio
 
 They may not reach backward into V2 internals, and V2 may not absorb scoring/presentation rules.
 
+After the ADR-059 hard cutover, rider-facing presentation surfaces may consume only mechanical ActiveTruthView projections from ActiveScoreLedger. Any surviving adapter must be mechanical presentation or geometry projection only and must not select evidence, score, apply fallback, infer provider labels, or reconstruct receipts.
+
 ---
 
 ## 4. Non-Goals
@@ -45779,6 +46479,8 @@ The migration path is:
 6. Promote V2 outputs only when they are more correct and more inspectable.
 
 Legacy truth may be used for comparison only. It must not become V2 evidence.
+
+ADR-059 requires hard cutover for rider-facing semantics. Legacy truth, truth runs, heatmap segments, route cache, route history, and old presentation structures may survive only as diagnostics, artifact transport, or mechanical geometry containers after their semantic authority is deleted or stripped.
 
 ---
 
@@ -48276,7 +48978,7 @@ The route-line v2 topology builder should:
 
 Status: Accepted
 Date: 2026-06-16
-Related: ADR-045, ADR-052, ADR-053, DS-031, DS-043, DS-044, DS-047, DS-055
+Related: ADR-045, ADR-052, ADR-053, ADR-059, DS-031, DS-043, DS-044, DS-047, DS-055, DS-067
 
 ------
 
@@ -48294,61 +48996,22 @@ The corrected architecture is ledger-first and no-leak.
 
 Lanterne will enforce `RouteIndexedEvidenceLedger` as the only upstream source boundary for route-indexed evidence.
 
-The required end-state architecture is:
+The ADR-059 / DS-067 required end-state architecture is:
 
-1. Route Inputs
-   GPX / Manual / RWGPS / RUSA / edits
+```text
+CanonicalRouteAxis
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
 
-2. RouteAxis / LinearRef
-   canonical route-distance coordinate system
-   `distM` / `startDistM` / `endDistM`
+`RouteIndexedEvidenceLedger` remains the only upstream source boundary for route-indexed evidence. `ActiveScoreLedger` is the only rider-facing semantic score authority.
 
-3. Source Projection Workers
-   project external facts onto RouteAxis
-   HPMS traffic is first proof layer
-
-4. RouteIndexedEvidenceLedger
-   route-version-scoped evidence ledger
-   candidate source facts
-   source lineage
-   provenance
-   confidence
-   diagnostics
-   unresolved gaps
-   layer registry
-
-5. Truth Selection Builders
-   Quick Builder / Robust Builder
-   consume the ledger only
-   select stable truth snapshots
-
-6. RouteSurfaceTruthBundle
-   durable selected truth
-   selected HPMS AADT baseline snapshots
-   stable score-driving evidence
-   receipts
-   rejected evidence refs
-   unresolved spans
-
-7. Ride Context / Temporal Binding
-   planned start time
-   expected pace
-   actual GPS progress later
-   `distM -> estimatedClockTime`
-
-8. Temporal Projector
-   selected `traffic_aadt` baseline
-   x route-time binding
-   x traffic-time multiplier
-
-9. ActiveTruthView
-   TruthBundle
-   + allowed temporal/context overlays
-   + receipts
-   + presentation-ready adapters
-
-10. Presentation
-    reads ActiveTruthView only
+`ActiveTruthView` is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
 
 ------
 
@@ -48358,7 +49021,9 @@ RouteIndexedEvidenceLedger is the only upstream source boundary for route-indexe
 
 Truth builders may consume the ledger.
 TruthBundle may snapshot selected evidence.
-ActiveTruthView may compose selected truth with allowed temporal/context evidence.
+RigidScoreLedger may score only RouteSurfaceTruthBundle outputs.
+ActiveScoreLedger may publish only RigidScoreLedger semantics plus explicitly documented active-scenario state.
+ActiveTruthView may mechanically project one ActiveScoreLedger revision.
 Presentation may read ActiveTruthView only.
 
 Presentation may not query raw HPMS.
@@ -48384,13 +49049,13 @@ The ledger does not become a presentation API. It is the input to truth selectio
 
 ### Truth selection is a separate boundary
 
-Quick Builder and Robust Builder consume the ledger only. They may select stable truth snapshots and preserve rejected evidence refs, but they may not query raw HPMS, inspect legacy truth runs, or discover source candidates themselves.
+TruthSelectionBuilders / RouteBuilders consume the ledger only. They may select stable truth snapshots and preserve rejected evidence refs, but they may not query raw HPMS, inspect legacy truth runs, discover source candidates themselves, score, format presentation strings, or act as rider-facing truth.
 
 ### RouteSurfaceTruthBundle is selected truth
 
 `RouteSurfaceTruthBundle` carries durable selected truth, selected HPMS AADT baseline snapshots, stable score-driving evidence, receipts, rejected refs, and unresolved spans.
 
-It may snapshot selected evidence. It must not become a raw source reader.
+It may snapshot selected evidence. It must not become a raw source reader, score ledger, rider-facing semantic score source, presentation DTO, cache authority, or history authority.
 
 For the traffic proof layer, the Phase 1.4 bridge is `RouteSurfaceStableTrafficOutput`: a traffic-only, partial, RouteSurfaceTruthBundle-compatible stable artifact that consumes `StableTrafficBaselineSnapshot` only. It preserves selected AADT value snapshots, unresolved and conflict spans, receipts, refs, coverage, and future bundle mapping. It is not the whole `RouteSurfaceTruthBundle`, and it must not carry ride-session state, temporal traffic exposure, scoring output, or presentation fields.
 
@@ -48404,17 +49069,30 @@ Temporal traffic exposure is not source truth. It is derived later from:
 
 `RouteTimeBinding` is ride-context state that maps canonical route distance to planned, observed, or actual-adjusted clock time. It uses meters, seconds, `speedKph`, absolute ISO instants, and explicit clock context. It must not read the evidence ledger, selected traffic output, traffic multipliers, scoring, heatmap, presentation modules, browser GPS APIs, or environment-local clock APIs.
 
-Temporal projection may feed `ActiveTruthView`, but it must not mutate the stable truth bundle or ledger.
+Temporal projection may feed a documented active-scenario input path before ActiveScoreLedger. It must not mutate the stable truth bundle, ledger, RigidScoreLedger, ActiveScoreLedger, or ActiveTruthView.
 
 The traffic temporal projection POC is `src/lib/temporal-projection/traffic-temporal-exposure.ts`. It consumes selected stable traffic truth, route-time binding, and an explicit `TrafficTimeMultiplierModel`, then emits route-indexed `traffic_temporal_exposure` spans plus receipts. This is contextual overlay state, not a route-version evidence ledger layer. The output uses `aadtEquivalent` for time-adjusted view exposure; it must not rename that estimate into durable effective AADT truth. Temporal spans use derived-model source/provenance, while HPMS lineage remains inside selected baseline refs and receipts. The projector must not query raw HPMS, source-projection internals, truth selection runtime selectors, legacy `truthRuns`, scoring, heatmap, presentation modules, browser GPS APIs, or environment-local clock APIs.
 
 `RideContextTemporalLedger` is the writable session/context ledger for route-time bindings and temporal overlays. The traffic POC implementation is `src/lib/ride-context/ride-context-temporal-ledger.ts` so `src/lib/route-time` remains traffic-agnostic. It is reducer-owned state, not a mutable object for components to poke. The clean transition is planned binding -> temporal projection -> ledger accepts projection; actual progress changes route-time binding -> ledger marks dependent temporal layer stale -> projector recomputes -> ledger accepts the new projection only if the current binding revision still matches. It may store planned/current `RouteTimeBinding`, binding history summaries, route-distance keyed observed timing summaries, `traffic_temporal_exposure` projection spans/receipts/coverage, projection id/digest refs, stable artifact id/digest refs, diagnostics, budgets, and a typed event log. It stores stable traffic artifact refs only; it must not mutate the evidence ledger, selected stable traffic truth, route-time bindings, temporal projections, future truth bundles, scoring, heatmap, presentation state, browser GPS payloads, or legacy truth runs.
 
-`ActiveTruthView` is the presentation firewall for the POC. The traffic implementation is `src/lib/active-truth/active-truth-view.ts`. It composes `RouteSurfaceStableTrafficOutput` with current `RideContextTemporalLedger` state, validates stable artifact id/digest, route axis, total distance, current route-time revision, route partition coverage, and policy budgets, then emits a sealed read model with `stable.trafficAadtBaseline`, `temporal.routeTime`, optional `temporal.trafficTemporalExposure`, `presentation.trafficOverlay`, `inspection.receiptIndex`, diagnostics, quality, capabilities, and deterministic content digest. It does not fetch, project, select, score, heatmap, render UI, promote candidates, query raw sources, inspect legacy `truthRuns`, couple to `RouteMap`, or recompute temporal traffic exposure. Missing temporal traffic may produce stable-only overlay. Stale temporal overlays may remain inspectable, but they must not be painted as current temporal exposure. Blocking route/source/payload/budget errors seal the presentation overlay as invalid.
+`ActiveTruthView` is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
+
+Conceptually:
+
+```text
+projectActiveScoreLedgerRevision(
+  activeScoreLedgerRevision,
+  presentationProjectionRequest
+) -> ActiveTruthView
+```
+
+Every ActiveTruthView must carry its parent ActiveScoreLedger id, revision, digest, active scenario id/version, source ActiveScoreLedger entry ids, canonical route intervals, and upstream receipt ids. It must not possess an independent semantic identity or independent truth digest. Any optional projection checksum is transport-only and cannot choose between values, become persisted truth, or make the projection authoritative.
+
+Historical POC implementations that composed selected stable traffic and ride-context temporal state directly into ActiveTruthView are lineage only after ADR-059 / DS-067. They are not a final rider-facing authority contract and must be migrated to the ActiveScoreLedger -> mechanical ActiveTruthView projection path.
 
 ### Presentation is downstream-only
 
-Presentation reads `ActiveTruthView` only. Presentation adapters can format, filter, and render already-selected truth and allowed overlays.
+Presentation reads mechanical `ActiveTruthView` projections only. Presentation adapters can format, filter, and render already-published ActiveScoreLedger semantics.
 
 Presentation cannot:
 
@@ -48423,6 +49101,11 @@ Presentation cannot:
 - recompute traffic exposure independently
 - promote candidates
 - decide score-driving truth
+- invoke scoring
+- choose risk buckets
+- rank notable drivers
+- reconstruct receipts
+- persist semantic truth
 
 ------
 
@@ -48434,10 +49117,12 @@ The codebase should keep these packages separate:
 - `src/lib/source-projection`: source projection workers/modules, starting with HPMS AADT
 - `src/lib/truth-selection`: stable truth selection builders that consume ledgers
 - `src/lib/route-surface-truth`: durable selected truth bundles
+- future `src/lib/rigid-score-ledger`: stable scoring and immutable score trace
+- future `src/lib/active-score-ledger`: active scenario semantic score authority
 - `src/lib/route-time`: ride context and route-time binding
 - future `src/lib/temporal-projection`: temporal/context projectors
-- future `src/lib/active-truth-view`: presentation-ready active truth composition
-- presentation components: ActiveTruthView consumers only
+- future `src/lib/active-truth-view`: mechanical ActiveScoreLedger projection only
+- presentation components: mechanical ActiveTruthView consumers only
 
 Any code path that violates these package responsibilities is architectural debt and should be removed, not normalized.
 
@@ -48448,6 +49133,8 @@ Any code path that violates these package responsibilities is architectural debt
 Legacy truth runs may be used for comparison, diagnostics, or compatibility adapters only.
 
 They must not be treated as RouteIndexedEvidenceLedger source facts. If an HPMS value exists only inside legacy truth runs, the V2 ledger must report an architectural gap or unresolved span rather than laundering that value into evidence.
+
+ADR-059 requires hard cutover. Compatibility adapters must not survive as rider-facing semantic paths. Any compatibility code must be diagnostics-only or mechanical geometry/transport only, must have a named deletion gate, and must be removed or semantically stripped before production certification.
 
 ------
 
@@ -48639,10 +49326,10 @@ Scenario results must not be cached as durable route truth.
 
 ### Presentation rule
 
-Presentation reads:
+Presentation reads mechanical projections from the active semantic authority:
 
-- `ActiveTruthView`
-- future `ScenarioTruthView` or `ScenarioView`
+- `ActiveTruthView` projected from ActiveScoreLedger
+- future scenario views only if they are equivalently mechanical projections from an approved active scenario score authority
 
 Presentation must not run the optimizer, fetch evidence, select candidates, or recompute contextual projections independently.
 
@@ -49897,4 +50584,308 @@ The architecture is satisfied only when:
 - cache-hit improvements are measured separately from render/apply improvements
 - worker and renderer decisions are backed by nonzero-road measurements
 - route risk paint, scoring, ownership, route inspection truth, RXON runtime, `route_cache`, `route_history`, and DB boundaries remain unchanged
+
+
+---
+
+## Source File: docs/03-adrs/adr-059-single_route_truth_and_score_ledger_pipeline.md
+
+# ADR-059 - Single Route Truth And Score Ledger Pipeline
+
+Status: Accepted
+Date: 2026-06-24
+Related: ADR-045, ADR-054, DS-031, DS-032, DS-055, DS-067, DS-015, DS-029
+
+------
+
+## Context
+
+Lanterne now has enough route-indexed evidence, selected-truth, scoring, diagnostic, and presentation surfaces that compatibility language can accidentally become a second route truth system.
+
+The long-term architecture must not allow RouteMap, SegmentInspector, receipts, heatmap segments, truth runs, route cache, route history, QuickPaint, RobustPaint, or any presentation pane to own semantic route truth or score truth.
+
+This ADR closes that ambiguity.
+
+------
+
+## Decision
+
+The accepted route truth and score pipeline is exactly:
+
+```text
+CanonicalRouteAxis
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
+
+There is one pipe. There is no deprecated compatibility option, alternate rider-facing truth contract, provisional score ledger, Quick score, Robust score, legacy rider-facing truth, fallback score path, or presentation-owned score state.
+
+Each stage has exactly one authority:
+
+| Stage | Authority |
+| --- | --- |
+| CanonicalRouteAxis | Sole route measurement axis |
+| RouteIndexedEvidenceLedger | Sole route-evidence authority |
+| TruthSelectionBuilders / RouteBuilders | Sole evidence selection and stable fact construction stage |
+| RouteSurfaceTruthBundle | Sole selected stable-fact bundle |
+| RigidScoreLedger | Sole stable route scoring authority |
+| ActiveScoreLedger | Sole rider-facing semantic score authority |
+| ActiveTruthView | Non-authoritative mechanical projection of one ActiveScoreLedger revision |
+| PresentationPanes | Rendering, formatting, and interaction only |
+
+The ActiveScoreLedger is the only rider-facing source of route score truth.
+
+------
+
+## ActiveTruthView Definition
+
+ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
+
+Conceptually:
+
+```text
+projectActiveScoreLedgerRevision(
+  activeScoreLedgerRevision,
+  presentationProjectionRequest
+) -> ActiveTruthView
+```
+
+ActiveTruthView may only:
+
+- select fields already present in an ActiveScoreLedger entry
+- select entries by canonical route-distance identity
+- organize those fields into a presentation-consumable shape
+- omit fields irrelevant to a specific pane
+- preserve exact semantic values
+- preserve exact receipt and lineage references
+- preserve the parent ActiveScoreLedger identity
+
+ActiveTruthView may not:
+
+- select evidence
+- apply precedence
+- construct Highway Baseline
+- derive scoring traffic
+- derive AADT per lane
+- invoke scoring
+- apply risk thresholds
+- choose a risk bucket
+- rank notable drivers
+- infer source provider
+- substitute selection class for provider
+- substitute confidence for provider
+- repair unknown or unresolved values
+- borrow neighboring values
+- apply fallback
+- round a value that will later participate in calculation
+- create receipts
+- mutate ActiveScoreLedger
+- persist separate semantic state
+- become cache or history authority
+
+Every ActiveTruthView must carry:
+
+- parent ActiveScoreLedger id
+- parent ActiveScoreLedger revision
+- parent ActiveScoreLedger digest
+- active scenario id/version
+- source ActiveScoreLedger entry ids
+- canonical route intervals
+- upstream receipt ids
+
+ActiveTruthView must not possess an independent semantic identity.
+
+If a projection identifier is operationally useful, it may identify only the projection request, field selection, or presentation version. It may not represent independent route truth.
+
+The only rider-facing semantic source identity is the ActiveScoreLedger revision.
+
+------
+
+## No Independent ActiveTruthView Digest
+
+The required invariant is:
+
+```text
+activeTruthView.parentActiveScoreLedgerDigest
+  === activeScoreLedger.digest
+```
+
+A projection may optionally have a non-authoritative structural checksum for transport corruption detection.
+
+That checksum:
+
+- is not a truth identity
+- is not a score identity
+- cannot be persisted as canonical analysis
+- cannot be used to choose between competing values
+- cannot make the projection authoritative
+
+------
+
+## Presentation Panes
+
+All presentation panes publish from the same ActiveScoreLedger revision through its mechanical ActiveTruthView projection.
+
+Presentation panes include:
+
+- RouteMap
+- SegmentInspector
+- RoadInfoCard
+- TruthSection
+- receipt panes
+- score summaries
+- route summaries
+- cue-associated risk displays
+- QuickPaint
+- RobustPaint
+- future temporal presentation surfaces
+
+Presentation panes may:
+
+- render exact ActiveTruthView values
+- format units
+- apply locale formatting
+- round final displayed values
+- map an upstream canonical risk-style token to CSS
+- aggregate geometry for rendering only
+- animate or progressively reveal already-published facts
+
+Presentation panes may not:
+
+- access RouteIndexedEvidenceLedger
+- access evidence candidates
+- invoke TruthSelectionBuilders or RouteBuilders
+- access RouteSurfaceTruthBundle as an alternate rider-facing source
+- access RigidScoreLedger as an alternate rider-facing source
+- invoke scoring
+- calculate risk
+- calculate risk deltas
+- choose notable drivers
+- derive traffic exposure
+- create source labels from generic fallback chains
+- reconstruct receipts
+- persist semantic truth
+- cache their own score interpretation
+
+No pane may use another pane's output as input.
+
+------
+
+## QuickPaint And RobustPaint
+
+QuickPaint and RobustPaint are presentation policies over the same ActiveTruthView projection from the same ActiveScoreLedger revision.
+
+They may differ only in:
+
+- draw scheduling
+- animation
+- reveal timing
+- render density
+- zoom aggregation
+- geometric simplification that does not cross semantic boundaries
+- visual performance strategy
+
+They must share:
+
+- parent ActiveScoreLedger id
+- parent ActiveScoreLedger revision
+- parent ActiveScoreLedger digest
+- ActiveScoreLedger entry ids
+- route intervals
+- evidence lineage
+- score inputs
+- Road Risk
+- Crossing Risk
+- Total Risk
+- Risk Per Mile
+- risk bucket
+- notable driver
+- source provider
+- provenance
+- confidence
+- selection classification
+- receipts
+
+There is no Quick evidence, Robust evidence, Quick RouteSurfaceTruthBundle, Robust RouteSurfaceTruthBundle, Quick RigidScoreLedger, Robust RigidScoreLedger, Quick ActiveScoreLedger, Robust ActiveScoreLedger, Quick fallback, Robust fallback, Quick cache truth, or Robust cache truth.
+
+A paint-mode toggle may not trigger source fetching, projection, ledger mutation, evidence selection, RouteBuilder execution, RigidScoreLedger construction, ActiveScoreLedger construction, cache hydration, history hydration, or rescoring.
+
+------
+
+## Hard Cutover
+
+The new canonical pipe must be activated by hard cutover.
+
+During isolated development:
+
+- the current production implementation may remain untouched
+- the new pipe may run only in tests and diagnostics
+- comparisons may be produced outside rider-facing presentation
+
+At production cutover:
+
+1. activate the new canonical pipe
+2. connect presentation solely through ActiveTruthView
+3. delete or strip all competing semantic authorities in the same cutover program
+4. invalidate incompatible cache/history artifacts
+5. do not retain a rider-facing fallback to the old semantic path
+
+Shadow comparison is allowed only when it is diagnostics-only, cannot feed presentation, cannot feed scoring, cannot change selection, cannot become cache/history truth, and is deleted when cutover certification completes.
+
+No temporary compatibility code may survive without a named deletion gate, an owning execution item, a prohibition against rider-facing use, and required removal before production certification.
+
+------
+
+## Semantic Authorities To Delete Or Strip At Cutover
+
+At cutover, the implementation must delete or semantically strip every competing authority, including at minimum:
+
+- route-analysis score authority
+- route-analysis traffic fallback authority
+- truthRuns score authority
+- truthRuns evidence-selection authority
+- truthSegments score authority
+- routeSpeedSegments score authority
+- HeatmapSegment score authority
+- displaySegmentsByZoom score authority
+- heatmap risk calculation
+- cached display-risk fallback
+- receipt traffic reconstruction
+- receipt score reconstruction
+- inspector traffic repair
+- inspector speed repair
+- inspector scoring
+- sectionDecisionModel current-score calculation
+- sectionDecisionModel risk-threshold application
+- routeScoreExplanation independent notable-driver ranking
+- presentation traffic-exposure derivation
+- generic sourceLabel fallback chains
+- route_cache score reconstruction
+- route_history score reconstruction
+- QuickPaint semantic output
+- RobustPaint semantic output
+- any alternate score trace
+- any independent sealed read-model authority
+
+A surviving structure may remain only when reduced to a pure mechanical presentation or geometry container produced from ActiveTruthView, carrying parent ActiveScoreLedger ids, carrying no independent scoring logic, carrying no independent evidence selection, carrying no fallback, copying risk style mechanically from upstream, and unable to persist as canonical semantic truth.
+
+Old semantic authority must not be labeled deprecated and left executable. It must be deleted or stripped.
+
+------
+
+## Consequences
+
+- The RouteIndexedEvidenceLedger remains the only route-evidence authority.
+- TruthSelectionBuilders / RouteBuilders remain the only stage that can select or build stable route facts.
+- RouteSurfaceTruthBundle remains selected stable fact storage, not rider-facing score truth.
+- RigidScoreLedger owns stable scoring and canonical score trace.
+- ActiveScoreLedger owns rider-facing semantic score truth for an active scenario revision.
+- ActiveTruthView is a mechanical projection, not a ledger, selector, scorer, cache, or independent read-model authority.
+- Presentation panes subscribe and render only.
+
 

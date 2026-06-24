@@ -60475,6 +60475,790 @@ Do not use debug-panel repair as a substitute for that authority cutover.
 
 ---
 
+## Source File: docs/04-execution/exec-060-traffic_truth_spine_rebuild_program.md
+
+# EXEC-060 — Traffic Truth Spine Rebuild Program
+
+- **Status:** Accepted Program Direction; implementation gated phase by phase
+- **Owner:** Derek Minner
+- **Date:** 2026-06-24
+- **Audited product base SHA:** `6bccc39270684834eadecb3060cfa8dd2e913993`
+- **Controlling authority:** ADR-059 and DS-067
+- **Supporting authority:** ADR-045, ADR-054, DS-031, DS-032, DS-055
+
+This document is operational. It exists to be executed phase by phase, not admired. Every
+phase below names exact contracts, exact package roots, exact fail-closed behavior, and exact
+gate evidence. Where this document and any older plan disagree, this document governs the
+traffic truth spine rebuild.
+
+---
+
+## EXEC Number Inventory
+
+This program reserves the execution number **EXEC-060**.
+
+- **Audited base SHA inventoried:** `6bccc39270684834eadecb3060cfa8dd2e913993` (the verified
+  product `origin/main` at program start).
+- **Inventory commands (run case-insensitively against the audited base):**
+  - `git ls-files 'docs/**' | grep -iE 'exec-[0-9]{3}'` — every tracked `docs` path carrying an
+    `exec-NNN` filename.
+  - `git grep -rIih -oE 'exec-[0-9]{3}' -- docs | tr 'A-Z' 'a-z' | sort -u` — every tracked
+    documentation reference matching `EXEC-NNN`/`exec-NNN`.
+  - `git ls-files | grep -iE 'exec[-_ ]?060'` — any filename use of EXEC-060.
+  - `git grep -rIil -E 'exec[-_ ]?060' -- .` — any content reservation/mention of EXEC-060.
+- **Highest existing active number found:** `exec-059`
+  (`docs/04-execution/exec-059-hpms-debug-panel-field-and-toggle-wiring-plan.md`).
+- **EXEC-060 result:** zero matches. EXEC-060 / exec-060 is not an existing file number, not an
+  existing report number, not mentioned as active, not reserved, not planned, not assigned in any
+  index, and not assigned in any handoff.
+- **Decision:** assign and reserve **EXEC-060** for the Traffic Truth Spine Rebuild Program.
+
+---
+
+## 9.1 Authority And Supersession
+
+- **EXEC-060 supersedes continuation of the old EXEC-059 implementation.** EXEC-059 is no longer
+  an active implementation track for the traffic truth spine.
+- **Old EXEC-059 branches and worktrees are frozen evidence.** They must not be entered, reset,
+  cleaned, rebased, repaired, reused, or advanced. They exist only to be cited.
+- **Audit findings are accepted as architecture evidence but are not exhaustive machine proof.**
+  An audit observation establishes direction; it does not by itself satisfy any phase gate.
+- **ADR-059 and DS-067 are controlling authority.** ADR-045, ADR-054, DS-031, DS-032, and DS-055
+  are supporting authority. Any conflict resolves toward ADR-059 / DS-067.
+- **Temporal/scenario integration under EXEC-058, DS-065, and DS-066 is paused.**
+- **No traffic-spine phase may integrate temporal logic.** The rebuild is default/non-temporal
+  scenario only.
+- **No phase begins before the preceding phase receives PROCEED.**
+
+This program does not authorize copying, cherry-picking, or restoring any production source code,
+test, configuration, or environment change from the contaminated audit snapshot. Only the eight
+allowlisted documentation blobs were imported. Implementation in every phase P01–P11 is
+clean-room against the controlling authority.
+
+---
+
+## 9.2 Canonical Product Terms
+
+The only canonical risk vocabulary is:
+
+- **Road Risk**
+- **Crossing Risk**
+- **Total Risk**
+- **Risk Per Mile**
+
+Definitions:
+
+- **Road Risk + Crossing Risk = Total Risk**
+- **Total Risk / route miles = Risk Per Mile**
+- **Higher risk means less safe.**
+- **Lower risk means safer.**
+
+A normalized 0–100 Safety Score and letter grades **are not canonical authority.** They may be
+presented as derived, downstream conveniences only, and never treated as the source of risk truth.
+
+Historical references to older scoring vocabulary may remain in the corpus only when explicitly
+labeled **stale** or **superseded**. New documents, contracts, and code paths use the canonical
+terms above exclusively.
+
+---
+
+## 9.3 Missing And Unresolved Traffic
+
+Exact rules:
+
+- **Zero is valid traffic data.**
+- **Zero must never represent missing traffic.**
+- **No certified selected traffic means no RigidScoreLedger entry.**
+- **No RigidScoreLedger entry means no ActiveScoreLedger entry.**
+- **No ActiveScoreLedger entry means no finalized rider-facing risk.**
+- **Unresolved traffic is a blocker.**
+- **"unknown" is not score-bearing.**
+- **Raw and normalized source evidence may remain diagnostic.**
+- **Uncertified traffic cannot score or publish.**
+
+Presence and status must be carried by a **typed presence/status contract** — an explicit
+discriminated state such as `resolved` / `unresolved` / `absent` with a typed payload only on
+`resolved`. Truthiness checks, numeric sentinels (`-1`, `0`, `NaN`, `null`-as-missing), and
+"falsy means missing" idioms are forbidden as missing-value signals. Missingness is a type, not a
+magnitude.
+
+---
+
+## 9.4 Accepted Single Pipe
+
+The single accepted semantic pipe is exactly:
+
+```
+CanonicalRouteAxis
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
+
+There is **no** alternate semantic pipe, **no** compatibility authority, **no** Quick authority,
+**no** Robust authority, **no** debug authority, **no** cache authority, and **no** history
+authority. Every rider-facing risk value originates from this pipe and only this pipe.
+
+---
+
+## 9.5 Exact Production Package Topology
+
+Exact public package boundaries:
+
+| Responsibility | Public boundary |
+| --- | --- |
+| Canonical route-axis public boundary | `src/lib/route-line/` |
+| Source-only traffic normalization | `src/lib/source-normalization/traffic/` |
+| Traffic route projection | `src/lib/source-projection/traffic/` |
+| Traffic ledger admission and typed candidate contracts | `src/lib/route-evidence/traffic/` |
+| Sole stable traffic selector | `src/lib/truth-selection/traffic/` |
+| Stable selected-fact bundle | `src/lib/route-surface-truth/` |
+| Sole stable scoring authority | `src/lib/rigid-score-ledger/` |
+| Sole rider-facing semantic score authority | `src/lib/active-score-ledger/` |
+| Mechanical projection | `src/lib/active-truth/` |
+| Presentation-only adapters and formatters | `src/lib/presentation/active-truth/` |
+| Canonical cache/history transport | `src/lib/route-analysis-transport/` |
+| Deterministic fixtures | `src/test/fixtures/traffic-spine/` |
+| Architecture/import enforcement tests | `src/test/architecture/traffic-spine/` |
+| Repository-level import guard | `scripts/architecture/traffic-spine-import-guard.mjs` |
+
+Topology rules:
+
+- **Each canonical package exposes one public `index.ts`.**
+- **Downstream packages import public entrypoints, not internals.**
+- **Source normalization may not know route position.**
+- **Source projection may not select or score.**
+- **route-evidence may not import selection, scoring, UI, cache, or history.**
+- **truth-selection may import only public route-evidence and route-axis contracts.**
+- **route-surface-truth may import only selected builder artifacts.**
+- **rigid-score-ledger may import only `RouteSurfaceTruthBundle` and its own internal versioned
+  model policy.**
+- **active-score-ledger may import only `RigidScoreLedger` plus explicitly approved scenario
+  contracts.**
+- **P06 is default/non-temporal scenario only.**
+- **active-truth may import only active-score-ledger public contracts.**
+- **presentation may consume `ActiveTruthView` semantics only.**
+- **route-analysis-transport is downstream transport and cannot be imported by canonical
+  authorities.**
+- **No canonical package imports** React, Leaflet, components, pages, `RouteMap`,
+  `SegmentInspector`, `HeatmapSegment`, route cache, route history, `QuickPaint`, `RobustPaint`,
+  presentation strings, or HTTP clients.
+- **`src/lib/route-line-v2/axis.ts` may temporarily sit behind the `src/lib/route-line` public
+  boundary, but no new downstream package may import it directly.**
+- **P10 must remove any temporary direct-import exception.**
+
+---
+
+## 9.6 Exact Planned Public Constructors
+
+These public constructor/operation names are required outputs of their phases. A later phase may
+change a name **only** through an explicit ADR/DS amendment approved **before** implementation.
+
+| Phase | Public constructor / operation |
+| --- | --- |
+| P01 | `normalizeHpmsTrafficSourceRecord(...)` |
+| P02 | `projectNormalizedTrafficSourceRecord(...)` |
+| P02 | `admitRouteIndexedTrafficCandidate(...)` |
+| P03 | `completeTrafficCandidateSet(...)` |
+| P03 | `selectStableTraffic(...)` |
+| P04 | `buildRouteSurfaceTruthBundle(...)` |
+| P05 | `buildRigidScoreLedgerRevision(...)` |
+| P06 | `publishActiveScoreLedgerRevision(...)` |
+| P07 | `projectActiveScoreLedgerRevision(...)` |
+| P09 | `serializeActiveScoreLedgerArtifact(...)` |
+| P09 | `hydrateActiveScoreLedgerArtifact(...)` |
+
+---
+
+## 9.7 Semantic Type Separation
+
+The following must be **separately typed fields**. A generic string must not carry more than one
+of these meanings:
+
+- provider identity
+- source system / backend
+- source dataset
+- source record identity
+- provenance
+- confidence
+- selection class
+- scoring eligibility
+- source freshness / version
+- units
+
+**Highway Baseline:**
+
+- is a **typed pre-selector candidate**;
+- may be selected with `selectionClass = highway_baseline`;
+- **is not a provider**;
+- may **not** populate provider identity with `"Highway Baseline"`;
+- must retain the actual producing source/model identity separately.
+
+**A finite selected traffic value without explicit provider identity is a blocker.**
+
+---
+
+## 9.8 Phase Program P00–P11
+
+Each phase section below defines: purpose; exact input contract; exact output contract;
+authoritative owner; package roots allowed to change; package roots forbidden to change; permitted
+responsibilities; forbidden responsibilities; deterministic fixtures; focused tests;
+architecture/import checks; runtime proof status required; explicit fail-closed behavior; entry
+gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
+
+---
+
+### P00 — Authority Documents And Program Governance
+
+- **Purpose:** Establish the controlling authority, canonical terms, package topology, phase
+  program, fixtures, guard matrix, deletion register, and review protocol. Documentation and
+  governance only.
+- **Input contract:** Verified product base SHA `6bccc39270684834eadecb3060cfa8dd2e913993`; the
+  eight allowlisted immutable documentation blobs from the audit snapshot.
+- **Output contract:** This EXEC-060 program document; the reusable phase-gate checklist; the
+  eight restored immutable documents — one P00 documentation commit on
+  `traffic-spine/p00-authority-plan`.
+- **Authoritative owner:** Program governance (this document).
+- **Package roots allowed to change:** `docs/02-architecture/design/`, `docs/03-adrs/`,
+  `docs/04-execution/` (only the ten allowlisted files).
+- **Package roots forbidden to change:** `src/**`, all tests, `package.json`, lockfiles, tsconfig,
+  Vite config, ESLint config, GitHub workflows, Supabase files, scripts, environment files,
+  generated files, screenshots, audit reports, old EXEC-059 files, README files outside the
+  allowlist.
+- **Permitted responsibilities:** documentation, governance, importing the eight immutable blobs.
+- **Forbidden responsibilities:** any traffic behavior, TypeScript, tests, runtime integration,
+  scoring, UI cutover, cache behavior, deployment, code copied from the audit snapshot.
+- **Deterministic fixtures:** none authored; fixture **registry** documented (§9.9).
+- **Focused tests:** none. Test execution is prohibited in P00.
+- **Architecture/import checks:** none executed; guard matrix documented (§9.10).
+- **Runtime proof status required:** none. P00 is documentation and Git integrity only.
+- **Fail-closed behavior:** any ambiguity, collision, mismatch, or scope requirement outside the
+  P00 prompt is a STOP; no branch, worktree, commit, or push proceeds past the unmet condition.
+- **Entry gate:** verified `origin/main` == base SHA; verified audit branch head; zero EXEC-060
+  collision; target remote branches absent.
+- **Exit gate:** eight blob hashes match the manifest; staged changes limited to the ten
+  allowlisted files; one commit; P00 branch pushed; base and integration branches unmoved.
+- **Legacy deletion obligation:** none in P00 (register authored for later phases, §9.11).
+- **Expected final-gate evidence:** repository, branch, base SHA, integration SHA, P00 head/parent/
+  tree SHAs, commit count of one, blob-hash manifest verification, allowlist diff proof.
+
+---
+
+### P01 — Source-Only Traffic Normalization
+
+- **Purpose:** Produce typed, source-only normalized traffic records.
+- **Input contract:** Raw HPMS traffic source records.
+- **Output contract:** Normalized source records via `normalizeHpmsTrafficSourceRecord(...)` with
+  separately typed provider/source/dataset/record-identity/provenance/confidence/freshness/units
+  fields and a typed presence/status contract.
+- **Authoritative owner:** `src/lib/source-normalization/traffic/`.
+- **Package roots allowed to change:** `src/lib/source-normalization/traffic/`,
+  `src/test/fixtures/traffic-spine/`, `src/test/architecture/traffic-spine/`.
+- **Package roots forbidden to change:** route-axis internals, projection, route-evidence,
+  selection, scoring, active-truth, presentation, cache/history, UI.
+- **Permitted responsibilities:** parse, normalize, type, classify source fields.
+- **Forbidden responsibilities:** route distance, selection, scoring, presentation, knowledge of
+  route position.
+- **Deterministic fixtures:** South Las Vegas AADT source; lane-count source (§9.9).
+- **Focused tests:** normalization typing and presence/status.
+- **Architecture/import checks:** normalization imports nothing route-positional, selective,
+  scoring, presentational, cache, or history.
+- **Runtime proof status required:** unit-level normalization proof; no runtime composition.
+- **Fail-closed behavior:** unparseable/unknown source field yields typed `unresolved`/`absent`,
+  never a sentinel value.
+- **Entry gate:** P00 PROCEED.
+- **Exit gate:** typed normalized record contract met; no route-position knowledge.
+- **Legacy deletion obligation:** none yet.
+- **Expected final-gate evidence:** constructor name, input/output types, fixture-backed test,
+  import-guard result.
+
+---
+
+### P02 — Geometric Route Projection And Ledger Admission
+
+- **Purpose:** Project normalized records onto the canonical route axis and admit typed candidates
+  into the `RouteIndexedEvidenceLedger`.
+- **Input contract:** Normalized source records (P01) plus `CanonicalRouteAxis`.
+- **Output contract:** `projectNormalizedTrafficSourceRecord(...)` and
+  `admitRouteIndexedTrafficCandidate(...)` producing route-indexed candidates over **half-open
+  intervals**.
+- **Authoritative owner:** `src/lib/source-projection/traffic/` and
+  `src/lib/route-evidence/traffic/`.
+- **Package roots allowed to change:** `src/lib/source-projection/traffic/`,
+  `src/lib/route-evidence/traffic/`, fixtures, architecture tests.
+- **Package roots forbidden to change:** selection, scoring, surface-truth, active-truth,
+  presentation, cache/history.
+- **Permitted responsibilities:** geometric projection, half-open interval admission, typed
+  candidate construction.
+- **Forbidden responsibilities:** trusting an embedded `routeWindow`; preselection scoring
+  derivation; selection; scoring.
+- **Deterministic fixtures:** route-indexed projection of the South Las Vegas AADT fixture.
+- **Focused tests:** half-open interval correctness; no embedded-window trust.
+- **Architecture/import checks:** route-evidence imports neither truth-selection, scoring,
+  presentation, cache, nor history.
+- **Runtime proof status required:** projection/admission unit proof.
+- **Fail-closed behavior:** records that cannot be projected are admitted as typed unresolved, not
+  dropped silently nor scored.
+- **Entry gate:** P01 PROCEED.
+- **Exit gate:** half-open admission proven; no preselection scoring.
+- **Legacy deletion obligation:** none yet.
+- **Expected final-gate evidence:** constructor names, interval contract, import-guard result.
+
+---
+
+### P03 — Single Candidate Family And Single Selector
+
+- **Purpose:** Provide exactly one traffic candidate family and exactly one stable selector.
+- **Input contract:** Route-indexed candidates (P02).
+- **Output contract:** `completeTrafficCandidateSet(...)` and `selectStableTraffic(...)` producing
+  certified selected traffic with immutable receipts.
+- **Authoritative owner:** `src/lib/truth-selection/traffic/`.
+- **Package roots allowed to change:** `src/lib/truth-selection/traffic/`, fixtures, architecture
+  tests.
+- **Package roots forbidden to change:** source clients, scoring, surface-truth, active-truth,
+  presentation, cache/history.
+- **Permitted responsibilities:** completion of the candidate set; stable selection among
+  **approved score-bearing selection classes only**:
+  `authoritative_posted`, `authoritative_inferred`, `local_area_predicted`, `highway_baseline`.
+- **Forbidden responsibilities:** scoring; presentation; provider fabrication.
+- **Deterministic fixtures:** West Hacienda unknown-versus-receipt disagreement (§9.9); Highway
+  Baseline typed candidate; missing-provider fixture.
+- **Focused tests:** selection-class admission; immutable receipts; unresolved stays a blocker.
+- **Architecture/import checks:** truth-selection imports only public route-evidence and
+  route-axis contracts, never source clients.
+- **Runtime proof status required:** selector unit proof over fixtures.
+- **Fail-closed behavior:** **unresolved remains a blocker**; receipts are immutable; **Highway
+  Baseline is not a provider**.
+- **Entry gate:** P02 PROCEED.
+- **Exit gate:** one candidate family, one selector, approved classes only, immutable receipts.
+- **Legacy deletion obligation:** begin retiring competing selectors (register, §9.11).
+- **Expected final-gate evidence:** constructor names, selection-class enumeration, receipt
+  immutability proof.
+
+---
+
+### P04 — Route Surface Truth Bundle
+
+- **Purpose:** Assemble all score-bearing facts for the vertical slice from selected ledger truth.
+- **Input contract:** Selected stable traffic and other selected ledger facts.
+- **Output contract:** `buildRouteSurfaceTruthBundle(...)` producing `RouteSurfaceTruthBundle`.
+- **Authoritative owner:** `src/lib/route-surface-truth/`.
+- **Package roots allowed to change:** `src/lib/route-surface-truth/`, fixtures, architecture
+  tests.
+- **Package roots forbidden to change:** scoring, active-truth, presentation, cache/history.
+- **Permitted responsibilities:** assemble selected builder artifacts into a stable bundle.
+- **Forbidden responsibilities:** consuming `HeatmapSegment`, `RouteSpeedSegment`, debug snapshot,
+  cache, history, `QuickPaint`, `RobustPaint`, display DTO, or receipt reconstruction input.
+- **Deterministic fixtures:** bundle assembled from selected South Las Vegas / lane fixtures.
+- **Focused tests:** all score-bearing facts arrive through selected ledger truth.
+- **Architecture/import checks:** route-surface-truth imports only selected builder artifacts; no
+  heatmap/display/cache/history types.
+- **Runtime proof status required:** bundle-composition unit proof.
+- **Fail-closed behavior:** **scoring is blocked until every score-bearing fact arrives through
+  selected ledger truth.**
+- **Entry gate:** P03 PROCEED.
+- **Exit gate:** bundle proven to source only from selected truth.
+- **Legacy deletion obligation:** mark `ResolvedTrafficTruth`-style inputs for deletion (§9.11).
+- **Expected final-gate evidence:** constructor name, bundle field provenance, import-guard result.
+
+---
+
+### P05 — Rigid Score Ledger
+
+- **Purpose:** Compute the single authoritative score.
+- **Input contract:** `RouteSurfaceTruthBundle` (P04).
+- **Output contract:** `buildRigidScoreLedgerRevision(...)` producing a `RigidScoreLedger` revision.
+- **Authoritative owner:** `src/lib/rigid-score-ledger/`.
+- **Package roots allowed to change:** `src/lib/rigid-score-ledger/`, fixtures, architecture tests.
+- **Package roots forbidden to change:** active-score-ledger, active-truth, presentation,
+  cache/history.
+- **Permitted responsibilities:** **RigidScoreLedger is the only scorer.** It owns exact unrounded
+  inputs, **Road Risk**, **Crossing Risk**, **Total Risk**, **Risk Per Mile**, risk bucket,
+  notable-driver ranking, score trace, receipts, model version, and formula version.
+- **Forbidden responsibilities:** importing `ActiveScoreLedger` implementation or presentation;
+  any selection or projection.
+- **Deterministic fixtures:** South Las Vegas total AADT `57,000` driving Road Risk inputs.
+- **Focused tests:** unrounded inputs, Road/Crossing/Total Risk and Risk Per Mile, ranking, trace,
+  receipts, model/formula version.
+- **Architecture/import checks:** rigid-score-ledger imports only `RouteSurfaceTruthBundle` and its
+  own internal versioned model policy.
+- **Runtime proof status required:** scoring unit proof with golden values.
+- **Fail-closed behavior:** no certified selected traffic ⇒ no RigidScoreLedger entry.
+- **Entry gate:** P04 PROCEED.
+- **Exit gate:** single scorer proven; canonical risk terms only.
+- **Legacy deletion obligation:** mark alternate scorers / score traces for deletion (§9.11).
+- **Expected final-gate evidence:** constructor name, golden risk values, receipt + version proof.
+
+---
+
+### P06 — Active Score Ledger
+
+- **Purpose:** Publish the sole rider-facing semantic score authority.
+- **Input contract:** `RigidScoreLedger` revision (P05) plus explicitly approved default-scenario
+  contracts.
+- **Output contract:** `publishActiveScoreLedgerRevision(...)` producing an `ActiveScoreLedger`
+  revision.
+- **Authoritative owner:** `src/lib/active-score-ledger/`.
+- **Package roots allowed to change:** `src/lib/active-score-ledger/`, fixtures, architecture
+  tests.
+- **Package roots forbidden to change:** presentation, active-truth internals, cache/history,
+  scoring internals.
+- **Permitted responsibilities:** publish a rider-facing semantic revision for the **default /
+  non-temporal scenario only**.
+- **Forbidden responsibilities:** **no EXEC-058, DS-065, DS-066, route-time, or temporal-projection
+  integration**; no selection, repair, or rescoring; no presentation import.
+- **Deterministic fixtures:** missing-provider fixture (cannot publish); fresh/cache/history
+  identity fixture.
+- **Focused tests:** publish gating; default-scenario only; fail-closed on missing provider.
+- **Architecture/import checks:** active-score-ledger imports only `RigidScoreLedger` plus approved
+  scenario contracts; never presentation.
+- **Runtime proof status required:** publish unit proof.
+- **Fail-closed behavior:** a finite selected traffic value without explicit provider identity
+  cannot publish to `ActiveScoreLedger`; no RigidScoreLedger entry ⇒ no ActiveScoreLedger entry.
+- **Entry gate:** P05 PROCEED.
+- **Exit gate:** sole semantic authority proven; non-temporal only.
+- **Legacy deletion obligation:** mark `ProductionTrafficTruthArtifact` /
+  `TrafficTruthArtifactProvider` for deletion (§9.11).
+- **Expected final-gate evidence:** constructor name, publish gating proof, temporal-isolation
+  proof.
+
+---
+
+### P07 — Active Truth View Mechanical Projection
+
+- **Purpose:** Provide a deterministic mechanical projection of one `ActiveScoreLedger` revision.
+- **Input contract:** One `ActiveScoreLedger` revision (P06).
+- **Output contract:** `projectActiveScoreLedgerRevision(...)` producing an `ActiveTruthView`.
+- **Authoritative owner:** `src/lib/active-truth/`.
+- **Package roots allowed to change:** `src/lib/active-truth/`, fixtures, architecture tests.
+- **Package roots forbidden to change:** route-evidence, truth-selection, route-surface-truth,
+  scoring, presentation.
+- **Permitted responsibilities:** mechanical, deterministic projection of a single revision.
+- **Forbidden responsibilities:** **no independent semantic id or semantic digest**; no selection,
+  scoring, fallback, repair, provider inference, or receipt creation.
+- **Deterministic fixtures:** projection of the published revision from P06 fixtures.
+- **Focused tests:** determinism; no independent identity/digest; no semantic mutation.
+- **Architecture/import checks:** active-truth imports only active-score-ledger public contracts.
+- **Runtime proof status required:** projection determinism proof.
+- **Fail-closed behavior:** absent revision ⇒ no view; never fabricate.
+- **Entry gate:** P06 PROCEED.
+- **Exit gate:** mechanical projection proven; no semantic authority.
+- **Legacy deletion obligation:** mark the current direct `ActiveTruthView` composer for deletion
+  (§9.11).
+- **Expected final-gate evidence:** constructor name, determinism proof, identity-passthrough proof.
+
+---
+
+### P08A — Inspector And Inspect-Receipt Cutover
+
+- **Purpose:** Cut the main inspector surfaces to `ActiveTruthView` semantics.
+- **Input contract:** `ActiveTruthView` (P07).
+- **Output contract:** main inspector, traffic details, source/provider, source type, and inspect
+  receipt all read from `ActiveTruthView`.
+- **Authoritative owner:** `src/lib/presentation/active-truth/`.
+- **Package roots allowed to change:** `src/lib/presentation/active-truth/`, presentation surfaces,
+  fixtures, architecture tests.
+- **Package roots forbidden to change:** any canonical authority package internals.
+- **Permitted responsibilities:** presentation-only adaptation and formatting.
+- **Forbidden responsibilities:** selection, scoring, provider inference, receipt construction.
+- **Deterministic fixtures:** inspector render over the published revision.
+- **Focused tests:** inspector reads `ActiveTruthView`; source/provider/source-type separation
+  preserved.
+- **Architecture/import checks:** presentation consumes `ActiveTruthView` semantics only.
+- **Runtime proof status required:** inspector render proof over fixture.
+- **Fail-closed behavior:** unresolved ⇒ inspector shows unresolved, never a sentinel.
+- **Entry gate:** P07 PROCEED.
+- **Exit gate:** inspector cutover proven.
+- **Legacy deletion obligation:** mark selected-evidence display snapshots as rider truth for
+  deletion (§9.11).
+- **Expected final-gate evidence:** surface list, import-guard result, render proof.
+
+---
+
+### P08B — Receipt And Summary Surface Cutover
+
+- **Purpose:** Cut analyze-road receipt, cue sheet, cue detail, route summary, route score
+  explanation, and mobile/desktop duplicates to `ActiveTruthView`.
+- **Input contract:** `ActiveTruthView` (P07).
+- **Output contract:** all listed surfaces (including mobile/desktop duplicates) read from
+  `ActiveTruthView`.
+- **Authoritative owner:** `src/lib/presentation/active-truth/`.
+- **Package roots allowed to change:** presentation surfaces, fixtures, architecture tests.
+- **Package roots forbidden to change:** canonical authority internals.
+- **Permitted responsibilities:** presentation-only adaptation.
+- **Forbidden responsibilities:** selection, scoring, provider inference, receipt construction,
+  presentation traffic calculations.
+- **Deterministic fixtures:** summary/explanation render over published revision.
+- **Focused tests:** every listed surface and its duplicate read identical semantics.
+- **Architecture/import checks:** presentation consumes `ActiveTruthView` only.
+- **Runtime proof status required:** surface render proof.
+- **Fail-closed behavior:** unresolved ⇒ surfaced as unresolved.
+- **Entry gate:** P08A PROCEED.
+- **Exit gate:** all listed surfaces cut over with duplicate parity.
+- **Legacy deletion obligation:** mark presentation traffic calculations for deletion (§9.11).
+- **Expected final-gate evidence:** surface list, duplicate-parity proof.
+
+---
+
+### P08C — Quick/Robust Paint Unification
+
+- **Purpose:** Guarantee `QuickPaint` and `RobustPaint` share one semantic source.
+- **Input contract:** `ActiveTruthView` over one `ActiveScoreLedger` revision.
+- **Output contract:** `QuickPaint` and `RobustPaint` share **one** `ActiveScoreLedger` id,
+  revision, digest, entries, semantics, source identities, and receipts.
+- **Authoritative owner:** `src/lib/presentation/active-truth/`.
+- **Package roots allowed to change:** presentation paint adapters, fixtures, architecture tests.
+- **Package roots forbidden to change:** canonical authority internals.
+- **Permitted responsibilities:** only **scheduling, animation, density, reveal timing, and
+  boundary-preserving simplification** may differ between Quick and Robust.
+- **Forbidden responsibilities:** any semantic selection, scoring, identity, or digest divergence
+  between Quick and Robust.
+- **Deterministic fixtures:** Quick/Robust parity fixture (§9.9).
+- **Focused tests:** Quick and Robust assert identical id/revision/digest/entries/semantics/source
+  identities/receipts.
+- **Architecture/import checks:** both paints consume the same `ActiveTruthView`.
+- **Runtime proof status required:** Quick/Robust parity proof.
+- **Fail-closed behavior:** any semantic divergence fails the gate.
+- **Entry gate:** P08B PROCEED.
+- **Exit gate:** Quick/Robust semantic identity proven.
+- **Legacy deletion obligation:** mark Quick/Robust semantic selection for deletion (§9.11).
+- **Expected final-gate evidence:** parity assertion proof.
+
+---
+
+### P09 — Fresh / Cache / History Transport
+
+- **Purpose:** Preserve canonical identity across fresh, cache, and history transport.
+- **Input contract:** An `ActiveScoreLedger` artifact.
+- **Output contract:** `serializeActiveScoreLedgerArtifact(...)` and
+  `hydrateActiveScoreLedgerArtifact(...)` preserving exact canonical ids, revisions, digests,
+  formulas, model versions, source identities, and receipts.
+- **Authoritative owner:** `src/lib/route-analysis-transport/`.
+- **Package roots allowed to change:** `src/lib/route-analysis-transport/`, fixtures, architecture
+  tests.
+- **Package roots forbidden to change:** all canonical authority internals.
+- **Permitted responsibilities:** serialize / hydrate transport only.
+- **Forbidden responsibilities:** **no reconstruction, rescoring, selection, repair, or provider
+  inference.**
+- **Deterministic fixtures:** fresh/cache/history identical-identity fixture (§9.9).
+- **Focused tests:** round-trip identity of ids/revisions/digests/formulas/model versions/source
+  identities/receipts.
+- **Architecture/import checks:** route-analysis-transport is not imported by any canonical
+  authority.
+- **Runtime proof status required:** round-trip parity proof.
+- **Fail-closed behavior:** any identity drift fails closed.
+- **Entry gate:** P08C PROCEED.
+- **Exit gate:** transport identity proven across all three paths.
+- **Legacy deletion obligation:** mark cache/history traffic reconstruction for deletion (§9.11).
+- **Expected final-gate evidence:** round-trip identity proof.
+
+---
+
+### P10 — Legacy Authority Deletion And Import Guard
+
+- **Purpose:** Delete or semantically strip all competing authorities and enforce forbidden
+  imports.
+- **Input contract:** The legacy authority deletion register (§9.11).
+- **Output contract:** every competing authority deleted or semantically stripped; an enforceable
+  repository import guard at `scripts/architecture/traffic-spine-import-guard.mjs`; removal of any
+  temporary `src/lib/route-line-v2/axis.ts` direct-import exception.
+- **Authoritative owner:** Program governance plus `scripts/architecture/`.
+- **Package roots allowed to change:** any package carrying a registered legacy authority;
+  `scripts/architecture/`; architecture tests.
+- **Package roots forbidden to change:** none beyond registered targets and the guard.
+- **Permitted responsibilities:** deletion, semantic stripping, guard authoring.
+- **Forbidden responsibilities:** leaving any "deprecated but executable" authority alive.
+- **Deterministic fixtures:** guard-violation fixtures (each forbidden import must fail).
+- **Focused tests:** import guard fails on every forbidden edge in §9.10.
+- **Architecture/import checks:** full forbidden-import matrix enforced.
+- **Runtime proof status required:** guard failing-on-violation proof; legacy-authority zero count.
+- **Fail-closed behavior:** **no "deprecated but executable" authority survives.**
+- **Entry gate:** P09 PROCEED.
+- **Exit gate:** zero competing authorities; guard enforced; temporary exception removed.
+- **Legacy deletion obligation:** all register items resolved.
+- **Expected final-gate evidence:** deletion proof per register item; guard failing-edge proof.
+
+---
+
+### P11 — Final Proof And Reviewed PR To Main
+
+- **Purpose:** Prove the rebuilt spine end to end and land it.
+- **Input contract:** Integration branch at the approved P10 head.
+- **Output contract:** deterministic golden fixtures pass; live Dam Ride proof; fresh/cache/history
+  parity; Quick/Robust parity; complete architecture proof; legacy-authority zero count; one final
+  reviewed PR to `main`.
+- **Authoritative owner:** Program governance.
+- **Package roots allowed to change:** final proof fixtures/tests only.
+- **Package roots forbidden to change:** canonical authority semantics (frozen for proof).
+- **Permitted responsibilities:** final proof, PR.
+- **Forbidden responsibilities:** new feature work; deployment during P00–P11.
+- **Deterministic fixtures:** all golden fixtures (§9.9) plus live Dam Ride.
+- **Focused tests:** full architecture proof and parity suites.
+- **Architecture/import checks:** complete matrix green.
+- **Runtime proof status required:** live Dam Ride runtime proof.
+- **Fail-closed behavior:** any failing parity or non-zero legacy count blocks the PR.
+- **Entry gate:** P10 PROCEED.
+- **Exit gate:** reviewed PR to `main` with all proofs attached.
+- **Legacy deletion obligation:** confirm zero count holds.
+- **Expected final-gate evidence:** golden fixtures, live Dam Ride, parity proofs, zero-count proof,
+  PR link.
+
+---
+
+## 9.9 Golden Fixture Registry
+
+| Fixture | Exact value |
+| --- | --- |
+| South Las Vegas traffic source id | `supabase-hpms-read-proxy:2024:NV:106902:traffic_aadt` |
+| Expected total AADT | `57,000` |
+| Lane dimensional-safety source id | `supabase-hpms-read-proxy:2020:NV:161031:lane_count` |
+| Expected lane value | `4` |
+| West Hacienda coordinate | `36.12151, -115.17200` |
+
+- **Lane fixture scope:** the lane fixture **may populate lane semantics only.** It may **never**
+  populate AADT, speed, vehicles/minute, traffic factor, or risk.
+- **West Hacienda purpose:** unknown-versus-receipt disagreement proof.
+- **Highway Baseline:** typed candidate **before** selection; a selection class, **not** a provider.
+- **Missing provider:** finite selected traffic without explicit provider identity **cannot
+  publish** to `ActiveScoreLedger`.
+- **Fresh/cache/history:** identical canonical identities and digests across all three paths.
+- **QuickPaint/RobustPaint:** same `ActiveScoreLedger` revision and same semantic values.
+- **P11:** live Dam Ride proof.
+
+---
+
+## 9.10 Dependency And Import Guard Matrix
+
+**Allowed forward dependency DAG** (each arrow is the only permitted direction):
+
+```
+route-line (CanonicalRouteAxis)
+  -> source-normalization/traffic
+  -> source-projection/traffic
+  -> route-evidence/traffic (RouteIndexedEvidenceLedger)
+  -> truth-selection/traffic
+  -> route-surface-truth (RouteSurfaceTruthBundle)
+  -> rigid-score-ledger
+  -> active-score-ledger
+  -> active-truth (ActiveTruthView)
+  -> presentation/active-truth
+route-analysis-transport  : downstream transport only (never imported upstream)
+```
+
+The P10 import guard (`scripts/architecture/traffic-spine-import-guard.mjs`) **must fail on at
+least** every reverse/forbidden edge below:
+
+- source normalization importing route distance, selection, scoring, presentation, cache, or
+  history;
+- route-evidence importing truth-selection;
+- route-evidence importing scoring;
+- route-evidence importing presentation;
+- truth-selection importing source clients;
+- route-surface-truth importing heatmap / display / cache / history types;
+- rigid-score-ledger importing `ActiveScoreLedger` implementation or presentation;
+- active-score-ledger importing presentation;
+- active-truth importing route-evidence, truth-selection, route-surface-truth, or scoring
+  implementations;
+- presentation importing route-evidence, source clients, selectors, `RouteSurfaceTruthBundle` as
+  authority, or `RigidScoreLedger` as authority;
+- cache/history packages imported by canonical authorities.
+
+---
+
+## 9.11 Legacy Authority Deletion Register
+
+Each item must be deleted or semantically stripped in its named phase, with the named proof. Any
+allowed surviving responsibility is mechanical only.
+
+| Legacy authority | Forbidden semantic responsibility | Deletion phase | Proof required | Allowed surviving mechanical responsibility |
+| --- | --- | --- | --- | --- |
+| `ProductionTrafficTruthArtifact` | rider-facing traffic truth | P06–P10 | zero references; guard edge | none |
+| `TrafficTruthArtifactProvider` | provider authority for traffic truth | P06–P10 | zero references; guard edge | none |
+| `TrafficScoringInputCutover` | scoring-input selection authority | P05–P10 | zero references | none |
+| `ResolvedTrafficTruth` | selected/resolved traffic authority | P04–P10 | zero references | none |
+| traffic semantics on `HeatmapSegment` | traffic/risk semantics | P08–P10 | semantics stripped; guard edge | geometry/paint geometry only |
+| traffic semantics on `RouteSpeedSegment` | traffic/risk semantics | P08–P10 | semantics stripped | speed geometry only |
+| selected-evidence display snapshots as rider truth | rider-facing truth | P08–P10 | zero rider-truth use | diagnostic display only |
+| current direct `ActiveTruthView` composer | independent projection authority | P07–P10 | replaced by mechanical projection | none |
+| provider reconstruction | provider inference | P06–P10 | zero reconstruction paths | none |
+| presentation traffic calculations | scoring/selection math in presentation | P08–P10 | zero calculations; guard edge | formatting only |
+| receipt reconstruction | receipt creation downstream | P07–P10 | zero reconstruction | none |
+| Quick/Robust semantic selection | independent semantic divergence | P08C–P10 | parity proof | scheduling/animation/density/timing/simplification |
+| cache/history traffic reconstruction | rescoring/reselection on transport | P09–P10 | round-trip identity | serialize/hydrate only |
+| route-analysis scoring authority | scoring authority in transport | P09–P10 | zero scoring in transport | transport only |
+| `truthRuns` scoring/selection authority | scoring/selection authority | P05–P10 | zero authority use | logging/diagnostic only |
+| independent notable-driver ranking | ranking outside RigidScoreLedger | P05–P10 | single-source ranking | none |
+| independent risk-threshold application | bucketing outside RigidScoreLedger | P05–P10 | single-source bucketing | none |
+| alternate score traces | competing score traces | P05–P10 | single trace | none |
+| route-truth-kernel as competing implementation authority | competing implementation authority | P10 | zero competing authority | none |
+
+---
+
+## 9.12 Branch And Review Protocol
+
+- **One phase at a time.**
+- **One fresh branch** per phase, from the exact approved integration SHA.
+- **One fresh worktree** per phase.
+- **One builder thread** and **one independent read-only reviewer thread.**
+- **Exact base and head SHAs** recorded on the phase-gate checklist.
+- **Exact file allowlist** per phase.
+- **No self-certification.**
+- **Builder commits and pushes but never merges.**
+- **Reviewer edits nothing.**
+- **Integration advances only after final PROCEED.**
+- **Fast-forward-only integration.**
+- **No rebase.** **No force-push.** **No amend after review.**
+- **Fixes are additive commits.**
+- **Main remains untouched until P11.**
+- **No deployment during the rebuild.**
+
+The only final-gate outcomes are: **PROCEED**, **REWORK**, **STOP**.
+
+---
+
+## 9.13 Evidence Standard
+
+Every meaningful claim must identify: repository; branch; base SHA; head SHA; tree SHA; file;
+symbol; constructor; input/output contract; direct caller; direct consumer; and a test or runtime
+proof.
+
+- **Unit tests alone are not architecture proof.**
+- **Implementation and reviewer summaries are not final proof.**
+
+---
+
+## 9.14 Forbidden Report Language
+
+The following phrases are forbidden in any phase report:
+
+- "mostly complete"
+- "code-level done"
+- "one smoke test remains"
+- "appears fixed"
+- "practically finished"
+- "ActiveScoreLedger-backed" without naming the concrete type and constructor
+- "pre-existing failure" without normalized A/B proof
+
+---
+
+## 9.15 Promotion Rules
+
+- Each phase starts from the **exact approved integration SHA.**
+- The phase branch remains **unmerged** during builder and reviewer work.
+- **Only PROCEED** permits fast-forwarding integration.
+- **REWORK** requires additive commits on the same phase branch unless STOP says otherwise.
+- **STOP** freezes the phase branch as evidence.
+- **No phase branch merges directly to `main`.**
+- **No `main` merge before P11.**
+- **No deployment during P00–P11.**
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
