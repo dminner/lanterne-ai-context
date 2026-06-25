@@ -17762,13 +17762,30 @@ provider id. Provider identity, selection class, source type, provenance family,
 model identity, lookup key, and table version remain separately typed. P03 creates
 this typed candidate **before** selection evaluates it.
 
-### L.6 Forbidden reverse conversion
+Highway Baseline is constructed only by `completeTrafficCandidateSet(...)` and lives
+only in `CompletedTrafficCandidateSet`; it exists **before** `selectStableTraffic(...)`
+runs, is **not** a `RouteIndexedEvidenceLedger` source-evidence candidate, and is
+**never written back** to `RouteIndexedEvidenceLedger`. `selectStableTraffic(...)`
+consumes `CompletedTrafficCandidateSet` only. The same placement applies to the
+`authoritative_inferred` and `local_area_predicted` completion-stage candidates.
 
-Under no stage may `effective right-lane AADT` (per-lane) be multiplied by lane
-count to reconstruct a total AADT, nor may a total AADT be fabricated from a
-per-lane proxy. The per-lane → total or total → per-lane conversion is owned solely
-by P05 scoring under the versioned DS-015 formula (DS-067 stage ownership), and
-even there the per-lane value is used directly, never multiplied back into a total.
+### L.6 Forbidden reverse conversion (directional)
+
+Conversion is strictly one-directional and owned solely by P05 scoring under the
+versioned DS-015 formula (DS-067 §16 stage ownership):
+
+```text
+total_aadt_with_lane_basis  ->  effective_right_lane_aadt   (P05 only)
+```
+
+- P05 alone may derive effective right-lane AADT from a certified
+  `total_aadt_with_lane_basis`.
+- **No stage, including P05,** may derive or reconstruct total AADT from an
+  `effective_right_lane_aadt` basis.
+- An `effective_right_lane_aadt` value is consumed directly by P05; it is never
+  multiplied by lane count.
+- Per-lane-to-total multiplication is prohibited everywhere.
+- P03 and P04 perform neither conversion.
 
 
 ---
@@ -31010,21 +31027,46 @@ Do not convert unresolved spans into score-bearing traffic truth.
 
 ## 6. Truth Selection
 
-Stable traffic baseline selection consumes the ledger only.
+Truth selection is two separate operations (amended 2026-06-25 — P03A), aligned with
+DS-029 Appendix L and DS-067 §16.
 
-The selector may:
+### 6.1 Candidate completion — `completeTrafficCandidateSet(...)`
 
-- choose selected HPMS AADT spans
-- compute coverage
-- carry unresolved distance
-- preserve diagnostics
+Candidate completion:
 
-The selector may not:
+- consumes `RouteIndexedEvidenceLedger` public contracts, `CanonicalRouteAxis` public
+  contracts, and immutable versioned authority policies;
+- may construct documented completion-stage `authoritative_inferred`,
+  `local_area_predicted`, and `highway_baseline` candidates that live only in
+  `CompletedTrafficCandidateSet` (never written back to the ledger) and that exist
+  **before** `selectStableTraffic(...)` runs — Highway Baseline in particular must be
+  present before the selector executes;
+- may not fetch or discover new external source evidence (all external source
+  evidence enters through source projection / ledger admission);
+- may not mutate the ledger;
+- may not fabricate total AADT or lane count;
+- may not score.
 
-- query HPMS
-- inspect legacy truth runs
-- infer missing AADT
-- apply time-of-day multipliers
+### 6.2 Stable selector — `selectStableTraffic(...)`
+
+The stable selector:
+
+- consumes `CompletedTrafficCandidateSet` **only**;
+- may not read the ledger directly;
+- may not construct, infer, predict, or look up candidates;
+- may not query HPMS;
+- may not inspect legacy truth runs;
+- may not apply time-of-day multipliers;
+- may not score.
+
+### 6.3 Meaning of "do not infer missing AADT"
+
+"Do not infer missing AADT" continues to prohibit laundering missing source evidence
+into an **authoritative** AADT fact. It does **not** prohibit creating a separately
+typed, explicitly documented Highway Baseline **effective right-lane AADT** candidate
+under DS-029 Appendix L. Highway Baseline is a `baseline`-family pre-selector candidate
+with its own model/provider/table identity; it is **not** inferred AADT and is never
+represented as authoritative source truth.
 
 ## 7. Stable Surface Truth Output
 
@@ -38423,6 +38465,8 @@ It owns:
 - scoring eligibility
 - unresolved diagnostics
 
+It owns only **route-indexed source-evidence candidates** (authoritative direct source measurements) and typed unresolved source evidence admitted through the P01/P02 source pipeline. It does **not** own completion-stage derived/model candidates (`authoritative_inferred`, `local_area_predicted`, `highway_baseline`); those are constructed later, by `completeTrafficCandidateSet(...)`, and live in `CompletedTrafficCandidateSet` — never in this ledger.
+
 It may not:
 
 - select stable truth
@@ -38430,9 +38474,10 @@ It may not:
 - infer provider labels for presentation
 - read presentation state
 - query route cache/history as truth
-- create Highway Baseline outside the documented evidence-candidate path
+- create Highway Baseline, local-area predictions, or relationship-inferred candidates
+- accept any completion-stage derived/model candidate written back from P03
 
-Highway Baseline, when authorized by DS-015/DS-029 source semantics, must enter as a ledger candidate before truth selection. It may not first appear in RouteBuilders, RouteSurfaceTruthBundle, RigidScoreLedger, ActiveScoreLedger, receipts, presentation, cache hydration, or history hydration.
+**Highway Baseline placement (supersedes the older rule; see §16).** Highway Baseline is **not** a `RouteIndexedEvidenceLedger` source-evidence candidate and must **not** enter or be written back into the ledger. It is a typed pre-selector candidate that must exist before `selectStableTraffic(...)` evaluates it, constructed only by `completeTrafficCandidateSet(...)` under the versioned authority-approved policy (DS-029 Appendix L), living only in `CompletedTrafficCandidateSet`. It must not first appear in `selectStableTraffic(...)`, RouteSurfaceTruthBundle, RigidScoreLedger, ActiveScoreLedger, receipts, presentation, cache hydration, or history hydration, and it must retain model/provider/table identity and exact lookup proof. (The earlier wording that Highway Baseline "must enter as a ledger candidate before truth selection" is superseded by §16 and DS-029 Appendix L: it is a completion-stage candidate, not a ledger source-evidence candidate.)
 
 A lane-count item may populate only lane semantics. A traffic-AADT item may populate only traffic semantics. No dimensional inference may occur because two fields both contain numbers.
 
@@ -38890,12 +38935,24 @@ compatibility alias only. Neither form is "total traffic" generically.
 
 **P03 — TruthSelectionBuilders / RouteBuilders (`truth-selection/traffic`):**
 
+- `completeTrafficCandidateSet(...)` is the only completion authority; it consumes
+  only `RouteIndexedEvidenceLedger` public contracts, `CanonicalRouteAxis` public
+  contracts, and immutable versioned authority policy;
+- it constructs the documented completion-stage pre-selector candidates —
+  `authoritative_inferred`, `local_area_predicted`, and `highway_baseline` — which
+  live **only** in `CompletedTrafficCandidateSet` and are **not** written back into
+  `RouteIndexedEvidenceLedger`;
+- `selectStableTraffic(...)` consumes `CompletedTrafficCandidateSet` **only**; it does
+  not read the ledger directly, regenerate candidates, look up baseline values, infer,
+  predict, fetch, or score;
+- Highway Baseline must exist as a typed pre-selector candidate **before**
+  `selectStableTraffic(...)` executes;
 - constructs and selects one complete `TrafficExposureBasis` per atomic interval;
 - may combine exact compatible source facts into a complete basis **without
   arithmetic** (no division, multiplication, Traffic Factor, or risk math);
 - may look up the versioned Highway Baseline effective-right-lane value
   (`ds015-highway-class-proxy-effective-right-lane-aadt.v1`, DS-029 §L.4);
-- performs **no** total↔lane conversion;
+- performs **no** total-to-per-lane and **no** per-lane-to-total conversion;
 - performs **no** Traffic Factor or risk calculation;
 - keeps every component candidate id, provider, provenance, confidence, and receipt
   attached.
@@ -38919,6 +38976,20 @@ compatibility alias only. Neither form is "total traffic" generically.
 - computes Traffic Factor, Road Risk, and downstream risk only after the basis is
   certified;
 - records the measurement form and exact inputs in score receipts.
+
+Conversion is strictly one-directional and P05-owned:
+
+```text
+total_aadt_with_lane_basis  ->  effective_right_lane_aadt   (P05 only)
+```
+
+- P05 alone may derive effective right-lane AADT from a certified
+  `total_aadt_with_lane_basis`.
+- No stage, **including P05**, may derive or reconstruct total AADT from an
+  `effective_right_lane_aadt` basis.
+- An `effective_right_lane_aadt` value is consumed directly by P05.
+- Per-lane-to-total multiplication is prohibited everywhere.
+- P03 and P04 perform neither conversion.
 
 No other stage may perform these calculations. No stage may fabricate a total AADT
 from a per-lane proxy, fabricate a lane count, or reverse-multiply a per-lane value
@@ -49194,6 +49265,7 @@ The route-line v2 topology builder should:
 Status: Accepted
 Date: 2026-06-16
 Amended: 2026-06-24 — canonical ActiveTruthView package path corrected to `src/lib/active-truth/`
+Amended: 2026-06-25 — P03A: `completeTrafficCandidateSet(...)` may construct completion-stage derived/model candidates (not ledger source evidence); `selectStableTraffic(...)` consumes the completed set only
 Related: ADR-045, ADR-052, ADR-053, ADR-059, DS-031, DS-043, DS-044, DS-047, DS-055, DS-067
 
 ------
@@ -49266,6 +49338,8 @@ The ledger does not become a presentation API. It is the input to truth selectio
 ### Truth selection is a separate boundary
 
 TruthSelectionBuilders / RouteBuilders consume the ledger only. They may select stable truth snapshots and preserve rejected evidence refs, but they may not query raw HPMS, inspect legacy truth runs, discover source candidates themselves, score, format presentation strings, or act as rider-facing truth.
+
+**Amendment 2026-06-25 — P03A completion-stage candidates.** Truth-selection production code may not discover or fetch external source evidence; all external source evidence must come through `RouteIndexedEvidenceLedger` via source projection / ledger admission. Within that boundary, `completeTrafficCandidateSet(...)` may mechanically construct documented completion-stage **derived/model** candidates (`authoritative_inferred`, `local_area_predicted`, `highway_baseline`) from ledger facts, route-axis context, and immutable versioned authority policy. Those candidates are **not** source evidence and do **not** become ledger entries (they are never written back to `RouteIndexedEvidenceLedger`); they live only in `CompletedTrafficCandidateSet` and exist **before** `selectStableTraffic(...)` runs — Highway Baseline in particular must be present before the selector executes. `selectStableTraffic(...)` consumes only the completed candidate set and never reads the ledger directly. No presentation, scoring, cache/history, or runtime state may influence completion or selection. This preserves — and does not weaken — the ledger-first / no-leak architecture: discovery and admission of source evidence remain confined to source projection and the ledger.
 
 ### RouteSurfaceTruthBundle is selected truth
 
