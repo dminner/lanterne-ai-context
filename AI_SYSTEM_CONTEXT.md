@@ -17787,6 +17787,51 @@ total_aadt_with_lane_basis  ->  effective_right_lane_aadt   (P05 only)
 - Per-lane-to-total multiplication is prohibited everywhere.
 - P03 and P04 perform neither conversion.
 
+## Appendix M. P02B Road Context — highway-class source (2026-06-25)
+
+This appendix resolves the second P03 authority gap (report
+`docs/04-execution/reports/p02b-road-context-authority-resolution.md`): the
+road-class-dependent traffic classes (`highway_baseline`, `local_area_predicted`,
+`authoritative_inferred`) need a per-interval highway class, but no P03-allowed input
+exposed one. It defines the canonical road-class context source and how P03 may use
+it, **without** authorizing P03 to fetch OpenStreetMap.
+
+### M.1 Canonical launch road-class context source
+
+- The OpenStreetMap `highway=*` tag is the canonical launch road-class context source
+  for traffic.
+- `broadHighwayClass = highwayTag` with a trailing `_link` stripped; the original
+  `highwayTag` is preserved alongside it.
+- This context enters the pipeline **only** as the route-indexed `road_context`
+  evidence layer (DS-031 §3.1), admitted by P02B before P03. P03 reads the public
+  `road_context` ledger layer; P03 does **not** fetch OpenStreetMap, read source
+  clients, read route-line internals, or create `road_context` itself.
+
+### M.2 How P03 uses `broadHighwayClass`
+
+- **Highway Baseline lookup:** P03 uses `broadHighwayClass` as the lookup key into the
+  pinned class-proxy table (`ds015-highway-class-proxy-effective-right-lane-aadt.v1`,
+  §L.4) when the table expects a class-proxy traffic value. (The §L.4 baseline values
+  are unchanged by this amendment.)
+- **Local prediction:** P03 uses `broadHighwayClass` for the "same broad highway class"
+  contributor eligibility required by §7.2 and DS-053 §8.1.
+- **Authoritative inference:** P03 may use `broadHighwayClass` as **one required**
+  continuity/context input (e.g., equal-or-lower through-road-class checks per §7.1),
+  but `broadHighwayClass` alone is **not** sufficient proof of inference — same-road
+  identity, propagation path, distance/decay, and anchor provider are also required.
+
+### M.3 Separation guarantees
+
+- `road_context` source type and provenance are **separate** from traffic source type
+  and provenance. `road_context` is `context_for_selection`, not a traffic truth form.
+- `road_context` **cannot upgrade or downgrade** a traffic source class (it never makes
+  an authoritative-posted value inferred/predicted/baseline, or vice versa).
+- `road_context` **cannot create a traffic provider identity.** Traffic provider
+  identity is governed solely by §L.5 and the traffic provider policy.
+- Missing or unresolved `road_context` blocks only the classes that require road class
+  for that interval; it never corrupts an authoritative direct traffic source fact and
+  never permits a guessed class.
+
 
 ---
 
@@ -18054,6 +18099,7 @@ Initial layer ids:
 
 | Layer | Geometry | Score eligibility | Notes |
 | --- | --- | --- | --- |
+| `road_context` | span | context_for_selection | OSM `highway=*` road-class context for traffic candidate completion (P02B). Hidden; not road ownership; not traffic truth. |
 | `road_ownership` | span | confidence_only / substrate | Canonical V2 road/path identity |
 | `speed_limit` | span | score_driving | Posted/official/derived by DS-029 rules |
 | `traffic_aadt` | span | score_driving | Official or inferred traffic context |
@@ -18069,6 +18115,66 @@ Initial layer ids:
 | `sunlight` | span/series | display_only | Requires route time and heading |
 | `effort_watts` | series | derived display | Derived from speed/grade/wind/rider model |
 | `calories` | series/span | derived display | Derived from effort model |
+
+### 3.1 `road_context` (Amendment 2026-06-25 — P02B)
+
+`road_context` is a route-indexed **source-evidence** layer carrying OpenStreetMap
+`highway=*` road classification, admitted by P02B so that P03 candidate completion
+can evaluate road-class-dependent traffic classes. It is the canonical launch
+road-class context for traffic. It is **not** road ownership, **not** selected
+traffic, **not** a provider, **not** scoring, and **not** presentation.
+
+| Field | Value |
+| --- | --- |
+| layer id | `road_context` |
+| geometryType | `span` |
+| valueKind | `object` |
+| scoreEligibility | `context_for_selection` |
+| displayEligibility | `hidden` |
+| sourcePriority | `self_hosted_roads`, `raw_overpass`, `fixture` |
+| requiresRouteTime | `false` |
+| workerRequired | `true` |
+| implemented | planned / P02B |
+
+Required value shape:
+
+```ts
+interface RouteIndexedRoadContextValue {
+  readonly schemaVersion: 'road-context.v1';
+  readonly highwayTag: string;
+  readonly broadHighwayClass: string;
+  readonly isLink: boolean;
+  readonly sourceSystem: 'openstreetmap';
+  readonly sourceRecordType: 'way' | 'relation' | 'unknown';
+  readonly sourceRecordId: string;
+  readonly sourceVersion: string | null;
+  readonly confidence: 'high' | 'medium' | 'low';
+}
+```
+
+Rules:
+
+- `broadHighwayClass` is derived by stripping `_link` from `highwayTag`; the original
+  `highwayTag` (and the `isLink` flag) must be preserved.
+- Unsupported or missing highway tags emit **unresolved** `road_context` evidence (no
+  fabricated class, no catch-all).
+- `road_context` may not fabricate a class, may not use route name as class, may not
+  use HPMS facility type as the OSM highway class, may not use presentation road
+  labels, and may not imply provider identity for traffic.
+- `road_context` is contextual evidence, not traffic truth. It does not select traffic,
+  does not score, does not display directly to riders, and does not replace future road
+  ownership.
+- Accepted launch highway tags (aligned with the pinned Highway Baseline table
+  `ds015-highway-class-proxy-effective-right-lane-aadt.v1`, DS-029 §L.4):
+  `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`, `primary_link`,
+  `secondary`, `secondary_link`, `tertiary`, `tertiary_link`, `residential`,
+  `unclassified`, `living_street`, `service`. Other tags are unresolved for baseline
+  unless a future authority version adds them.
+
+P03 may **use** the public `road_context` ledger layer to evaluate `highway_baseline`,
+`local_area_predicted`, and `authoritative_inferred` eligibility. P03 may not create
+`road_context`, query OpenStreetMap, read source clients, or write `road_context` back
+into the ledger.
 
 ---
 
@@ -31068,6 +31174,25 @@ under DS-029 Appendix L. Highway Baseline is a `baseline`-family pre-selector ca
 with its own model/provider/table identity; it is **not** inferred AADT and is never
 represented as authoritative source truth.
 
+### 6.4 `road_context` evidence (Amendment 2026-06-25 — P02B)
+
+`road_context` (OSM `highway=*` road classification; DS-031 §3.1, DS-029 Appendix M) is
+**external source evidence** and must enter through the ledger via P02B source
+projection / admission, exactly like `traffic_aadt` and `lane_count`.
+
+- P03 candidate completion may **consume** the public `road_context` ledger layer to
+  evaluate the road-class-dependent classes (`highway_baseline`, `local_area_predicted`,
+  `authoritative_inferred`).
+- P03 may **not** discover `road_context` itself, query OpenStreetMap, read source
+  clients, read route-line internals, infer highway class from route name / HPMS
+  facility type / geometry alone, or write `road_context` back into the ledger.
+- Missing or uncertified `road_context` makes the road-class-dependent classes
+  **unresolved / ineligible** for that interval; it does **not** corrupt an
+  authoritative direct traffic source fact and does **not** permit a guessed class.
+- "Do not infer AADT from road class in this first proof layer" (§5) still holds:
+  `road_context` is class context for candidate **eligibility/lookup**, never a means to
+  invent or upgrade an authoritative AADT value.
+
 ## 7. Stable Surface Truth Output
 
 Route-surface stable outputs consume selected truth snapshots only.
@@ -38933,11 +39058,37 @@ compatibility alias only. Neither form is "total traffic" generically.
 
 ### 16.2 Stage ownership
 
+The road-class context that P03 needs for `highway_baseline`, `local_area_predicted`,
+and `authoritative_inferred` enters as the `road_context` evidence layer **before** P03
+(Amendment 2026-06-25 — P02B; DS-031 §3.1, DS-029 Appendix M):
+
+```text
+P02B: OpenStreetMap highway=* tag / existing route-road source facts
+        -> project / admit route-indexed road_context evidence
+        -> RouteIndexedEvidenceLedger
+P03 : RouteIndexedEvidenceLedger (traffic_aadt + lane_count + road_context) + CanonicalRouteAxis
+        -> completeTrafficCandidateSet(...)
+        -> CompletedTrafficCandidateSet
+        -> selectStableTraffic(...)
+```
+
+**P02B — Road Context evidence (source projection / ledger admission):**
+
+- projects/admits route-indexed `road_context` spans (OSM `highway=*` class) and typed
+  unresolved `road_context` evidence into `RouteIndexedEvidenceLedger`;
+- is the only stage responsible for `road_context` admission;
+- performs no traffic selection, no scoring, no provider creation, no presentation, no
+  baseline lookup, no local prediction, and no P03 candidate completion.
+
 **P03 — TruthSelectionBuilders / RouteBuilders (`truth-selection/traffic`):**
 
 - `completeTrafficCandidateSet(...)` is the only completion authority; it consumes
-  only `RouteIndexedEvidenceLedger` public contracts, `CanonicalRouteAxis` public
-  contracts, and immutable versioned authority policy;
+  only `RouteIndexedEvidenceLedger` public contracts (the `traffic_aadt`, `lane_count`,
+  and `road_context` layers), `CanonicalRouteAxis` public contracts, and immutable
+  versioned authority policy; it **may use** the public `road_context` layer for
+  road-class-dependent eligibility but may not query OpenStreetMap, read source clients,
+  read route-line internals, infer class from route name / HPMS facility type / geometry
+  alone, create `road_context`, or write `road_context` back into the ledger;
 - it constructs the documented completion-stage pre-selector candidates —
   `authoritative_inferred`, `local_area_predicted`, and `highway_baseline` — which
   live **only** in `CompletedTrafficCandidateSet` and are **not** written back into
