@@ -60832,26 +60832,40 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 - **Purpose:** Provide exactly one traffic candidate family and exactly one stable selector.
 - **Input contract:** Route-indexed candidates (P02).
 - **Output contract:** `completeTrafficCandidateSet(...)` and `selectStableTraffic(...)` producing
-  certified selected traffic with immutable receipts.
+  one selected **`TrafficExposureBasis`** per atomic interval (DS-029 §L.2; DS-067 §16) with
+  immutable receipts recording the measurement form and units.
 - **Authoritative owner:** `src/lib/truth-selection/traffic/`.
 - **Package roots allowed to change:** `src/lib/truth-selection/traffic/`, fixtures, architecture
   tests.
 - **Package roots forbidden to change:** source clients, scoring, surface-truth, active-truth,
   presentation, cache/history.
-- **Permitted responsibilities:** completion of the candidate set; stable selection among
-  **approved score-bearing selection classes only**:
-  `authoritative_posted`, `authoritative_inferred`, `local_area_predicted`, `highway_baseline`.
-- **Forbidden responsibilities:** scoring; presentation; provider fabrication.
+- **Permitted responsibilities:** completion of the candidate set; stable selection among the four
+  **approved selection classes only** —
+  `authoritative_posted`, `authoritative_inferred`, `local_area_predicted`, `highway_baseline` —
+  combining compatible total-AADT and lane-count evidence into a complete `TrafficExposureBasis`
+  **without arithmetic**; looking up the versioned Highway Baseline effective-right-lane value
+  (`ds015-highway-class-proxy-effective-right-lane-aadt.v1`).
+- **Measurement basis (non-negotiable, P03A):** P03 selects exactly one complete
+  `TrafficExposureBasis` per atomic interval; not every class emits `total_aadt` — `highway_baseline`
+  is `effective_right_lane_aadt` (per-lane), never a fabricated total. No fabricated total AADT, no
+  fabricated lane count, and no per-lane-to-total multiplication. A total-AADT fact without a
+  defensible lane basis is incomplete; the ladder may continue to a weaker **complete** class.
+- **Forbidden responsibilities:** scoring; Traffic Factor or risk math; any total↔lane conversion;
+  presentation; provider fabrication.
 - **Deterministic fixtures:** West Hacienda unknown-versus-receipt disagreement (§9.9); Highway
   Baseline typed candidate; missing-provider fixture.
 - **Focused tests:** selection-class admission; immutable receipts; unresolved stays a blocker.
 - **Architecture/import checks:** truth-selection imports only public route-evidence and
   route-axis contracts, never source clients.
 - **Runtime proof status required:** selector unit proof over fixtures.
-- **Fail-closed behavior:** **unresolved remains a blocker**; receipts are immutable; **Highway
-  Baseline is not a provider**.
+- **Fail-closed behavior:** **unresolved remains a blocker** when no complete class can be
+  defended; receipts are immutable and record measurement form and units; a malformed/missing
+  provider identity is an integrity blocker and may not be hidden by weaker fallback; **Highway
+  Baseline is not a provider** (its provider is `lanterne_highway_baseline_model.v1`).
 - **Entry gate:** P02 PROCEED.
-- **Exit gate:** one candidate family, one selector, approved classes only, immutable receipts.
+- **Exit gate:** one candidate family; one selector; the four approved classes; one selected
+  `TrafficExposureBasis` per atomic interval; Highway Baseline candidate present before selection;
+  no fabricated total/lane and no reverse multiplication; immutable receipts.
 - **Legacy deletion obligation:** begin retiring competing selectors (register, §9.11).
 - **Expected final-gate evidence:** constructor names, selection-class enumeration, receipt
   immutability proof.
@@ -60867,9 +60881,12 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 - **Package roots allowed to change:** `src/lib/route-surface-truth/`, fixtures, architecture
   tests.
 - **Package roots forbidden to change:** scoring, active-truth, presentation, cache/history.
-- **Permitted responsibilities:** assemble selected builder artifacts into a stable bundle.
-- **Forbidden responsibilities:** consuming `HeatmapSegment`, `RouteSpeedSegment`, debug snapshot,
-  cache, history, `QuickPaint`, `RobustPaint`, display DTO, or receipt reconstruction input.
+- **Permitted responsibilities:** assemble selected builder artifacts into a stable bundle; carry
+  the selected `TrafficExposureBasis` **verbatim** (DS-067 §16.2), preserving all component
+  candidate ids, providers, provenance, confidence, and receipts.
+- **Forbidden responsibilities:** any traffic conversion (total↔lane), Traffic Factor, or scoring;
+  consuming `HeatmapSegment`, `RouteSpeedSegment`, debug snapshot, cache, history, `QuickPaint`,
+  `RobustPaint`, display DTO, or receipt reconstruction input.
 - **Deterministic fixtures:** bundle assembled from selected South Las Vegas / lane fixtures.
 - **Focused tests:** all score-bearing facts arrive through selected ledger truth.
 - **Architecture/import checks:** route-surface-truth imports only selected builder artifacts; no
@@ -60893,9 +60910,13 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 - **Package roots allowed to change:** `src/lib/rigid-score-ledger/`, fixtures, architecture tests.
 - **Package roots forbidden to change:** active-score-ledger, active-truth, presentation,
   cache/history.
-- **Permitted responsibilities:** **RigidScoreLedger is the only scorer.** It owns exact unrounded
-  inputs, **Road Risk**, **Crossing Risk**, **Total Risk**, **Risk Per Mile**, risk bucket,
-  notable-driver ranking, score trace, receipts, model version, and formula version.
+- **Permitted responsibilities:** **RigidScoreLedger is the only scorer** and the **sole owner of
+  traffic-input conversion** (DS-067 §16.2). For `total_aadt_with_lane_basis` it derives effective
+  right-lane AADT via the versioned DS-015 formula; for `effective_right_lane_aadt` it uses the
+  selected value directly; it **never** multiplies effective-right-lane AADT by lane count to
+  reconstruct a total. It owns exact unrounded inputs, **Road Risk**, **Crossing Risk**, **Total
+  Risk**, **Risk Per Mile**, risk bucket, notable-driver ranking, score trace, receipts (recording
+  measurement form and exact inputs), model version, and formula version.
 - **Forbidden responsibilities:** importing `ActiveScoreLedger` implementation or presentation;
   any selection or projection.
 - **Deterministic fixtures:** South Las Vegas total AADT `57,000` driving Road Risk inputs.
@@ -61356,6 +61377,69 @@ The following phrases are forbidden in any phase report:
 - **No phase branch merges directly to `main`.**
 - **No `main` merge before P11.**
 - **No deployment during P00–P11.**
+
+---
+
+## 9.16 Traffic Measurement Basis (Amendment 2026-06-25 — P03A)
+
+This amendment resolves the P03 authority gap (report
+`docs/04-execution/reports/p03-traffic-measurement-basis-authority-resolution.md`).
+The original P03 gate stopped correctly before implementation: requiring **every**
+traffic class to emit `total_aadt` was incorrect, because DS-015 / DS-029 define
+the Highway Baseline traffic value as an already-per-lane class proxy, and no
+accepted authority defines a highway-class **total-AADT** table. The controlling
+detail now lives in **DS-029 Appendix L** and **DS-067 §16**; this section pins the
+EXEC-060 gates to it.
+
+### Canonical selected unit
+
+P03 selects exactly one complete **`TrafficExposureBasis`** per atomic interval
+(DS-029 §L.2), with two forms:
+
+- `total_aadt_with_lane_basis` — `totalAadt` (`vehicles_per_day`) + `laneCount`
+  (`count`), retaining all contributing total-AADT and lane-count candidate ids.
+- `effective_right_lane_aadt` — `effectiveRightLaneAadt`
+  (`vehicles_per_day_per_lane`), `sourceForm` ∈ { `authoritative_direct`,
+  `highway_class_proxy` }.
+
+Canonical term: **effective right-lane AADT** (`aadtPerLane` is a compatibility
+alias only). Neither form is "total traffic" generically.
+
+### Class composition and Highway Baseline
+
+- `authoritative_posted` / `authoritative_inferred` / `local_area_predicted` carry
+  total AADT plus a lane basis of the matching strength (each completed class is no
+  stronger than its weakest required component).
+- `highway_baseline` is a direct `effective_right_lane_aadt` value from the
+  versioned table `ds015-highway-class-proxy-effective-right-lane-aadt.v1`
+  (DS-029 §L.4), provider `lanterne_highway_baseline_model.v1` (kind `model`). It
+  fabricates no total AADT and no lane count.
+- Precedence unchanged: `authoritative_posted` > `authoritative_inferred` >
+  `local_area_predicted` > `highway_baseline`; `unknown` is unresolved.
+
+### Revised P03 entry and exit gates
+
+- **Entry:** P02 PROCEED; ledger/axis identity verified.
+- **Exit (hard gates):** one candidate family; one selector; one selected
+  `TrafficExposureBasis` per atomic interval; all four approved classes
+  representable; Highway Baseline candidate present **before** selection; **no
+  fabricated total AADT; no fabricated lane count; no per-lane-to-total
+  multiplication**; immutable receipts recording measurement form and units;
+  unresolved when no complete class can be defended; provider integrity blockers
+  never hidden by weaker fallback.
+
+### Stage ownership (consistent with DS-067 §16)
+
+- **P03** constructs and selects the `TrafficExposureBasis`, combines compatible
+  facts **without arithmetic**, looks up the versioned baseline value, and performs
+  no Traffic Factor / risk / total↔lane conversion.
+- **P04** carries the selected `TrafficExposureBasis` **verbatim** with all
+  component ids/providers/provenance/confidence/receipts; no conversion or scoring.
+- **P05** is the **sole** owner of traffic-input conversion and scoring: it derives
+  effective right-lane AADT from `total_aadt_with_lane_basis` via the versioned
+  DS-015 formula, uses `effective_right_lane_aadt` directly, **never** reverse-
+  multiplies per-lane by lane count, and computes Traffic Factor / Road Risk only
+  after the basis is certified.
 
 
 ---

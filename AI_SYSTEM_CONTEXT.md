@@ -17613,6 +17613,163 @@ This document is intended to eliminate half-measures in provenance handling. Any
 - explicit math
 - traceability requirements
 
+## Appendix L. P03A Traffic Measurement Basis Amendment (2026-06-25)
+
+This appendix resolves the P03 authority gap recorded in
+`docs/04-execution/reports/p03-traffic-measurement-basis-authority-resolution.md`.
+It is controlling for the traffic truth spine (EXEC-060 / ADR-059 / DS-067).
+
+### L.1 Why this amendment exists
+
+The original P03 authority inventory stopped, correctly, before implementation
+because:
+
+- EXEC-060 requires four P03 traffic selection classes: `authoritative_posted`,
+  `authoritative_inferred`, `local_area_predicted`, `highway_baseline`.
+- P02 admits two source-measured traffic dimensions: `total_aadt` (units
+  `vehicles_per_day`) and `lane_count` (units `count`).
+- DS-015 §"Traffic" and DS-029 §7.5 / Appendix H.2 define the Highway Baseline
+  traffic value as an **already-per-lane class-proxy value** (effective right-lane
+  AADT), not a total AADT.
+- No accepted authority defines a highway-class **total-AADT** table.
+- Multiplying the per-lane baseline by lane count to fabricate a total AADT is not
+  authorized (DS-015 forbids multiplying an already per-lane/class-proxy value by
+  total lane count).
+
+Therefore the prior implicit expectation that **every** P03 class must emit a
+`total_aadt` value was incorrect. This amendment preserves the four classes
+without inventing a total-AADT baseline, by making the **selected unit** a typed
+traffic measurement basis rather than a bare total AADT.
+
+### L.2 Canonical `TrafficExposureBasis`
+
+P03 selects exactly one complete `TrafficExposureBasis` per atomic route interval.
+The semantic forms and units below are mandatory; exact TypeScript formatting may
+differ.
+
+```ts
+type TrafficExposureBasis =
+  | {
+      readonly kind: 'total_aadt_with_lane_basis';
+      readonly totalAadt: number;
+      readonly totalAadtUnit: 'vehicles_per_day';
+      readonly laneCount: number;
+      readonly laneCountUnit: 'count';
+      readonly totalAadtCandidateIds: readonly string[];
+      readonly laneCountCandidateIds: readonly string[];
+    }
+  | {
+      readonly kind: 'effective_right_lane_aadt';
+      readonly effectiveRightLaneAadt: number;
+      readonly unit: 'vehicles_per_day_per_lane';
+      readonly sourceForm:
+        | 'authoritative_direct'
+        | 'highway_class_proxy';
+    };
+```
+
+The canonical term is **effective right-lane AADT**. The legacy name `aadtPerLane`
+may appear only as a compatibility alias. Neither form is to be called "total
+traffic" generically: one carries total AADT plus a lane basis, the other carries
+a per-lane value.
+
+### L.3 Selection unit and composition
+
+- P03 selects one complete `TrafficExposureBasis` per atomic interval. It does NOT
+  independently select unrelated `total_aadt` and `lane_count` winners that could
+  form an incoherent pair.
+- Candidate completion may combine compatible total-AADT and lane-count evidence
+  into a candidate basis. It performs **no division, multiplication, Traffic
+  Factor, or risk math**. All contributing candidate IDs and receipts stay
+  attached.
+- A total-AADT fact without a defensible lane basis is **incomplete** and cannot
+  form a selected `total_aadt_with_lane_basis` candidate; it remains visible in
+  rejection/unresolved receipts. The fallback ladder may continue to a weaker
+  **complete** class.
+- A malformed or missing provider identity remains an integrity blocker and must
+  not be hidden by a weaker fallback.
+
+Class composition:
+
+- `authoritative_posted` — authoritative total AADT plus authoritative lane basis
+  (the form the current P02 vertical slice implements); or a directly
+  authoritative `effective_right_lane_aadt` source if a future admitted source
+  contract explicitly supplies it.
+- `authoritative_inferred` — authoritative total AADT with a relationship-inferred
+  lane basis; or relationship-inferred total AADT with a defensible lane basis. The
+  completed class is no stronger than its weakest required component.
+- `local_area_predicted` — predicted total AADT plus an explicit known or
+  documented inferred lane basis. P03 preserves the components and performs no
+  per-lane division.
+- `highway_baseline` — direct `effective_right_lane_aadt` from the canonical
+  class-proxy table (§L.4). No total AADT is fabricated, no lane count is
+  fabricated, and no reverse multiplication is permitted.
+
+Selection precedence is unchanged: `authoritative_posted` >
+`authoritative_inferred` > `local_area_predicted` > `highway_baseline`. `unknown`
+remains non-score-bearing and unresolved.
+
+### L.4 Pinned Highway Baseline table (now explicit authority)
+
+The previously implicit DS-015 highway-type class-proxy table is made explicit and
+versioned here. It is **effective right-lane AADT** (a per-lane proxy), **not total
+AADT**.
+
+- **table id:** `ds015-highway-class-proxy-effective-right-lane-aadt.v1`
+- **unit:** `vehicles_per_day_per_lane`
+
+| highway class | effective right-lane AADT | unit |
+| --- | --- | --- |
+| `motorway` | 50000 | vehicles_per_day_per_lane |
+| `motorway_link` | 18000 | vehicles_per_day_per_lane |
+| `trunk` | 30000 | vehicles_per_day_per_lane |
+| `trunk_link` | 12000 | vehicles_per_day_per_lane |
+| `primary` | 12000 | vehicles_per_day_per_lane |
+| `primary_link` | 6000 | vehicles_per_day_per_lane |
+| `secondary` | 6000 | vehicles_per_day_per_lane |
+| `secondary_link` | 3000 | vehicles_per_day_per_lane |
+| `tertiary` | 3000 | vehicles_per_day_per_lane |
+| `tertiary_link` | 1000 | vehicles_per_day_per_lane |
+| `residential` | 1000 | vehicles_per_day_per_lane |
+| `unclassified` | 1000 | vehicles_per_day_per_lane |
+| `living_street` | 500 | vehicles_per_day_per_lane |
+| `service` | 500 | vehicles_per_day_per_lane |
+
+- These are effective right-lane AADT class proxies; they are **not** total AADT.
+- An unsupported highway class yields **no baseline candidate** and remains
+  unresolved; **no default catch-all value is permitted**.
+- This table must be copied exactly into future versioned production policy.
+  Changing a value or adding a row requires a version change and an authority
+  amendment.
+- These values must match the existing
+  `DS015_HIGHWAY_TYPE_CLASS_PROXY_AADT_PER_LANE` contract at the approved
+  integration SHA `347e1a6289b6fd15d9b7ef62770b90941cfb06a5`
+  (`src/shared/scoring/ds015-contract.ts`). The code is evidence of the previously
+  implicit table; this amended DS-029 appendix is the authority.
+
+### L.5 Highway Baseline identity (separately typed)
+
+- **selection class:** `highway_baseline`
+- **DS-029 source type:** `highway_baseline`
+- **provenance family:** `baseline`
+- **provider identity:** `lanterne_highway_baseline_model.v1`
+- **provider kind:** `model`
+- **producer / model identity:** `ds015-highway-class-proxy-effective-right-lane-aadt.v1`
+
+Highway Baseline is the **selection class and truth form**. "Highway Baseline" is
+**not** a provider label, and `highway_baseline` must **not** be used as a
+provider id. Provider identity, selection class, source type, provenance family,
+model identity, lookup key, and table version remain separately typed. P03 creates
+this typed candidate **before** selection evaluates it.
+
+### L.6 Forbidden reverse conversion
+
+Under no stage may `effective right-lane AADT` (per-lane) be multiplied by lane
+count to reconstruct a total AADT, nor may a total AADT be fabricated from a
+per-lane proxy. The per-lane → total or total → per-lane conversion is owned solely
+by P05 scoring under the versioned DS-015 formula (DS-067 stage ownership), and
+even there the per-lane value is used directly, never multiplied back into a total.
+
 
 ---
 
@@ -38708,6 +38865,64 @@ Canonical packages must not import React, Leaflet, components, pages, RouteMap, 
 They may not reconstruct score, select evidence, repair missing values, create fallback traffic, infer provider labels, or become rider-facing semantic truth.
 
 Incompatible cache/history artifacts must be invalidated at cutover.
+
+## 16. Traffic Measurement Basis And Stage Ownership (Amendment 2026-06-25 — P03A)
+
+This section is controlling for traffic and aligns DS-067 with
+`DS-029` Appendix L and the EXEC-060 P03/P04/P05 gates. It resolves the P03
+authority gap without inventing a highway-class total-AADT table.
+
+### 16.1 Canonical selected unit
+
+The selected traffic unit carried through the pipeline is a typed
+`TrafficExposureBasis` (defined in `DS-029` Appendix L.2), with exactly two forms:
+
+- `total_aadt_with_lane_basis` — `totalAadt` (`vehicles_per_day`) plus `laneCount`
+  (`count`), retaining all `totalAadtCandidateIds` and `laneCountCandidateIds`.
+- `effective_right_lane_aadt` — `effectiveRightLaneAadt`
+  (`vehicles_per_day_per_lane`), with `sourceForm` of `authoritative_direct` or
+  `highway_class_proxy`.
+
+The canonical term is **effective right-lane AADT**; `aadtPerLane` is a
+compatibility alias only. Neither form is "total traffic" generically.
+
+### 16.2 Stage ownership
+
+**P03 — TruthSelectionBuilders / RouteBuilders (`truth-selection/traffic`):**
+
+- constructs and selects one complete `TrafficExposureBasis` per atomic interval;
+- may combine exact compatible source facts into a complete basis **without
+  arithmetic** (no division, multiplication, Traffic Factor, or risk math);
+- may look up the versioned Highway Baseline effective-right-lane value
+  (`ds015-highway-class-proxy-effective-right-lane-aadt.v1`, DS-029 §L.4);
+- performs **no** total↔lane conversion;
+- performs **no** Traffic Factor or risk calculation;
+- keeps every component candidate id, provider, provenance, confidence, and receipt
+  attached.
+
+**P04 — RouteSurfaceTruthBundle (`route-surface-truth`):**
+
+- carries the selected `TrafficExposureBasis` **verbatim** into the bundle;
+- preserves all component candidate ids, providers, provenance, confidence, and
+  receipts;
+- performs **no** conversion and **no** scoring.
+
+**P05 — RigidScoreLedger (`rigid-score-ledger`):**
+
+- is the **sole** owner of traffic-input conversion and scoring math;
+- for `total_aadt_with_lane_basis`, derives effective right-lane AADT using the
+  versioned DS-015 formula (`effective right-lane AADT = total AADT / direction
+  divisor / directional lane count`);
+- for `effective_right_lane_aadt`, uses the selected value directly;
+- **never** multiplies effective-right-lane AADT by lane count to reconstruct a
+  total;
+- computes Traffic Factor, Road Risk, and downstream risk only after the basis is
+  certified;
+- records the measurement form and exact inputs in score receipts.
+
+No other stage may perform these calculations. No stage may fabricate a total AADT
+from a per-lane proxy, fabricate a lane count, or reverse-multiply a per-lane value
+into a total.
 
 
 
