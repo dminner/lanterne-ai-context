@@ -17807,18 +17807,34 @@ it, **without** authorizing P03 to fetch OpenStreetMap.
   `road_context` ledger layer; P03 does **not** fetch OpenStreetMap, read source
   clients, read route-line internals, or create `road_context` itself.
 
-### M.2 How P03 uses `broadHighwayClass`
+### M.2 How P03 uses `highwayTag` vs `broadHighwayClass`
 
-- **Highway Baseline lookup:** P03 uses `broadHighwayClass` as the lookup key into the
-  pinned class-proxy table (`ds015-highway-class-proxy-effective-right-lane-aadt.v1`,
-  §L.4) when the table expects a class-proxy traffic value. (The §L.4 baseline values
-  are unchanged by this amendment.)
-- **Local prediction:** P03 uses `broadHighwayClass` for the "same broad highway class"
-  contributor eligibility required by §7.2 and DS-053 §8.1.
-- **Authoritative inference:** P03 may use `broadHighwayClass` as **one required**
-  continuity/context input (e.g., equal-or-lower through-road-class checks per §7.1),
-  but `broadHighwayClass` alone is **not** sufficient proof of inference — same-road
-  identity, propagation path, distance/decay, and anchor provider are also required.
+The pinned Highway Baseline table (§L.4) is **exact-`highwayTag` keyed**, not broad-class
+keyed: its `_link` rows are intentionally distinct (e.g. `motorway` = 50000 vs
+`motorway_link` = 18000, `trunk` = 30000 vs `trunk_link` = 12000, `primary` = 12000 vs
+`primary_link` = 6000, `secondary` = 6000 vs `secondary_link` = 3000, `tertiary` = 3000
+vs `tertiary_link` = 1000). Collapsing `_link` into its parent class before lookup would
+corrupt the baseline value. Therefore:
+
+- **Highway Baseline lookup (exact tag):** P03 uses the **exact preserved `highwayTag`**
+  as the lookup key into the pinned class-proxy table
+  (`ds015-highway-class-proxy-effective-right-lane-aadt.v1`, §L.4). The table is
+  exact-tag keyed; `_link` values must **not** be collapsed into their parent class for
+  baseline lookup. `broadHighwayClass` **must not** be used as the Highway Baseline table
+  key. If `highwayTag` is missing or unsupported, **no** Highway Baseline candidate is
+  created and the class remains unresolved/ineligible for that interval. (The §L.4
+  baseline values are unchanged by this amendment.)
+- **Local prediction (broad class):** P03 uses `broadHighwayClass` for the "same broad
+  highway class" contributor eligibility required by §7.2 and DS-053 §8.1. The exact
+  `highwayTag` and the `isLink` flag remain preserved in trace; local prediction still
+  follows §7.2 and DS-053 §8.1 in full.
+- **Authoritative inference (broad continuity context):** P03 may use `broadHighwayClass`
+  as **one required** broad continuity/context input (e.g., equal-or-lower
+  through-road-class checks per §7.1), and may also preserve the exact `highwayTag` and
+  `isLink` in trace. `broadHighwayClass` alone is **not** sufficient proof of inference —
+  same-road identity, propagation path, distance/decay, and anchor provider are also
+  required. A future link-sensitive inference policy must use the exact `highwayTag` /
+  `isLink`, not a collapsed class alone.
 
 ### M.3 Separation guarantees
 
