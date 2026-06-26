@@ -7345,6 +7345,23 @@ Each crossing-event trace record must include:
 
 If a crossing is shown to riders but not score-bearing, the trace must say why.
 
+#### 5.2.1 Spine-native crossing substrate cross-reference (Amendment 2026-06-25 — P02C)
+
+The route-indexed `junction_context` evidence layer (DS-031 §3.3; admitted by EXEC-060
+P02C-B) is the planned spine-native route-indexed **substrate** for the crossing
+events described in §5.2 — it supplies junction kind, intersecting-road identity/class,
+lanes-crossed/width, control type, movement type, and diverter context as evidence.
+
+- `junction_context` is **evidence, not risk.** It is not selected crossing risk and
+  performs no scoring.
+- DS-015 crossing risk (likelihood × severity, this section and §6) remains owned by
+  **P05 / RigidScoreLedger** and is computed only after selected inputs are available.
+- The same `junction_context` evidence may support **both** crossing-risk construction
+  and `authoritative_inferred` traffic carry break boundaries (DS-029 Appendix N), but
+  the two consumers remain separate; sharing the substrate does not couple them.
+- **No scoring is authorized in P02C or P03.** This cross-reference adds no formula and
+  changes no DS-015 coefficient, threshold, or factor.
+
 ## 6. Truth Resolution, Provenance, And Confidence
 
 Every score-bearing input has three separate concepts:
@@ -16808,13 +16825,30 @@ Search radius:
 Computation:
 
 ```text
+# P03 completion stage (no arithmetic; emits a TrafficExposureBasis):
 broadClass = highwayType with `_link` stripped
 contributors = nearest eligible nearby total AADT readings within radius, capped by DS-053 field config
-expectedAADTTotal = roundToLocalUnit(appropriateAggregate(contributor AADT totals))
-lanes = known lane count if available, else inferred lane count
+expectedAADTTotal = roundToLocalUnit(appropriateAggregate(contributor AADT totals))   # appropriateAggregate = mean (initial), roundToLocalUnit = nearest 100 AADT
+lanes = known lane count if available, else documented inferred lane count
+# P03 emits: TrafficExposureBasis { kind: 'total_aadt_with_lane_basis', totalAadt: expectedAADTTotal, laneCount: lanes, ... }
+
+# P05 scoring stage ONLY (after P03 emits the basis) — NOT performed by P03/P04:
 aadtPerLane = expectedAADTTotal / lanes
 trafficFactor = ds015TrafficFactorFromAADTPerLane(aadtPerLane)
 ```
+
+Reconciliation (Amendment 2026-06-25 — P02C; supersedes the legacy arithmetic
+reading above): the `aadtPerLane` division and `trafficFactor` derivation are **P05
+scoring responsibilities** owned solely by P05 under the versioned DS-015 formula
+(DS-067 §16 stage ownership). P03 `completeTrafficCandidateSet(...)` performs **no
+division, multiplication, Traffic Factor, or risk math**; it emits a complete
+`total_aadt_with_lane_basis` `TrafficExposureBasis` (Appendix L.2/L.3) carrying the
+predicted total AADT plus an explicit known or documented-inferred lane basis, with
+all contributor candidate IDs attached. P03 performs **no** total-to-effective-right-lane
+conversion (Appendix L.6). The DS-053 field config (radius `8047 m` / `5 mi`,
+`minCount` `2`, `maxCount` `10`, `mean` initial aggregate, `nearest_100` rounding,
+contributor source type `authoritative_posted`/`official_imported` direct truth only)
+is unchanged.
 
 Confidence anchor:
 
@@ -16822,7 +16856,8 @@ Confidence anchor:
 
 Required trace:
 
-- same as speed, plus the lane-count basis used to convert total AADT into per-lane truth
+- same as speed, plus the lane-count basis used to complete the `total_aadt_with_lane_basis`
+  candidate (P03 records the lane basis; it does not divide by it)
 
 ### 7.3 `regional_prior`
 
@@ -17848,6 +17883,180 @@ corrupt the baseline value. Therefore:
   for that interval; it never corrupts an authoritative direct traffic source fact and
   never permits a guessed class.
 
+## Appendix N. Authoritative inferred traffic carry and traffic provider identity (Amendment 2026-06-25 — P02C)
+
+This appendix closes the authority gap that stopped the post-P03A/post-P02B P03
+attempt: `authoritative_inferred` is an approved traffic selection class (Appendix
+L.3 names its composition) but no concrete **continuity/carry policy** existed, so a
+builder would have had to invent the same-road identity test, carry boundaries,
+diverter significance, distance/decay behavior, lane-basis carry, and a versioned
+policy id. P03 may not invent those rules. This appendix defines the policy and pins
+the traffic provider identities. It does **not** authorize implementation; the carry
+remains **inactive** until its required evidence layers exist (§N.1).
+
+### N.0 Required evidence (carry is inactive until these exist)
+
+The authoritative inferred traffic carry depends on two new spine-native
+route-indexed **evidence** layers defined in DS-031 §3.2 and §3.3:
+
+- `road_identity` — corridor identity (OSM `name` / `ref` / route-relation refs,
+  normalized) for same-road continuity reasoning.
+- `junction_context` — junction / crossing / diverter context for topology breaks.
+
+Until `road_identity` and `junction_context` are implemented and certified on the
+`RouteIndexedEvidenceLedger`, `authoritative_inferred` traffic is **inactive /
+unavailable**. No tag-only, `broadHighwayClass`-only, route-name-only, or
+geometry-only proxy carry is approved as a substitute.
+
+### N.1 Authoritative inferred traffic carry
+
+- **Policy id:** `traffic-authoritative-inferred-corridor-carry.v1`
+- **Status:** inactive until `road_identity` and `junction_context` evidence are
+  implemented and certified.
+- **Selection class:** `authoritative_inferred`
+- **DS-029 source type:** `authoritative_inferred`
+- **Provenance family:** `relationship_inferred`
+
+When active, `authoritative_inferred` may carry an authoritative traffic basis along
+a same-road corridor.
+
+**Core rule — topology-bounded, not distance-decayed.** A carry remains eligible
+across distance only while the route stays on the same corridor and no major
+diverter / topology break occurs. Distance alone is **not** the validity limit: a
+homogeneous corridor may preserve one authoritative traffic count across long
+distances if no material traffic-diverting junction interrupts it. There is **no
+distance decay** in v1 (§N.4).
+
+**Inputs required:**
+
+- authoritative posted anchor candidate;
+- selected or candidate `road_identity` evidence for the anchor interval;
+- `road_identity` evidence for the target interval;
+- `junction_context` evidence between anchor and target;
+- compatible lane-basis evidence, if carrying `total_aadt_with_lane_basis`;
+- provider identity of the anchor;
+- route-axis identity;
+- exact policy version/digest.
+
+**Same-road corridor eligibility** (use all available, ordered by confidence):
+
+1. exact `ref` / route-ref continuity;
+2. exact normalized road-name continuity;
+3. same OSM relation / connected way family where available;
+4. directional / geometric coherence only as supporting evidence, never sufficient
+   alone.
+
+Explicitly **forbidden as sufficient proof**: same `broadHighwayClass` alone; same
+`highwayTag` alone; geometry alone; route name from presentation; HPMS route name
+alone.
+
+### N.2 Break conditions
+
+A carry must stop at:
+
+- any intervening authoritative posted traffic reading for the same dimension (the
+  posted reading supersedes; record why no intervening reading was overridden);
+- `road_identity` discontinuity;
+- missing / uncertified `road_identity` where continuity is required;
+- a `major_diverter` `junction_context` (§N.3);
+- a `road_context` / `highwayTag` change this authority marks incompatible;
+- lane-basis discontinuity when carrying a `total_aadt_with_lane_basis`;
+- conflict evidence;
+- missing provider identity;
+- route gaps or projection gaps.
+
+### N.3 Diverter policy
+
+A junction is a `major_diverter` when the intersecting or joining road plausibly
+adds or removes material traffic from the carried corridor.
+
+**Initial authority rule** — `major_diverter` if any of:
+
+- a `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`, or `primary_link`
+  road intersects / joins / exits the carried corridor;
+- `junctionKind` is `ramp` or a motorway/trunk/primary link;
+- `lanesCrossed >= 3` and `controlType` is `signalized` or `uncontrolled`;
+- `movementType` is `join` or `exit` involving an intersecting road whose class is
+  `secondary` or stronger;
+- a `roundabout` connecting `secondary` or stronger roads.
+
+`minor_diverter` / `non_diverter` examples: a `residential`/`service` driveway with
+`lanesCrossed <= 2` and non-signalized; a `service_access` / `driveway` not
+materially part of through traffic; a `same_ref_continuation` / `same_road_family`
+non-event.
+
+**Unknown diverter significance stops the carry.** If diverter significance is
+`unknown`, the carry must stop unless this policy explicitly classifies the junction
+as `non_diverter`. There is **no silent carry across unknown diverter status**.
+
+### N.4 No distance decay
+
+There is no distance decay in v1. Distance is recorded in trace but does not by
+itself invalidate the carry. A carried candidate may span long distances if topology
+continuity remains certified.
+
+### N.5 Lane basis
+
+A carried `total_aadt_with_lane_basis` candidate may be completed only when:
+
+- the target interval has a compatible authoritative or inferred lane basis; or
+- the lane basis is itself carried under the same topology policy with proof.
+
+No lane basis means an incomplete candidate, and the fallback ladder may continue to
+a weaker complete class (Appendix L.3).
+
+### N.6 Required trace
+
+- anchor candidate IDs;
+- anchor provider identity;
+- anchor source identity;
+- `road_identity` refs used;
+- `junction_context` refs inspected;
+- break / no-break decisions;
+- total carried distance;
+- policy id / digest;
+- why no intervening authoritative reading superseded the carry;
+- lane-basis carry / target lane-basis proof.
+
+### N.7 Provider
+
+`authoritative_inferred` **inherits the anchor provider identity** and records the
+anchor candidate IDs. It does **not** create a new provider. It remains source type
+`authoritative_inferred` and provenance family `relationship_inferred`.
+
+### N.8 Traffic provider identity pins
+
+Provider identity is a machine identity, not a display label. No provider labels may
+be created. The following are pinned:
+
+**Authoritative posted (HPMS / DOT):**
+
+- `providerId`: `hpms_authoritative_feed`
+- `providerKind`: `government_feed`
+- `providerVersion`: `null` unless the feed/version is explicitly available
+- Eligibility (all required): source dataset matches the accepted HPMS/DOT
+  government-feed pattern; source type `authoritative_posted`; provenance family
+  `official_imported`; explicit source record ID; explicit dataset identity.
+
+**Authoritative inferred:** inherits the provider identity of its authoritative
+anchor and records the anchor candidate IDs (§N.7). It never mints a provider.
+
+**Local-area predicted:**
+
+- `providerId`: `lanterne_local_area_traffic_model.v1`
+- `providerKind`: `model`
+- producer / model identity: `traffic-local-area-prediction.v1`
+
+**Highway baseline (unchanged, restated for completeness — see §L.5):**
+
+- `providerId`: `lanterne_highway_baseline_model.v1`
+- `providerKind`: `model`
+- producer / model identity: `ds015-highway-class-proxy-effective-right-lane-aadt.v1`
+
+A finite candidate without a valid explicit provider identity is ineligible and
+creates an integrity blocker; a stronger-class candidate missing provider identity
+blocks fallback to a weaker class and must not be silently hidden (Appendix L.3).
+
 
 ---
 
@@ -18116,6 +18325,8 @@ Initial layer ids:
 | Layer | Geometry | Score eligibility | Notes |
 | --- | --- | --- | --- |
 | `road_context` | span | context_for_selection | OSM `highway=*` road-class context for traffic candidate completion (P02B). Hidden; not road ownership; not traffic truth. |
+| `road_identity` | span | context_for_selection | OSM `name`/`ref`/route-relation corridor identity for continuity reasoning (P02C-A). Hidden; not traffic truth; not provider; not scoring. |
+| `junction_context` | point/span | context_for_selection | Junction/crossing/diverter context for topology breaks and crossing-risk substrate (P02C-B). Hidden; not crossing risk; not traffic truth; not scoring. |
 | `road_ownership` | span | confidence_only / substrate | Canonical V2 road/path identity |
 | `speed_limit` | span | score_driving | Posted/official/derived by DS-029 rules |
 | `traffic_aadt` | span | score_driving | Official or inferred traffic context |
@@ -18191,6 +18402,152 @@ P03 may **use** the public `road_context` ledger layer to evaluate `highway_base
 `local_area_predicted`, and `authoritative_inferred` eligibility. P03 may not create
 `road_context`, query OpenStreetMap, read source clients, or write `road_context` back
 into the ledger.
+
+### 3.2 `road_identity` (Amendment 2026-06-25 — P02C-A)
+
+`road_identity` is a route-indexed **source-evidence** layer carrying corridor
+identity (OpenStreetMap `name`, `ref`, and route-relation refs, normalized) so that
+P03 `authoritative_inferred` traffic carry can reason about same-road continuity. It
+is **not** traffic truth, **not** selected traffic, **not** a provider, **not**
+presentation, and **not** scoring.
+
+| Field | Value |
+| --- | --- |
+| layer id | `road_identity` |
+| geometryType | `span` |
+| valueKind | `object` |
+| scoreEligibility | `context_for_selection` |
+| displayEligibility | `hidden` |
+| sourcePriority | `self_hosted_roads`, `raw_overpass`, `fixture` |
+| requiresRouteTime | `false` |
+| workerRequired | `true` |
+| implemented | planned / P02C-A |
+
+Required value shape:
+
+```ts
+interface RouteIndexedRoadIdentityValue {
+  readonly schemaVersion: 'road-identity.v1';
+  readonly sourceSystem: 'openstreetmap';
+  readonly sourceRecordType: 'way' | 'relation' | 'unknown';
+  readonly sourceRecordId: string;
+  readonly sourceVersion: string | null;
+
+  readonly name: string | null;
+  readonly ref: string | null;
+  readonly routeRefs: readonly string[];
+  readonly normalizedNameKey: string | null;
+  readonly normalizedRefKeys: readonly string[];
+
+  readonly highwayTag: string | null;
+  readonly broadHighwayClass: string | null;
+  readonly isLink: boolean;
+
+  readonly confidence: 'high' | 'medium' | 'low';
+}
+```
+
+Rules:
+
+- OSM `name`, `ref`, and route-relation refs may be used for continuity evidence.
+- Exact OSM way/relation identity (`sourceRecordType`, `sourceRecordId`,
+  `sourceVersion`) must be preserved.
+- Name/ref normalization (`normalizedNameKey`, `normalizedRefKeys`) must be
+  deterministic.
+- Road identity **cannot** be inferred from presentation labels, **cannot** be
+  inferred from HPMS route name alone, and **cannot** be inferred from geometry
+  alone.
+- Missing `name`/`ref` does **not** fabricate continuity (emit unresolved or
+  null-keyed evidence; never invent a corridor identity).
+- `road_identity` is route-indexed source evidence admitted **before** P03. P03 may
+  use it but may not create it, query OpenStreetMap, read source clients, or write it
+  back into the ledger.
+
+### 3.3 `junction_context` (Amendment 2026-06-25 — P02C-B)
+
+`junction_context` is a route-indexed **source-evidence** layer carrying junction /
+crossing / diverter context (topology breaks) so that P03 `authoritative_inferred`
+traffic carry can decide corridor break boundaries, and so that a future DS-015
+crossing-risk stage has a spine-native substrate. It is **not** traffic truth,
+**not** selected traffic, **not** selected crossing risk, **not** scoring, and
+**not** presentation.
+
+| Field | Value |
+| --- | --- |
+| layer id | `junction_context` |
+| geometryType | `point` (or `span`) |
+| valueKind | `object` |
+| scoreEligibility | `context_for_selection` |
+| displayEligibility | `hidden` |
+| sourcePriority | `self_hosted_roads`, `raw_overpass`, `fixture` |
+| requiresRouteTime | `false` |
+| workerRequired | `true` |
+| implemented | planned / P02C-B |
+
+Required value shape:
+
+```ts
+interface RouteIndexedJunctionContextValue {
+  readonly schemaVersion: 'junction-context.v1';
+  readonly junctionId: string;
+  readonly routeDistM: number;
+  readonly junctionKind:
+    | 'crossing'
+    | 'join'
+    | 'exit'
+    | 'turn'
+    | 'ramp'
+    | 'roundabout'
+    | 'driveway'
+    | 'service_access'
+    | 'unknown';
+
+  readonly routeRoadIdentityRef: string | null;
+  readonly intersectingRoadIdentityRef: string | null;
+
+  readonly intersectingHighwayTag: string | null;
+  readonly intersectingBroadHighwayClass: string | null;
+  readonly intersectingIsLink: boolean;
+
+  readonly lanesCrossed: number | null;
+  readonly controlType:
+    | 'signalized'
+    | 'stop_controlled'
+    | 'signed'
+    | 'uncontrolled'
+    | 'unknown';
+
+  readonly movementType:
+    | 'straight'
+    | 'left_across'
+    | 'right_merge'
+    | 'join'
+    | 'exit'
+    | 'crossing'
+    | 'unknown';
+
+  readonly diverterClass:
+    | 'major_diverter'
+    | 'minor_diverter'
+    | 'non_diverter'
+    | 'unknown';
+
+  readonly confidence: 'high' | 'medium' | 'low';
+}
+```
+
+Rules:
+
+- `junction_context` is **evidence**, not selected crossing risk. It may later feed
+  DS-015 crossing risk (DS-015 cross-reference) and may also feed
+  `authoritative_inferred` traffic carry break decisions (DS-029 Appendix N.2/N.3).
+- It must preserve source lineage and trace.
+- It **cannot** create traffic values, **cannot** select traffic, and **cannot**
+  score.
+- `diverterClass` is contextual evidence; `unknown` diverter significance stops a
+  traffic carry per DS-029 §N.3 and is never silently treated as `non_diverter`.
+- `junction_context` is admitted **before** P03. P03 may use it but may not create
+  it, query OpenStreetMap, read source clients, or write it back into the ledger.
 
 ---
 
@@ -31209,6 +31566,34 @@ projection / admission, exactly like `traffic_aadt` and `lane_count`.
   `road_context` is class context for candidate **eligibility/lookup**, never a means to
   invent or upgrade an authoritative AADT value.
 
+### 6.5 `road_identity` and `junction_context` evidence (Amendment 2026-06-25 — P02C)
+
+`road_identity` (corridor identity: OSM `name`/`ref`/route-relation refs; DS-031 §3.2)
+and `junction_context` (junction / crossing / diverter context; DS-031 §3.3) are
+**external source evidence** and must enter through the ledger via P02C-A / P02C-B
+source projection / admission, exactly like `road_context`, `traffic_aadt`, and
+`lane_count`. They obey the same no-leak invariant.
+
+- P03 `authoritative_inferred` traffic carry may **consume** the public `road_identity`
+  and `junction_context` ledger layers to evaluate same-road corridor continuity and
+  topology break boundaries (DS-029 Appendix N).
+- P03 may **not** discover `road_identity` / `junction_context` itself, query
+  OpenStreetMap, read source clients, read route-line internals, infer corridor
+  identity from presentation labels / HPMS route name / geometry alone, or write either
+  layer back into the ledger.
+- Both layers are **context_for_selection** evidence: they are never selected traffic,
+  never selected crossing risk, never a provider, never a score, and never presentation.
+  `junction_context` is the planned spine-native substrate for DS-015 crossing events
+  but is **not itself** crossing risk.
+- Missing or uncertified `road_identity` / `junction_context` where continuity is
+  required makes `authoritative_inferred` carry **unresolved / ineligible** for that
+  interval (it stops the carry; DS-029 §N.2). Unknown diverter significance stops the
+  carry and is never silently treated as a non-diverter (DS-029 §N.3). Neither layer may
+  invent, upgrade, or corrupt an authoritative direct traffic source fact.
+- Until both layers are implemented and certified, `authoritative_inferred` traffic is
+  **inactive / unavailable** (DS-029 §N.0); no tag-only, `broadHighwayClass`-only,
+  route-name-only, or geometry-only proxy carry is permitted as a substitute.
+
 ## 7. Stable Surface Truth Output
 
 Route-surface stable outputs consume selected truth snapshots only.
@@ -39161,6 +39546,60 @@ total_aadt_with_lane_basis  ->  effective_right_lane_aadt   (P05 only)
 No other stage may perform these calculations. No stage may fabricate a total AADT
 from a per-lane proxy, fabricate a lane count, or reverse-multiply a per-lane value
 into a total.
+
+### 16.3 Road identity and junction context evidence for inferred carry (Amendment 2026-06-25 — P02C)
+
+`authoritative_inferred` traffic is **topology-bounded, not distance-decayed** (DS-029
+Appendix N). It requires two new spine-native route-indexed **evidence** layers,
+admitted **before** P03, exactly like `road_context`:
+
+```text
+P02C-A: OpenStreetMap name/ref/route-relation source facts
+          -> project / admit route-indexed road_identity evidence
+          -> RouteIndexedEvidenceLedger
+P02C-B: OpenStreetMap junction/crossing source facts
+          -> project / admit route-indexed junction_context evidence
+          -> RouteIndexedEvidenceLedger
+P03   : RouteIndexedEvidenceLedger
+          (traffic_aadt + lane_count + road_context + road_identity + junction_context)
+          + CanonicalRouteAxis
+          -> completeTrafficCandidateSet(...)
+          -> CompletedTrafficCandidateSet
+          -> selectStableTraffic(...)
+```
+
+**P02C-A — Road Identity evidence (source projection / ledger admission):**
+
+- projects/admits route-indexed `road_identity` spans (OSM `name`/`ref`/route-relation
+  corridor identity; DS-031 §3.2) and typed unresolved `road_identity` evidence;
+- is the only stage responsible for `road_identity` admission;
+- performs no traffic selection, no carry, no scoring, no provider creation, no
+  presentation.
+
+**P02C-B — Junction Context evidence (source projection / ledger admission):**
+
+- projects/admits route-indexed `junction_context` point/span evidence (junction /
+  crossing / diverter context; DS-031 §3.3) and typed unresolved evidence;
+- is the only stage responsible for `junction_context` admission;
+- is the planned spine-native substrate for DS-015 crossing events but is **not**
+  crossing risk;
+- performs no traffic selection, no carry, no scoring, no crossing-risk computation, no
+  presentation.
+
+**P03 inferred-carry use:** `completeTrafficCandidateSet(...)` may **consume** the
+public `road_identity` and `junction_context` layers to evaluate
+`authoritative_inferred` corridor continuity and break boundaries under
+`traffic-authoritative-inferred-corridor-carry.v1` (DS-029 Appendix N). It may not
+create either layer, query OpenStreetMap, read source clients, read route-line
+internals, or write either layer back into the ledger. The carry is **inactive until
+both layers are implemented and certified** (DS-029 §N.0); no tag-only,
+`broadHighwayClass`-only, route-name-only, or geometry-only proxy carry is permitted.
+Unknown diverter significance stops the carry (DS-029 §N.3). P02C and P03 perform **no
+scoring**; DS-015 crossing risk remains owned by P05 / RigidScoreLedger after selected
+inputs exist.
+
+**P03 retry entry gate:** `P02B PROCEED` + `P02C-A PROCEED` + `P02C-B PROCEED` while
+`authoritative_inferred` is required by P03 (EXEC-060 sequencing).
 
 
 

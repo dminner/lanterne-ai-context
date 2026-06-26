@@ -60855,6 +60855,66 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 
 ---
 
+### P02C-A — Road Identity Evidence Layer (Amendment 2026-06-25 — P02C)
+
+- **Purpose:** Admit route-indexed `road_identity` evidence (OpenStreetMap
+  `name`/`ref`/route-relation corridor identity) into `RouteIndexedEvidenceLedger` so
+  P03 `authoritative_inferred` traffic carry can reason about same-road continuity.
+  Authority: DS-031 §3.2, DS-029 Appendix N.0, DS-055 §6.5, DS-067 §16.3.
+- **Input contract:** source road facts containing OSM `name`/`ref`/route-relation
+  refs; `CanonicalRouteAxis`; route projection proof.
+- **Output contract:** route-indexed `road_identity` spans (value
+  `RouteIndexedRoadIdentityValue`, `road-identity.v1`) plus typed unresolved
+  `road_identity` evidence; deterministic name/ref normalization keys.
+- **Authoritative owner:** source projection / ledger admission (`road_identity`).
+- **Forbidden responsibilities:** traffic selection; traffic carry; scoring; provider
+  creation; presentation; inferring identity from presentation labels / HPMS route
+  name / geometry alone; fabricating continuity from missing name/ref.
+- **Fail-closed behavior:** missing/unresolved `name`/`ref` ⇒ typed unresolved or
+  null-keyed evidence; never an invented corridor identity.
+- **Entry gate:** P02B PROCEED.
+- **Exit gate:** `road_identity` spans admitted with preserved exact OSM identity and
+  deterministic normalized keys; `road_identity` is `hidden` and never traffic truth.
+
+---
+
+### P02C-B — Junction Context Evidence Layer (Amendment 2026-06-25 — P02C)
+
+- **Purpose:** Admit route-indexed `junction_context` evidence (junction / crossing /
+  diverter context) into `RouteIndexedEvidenceLedger` so P03 `authoritative_inferred`
+  carry can decide topology break boundaries, and so a future DS-015 crossing-risk
+  stage has a spine-native substrate. Authority: DS-031 §3.3, DS-029 Appendix N.2/N.3,
+  DS-055 §6.5, DS-067 §16.3, DS-015 cross-reference.
+- **Input contract:** source junction/crossing facts; `CanonicalRouteAxis`; route
+  projection proof; (optionally) `road_identity` for intersecting-road identity refs.
+- **Output contract:** route-indexed `junction_context` point/span evidence (value
+  `RouteIndexedJunctionContextValue`, `junction-context.v1`) plus typed unresolved
+  evidence; preserved source lineage and trace.
+- **Authoritative owner:** source projection / ledger admission (`junction_context`).
+- **Forbidden responsibilities:** traffic selection; traffic carry; **crossing-risk
+  computation**; scoring; presentation; creating traffic values.
+- **Fail-closed behavior:** unknown diverter significance ⇒ `diverterClass: 'unknown'`,
+  which stops a carry (DS-029 §N.3) and is never silently treated as a non-diverter.
+- **Entry gate:** P02C-A PROCEED.
+- **Exit gate:** `junction_context` evidence admitted with diverter/control/movement
+  context and source lineage; `junction_context` is `hidden`, is **not** crossing risk,
+  and is never written as traffic truth or score.
+
+---
+
+### P03A2 — Authoritative Inferred Traffic Carry Authority (Amendment 2026-06-25 — P02C)
+
+- **Purpose:** Pin the `authoritative_inferred` traffic carry policy
+  (`traffic-authoritative-inferred-corridor-carry.v1`), topology-bounded and **not**
+  distance-decayed. Authority resolved in this P02C amendment (DS-029 Appendix N).
+- **Status:** authority resolved here; the carry is **inactive until `road_identity`
+  and `junction_context` evidence are implemented and certified** (DS-029 §N.0).
+- **Forbidden:** any tag-only, `broadHighwayClass`-only, route-name-only, or
+  geometry-only proxy carry; distance decay; silent carry across unknown diverter
+  status; any implementation in this authority phase.
+
+---
+
 ### P03 — Single Candidate Family And Single Selector
 
 - **Purpose:** Provide exactly one traffic candidate family and exactly one stable selector.
@@ -60906,7 +60966,16 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
   source clients/route-line internals, infers class from route name / HPMS facility type / geometry
   alone, or writes `road_context` back to the ledger. This does not weaken the missing-provider
   integrity blocker.
-- **Entry gate:** P02B PROCEED.
+- **Inferred-carry gate (P02C):** `authoritative_inferred` is **topology-bounded, not
+  distance-decayed** (DS-029 Appendix N), and depends on the `road_identity` (DS-031 §3.2)
+  and `junction_context` (DS-031 §3.3) evidence layers. It is **inactive/unavailable**
+  until both layers are implemented and certified (DS-029 §N.0); no tag-only,
+  `broadHighwayClass`-only, route-name-only, or geometry-only proxy carry is permitted,
+  and unknown diverter significance stops the carry (DS-029 §N.3).
+- **Entry gate:** P02B PROCEED **+ P02C-A PROCEED + P02C-B PROCEED** while
+  `authoritative_inferred` is required by P03. (If a future owner decision narrows P03 to
+  exclude `authoritative_inferred`, EXEC-060 must explicitly mark it inactive/deferred for
+  that vertical slice; this amendment does not do so.)
 - **Exit gate:** one candidate family; one selector; the four approved classes; one selected
   `TrafficExposureBasis` per atomic interval; Highway Baseline candidate present before selection;
   road-class-dependent classes only where `road_context` is certified; no fabricated total/lane and
