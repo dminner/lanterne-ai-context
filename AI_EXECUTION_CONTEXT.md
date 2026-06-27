@@ -60633,7 +60633,7 @@ Exact public package boundaries:
 | Traffic route projection | `src/lib/source-projection/traffic/` |
 | Traffic ledger admission and typed candidate contracts | `src/lib/route-evidence/traffic/` |
 | Sole stable traffic selector | `src/lib/truth-selection/traffic/` |
-| Stable selected-fact bundle | `src/lib/route-surface-truth/` |
+| Stable selected-fact bundle | `src/lib/traffic-spine/route-surface-truth/` (Amendment 2026-06-25 — P04A; legacy `src/lib/route-surface-truth/**` is frozen, not P04 authority) |
 | Sole stable scoring authority | `src/lib/rigid-score-ledger/` |
 | Sole rider-facing semantic score authority | `src/lib/active-score-ledger/` |
 | Mechanical projection | `src/lib/active-truth/` |
@@ -60651,9 +60651,11 @@ Topology rules:
 - **Source projection may not select or score.**
 - **route-evidence may not import selection, scoring, UI, cache, or history.**
 - **truth-selection may import only public route-evidence and route-axis contracts.**
-- **route-surface-truth may import only selected builder artifacts.**
-- **rigid-score-ledger may import only `RouteSurfaceTruthBundle` and its own internal versioned
-  model policy.**
+- **traffic-spine route-surface-truth (`src/lib/traffic-spine/route-surface-truth/`) may import
+  only the public P03 `@/lib/truth-selection/traffic` boundary and local files; it must not import
+  the legacy `@/lib/route-surface-truth` package or the ledger** (Amendment 2026-06-25 — P04A).
+- **rigid-score-ledger may import only the traffic-spine `RouteSurfaceTruthBundle`
+  (`@/lib/traffic-spine/route-surface-truth`) and its own internal versioned model policy.**
 - **active-score-ledger may import only `RigidScoreLedger` plus explicitly approved scenario
   contracts.**
 - **P06 is default/non-temporal scenario only.**
@@ -60992,22 +60994,35 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 ### P04 — Route Surface Truth Bundle
 
 - **Purpose:** Assemble all score-bearing facts for the vertical slice from selected ledger truth.
-- **Input contract:** Selected stable traffic and other selected ledger facts.
-- **Output contract:** `buildRouteSurfaceTruthBundle(...)` producing `RouteSurfaceTruthBundle`.
-- **Authoritative owner:** `src/lib/route-surface-truth/`.
-- **Package roots allowed to change:** `src/lib/route-surface-truth/`, fixtures, architecture
-  tests.
-- **Package roots forbidden to change:** scoring, active-truth, presentation, cache/history.
-- **Permitted responsibilities:** assemble selected builder artifacts into a stable bundle; carry
-  the selected `TrafficExposureBasis` **verbatim** (DS-067 §16.2), preserving all component
-  candidate ids, providers, provenance, confidence, and receipts.
+- **Input contract:** the public P03 `StableTrafficSelectionResult` only (Amendment
+  2026-06-25 — P04A).
+- **Output contract:** `buildRouteSurfaceTruthBundle(...)` producing the traffic-spine
+  `RouteSurfaceTruthBundle`.
+- **Authoritative owner (Amendment 2026-06-25 — P04A):** `src/lib/traffic-spine/route-surface-truth/`
+  (public import `@/lib/traffic-spine/route-surface-truth`). The pre-existing **legacy** package
+  `src/lib/route-surface-truth/**` (barrel `@/lib/route-surface-truth`, with its own legacy
+  `RouteSurfaceTruthBundle`) is existing legacy code and is **not** P04 authority.
+- **Package roots allowed to change:** `src/lib/traffic-spine/route-surface-truth/`, fixtures,
+  architecture tests.
+- **Package roots forbidden to change:** `src/lib/route-surface-truth/**` (frozen legacy), scoring,
+  active-truth, presentation, cache/history.
+- **Permitted responsibilities:** assemble the public P03 selected result into a stable bundle; carry
+  the selected `TrafficExposureBasis` **verbatim** (DS-067 §16), preserving all component candidate
+  ids, providers, producer/model identity, provenance, source type, confidence, road_context/
+  road_identity/junction_context ids, completion proof digest, and selection receipt id; gate
+  score-readiness.
 - **Forbidden responsibilities:** any traffic conversion (no total-to-per-lane and no
-  per-lane-to-total), Traffic Factor, or scoring;
+  per-lane-to-total), Traffic Factor, or scoring; presentation formatting;
   consuming `HeatmapSegment`, `RouteSpeedSegment`, debug snapshot, cache, history, `QuickPaint`,
   `RobustPaint`, display DTO, or receipt reconstruction input.
+- **Hard entry/exit guard (Amendment 2026-06-25 — P04A):** no production P04 file imports
+  `@/lib/route-surface-truth` or `src/lib/route-surface-truth/**`, `@/lib/route-evidence`,
+  source-normalization, or source-projection. P04 production imports only
+  `@/lib/truth-selection/traffic` and local P04 files.
 - **Deterministic fixtures:** bundle assembled from selected South Las Vegas / lane fixtures.
-- **Focused tests:** all score-bearing facts arrive through selected ledger truth.
-- **Architecture/import checks:** route-surface-truth imports only selected builder artifacts; no
+- **Focused tests:** all score-bearing facts arrive through selected truth.
+- **Architecture/import checks:** traffic-spine route-surface-truth imports only the public P03
+  truth-selection boundary and local files; never the legacy route-surface-truth package, ledger,
   heatmap/display/cache/history types.
 - **Runtime proof status required:** bundle-composition unit proof.
 - **Fail-closed behavior:** **scoring is blocked until every score-bearing fact arrives through
@@ -61022,7 +61037,9 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 ### P05 — Rigid Score Ledger
 
 - **Purpose:** Compute the single authoritative score.
-- **Input contract:** `RouteSurfaceTruthBundle` (P04).
+- **Input contract:** the traffic-spine `RouteSurfaceTruthBundle` (P04) imported from
+  `@/lib/traffic-spine/route-surface-truth` (Amendment 2026-06-25 — P04A), never the legacy
+  `@/lib/route-surface-truth`; P05 refuses to score a bundle whose `scoreReadiness` is `blocked`.
 - **Output contract:** `buildRigidScoreLedgerRevision(...)` producing a `RigidScoreLedger` revision.
 - **Authoritative owner:** `src/lib/rigid-score-ledger/`.
 - **Package roots allowed to change:** `src/lib/rigid-score-ledger/`, fixtures, architecture tests.
@@ -61297,6 +61314,12 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 
 - **Purpose:** Delete or semantically strip all competing authorities and enforce forbidden
   imports.
+- **Legacy route-surface-truth note (Amendment 2026-06-25 — P04A):** the legacy package
+  `src/lib/route-surface-truth/**` (barrel `@/lib/route-surface-truth`, legacy
+  `RouteSurfaceTruthBundle`) remains live legacy runtime code during P04–P09 and is **scheduled
+  for deletion/cutover review here in P10**, not in P04. P04 introduced the parallel traffic-spine
+  root `src/lib/traffic-spine/route-surface-truth/`; P10 owns retiring the legacy package and its
+  remaining consumers under the import guard.
 - **Input contract:** The legacy authority deletion register (§9.11).
 - **Output contract:** every competing authority deleted or semantically stripped; an enforceable
   repository import guard at `scripts/architecture/traffic-spine-import-guard.mjs`; removal of any

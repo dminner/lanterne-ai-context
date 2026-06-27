@@ -31450,8 +31450,8 @@ CanonicalRouteAxis
 | Source Projection Workers | `src/lib/source-projection` | RouteAxis and raw external source facts |
 | RouteIndexedEvidenceLedger | `src/lib/route-evidence` | RouteAxis and source projection outputs |
 | Truth Selection Builders | `src/lib/truth-selection` | RouteIndexedEvidenceLedger only |
-| RouteSurfaceTruthBundle | `src/lib/route-surface-truth` | selected truth snapshots only |
-| RigidScoreLedger | future `src/lib/rigid-score-ledger` | RouteSurfaceTruthBundle only |
+| RouteSurfaceTruthBundle (traffic-spine) | `src/lib/traffic-spine/route-surface-truth` (Amendment 2026-06-25 — P04A) | public P03 `StableTrafficSelectionResult` only |
+| RigidScoreLedger | future `src/lib/rigid-score-ledger` | traffic-spine RouteSurfaceTruthBundle (`@/lib/traffic-spine/route-surface-truth`) only |
 | ActiveScoreLedger | future `src/lib/active-score-ledger` | RigidScoreLedger plus explicitly documented active-scenario inputs |
 | Ride Context / Temporal Binding | `src/lib/route-time` | RouteAxis and ride context |
 | Temporal Projector | `src/lib/temporal-projection` | selected truth baseline and route-time binding |
@@ -31593,6 +31593,24 @@ source projection / admission, exactly like `road_context`, `traffic_aadt`, and
 - Until both layers are implemented and certified, `authoritative_inferred` traffic is
   **inactive / unavailable** (DS-029 §N.0); no tag-only, `broadHighwayClass`-only,
   route-name-only, or geometry-only proxy carry is permitted as a substitute.
+
+### 6.6 P04 RouteSurfaceTruthBundle package boundary (Amendment 2026-06-25 — P04A)
+
+The traffic-spine P04 bundle is owned by the new package root
+**`src/lib/traffic-spine/route-surface-truth/`** (import
+`@/lib/traffic-spine/route-surface-truth`).
+
+- **No-leak input:** P04 consumes **only** the public P03 `StableTrafficSelectionResult`.
+  It does not read `RouteIndexedEvidenceLedger`, source-normalization, source-projection,
+  source clients, scoring, presentation, cache/history, or any display/debug object.
+- **Legacy isolation:** the pre-existing legacy package `src/lib/route-surface-truth/**`
+  (barrel `@/lib/route-surface-truth`, with its own legacy `RouteSurfaceTruthBundle` in
+  `types.ts`) is frozen legacy code and is **not** the traffic-spine P04 authority. P04
+  production must not import, modify, wrap, or barrel-export through it. The new bundle
+  type is scoped by its import path; the same-named legacy type stays legacy.
+- P04 carries the selected `TrafficExposureBasis` verbatim, performs no conversion and no
+  scoring, and a `blocked` bundle is never handed to P05 as score-bearing truth.
+- Legacy `src/lib/route-surface-truth/**` deletion/cutover is deferred to P10, not P04.
 
 ## 7. Stable Surface Truth Output
 
@@ -39057,6 +39075,16 @@ Builder blockers remain blockers. They must not be converted into guessed score-
 
 ## 7. RouteSurfaceTruthBundle
 
+> **Package boundary (Amendment 2026-06-25 — P04A).** The traffic-spine
+> `RouteSurfaceTruthBundle` is owned by the new package root
+> **`src/lib/traffic-spine/route-surface-truth/`** (import
+> `@/lib/traffic-spine/route-surface-truth`). The pre-existing legacy
+> `src/lib/route-surface-truth/**` (which has its own legacy `RouteSurfaceTruthBundle`)
+> is **not** the traffic-spine P04 authority and must not be imported, modified, or
+> barrel-exported through by P04 production. The new type is scoped by its import path;
+> the same-named legacy type stays legacy. P04 semantics are unchanged: selected truth
+> only, verbatim `TrafficExposureBasis`, no conversion, no scoring.
+
 `RouteSurfaceTruthBundle` is the sole selected stable-fact bundle.
 
 It carries selected route facts and their receipt lineage. It is not a score ledger and is not the rider-facing semantic score source.
@@ -39509,12 +39537,26 @@ P03 : RouteIndexedEvidenceLedger (traffic_aadt + lane_count + road_context) + Ca
 - keeps every component candidate id, provider, provenance, confidence, and receipt
   attached.
 
-**P04 — RouteSurfaceTruthBundle (`route-surface-truth`):**
+**P04 — RouteSurfaceTruthBundle (Amendment 2026-06-25 — P04A; package root
+`src/lib/traffic-spine/route-surface-truth/`):**
 
+- consumes only the public P03 `StableTrafficSelectionResult`;
 - carries the selected `TrafficExposureBasis` **verbatim** into the bundle;
-- preserves all component candidate ids, providers, provenance, confidence, and
-  receipts;
-- performs **no** conversion and **no** scoring.
+- preserves all component candidate ids, providers, producer/model identity, provenance,
+  source type, confidence, road_context/road_identity/junction_context ids, completion
+  proof digest, and selection receipt id;
+- performs **no** conversion, **no** scoring, and **no** presentation formatting;
+- gates score-readiness (does not hand a blocked bundle to P05 as score-bearing truth).
+
+**P04 package boundary (Amendment 2026-06-25 — P04A):** the traffic-spine P04 authority
+root is **`src/lib/traffic-spine/route-surface-truth/`** (public import
+`@/lib/traffic-spine/route-surface-truth`). The pre-existing **legacy** package
+`src/lib/route-surface-truth/**` (barrel `@/lib/route-surface-truth`, including its own
+legacy `RouteSurfaceTruthBundle` in `types.ts`) is **not** the traffic-spine P04 authority:
+P04 production may not modify, import, wrap, or barrel-export through it. The new
+traffic-spine `RouteSurfaceTruthBundle` is scoped by the new import path; the identically
+named legacy type remains legacy and non-authoritative for this pipeline. Legacy
+deletion/cutover is deferred to P10, not P04.
 
 **P05 — RigidScoreLedger (`rigid-score-ledger`):**
 
@@ -39527,7 +39569,11 @@ P03 : RouteIndexedEvidenceLedger (traffic_aadt + lane_count + road_context) + Ca
   total;
 - computes Traffic Factor, Road Risk, and downstream risk only after the basis is
   certified;
-- records the measurement form and exact inputs in score receipts.
+- records the measurement form and exact inputs in score receipts;
+- **consumes the traffic-spine P04 `RouteSurfaceTruthBundle` from
+  `@/lib/traffic-spine/route-surface-truth`** (Amendment 2026-06-25 — P04A), never the
+  legacy `@/lib/route-surface-truth` package; it refuses to score a bundle whose
+  `scoreReadiness` is `blocked`.
 
 Conversion is strictly one-directional and P05-owned:
 
@@ -49955,6 +50001,17 @@ It may snapshot selected evidence. It must not become a raw source reader, score
 
 For the traffic proof layer, the Phase 1.4 bridge is `RouteSurfaceStableTrafficOutput`: a traffic-only, partial, RouteSurfaceTruthBundle-compatible stable artifact that consumes `StableTrafficBaselineSnapshot` only. It preserves selected AADT value snapshots, unresolved and conflict spans, receipts, refs, coverage, and future bundle mapping. It is not the whole `RouteSurfaceTruthBundle`, and it must not carry ride-session state, temporal traffic exposure, scoring output, or presentation fields.
 
+**Package-boundary correction (Amendment 2026-06-25 — P04A).** The traffic-spine
+`RouteSurfaceTruthBundle` is owned by a **new** package root,
+`src/lib/traffic-spine/route-surface-truth/` (import
+`@/lib/traffic-spine/route-surface-truth`). The pre-existing legacy package
+`src/lib/route-surface-truth/**` (barrel `@/lib/route-surface-truth`, including its own
+legacy `RouteSurfaceTruthBundle` type) is **not** the traffic-spine P04 authority: the
+traffic-spine P04 has its own root and **cannot import, modify, wrap, or barrel-export
+through** the legacy surface-truth package. The new bundle type is scoped by its import
+path; the identically named legacy type remains legacy and non-authoritative for this
+pipeline. Legacy deletion/cutover is deferred to the later cutover phase (P10).
+
 ### Temporal traffic is contextual
 
 Temporal traffic exposure is not source truth. It is derived later from:
@@ -51535,13 +51592,23 @@ Each stage has exactly one authority:
 | CanonicalRouteAxis | Sole route measurement axis |
 | RouteIndexedEvidenceLedger | Sole route-evidence authority |
 | TruthSelectionBuilders / RouteBuilders | Sole evidence selection and stable fact construction stage |
-| RouteSurfaceTruthBundle | Sole selected stable-fact bundle |
+| RouteSurfaceTruthBundle | Sole selected stable-fact bundle (traffic-spine package root `src/lib/traffic-spine/route-surface-truth/`; see boundary note below) |
 | RigidScoreLedger | Sole stable route scoring authority |
 | ActiveScoreLedger | Sole rider-facing semantic score authority |
 | ActiveTruthView | Non-authoritative mechanical projection of one ActiveScoreLedger revision |
 | PresentationPanes | Rendering, formatting, and interaction only |
 
 The ActiveScoreLedger is the only rider-facing source of route score truth.
+
+**RouteSurfaceTruthBundle package boundary (Amendment 2026-06-25 — P04A).** The single
+pipe's `RouteSurfaceTruthBundle` stage is owned by the new traffic-spine package root
+**`src/lib/traffic-spine/route-surface-truth/`** (import
+`@/lib/traffic-spine/route-surface-truth`). It consumes only the public P03
+`StableTrafficSelectionResult` and carries the selected `TrafficExposureBasis` verbatim.
+The pre-existing legacy package `src/lib/route-surface-truth/**` (which has its own legacy
+`RouteSurfaceTruthBundle`) is **not** this stage's authority and must not be imported,
+modified, or barrel-exported through by the traffic-spine pipeline. Legacy
+deletion/cutover is deferred to the later cutover phase (P10), not P04.
 
 ------
 
