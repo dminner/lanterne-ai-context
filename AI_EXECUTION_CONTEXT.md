@@ -61399,12 +61399,16 @@ route-line (CanonicalRouteAxis)
   -> source-projection/traffic
   -> route-evidence/traffic (RouteIndexedEvidenceLedger)
   -> truth-selection/traffic
-  -> route-surface-truth (RouteSurfaceTruthBundle)
+  -> traffic-spine/route-surface-truth (RouteSurfaceTruthBundle)   # src/lib/traffic-spine/route-surface-truth/ (P04 authority; Amendment 2026-06-25 — P04A)
   -> rigid-score-ledger
   -> active-score-ledger
   -> active-truth (ActiveTruthView)
   -> presentation/active-truth
 route-analysis-transport  : downstream transport only (never imported upstream)
+
+# Legacy (frozen, NOT in the traffic-spine DAG): src/lib/route-surface-truth/** (barrel
+# @/lib/route-surface-truth, legacy RouteSurfaceTruthBundle) — non-authoritative; P10
+# deletion/cutover candidate. No traffic-spine package may import it.
 ```
 
 The P10 import guard (`scripts/architecture/traffic-spine-import-guard.mjs`) **must fail on at
@@ -61416,7 +61420,14 @@ least** every reverse/forbidden edge below:
 - route-evidence importing scoring;
 - route-evidence importing presentation;
 - truth-selection importing source clients;
-- route-surface-truth importing heatmap / display / cache / history types;
+- traffic-spine/route-surface-truth (P04) importing heatmap / display / cache / history types;
+- **traffic-spine/route-surface-truth (P04) production importing the legacy
+  `@/lib/route-surface-truth` or `src/lib/route-surface-truth/**` package, `@/lib/route-evidence`,
+  source-normalization, or source-projection** (Amendment 2026-06-25 — P04A; P04 production imports
+  only `@/lib/truth-selection/traffic` and local files);
+- **rigid-score-ledger (P05) importing anything other than the traffic-spine
+  `@/lib/traffic-spine/route-surface-truth` bundle (never the legacy `@/lib/route-surface-truth`)
+  and its own versioned model policy;**
 - rigid-score-ledger importing `ActiveScoreLedger` implementation or presentation;
 - active-score-ledger importing presentation;
 - active-truth importing route-evidence, truth-selection, route-surface-truth, or scoring

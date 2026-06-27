@@ -50069,7 +50069,12 @@ The codebase should keep these packages separate:
 - `src/lib/route-evidence`: ledger contracts, layer registry, evidence types
 - `src/lib/source-projection`: source projection workers/modules, starting with HPMS AADT
 - `src/lib/truth-selection`: stable truth selection builders that consume ledgers
-- `src/lib/route-surface-truth`: durable selected truth bundles
+- `src/lib/traffic-spine/route-surface-truth`: durable selected traffic-spine truth bundles
+  (the new P04 authority; Amendment 2026-06-25 — P04A)
+- `src/lib/route-surface-truth/**`: **frozen legacy** surface-truth package (barrel
+  `@/lib/route-surface-truth`, with its own legacy `RouteSurfaceTruthBundle`) — **not** the
+  traffic-spine P04 authority; live legacy runtime code retained for later P10 legacy
+  deletion/cutover review only
 - future `src/lib/rigid-score-ledger`: stable scoring and immutable score trace
 - future `src/lib/active-score-ledger`: active scenario semantic score authority
 - `src/lib/route-time`: ride context and route-time binding
