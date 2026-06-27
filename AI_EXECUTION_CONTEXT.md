@@ -61034,12 +61034,97 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 
 ---
 
+### P04B / P04C-A / P04C-B / P04C-C / P04D / P04E — Selected DS-015 scoring-input extension (Amendment 2026-06-25 — P04B)
+
+**Context.** The first **P05** attempt **stopped** (no commit): the P04 bundle carried selected
+**traffic** facts only, while DS-015 §8 (Road Risk) and §9 (Crossing Risk) require additional
+selected score-bearing inputs. The gap is **input availability, not formula authority** (DS-015
+formulas are exact and remain P05-owned). The traffic-spine `RouteSurfaceTruthBundle` must evolve
+from a *selected traffic fact bundle* into a *selected DS-015 scoring input bundle* through the
+following **non-scoring** subphases before P05 retries. Each carries selected inputs only, applies
+no DS-015 formula, and obeys the no-leak invariant (no scoring reach-around; missing input ⇒ blocked
+bundle ⇒ blocked ledger; no zero substitution; no Road-Risk-only Total Risk).
+
+**P04B — DS-015 Selected Scoring Inputs Authority Resolution (this phase).**
+- **Authoritative owner:** Program governance (this document) + DS-015/DS-031/DS-055/DS-067.
+- **Purpose:** record the P05 stop, pin terminology (Durable Source Evidence Substrate vs
+  `RouteIndexedEvidenceLedger` vs selected DS-015 scoring inputs), pin source precedence
+  (official/DOT/HPMS outranks OSM per dimension; OSM is fallback; override via receipt, never
+  silent overwrite), define target P04 fact families, and sequence P04C-A→P04E before P05.
+  Documentation-only; no production code.
+
+**P04C-A — Speed Limit Evidence And Selected Speed Input Facts.**
+- **Authoritative owner:** source projection / ledger admission (`speed_limit`) + selected speed
+  input builder.
+- **Purpose:** admit `speed_limit` evidence where needed and select route-indexed **speed input
+  facts** with receipts. Official/DOT speed wins over OSM `maxspeed`; OSM `maxspeed` is fallback.
+  No scoring. **Output:** selected speed input facts with receipts.
+
+**P04C-B — Shoulder / Facility Selected Input Facts.**
+- **Authoritative owner:** source projection / ledger admission (`shoulder`, `bike_infra`) +
+  selected shoulder/facility input builders.
+- **Purpose:** admit `shoulder` and bike/facility evidence where needed and select route-indexed
+  **shoulder** and **facility/bike-infra input facts** with receipts. Official/DOT wins over OSM
+  where available; OSM `shoulder`/`cycleway`/`bicycle` tags are fallback. No scoring. **Output:**
+  selected shoulder and facility input facts with receipts.
+
+**P04C-C — Curvature Deterministic Route-Geometry Facts.**
+- **Authoritative owner:** deterministic route-geometry curvature builder (from
+  `CanonicalRouteAxis`).
+- **Purpose:** derive deterministic **curvature input facts** from route geometry with
+  deterministic-geometry receipts. Curvature is deterministic route geometry, **not** a
+  source-provider evidence layer unless future authority says otherwise. No scoring. **Output:**
+  selected curvature input facts with deterministic geometry receipts.
+
+**P04D — Crossing-Risk Selected Input Facts.**
+- **Authoritative owner:** selected crossing-risk input builder (consumes `road_identity`,
+  `junction_context`, traffic, speed, lanes/width, control, movement evidence).
+- **Purpose:** build selected **`RouteSurfaceCrossingRiskInputFact`** inputs — selected crossed-road
+  traffic input, selected crossed-road speed input, lanes/width, control, movement, and context
+  severity inputs — and classify event eligibility / non-events (DS-015 §9.1). Raw
+  `junction_context` ids are evidence, **not** selected crossing-risk truth. No scoring. **Output:**
+  selected crossing-risk input facts with receipts.
+
+**P04E — RouteSurfaceTruthBundle DS-015 Extension.**
+- **Authoritative owner:** `src/lib/traffic-spine/route-surface-truth/` (extension).
+- **Purpose:** extend the bundle to carry `RouteSurfaceTrafficFact` + `RouteSurfaceRoadRiskInputFact`
+  + `RouteSurfaceCrossingRiskInputFact` + complete DS-015 `RouteSurfaceScoringReadiness` (ready only
+  when every score-bearing DS-015 input required by the enabled formulas is present, selected,
+  provenance-backed, and receipt-backed). No scoring. **Exit:** **P04E PROCEED** — the entry gate
+  for P05 retry.
+
+**Target P04 bundle fact families (for P04E):**
+- `RouteSurfaceTrafficFact` — selected traffic exposure basis (already implemented in P04).
+- `RouteSurfaceRoadRiskInputFact` — route-indexed interval fact carrying the selected
+  `TrafficExposureBasis` reference + selected speed/curvature/facility/shoulder inputs +
+  per-component provenance/receipt refs + readiness; performs no formula math.
+- `RouteSurfaceCrossingRiskInputFact` — route-indexed point-event fact carrying event id, routeDistM,
+  event kind, movement type, control type, lanes/width, crossed/entered road identity, selected
+  crossed-road traffic + speed inputs, context severity inputs, per-component provenance/receipt
+  refs + readiness; performs no formula math.
+- `RouteSurfaceScoringReadiness` — bundle-level readiness (ready/blocked) over all required inputs.
+
+---
+
 ### P05 — Rigid Score Ledger
 
 - **Purpose:** Compute the single authoritative score.
-- **Input contract:** the traffic-spine `RouteSurfaceTruthBundle` (P04) imported from
-  `@/lib/traffic-spine/route-surface-truth` (Amendment 2026-06-25 — P04A), never the legacy
-  `@/lib/route-surface-truth`; P05 refuses to score a bundle whose `scoreReadiness` is `blocked`.
+- **First-attempt status (Amendment 2026-06-25 — P04B):** the first P05 attempt **STOPPED with no
+  commit** because the P04 bundle carried selected traffic only and lacked the remaining selected
+  DS-015 score-bearing inputs (speed, curvature, facility, shoulder, and all crossing-risk inputs).
+  P05 retry is **gated on P04E PROCEED** (the extended bundle); see the P04B/P04C/P04D/P04E
+  subphases above. The DS-015 formulas were never the gap.
+- **Input contract:** the traffic-spine `RouteSurfaceTruthBundle` (P04, extended by **P04E**)
+  imported from `@/lib/traffic-spine/route-surface-truth` (Amendment 2026-06-25 — P04A), never the
+  legacy `@/lib/route-surface-truth`; P05 refuses to score a bundle whose `scoreReadiness` is
+  `blocked`.
+- **No-leak forbiddances (Amendment 2026-06-25 — P04B):** P05 must **not** read the
+  `RouteIndexedEvidenceLedger`, the Durable Source Evidence Substrate (source-fact cache/index),
+  source-normalization/projection, source clients, or any evidence layer (incl. `junction_context`)
+  directly; must **not** import legacy `safety-scoring.ts`, `route-analysis`, or `conflict-events`;
+  must **not** zero a missing risk dimension (incl. Crossing Risk) absent certified no-event truth
+  (DS-015 §9.1); and must **not** publish Road Risk as Total Risk or a partial Total Risk (a blocked
+  Crossing Risk blocks Total Risk and Risk Per Mile).
 - **Output contract:** `buildRigidScoreLedgerRevision(...)` producing a `RigidScoreLedger` revision.
 - **Authoritative owner:** `src/lib/rigid-score-ledger/`.
 - **Package roots allowed to change:** `src/lib/rigid-score-ledger/`, fixtures, architecture tests.
@@ -61060,8 +61145,11 @@ gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
 - **Architecture/import checks:** rigid-score-ledger imports only `RouteSurfaceTruthBundle` and its
   own internal versioned model policy.
 - **Runtime proof status required:** scoring unit proof with golden values.
-- **Fail-closed behavior:** no certified selected traffic ⇒ no RigidScoreLedger entry.
-- **Entry gate:** P04 PROCEED.
+- **Fail-closed behavior:** no certified selected traffic ⇒ no RigidScoreLedger entry; missing any
+  required selected DS-015 input ⇒ blocked bundle ⇒ no RigidScoreLedger entry (Amendment
+  2026-06-25 — P04B).
+- **Entry gate:** **P04E PROCEED** (Amendment 2026-06-25 — P04B; supersedes the prior "P04 PROCEED"
+  — P05 requires the DS-015-extended bundle, not the traffic-only bundle).
 - **Exit gate:** single scorer proven; canonical risk terms only.
 - **Legacy deletion obligation:** mark alternate scorers / score traces for deletion (§9.11).
 - **Expected final-gate evidence:** constructor name, golden risk values, receipt + version proof.

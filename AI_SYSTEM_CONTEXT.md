@@ -7362,6 +7362,35 @@ lanes-crossed/width, control type, movement type, and diverter context as eviden
 - **No scoring is authorized in P02C or P03.** This cross-reference adds no formula and
   changes no DS-015 coefficient, threshold, or factor.
 
+#### 5.2.2 Selected scoring-input staging (Amendment 2026-06-25 — P04B)
+
+The first P05 / RigidScoreLedger attempt stopped (EXEC-060 P05) because the traffic-spine
+`RouteSurfaceTruthBundle` (EXEC-060 P04) currently carries selected **traffic** facts only,
+while the DS-015 §8 / §9 formulas require additional selected score-bearing inputs. **The gap
+is input availability, not formula authority** — every formula in this document (§7 core math,
+§8.1 road risk, §8.2–§8.5 factors, §9.2–§9.6 crossing risk) remains exact and unchanged and
+remains owned solely by P05.
+
+Staging rules (no formula, coefficient, threshold, or factor changes):
+
+- **Road Risk (§8.1)** is blocked until the bundle carries selected **traffic** (present),
+  **speed severity** (§8.3), **horizontal curvature** (§8.4), and **facility + shoulder**
+  (§8.5) inputs, plus interval length.
+- **Crossing Risk (§9.2)** is blocked until the bundle carries selected **crossed-road
+  effective right-lane AADT**, **crossed-road speed**, **lanes crossed / width** (§9.3),
+  **control type** (§9.4), **movement type** (§9.5), and **crossing context severity /
+  route-family handoff** (§9.6) inputs, plus event eligibility / non-event classification
+  (§9.1). Raw `junction_context` ids (§5.2.1) are **evidence, not selected crossing-risk
+  truth**, and are insufficient for P05.
+- **Crossing Risk must not be set to zero** because selected crossing inputs are absent; zero
+  is authorized only when the bundle carries certified no-event truth that DS-015 §9.1
+  recognizes as score-bearing.
+- **Road Risk must not be published as Total Risk** (§7); a blocked Crossing Risk blocks Total
+  Risk and Risk Per Mile.
+- Selected scoring inputs are produced by explicit upstream P04 subphases
+  (EXEC-060 P04C-A / P04C-B / P04C-C / P04D / P04E) **before** P05 retries; those subphases
+  carry selected inputs only and apply no DS-015 formula.
+
 ## 6. Truth Resolution, Provenance, And Confidence
 
 Every score-bearing input has three separate concepts:
@@ -18548,6 +18577,53 @@ Rules:
   traffic carry per DS-029 §N.3 and is never silently treated as `non_diverter`.
 - `junction_context` is admitted **before** P03. P03 may use it but may not create
   it, query OpenStreetMap, read source clients, or write it back into the ledger.
+
+### 3.4 Layer/input implementation status and selected-scoring-input reservation (Amendment 2026-06-25 — P04B)
+
+This section pins three distinct concepts so "substrate" is never overloaded, and records
+what is actually implemented vs planned. It authorizes **no** new runtime behavior.
+
+**Three concepts (do not conflate):**
+
+1. **Durable Source Evidence Substrate** — a durable/semi-durable indexed cache or index of
+   *source* facts (OSM road tags; HPMS/DOT traffic, lanes, shoulder, speed; official
+   bike/facility data; cached source geometries). It is a performance / data-access layer. It
+   is **not** route truth, **not** selected truth, **not** score authority. It may feed route
+   evidence ingestion, but **P05 may never consume it directly**.
+2. **`RouteIndexedEvidenceLedger`** — per-route candidate accounting: projected route-indexed
+   evidence candidates + unresolved evidence, built from source/substrate facts and
+   deterministic route geometry. It **does not select** and **does not score**. P05 may **not**
+   read it directly.
+3. **Selected DS-015 scoring inputs** — per-route selected score-bearing facts derived from
+   ledger candidates or deterministic route geometry by explicit builders/selectors **with
+   receipts** (selected speed / shoulder / facility / curvature / crossing-risk / crossed-road
+   traffic & speed). These — carried into the traffic-spine `RouteSurfaceTruthBundle` — are
+   what must reach P05. Only these reach the scorer.
+
+**Layer / input implementation status:**
+
+| Item | Kind | Status |
+| --- | --- | --- |
+| `traffic_aadt` | evidence layer | **implemented** (P01/P03 spine) |
+| `lane_count` | evidence layer | **implemented** (P02 spine) |
+| `road_context` | evidence layer | **implemented** (P02B) |
+| `road_identity` | evidence layer | **implemented** (P02C-A) |
+| `junction_context` | evidence layer | **implemented** (P02C-B) |
+| `speed_limit` | evidence layer | **planned** (P04C-A) — registry row exists; not yet admitted |
+| `shoulder` | evidence layer | **planned** (P04C-B) — registry row exists; not yet admitted |
+| `bike_infra` / facility | evidence layer | **planned** (P04C-B) — registry row exists; not yet admitted |
+| route curvature | deterministic geometry-derived input | **planned** (P04C-C) — derived from `CanonicalRouteAxis`, not a source-provider layer unless future authority says otherwise |
+| selected speed input fact | selected scoring input | **planned** (P04C-A) |
+| selected shoulder input fact | selected scoring input | **planned** (P04C-B) |
+| selected facility input fact | selected scoring input | **planned** (P04C-B) |
+| selected curvature input fact | selected scoring input | **planned** (P04C-C) |
+| selected road-risk input fact (`RouteSurfaceRoadRiskInputFact`) | selected scoring input | **planned** (P04E surface; composed in P04C/P04D) |
+| selected crossing-risk input fact (`RouteSurfaceCrossingRiskInputFact`) | selected scoring input | **planned** (P04D) |
+
+Unimplemented items above are **not** marked implemented; the registry's `score_driving`
+declarations for `speed_limit`/`shoulder`/`bike_infra` describe *intended* eligibility, not
+current presence. No item here authorizes P05 to consume the `RouteIndexedEvidenceLedger`,
+durable source substrate, or source packages directly.
 
 ---
 
@@ -31612,6 +31688,26 @@ The traffic-spine P04 bundle is owned by the new package root
   scoring, and a `blocked` bundle is never handed to P05 as score-bearing truth.
 - Legacy `src/lib/route-surface-truth/**` deletion/cutover is deferred to P10, not P04.
 
+### 6.7 No-leak enforcement for blocked / missing scoring inputs (Amendment 2026-06-25 — P04B)
+
+The traffic-spine P04 bundle must eventually carry **every** selected score-bearing DS-015
+input (not traffic alone). Until then — and whenever any required selected input is missing —
+the no-leak invariant is enforced as follows:
+
+- **No reach-around.** Scoring (P05 / RigidScoreLedger) must not reach around the P04 bundle to
+  read the `RouteIndexedEvidenceLedger`, the Durable Source Evidence Substrate (source-fact
+  cache/index), source-normalization, source-projection, source clients, `junction_context`
+  (or any evidence layer), legacy scoring (`safety-scoring.ts`), `route-analysis`,
+  `conflict-events`, `active-truth`, presentation, or cache/history.
+- **Blocked propagates.** A missing required score-bearing fact produces a **blocked** bundle,
+  which produces a **blocked** score ledger. There is no downstream repair, no zero
+  substitution for a missing risk dimension, no legacy-scoring fallback, and no
+  presentation/cache/history scoring path.
+- **No partial publication.** A blocked Crossing Risk blocks Total Risk and Risk Per Mile; Road
+  Risk is never published as Total Risk.
+- The Durable Source Evidence Substrate is a **source-fact cache/index**, not route truth and
+  not a P05 input; only selected DS-015 scoring inputs carried in the P04 bundle reach P05.
+
 ## 7. Stable Surface Truth Output
 
 Route-surface stable outputs consume selected truth snapshots only.
@@ -39548,6 +39644,19 @@ P03 : RouteIndexedEvidenceLedger (traffic_aadt + lane_count + road_context) + Ca
 - performs **no** conversion, **no** scoring, and **no** presentation formatting;
 - gates score-readiness (does not hand a blocked bundle to P05 as score-bearing truth).
 
+**P04 selected-scoring-input extension required before P05 (Amendment 2026-06-25 — P04B):**
+The P04 implementation to date carries selected **traffic** facts only. DS-015 scoring needs
+more selected score-bearing inputs than traffic alone, so P04 must be **extended** from a
+*selected traffic fact bundle* into a *selected DS-015 scoring input bundle* before P05 retries.
+This is an **input-availability** gap, not a formula-authority gap (DS-015 §8/§9 formulas are
+exact and remain owned solely by P05). The extension is delivered by explicit non-scoring
+subphases — **P04C-A** (selected speed input), **P04C-B** (selected shoulder + facility input),
+**P04C-C** (deterministic curvature input), **P04D** (selected crossing-risk input facts), and
+**P04E** (bundle extension carrying `RouteSurfaceTrafficFact` + `RouteSurfaceRoadRiskInputFact`
++ `RouteSurfaceCrossingRiskInputFact` + complete DS-015 score-readiness). P04 remains
+**non-scoring** throughout; each subphase carries selected inputs only and applies no formula.
+Raw `junction_context` ids are evidence, not selected crossing-risk truth.
+
 **P04 package boundary (Amendment 2026-06-25 — P04A):** the traffic-spine P04 authority
 root is **`src/lib/traffic-spine/route-surface-truth/`** (public import
 `@/lib/traffic-spine/route-surface-truth`). The pre-existing **legacy** package
@@ -39574,6 +39683,23 @@ deletion/cutover is deferred to P10, not P04.
   `@/lib/traffic-spine/route-surface-truth`** (Amendment 2026-06-25 — P04A), never the
   legacy `@/lib/route-surface-truth` package; it refuses to score a bundle whose
   `scoreReadiness` is `blocked`.
+
+**P05 retry entry gate and no-leak forbiddances (Amendment 2026-06-25 — P04B):** The first
+P05 attempt **stopped** because the P04 bundle carried selected traffic only and lacked the
+remaining selected DS-015 score-bearing inputs (speed, curvature, facility, shoulder, and all
+crossing-risk inputs). P05 retry requires a **P04E PROCEED** (the extended bundle carrying every
+selected score-bearing input required by the enabled DS-015 model). P05 remains the **sole**
+scorer and consumes **only** the traffic-spine P04 bundle. P05 must **not**:
+
+- read the `RouteIndexedEvidenceLedger`, the Durable Source Evidence Substrate (source-fact
+  cache/index), source-normalization, source-projection, source clients, or any evidence layer
+  (including `junction_context`) directly;
+- import or fall back to legacy scoring (`safety-scoring.ts`), `route-analysis`, or
+  `conflict-events`;
+- set a missing risk dimension (including Crossing Risk) to **zero** because its selected inputs
+  are absent — zero is allowed only for certified no-event truth per DS-015 §9.1;
+- publish **Road Risk as Total Risk**, or publish a partial Total Risk while Crossing Risk is
+  blocked (a blocked Crossing Risk blocks Total Risk and Risk Per Mile).
 
 Conversion is strictly one-directional and P05-owned:
 
