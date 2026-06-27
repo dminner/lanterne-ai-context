@@ -60475,6 +60475,1215 @@ Do not use debug-panel repair as a substitute for that authority cutover.
 
 ---
 
+## Source File: docs/04-execution/exec-060-traffic_truth_spine_rebuild_program.md
+
+# EXEC-060 — Traffic Truth Spine Rebuild Program
+
+- **Status:** Accepted Program Direction; implementation gated phase by phase
+- **Owner:** Derek Minner
+- **Date:** 2026-06-24
+- **Audited product base SHA:** `6bccc39270684834eadecb3060cfa8dd2e913993`
+- **Controlling authority:** ADR-059 and DS-067
+- **Supporting authority:** ADR-045, ADR-054, DS-031, DS-032, DS-055
+
+This document is operational. It exists to be executed phase by phase, not admired. Every
+phase below names exact contracts, exact package roots, exact fail-closed behavior, and exact
+gate evidence. Where this document and any older plan disagree, this document governs the
+traffic truth spine rebuild.
+
+---
+
+## EXEC Number Inventory
+
+This program reserves the execution number **EXEC-060**.
+
+- **Audited base SHA inventoried:** `6bccc39270684834eadecb3060cfa8dd2e913993` (the verified
+  product `origin/main` at program start).
+- **Inventory commands (run case-insensitively against the audited base):**
+  - `git ls-files 'docs/**' | grep -iE 'exec-[0-9]{3}'` — every tracked `docs` path carrying an
+    `exec-NNN` filename.
+  - `git grep -rIih -oE 'exec-[0-9]{3}' -- docs | tr 'A-Z' 'a-z' | sort -u` — every tracked
+    documentation reference matching `EXEC-NNN`/`exec-NNN`.
+  - `git ls-files | grep -iE 'exec[-_ ]?060'` — any filename use of EXEC-060.
+  - `git grep -rIil -E 'exec[-_ ]?060' -- .` — any content reservation/mention of EXEC-060.
+- **Highest existing active number found:** `exec-059`
+  (`docs/04-execution/exec-059-hpms-debug-panel-field-and-toggle-wiring-plan.md`).
+- **EXEC-060 result:** zero matches. EXEC-060 / exec-060 is not an existing file number, not an
+  existing report number, not mentioned as active, not reserved, not planned, not assigned in any
+  index, and not assigned in any handoff.
+- **Decision:** assign and reserve **EXEC-060** for the Traffic Truth Spine Rebuild Program.
+
+---
+
+## 9.1 Authority And Supersession
+
+- **EXEC-060 supersedes continuation of the old EXEC-059 implementation.** EXEC-059 is no longer
+  an active implementation track for the traffic truth spine.
+- **Old EXEC-059 branches and worktrees are frozen evidence.** They must not be entered, reset,
+  cleaned, rebased, repaired, reused, or advanced. They exist only to be cited.
+- **Audit findings are accepted as architecture evidence but are not exhaustive machine proof.**
+  An audit observation establishes direction; it does not by itself satisfy any phase gate.
+- **ADR-059 and DS-067 are controlling authority.** ADR-045, ADR-054, DS-031, DS-032, and DS-055
+  are supporting authority. Any conflict resolves toward ADR-059 / DS-067.
+- **Temporal/scenario integration under EXEC-058, DS-065, and DS-066 is paused.**
+- **No traffic-spine phase may integrate temporal logic.** The rebuild is default/non-temporal
+  scenario only.
+- **No phase begins before the preceding phase receives PROCEED.**
+
+This program does not authorize copying, cherry-picking, or restoring any production source code,
+test, configuration, or environment change from the contaminated audit snapshot. Only the eight
+allowlisted documentation blobs were imported. Implementation in every phase P01–P11 is
+clean-room against the controlling authority.
+
+### P00 Additive Correction Lineage
+
+- **Initial P00 import commit:** `7c4bcd42de9b265627d32bd4f579e68476069e00`.
+- **Immutable audit source:** `2c8b6ccd3c97accee90ded200e6d7173ecc4ca93`.
+- **All eight allowlisted authority documents were imported exactly at the initial P00 commit**,
+  each verified byte-for-byte against the audit-source blob manifest.
+- **ADR-054 contained a package-path naming inconsistency** between the audit snapshot
+  (`src/lib/active-truth-view`) and the canonical repository package root.
+- **This additive rework canonically chooses `src/lib/active-truth/`**, consistent with DS-055,
+  EXEC-060, and the existing repository package root.
+- **The change is an explicit owner-authorized P00 amendment** (Derek Minner), made as an additive
+  commit on the existing P00 phase branch — not a restart, rebase, or amend of the initial commit.
+- **The change does not authorize reuse of current production ActiveTruthView composition.** It
+  corrects package naming only; it does not approve, preserve, or certify the existing
+  `src/lib/active-truth/` implementation as the new mechanical ActiveTruthView authority.
+- **The audit repository and audit branches remain unchanged.**
+
+---
+
+## 9.2 Canonical Product Terms
+
+The only canonical risk vocabulary is:
+
+- **Road Risk**
+- **Crossing Risk**
+- **Total Risk**
+- **Risk Per Mile**
+
+Definitions:
+
+- **Road Risk + Crossing Risk = Total Risk**
+- **Total Risk / route miles = Risk Per Mile**
+- **Higher risk means less safe.**
+- **Lower risk means safer.**
+
+A normalized 0–100 Safety Score and letter grades **are not canonical authority.** They may be
+presented as derived, downstream conveniences only, and never treated as the source of risk truth.
+
+Historical references to older scoring vocabulary may remain in the corpus only when explicitly
+labeled **stale** or **superseded**. New documents, contracts, and code paths use the canonical
+terms above exclusively.
+
+---
+
+## 9.3 Missing And Unresolved Traffic
+
+Exact rules:
+
+- **Zero is valid traffic data.**
+- **Zero must never represent missing traffic.**
+- **No certified selected traffic means no RigidScoreLedger entry.**
+- **No RigidScoreLedger entry means no ActiveScoreLedger entry.**
+- **No ActiveScoreLedger entry means no finalized rider-facing risk.**
+- **Unresolved traffic is a blocker.**
+- **"unknown" is not score-bearing.**
+- **Raw and normalized source evidence may remain diagnostic.**
+- **Uncertified traffic cannot score or publish.**
+
+Presence and status must be carried by a **typed presence/status contract** — an explicit
+discriminated state such as `resolved` / `unresolved` / `absent` with a typed payload only on
+`resolved`. Truthiness checks, numeric sentinels (`-1`, `0`, `NaN`, `null`-as-missing), and
+"falsy means missing" idioms are forbidden as missing-value signals. Missingness is a type, not a
+magnitude.
+
+---
+
+## 9.4 Accepted Single Pipe
+
+The single accepted semantic pipe is exactly:
+
+```
+CanonicalRouteAxis
+  -> RouteIndexedEvidenceLedger
+  -> TruthSelectionBuilders / RouteBuilders
+  -> RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+  -> ActiveScoreLedger
+  -> mechanical ActiveTruthView projection
+  -> PresentationPanes
+```
+
+There is **no** alternate semantic pipe, **no** compatibility authority, **no** Quick authority,
+**no** Robust authority, **no** debug authority, **no** cache authority, and **no** history
+authority. Every rider-facing risk value originates from this pipe and only this pipe.
+
+---
+
+## 9.5 Exact Production Package Topology
+
+Exact public package boundaries:
+
+| Responsibility | Public boundary |
+| --- | --- |
+| Canonical route-axis public boundary | `src/lib/route-line/` |
+| Source-only traffic normalization | `src/lib/source-normalization/traffic/` |
+| Traffic route projection | `src/lib/source-projection/traffic/` |
+| Traffic ledger admission and typed candidate contracts | `src/lib/route-evidence/traffic/` |
+| Sole stable traffic selector | `src/lib/truth-selection/traffic/` |
+| Stable selected-fact bundle | `src/lib/traffic-spine/route-surface-truth/` (Amendment 2026-06-25 — P04A; legacy `src/lib/route-surface-truth/**` is frozen, not P04 authority) |
+| Sole stable scoring authority | `src/lib/rigid-score-ledger/` |
+| Sole rider-facing semantic score authority | `src/lib/active-score-ledger/` |
+| Mechanical projection | `src/lib/active-truth/` |
+| Presentation-only adapters and formatters | `src/lib/presentation/active-truth/` |
+| Canonical cache/history transport | `src/lib/route-analysis-transport/` |
+| Deterministic fixtures | `src/test/fixtures/traffic-spine/` |
+| Architecture/import enforcement tests | `src/test/architecture/traffic-spine/` |
+| Repository-level import guard | `scripts/architecture/traffic-spine-import-guard.mjs` |
+
+Topology rules:
+
+- **Each canonical package exposes one public `index.ts`.**
+- **Downstream packages import public entrypoints, not internals.**
+- **Source normalization may not know route position.**
+- **Source projection may not select or score.**
+- **route-evidence may not import selection, scoring, UI, cache, or history.**
+- **truth-selection may import only public route-evidence and route-axis contracts.**
+- **traffic-spine route-surface-truth (`src/lib/traffic-spine/route-surface-truth/`) may import
+  only the public P03 `@/lib/truth-selection/traffic` boundary and local files; it must not import
+  the legacy `@/lib/route-surface-truth` package or the ledger** (Amendment 2026-06-25 — P04A).
+- **rigid-score-ledger may import only the traffic-spine `RouteSurfaceTruthBundle`
+  (`@/lib/traffic-spine/route-surface-truth`) and its own internal versioned model policy.**
+- **active-score-ledger may import only `RigidScoreLedger` plus explicitly approved scenario
+  contracts.**
+- **P06 is default/non-temporal scenario only.**
+- **active-truth may import only active-score-ledger public contracts.**
+- **presentation may consume `ActiveTruthView` semantics only.**
+- **route-analysis-transport is downstream transport and cannot be imported by canonical
+  authorities.**
+- **No canonical package imports** React, Leaflet, components, pages, `RouteMap`,
+  `SegmentInspector`, `HeatmapSegment`, route cache, route history, `QuickPaint`, `RobustPaint`,
+  presentation strings, or HTTP clients.
+- **`src/lib/route-line-v2/axis.ts` may temporarily sit behind the `src/lib/route-line` public
+  boundary, but no new downstream package may import it directly.**
+- **P10 must remove any temporary direct-import exception.**
+
+---
+
+## 9.6 Exact Planned Public Constructors
+
+These public constructor/operation names are required outputs of their phases. A later phase may
+change a name **only** through an explicit ADR/DS amendment approved **before** implementation.
+
+| Phase | Public constructor / operation |
+| --- | --- |
+| P01 | `normalizeHpmsTrafficSourceRecord(...)` |
+| P02 | `projectNormalizedTrafficSourceRecord(...)` |
+| P02 | `admitRouteIndexedTrafficCandidate(...)` |
+| P03 | `completeTrafficCandidateSet(...)` |
+| P03 | `selectStableTraffic(...)` |
+| P04 | `buildRouteSurfaceTruthBundle(...)` |
+| P05 | `buildRigidScoreLedgerRevision(...)` |
+| P06 | `publishActiveScoreLedgerRevision(...)` |
+| P07 | `projectActiveScoreLedgerRevision(...)` |
+| P09 | `serializeActiveScoreLedgerArtifact(...)` |
+| P09 | `hydrateActiveScoreLedgerArtifact(...)` |
+
+---
+
+## 9.7 Semantic Type Separation
+
+The following must be **separately typed fields**. A generic string must not carry more than one
+of these meanings:
+
+- provider identity
+- source system / backend
+- source dataset
+- source record identity
+- provenance
+- confidence
+- selection class
+- scoring eligibility
+- source freshness / version
+- units
+
+**Highway Baseline:**
+
+- is a **typed pre-selector candidate**;
+- may be selected with `selectionClass = highway_baseline`;
+- **is not a provider**;
+- may **not** populate provider identity with `"Highway Baseline"`;
+- must retain the actual producing source/model identity separately.
+
+**A finite selected traffic value without explicit provider identity is a blocker.**
+
+---
+
+## 9.8 Phase Program P00–P11
+
+Each phase section below defines: purpose; exact input contract; exact output contract;
+authoritative owner; package roots allowed to change; package roots forbidden to change; permitted
+responsibilities; forbidden responsibilities; deterministic fixtures; focused tests;
+architecture/import checks; runtime proof status required; explicit fail-closed behavior; entry
+gate; exit gate; legacy deletion obligation; and expected final-gate evidence.
+
+---
+
+### P00 — Authority Documents And Program Governance
+
+- **Purpose:** Establish the controlling authority, canonical terms, package topology, phase
+  program, fixtures, guard matrix, deletion register, and review protocol. Documentation and
+  governance only.
+- **Input contract:** Verified product base SHA `6bccc39270684834eadecb3060cfa8dd2e913993`; the
+  eight allowlisted immutable documentation blobs from the audit snapshot.
+- **Output contract:** This EXEC-060 program document; the reusable phase-gate checklist; the
+  eight restored immutable documents — one P00 documentation commit on
+  `traffic-spine/p00-authority-plan`.
+- **Authoritative owner:** Program governance (this document).
+- **Package roots allowed to change:** `docs/02-architecture/design/`, `docs/03-adrs/`,
+  `docs/04-execution/` (only the ten allowlisted files).
+- **Package roots forbidden to change:** `src/**`, all tests, `package.json`, lockfiles, tsconfig,
+  Vite config, ESLint config, GitHub workflows, Supabase files, scripts, environment files,
+  generated files, screenshots, audit reports, old EXEC-059 files, README files outside the
+  allowlist.
+- **Permitted responsibilities:** documentation, governance, importing the eight immutable blobs.
+- **Forbidden responsibilities:** any traffic behavior, TypeScript, tests, runtime integration,
+  scoring, UI cutover, cache behavior, deployment, code copied from the audit snapshot.
+- **Deterministic fixtures:** none authored; fixture **registry** documented (§9.9).
+- **Focused tests:** none. Test execution is prohibited in P00.
+- **Architecture/import checks:** none executed; guard matrix documented (§9.10).
+- **Runtime proof status required:** none. P00 is documentation and Git integrity only.
+- **Fail-closed behavior:** any ambiguity, collision, mismatch, or scope requirement outside the
+  P00 prompt is a STOP; no branch, worktree, commit, or push proceeds past the unmet condition.
+- **Entry gate:** verified `origin/main` == base SHA; verified audit branch head; zero EXEC-060
+  collision; target remote branches absent.
+- **Exit gate:** eight blob hashes match the manifest; staged changes limited to the ten
+  allowlisted files; one commit; P00 branch pushed; base and integration branches unmoved.
+- **Legacy deletion obligation:** none in P00 (register authored for later phases, §9.11).
+- **Expected final-gate evidence:** repository, branch, base SHA, integration SHA, P00 head/parent/
+  tree SHAs, commit count of one, blob-hash manifest verification, allowlist diff proof.
+
+---
+
+### P01 — Source-Only Traffic Normalization
+
+- **Purpose:** Produce typed, source-only normalized traffic records.
+- **Input contract:** Raw HPMS traffic source records.
+- **Output contract:** Normalized source records via `normalizeHpmsTrafficSourceRecord(...)` with
+  separately typed provider/source/dataset/record-identity/provenance/confidence/freshness/units
+  fields and a typed presence/status contract.
+- **Authoritative owner:** `src/lib/source-normalization/traffic/`.
+- **Package roots allowed to change:** `src/lib/source-normalization/traffic/`,
+  `src/test/fixtures/traffic-spine/`, `src/test/architecture/traffic-spine/`.
+- **Package roots forbidden to change:** route-axis internals, projection, route-evidence,
+  selection, scoring, active-truth, presentation, cache/history, UI.
+- **Permitted responsibilities:** parse, normalize, type, classify source fields.
+- **Forbidden responsibilities:** route distance, selection, scoring, presentation, knowledge of
+  route position.
+- **Deterministic fixtures:** South Las Vegas AADT source; lane-count source (§9.9).
+- **Focused tests:** normalization typing and presence/status.
+- **Architecture/import checks:** normalization imports nothing route-positional, selective,
+  scoring, presentational, cache, or history.
+- **Runtime proof status required:** unit-level normalization proof; no runtime composition.
+- **Fail-closed behavior:** unparseable/unknown source field yields typed `unresolved`/`absent`,
+  never a sentinel value.
+- **Entry gate:** P00 PROCEED.
+- **Exit gate:** typed normalized record contract met; no route-position knowledge.
+- **Legacy deletion obligation:** none yet.
+- **Expected final-gate evidence:** constructor name, input/output types, fixture-backed test,
+  import-guard result.
+
+---
+
+### P02 — Geometric Route Projection And Ledger Admission
+
+- **Purpose:** Project normalized records onto the canonical route axis and admit typed candidates
+  into the `RouteIndexedEvidenceLedger`.
+- **Input contract:** Normalized source records (P01) plus `CanonicalRouteAxis`.
+- **Output contract:** `projectNormalizedTrafficSourceRecord(...)` and
+  `admitRouteIndexedTrafficCandidate(...)` producing route-indexed candidates over **half-open
+  intervals**.
+- **Authoritative owner:** `src/lib/source-projection/traffic/` and
+  `src/lib/route-evidence/traffic/`.
+- **Package roots allowed to change:** `src/lib/source-projection/traffic/`,
+  `src/lib/route-evidence/traffic/`, fixtures, architecture tests.
+- **Package roots forbidden to change:** selection, scoring, surface-truth, active-truth,
+  presentation, cache/history.
+- **Permitted responsibilities:** geometric projection, half-open interval admission, typed
+  **source-evidence** candidate construction only (authoritative direct source measurements and
+  typed unresolved source evidence).
+- **Forbidden responsibilities:** trusting an embedded `routeWindow`; preselection scoring
+  derivation; selection; scoring; **creating Highway Baseline, local-area-predicted, or
+  relationship-inferred candidates** (those are P03 completion-stage candidates, never admitted to
+  the ledger).
+- **Deterministic fixtures:** route-indexed projection of the South Las Vegas AADT fixture.
+- **Focused tests:** half-open interval correctness; no embedded-window trust.
+- **Architecture/import checks:** route-evidence imports neither truth-selection, scoring,
+  presentation, cache, nor history.
+- **Runtime proof status required:** projection/admission unit proof.
+- **Fail-closed behavior:** records that cannot be projected are admitted as typed unresolved, not
+  dropped silently nor scored.
+- **Entry gate:** P01 PROCEED.
+- **Exit gate:** half-open admission proven; no preselection scoring.
+- **Legacy deletion obligation:** none yet.
+- **Expected final-gate evidence:** constructor names, interval contract, import-guard result.
+
+---
+
+### P02B — OSM Highway Road Context Evidence Layer
+
+- **Purpose:** Admit route-indexed `road_context` evidence (OpenStreetMap `highway=*`
+  road class) into `RouteIndexedEvidenceLedger` so P03 can evaluate road-class-dependent
+  traffic classes. Authority: DS-031 §3.1, DS-029 Appendix M, DS-067 §16.2.
+- **Input contract:** source road facts containing OSM highway tags; `CanonicalRouteAxis`;
+  route projection proof.
+- **Output contract:** `RouteIndexedEvidenceLedger` `road_context` spans (value
+  `RouteIndexedRoadContextValue`, `road-context.v1`) plus typed unresolved `road_context`
+  evidence for missing/unsupported tags.
+- **Authoritative owner:** source projection / ledger admission (`road_context`).
+- **Permitted responsibilities:** project and admit `road_context` source evidence;
+  derive `broadHighwayClass` by stripping `_link` from `highwayTag` while preserving the
+  original tag and `isLink`.
+- **Forbidden responsibilities:** traffic selection; traffic scoring; provider creation;
+  presentation labels; baseline lookup; local prediction; P03 candidate completion;
+  fabricating a class; using route name or HPMS facility type as the OSM highway class.
+- **Fail-closed behavior:** unsupported/missing highway tag ⇒ typed unresolved
+  `road_context` evidence; never a guessed class and never a catch-all.
+- **Entry gate:** P02 PROCEED.
+- **Exit gate:** `road_context` spans admitted with preserved `highwayTag`/`broadHighwayClass`;
+  unsupported tags unresolved; `road_context` is `hidden` and never written as traffic truth.
+
+---
+
+### P02C-A — Road Identity Evidence Layer (Amendment 2026-06-25 — P02C)
+
+- **Purpose:** Admit route-indexed `road_identity` evidence (OpenStreetMap
+  `name`/`ref`/route-relation corridor identity) into `RouteIndexedEvidenceLedger` so
+  P03 `authoritative_inferred` traffic carry can reason about same-road continuity.
+  Authority: DS-031 §3.2, DS-029 Appendix N.0, DS-055 §6.5, DS-067 §16.3.
+- **Input contract:** source road facts containing OSM `name`/`ref`/route-relation
+  refs; `CanonicalRouteAxis`; route projection proof.
+- **Output contract:** route-indexed `road_identity` spans (value
+  `RouteIndexedRoadIdentityValue`, `road-identity.v1`) plus typed unresolved
+  `road_identity` evidence; deterministic name/ref normalization keys.
+- **Authoritative owner:** source projection / ledger admission (`road_identity`).
+- **Forbidden responsibilities:** traffic selection; traffic carry; scoring; provider
+  creation; presentation; inferring identity from presentation labels / HPMS route
+  name / geometry alone; fabricating continuity from missing name/ref.
+- **Fail-closed behavior:** missing/unresolved `name`/`ref` ⇒ typed unresolved or
+  null-keyed evidence; never an invented corridor identity.
+- **Entry gate:** P02B PROCEED.
+- **Exit gate:** `road_identity` spans admitted with preserved exact OSM identity and
+  deterministic normalized keys; `road_identity` is `hidden` and never traffic truth.
+
+---
+
+### P02C-B — Junction Context Evidence Layer (Amendment 2026-06-25 — P02C)
+
+- **Purpose:** Admit route-indexed `junction_context` evidence (junction / crossing /
+  diverter context) into `RouteIndexedEvidenceLedger` so P03 `authoritative_inferred`
+  carry can decide topology break boundaries, and so a future DS-015 crossing-risk
+  stage has a spine-native substrate. Authority: DS-031 §3.3, DS-029 Appendix N.2/N.3,
+  DS-055 §6.5, DS-067 §16.3, DS-015 cross-reference.
+- **Input contract:** source junction/crossing facts; `CanonicalRouteAxis`; route
+  projection proof; (optionally) `road_identity` for intersecting-road identity refs.
+- **Output contract:** route-indexed `junction_context` point/span evidence (value
+  `RouteIndexedJunctionContextValue`, `junction-context.v1`) plus typed unresolved
+  evidence; preserved source lineage and trace.
+- **Authoritative owner:** source projection / ledger admission (`junction_context`).
+- **Forbidden responsibilities:** traffic selection; traffic carry; **crossing-risk
+  computation**; scoring; presentation; creating traffic values.
+- **Fail-closed behavior:** unknown diverter significance ⇒ `diverterClass: 'unknown'`,
+  which stops a carry (DS-029 §N.3) and is never silently treated as a non-diverter.
+- **Entry gate:** P02C-A PROCEED.
+- **Exit gate:** `junction_context` evidence admitted with diverter/control/movement
+  context and source lineage; `junction_context` is `hidden`, is **not** crossing risk,
+  and is never written as traffic truth or score.
+
+---
+
+### P03A2 — Authoritative Inferred Traffic Carry Authority (Amendment 2026-06-25 — P02C)
+
+- **Purpose:** Pin the `authoritative_inferred` traffic carry policy
+  (`traffic-authoritative-inferred-corridor-carry.v1`), topology-bounded and **not**
+  distance-decayed. Authority resolved in this P02C amendment (DS-029 Appendix N).
+- **Status:** authority resolved here; the carry is **inactive until `road_identity`
+  and `junction_context` evidence are implemented and certified** (DS-029 §N.0).
+- **Forbidden:** any tag-only, `broadHighwayClass`-only, route-name-only, or
+  geometry-only proxy carry; distance decay; silent carry across unknown diverter
+  status; any implementation in this authority phase.
+
+---
+
+### P03 — Single Candidate Family And Single Selector
+
+- **Purpose:** Provide exactly one traffic candidate family and exactly one stable selector.
+- **Input contract:** Route-indexed `traffic_aadt` + `lane_count` candidates (P02) and
+  `road_context` evidence (P02B), plus `CanonicalRouteAxis` and immutable P03 policies.
+- **Output contract:** `completeTrafficCandidateSet(...)` and `selectStableTraffic(...)` producing
+  one selected **`TrafficExposureBasis`** per atomic interval (DS-029 §L.2; DS-067 §16) with
+  immutable receipts recording the measurement form and units.
+- **Authoritative owner:** `src/lib/truth-selection/traffic/`.
+- **Package roots allowed to change:** `src/lib/truth-selection/traffic/`, fixtures, architecture
+  tests.
+- **Package roots forbidden to change:** source clients, scoring, surface-truth, active-truth,
+  presentation, cache/history.
+- **Permitted responsibilities:** completion of the candidate set; stable selection among the four
+  **approved selection classes only** —
+  `authoritative_posted`, `authoritative_inferred`, `local_area_predicted`, `highway_baseline` —
+  combining compatible total-AADT and lane-count evidence into a complete `TrafficExposureBasis`
+  **without arithmetic**; looking up the versioned Highway Baseline effective-right-lane value
+  (`ds015-highway-class-proxy-effective-right-lane-aadt.v1`).
+- **Measurement basis (non-negotiable, P03A):** P03 selects exactly one complete
+  `TrafficExposureBasis` per atomic interval; not every class emits `total_aadt` — `highway_baseline`
+  is `effective_right_lane_aadt` (per-lane), never a fabricated total. No fabricated total AADT, no
+  fabricated lane count, and no per-lane-to-total multiplication. A total-AADT fact without a
+  defensible lane basis is incomplete; the ladder may continue to a weaker **complete** class.
+- **Stage authority (non-negotiable, P03A):** `completeTrafficCandidateSet(...)` is the only
+  completion authority; it constructs the `authoritative_inferred`, `local_area_predicted`, and
+  `highway_baseline` pre-selector candidates, which live **only** in `CompletedTrafficCandidateSet`
+  and are **not** written into `RouteIndexedEvidenceLedger`. `selectStableTraffic(...)` consumes
+  `CompletedTrafficCandidateSet` **only** (it does not read the ledger, regenerate candidates, look
+  up baseline values, infer, predict, fetch, or score). Highway Baseline must exist **before**
+  selector execution.
+- **Forbidden responsibilities:** scoring; Traffic Factor or risk math; any total-to-per-lane or
+  per-lane-to-total conversion; presentation; provider fabrication.
+- **Deterministic fixtures:** West Hacienda unknown-versus-receipt disagreement (§9.9); Highway
+  Baseline typed candidate; missing-provider fixture.
+- **Focused tests:** selection-class admission; immutable receipts; unresolved stays a blocker.
+- **Architecture/import checks:** truth-selection imports only public route-evidence and
+  route-axis contracts, never source clients.
+- **Runtime proof status required:** selector unit proof over fixtures.
+- **Fail-closed behavior:** **unresolved remains a blocker** when no complete class can be
+  defended; receipts are immutable and record measurement form and units; a malformed/missing
+  provider identity is an integrity blocker and may not be hidden by weaker fallback; **Highway
+  Baseline is not a provider** (its provider is `lanterne_highway_baseline_model.v1`).
+- **Road-class hard gate (P02B):** the road-class-dependent classes (`highway_baseline`,
+  `local_area_predicted`, `authoritative_inferred`) may run **only** where certified
+  `road_context` evidence (DS-031 §3.1; DS-029 Appendix M) is present for that interval. No
+  `road_context` ⇒ no `highway_baseline` / `local_area_predicted` / `authoritative_inferred` for
+  that interval (those classes are unresolved/ineligible there); P03 never queries OSM, reads
+  source clients/route-line internals, infers class from route name / HPMS facility type / geometry
+  alone, or writes `road_context` back to the ledger. This does not weaken the missing-provider
+  integrity blocker.
+- **Inferred-carry gate (P02C):** `authoritative_inferred` is **topology-bounded, not
+  distance-decayed** (DS-029 Appendix N), and depends on the `road_identity` (DS-031 §3.2)
+  and `junction_context` (DS-031 §3.3) evidence layers. It is **inactive/unavailable**
+  until both layers are implemented and certified (DS-029 §N.0); no tag-only,
+  `broadHighwayClass`-only, route-name-only, or geometry-only proxy carry is permitted,
+  and unknown diverter significance stops the carry (DS-029 §N.3).
+- **Entry gate:** P02B PROCEED **+ P02C-A PROCEED + P02C-B PROCEED** while
+  `authoritative_inferred` is required by P03. (If a future owner decision narrows P03 to
+  exclude `authoritative_inferred`, EXEC-060 must explicitly mark it inactive/deferred for
+  that vertical slice; this amendment does not do so.)
+- **Exit gate:** one candidate family; one selector; the four approved classes; one selected
+  `TrafficExposureBasis` per atomic interval; Highway Baseline candidate present before selection;
+  road-class-dependent classes only where `road_context` is certified; no fabricated total/lane and
+  no reverse multiplication; immutable receipts.
+- **Hard exit check (P03A):** `RouteIndexedEvidenceLedger` contains **no** completion-stage
+  `highway_baseline`, `local_area_predicted`, or `authoritative_inferred` candidate generated by P03;
+  all such candidates exist only in `CompletedTrafficCandidateSet`.
+- **Legacy deletion obligation:** begin retiring competing selectors (register, §9.11).
+- **Expected final-gate evidence:** constructor names, selection-class enumeration, receipt
+  immutability proof.
+
+---
+
+### P04 — Route Surface Truth Bundle
+
+- **Purpose:** Assemble all score-bearing facts for the vertical slice from selected ledger truth.
+- **Input contract:** the public P03 `StableTrafficSelectionResult` only (Amendment
+  2026-06-25 — P04A).
+- **Output contract:** `buildRouteSurfaceTruthBundle(...)` producing the traffic-spine
+  `RouteSurfaceTruthBundle`.
+- **Authoritative owner (Amendment 2026-06-25 — P04A):** `src/lib/traffic-spine/route-surface-truth/`
+  (public import `@/lib/traffic-spine/route-surface-truth`). The pre-existing **legacy** package
+  `src/lib/route-surface-truth/**` (barrel `@/lib/route-surface-truth`, with its own legacy
+  `RouteSurfaceTruthBundle`) is existing legacy code and is **not** P04 authority.
+- **Package roots allowed to change:** `src/lib/traffic-spine/route-surface-truth/`, fixtures,
+  architecture tests.
+- **Package roots forbidden to change:** `src/lib/route-surface-truth/**` (frozen legacy), scoring,
+  active-truth, presentation, cache/history.
+- **Permitted responsibilities:** assemble the public P03 selected result into a stable bundle; carry
+  the selected `TrafficExposureBasis` **verbatim** (DS-067 §16), preserving all component candidate
+  ids, providers, producer/model identity, provenance, source type, confidence, road_context/
+  road_identity/junction_context ids, completion proof digest, and selection receipt id; gate
+  score-readiness.
+- **Forbidden responsibilities:** any traffic conversion (no total-to-per-lane and no
+  per-lane-to-total), Traffic Factor, or scoring; presentation formatting;
+  consuming `HeatmapSegment`, `RouteSpeedSegment`, debug snapshot, cache, history, `QuickPaint`,
+  `RobustPaint`, display DTO, or receipt reconstruction input.
+- **Hard entry/exit guard (Amendment 2026-06-25 — P04A):** no production P04 file imports
+  `@/lib/route-surface-truth` or `src/lib/route-surface-truth/**`, `@/lib/route-evidence`,
+  source-normalization, or source-projection. P04 production imports only
+  `@/lib/truth-selection/traffic` and local P04 files.
+- **Deterministic fixtures:** bundle assembled from selected South Las Vegas / lane fixtures.
+- **Focused tests:** all score-bearing facts arrive through selected truth.
+- **Architecture/import checks:** traffic-spine route-surface-truth imports only the public P03
+  truth-selection boundary and local files; never the legacy route-surface-truth package, ledger,
+  heatmap/display/cache/history types.
+- **Runtime proof status required:** bundle-composition unit proof.
+- **Fail-closed behavior:** **scoring is blocked until every score-bearing fact arrives through
+  selected ledger truth.**
+- **Entry gate:** P03 PROCEED.
+- **Exit gate:** bundle proven to source only from selected truth.
+- **Legacy deletion obligation:** mark `ResolvedTrafficTruth`-style inputs for deletion (§9.11).
+- **Expected final-gate evidence:** constructor name, bundle field provenance, import-guard result.
+
+---
+
+### P04B / P04C-A / P04C-B / P04C-C / P04D / P04E — Selected DS-015 scoring-input extension (Amendment 2026-06-25 — P04B)
+
+**Context.** The first **P05** attempt **stopped** (no commit): the P04 bundle carried selected
+**traffic** facts only, while DS-015 §8 (Road Risk) and §9 (Crossing Risk) require additional
+selected score-bearing inputs. The gap is **input availability, not formula authority** (DS-015
+formulas are exact and remain P05-owned). The traffic-spine `RouteSurfaceTruthBundle` must evolve
+from a *selected traffic fact bundle* into a *selected DS-015 scoring input bundle* through the
+following **non-scoring** subphases before P05 retries. Each carries selected inputs only, applies
+no DS-015 formula, and obeys the no-leak invariant (no scoring reach-around; missing input ⇒ blocked
+bundle ⇒ blocked ledger; no zero substitution; no Road-Risk-only Total Risk).
+
+**P04B — DS-015 Selected Scoring Inputs Authority Resolution (this phase).**
+- **Authoritative owner:** Program governance (this document) + DS-015/DS-031/DS-055/DS-067.
+- **Purpose:** record the P05 stop, pin terminology (Durable Source Evidence Substrate vs
+  `RouteIndexedEvidenceLedger` vs selected DS-015 scoring inputs), pin source precedence
+  (official/DOT/HPMS outranks OSM per dimension; OSM is fallback; override via receipt, never
+  silent overwrite), define target P04 fact families, and sequence P04C-A→P04E before P05.
+  Documentation-only; no production code.
+
+**P04C-A — Speed Limit Evidence And Selected Speed Input Facts.**
+- **Authoritative owner:** source projection / ledger admission (`speed_limit`) + selected speed
+  input builder.
+- **Purpose:** admit `speed_limit` evidence where needed and select route-indexed **speed input
+  facts** with receipts. Official/DOT speed wins over OSM `maxspeed`; OSM `maxspeed` is fallback.
+  No scoring. **Output:** selected speed input facts with receipts.
+
+**P04C-B — Shoulder / Facility Selected Input Facts.**
+- **Authoritative owner:** source projection / ledger admission (`shoulder`, `bike_infra`) +
+  selected shoulder/facility input builders.
+- **Purpose:** admit `shoulder` and bike/facility evidence where needed and select route-indexed
+  **shoulder** and **facility/bike-infra input facts** with receipts. Official/DOT wins over OSM
+  where available; OSM `shoulder`/`cycleway`/`bicycle` tags are fallback. No scoring. **Output:**
+  selected shoulder and facility input facts with receipts.
+
+**P04C-C — Curvature Deterministic Route-Geometry Facts.**
+- **Authoritative owner:** deterministic route-geometry curvature builder (from
+  `CanonicalRouteAxis`).
+- **Purpose:** derive deterministic **curvature input facts** from route geometry with
+  deterministic-geometry receipts. Curvature is deterministic route geometry, **not** a
+  source-provider evidence layer unless future authority says otherwise. No scoring. **Output:**
+  selected curvature input facts with deterministic geometry receipts.
+
+**P04D — Crossing-Risk Selected Input Facts.**
+- **Authoritative owner:** selected crossing-risk input builder (consumes `road_identity`,
+  `junction_context`, traffic, speed, lanes/width, control, movement evidence).
+- **Purpose:** build selected **`RouteSurfaceCrossingRiskInputFact`** inputs — selected crossed-road
+  traffic input, selected crossed-road speed input, lanes/width, control, movement, and context
+  severity inputs — and classify event eligibility / non-events (DS-015 §9.1). Raw
+  `junction_context` ids are evidence, **not** selected crossing-risk truth. No scoring. **Output:**
+  selected crossing-risk input facts with receipts.
+
+**P04E — RouteSurfaceTruthBundle DS-015 Extension.**
+- **Authoritative owner:** `src/lib/traffic-spine/route-surface-truth/` (extension).
+- **Purpose:** extend the bundle to carry `RouteSurfaceTrafficFact` + `RouteSurfaceRoadRiskInputFact`
+  + `RouteSurfaceCrossingRiskInputFact` + complete DS-015 `RouteSurfaceScoringReadiness` (ready only
+  when every score-bearing DS-015 input required by the enabled formulas is present, selected,
+  provenance-backed, and receipt-backed). No scoring. **Exit:** **P04E PROCEED** — the entry gate
+  for P05 retry.
+
+**Target P04 bundle fact families (for P04E):**
+- `RouteSurfaceTrafficFact` — selected traffic exposure basis (already implemented in P04).
+- `RouteSurfaceRoadRiskInputFact` — route-indexed interval fact carrying the selected
+  `TrafficExposureBasis` reference + selected speed/curvature/facility/shoulder inputs +
+  per-component provenance/receipt refs + readiness; performs no formula math.
+- `RouteSurfaceCrossingRiskInputFact` — route-indexed point-event fact carrying event id, routeDistM,
+  event kind, movement type, control type, lanes/width, crossed/entered road identity, selected
+  crossed-road traffic + speed inputs, context severity inputs, per-component provenance/receipt
+  refs + readiness; performs no formula math.
+- `RouteSurfaceScoringReadiness` — bundle-level readiness (ready/blocked) over all required inputs.
+
+---
+
+### P05 — Rigid Score Ledger
+
+- **Purpose:** Compute the single authoritative score.
+- **First-attempt status (Amendment 2026-06-25 — P04B):** the first P05 attempt **STOPPED with no
+  commit** because the P04 bundle carried selected traffic only and lacked the remaining selected
+  DS-015 score-bearing inputs (speed, curvature, facility, shoulder, and all crossing-risk inputs).
+  P05 retry is **gated on P04E PROCEED** (the extended bundle); see the P04B/P04C/P04D/P04E
+  subphases above. The DS-015 formulas were never the gap.
+- **Input contract:** the traffic-spine `RouteSurfaceTruthBundle` (P04, extended by **P04E**)
+  imported from `@/lib/traffic-spine/route-surface-truth` (Amendment 2026-06-25 — P04A), never the
+  legacy `@/lib/route-surface-truth`; P05 refuses to score a bundle whose `scoreReadiness` is
+  `blocked`.
+- **No-leak forbiddances (Amendment 2026-06-25 — P04B):** P05 must **not** read the
+  `RouteIndexedEvidenceLedger`, the Durable Source Evidence Substrate (source-fact cache/index),
+  source-normalization/projection, source clients, or any evidence layer (incl. `junction_context`)
+  directly; must **not** import legacy `safety-scoring.ts`, `route-analysis`, or `conflict-events`;
+  must **not** zero a missing risk dimension (incl. Crossing Risk) absent certified no-event truth
+  (DS-015 §9.1); and must **not** publish Road Risk as Total Risk or a partial Total Risk (a blocked
+  Crossing Risk blocks Total Risk and Risk Per Mile).
+- **Output contract:** `buildRigidScoreLedgerRevision(...)` producing a `RigidScoreLedger` revision.
+- **Authoritative owner:** `src/lib/rigid-score-ledger/`.
+- **Package roots allowed to change:** `src/lib/rigid-score-ledger/`, fixtures, architecture tests.
+- **Package roots forbidden to change:** active-score-ledger, active-truth, presentation,
+  cache/history.
+- **Permitted responsibilities:** **RigidScoreLedger is the only scorer** and the **sole owner of
+  traffic-input conversion** (DS-067 §16.2). For `total_aadt_with_lane_basis` it derives effective
+  right-lane AADT via the versioned DS-015 formula; for `effective_right_lane_aadt` it uses the
+  selected value directly; it **never** multiplies effective-right-lane AADT by lane count to
+  reconstruct a total. It owns exact unrounded inputs, **Road Risk**, **Crossing Risk**, **Total
+  Risk**, **Risk Per Mile**, risk bucket, notable-driver ranking, score trace, receipts (recording
+  measurement form and exact inputs), model version, and formula version.
+- **Forbidden responsibilities:** importing `ActiveScoreLedger` implementation or presentation;
+  any selection or projection.
+- **Deterministic fixtures:** South Las Vegas total AADT `57,000` driving Road Risk inputs.
+- **Focused tests:** unrounded inputs, Road/Crossing/Total Risk and Risk Per Mile, ranking, trace,
+  receipts, model/formula version.
+- **Architecture/import checks:** rigid-score-ledger imports only `RouteSurfaceTruthBundle` and its
+  own internal versioned model policy.
+- **Runtime proof status required:** scoring unit proof with golden values.
+- **Fail-closed behavior:** no certified selected traffic ⇒ no RigidScoreLedger entry; missing any
+  required selected DS-015 input ⇒ blocked bundle ⇒ no RigidScoreLedger entry (Amendment
+  2026-06-25 — P04B).
+- **Entry gate:** **P04E PROCEED** (Amendment 2026-06-25 — P04B; supersedes the prior "P04 PROCEED"
+  — P05 requires the DS-015-extended bundle, not the traffic-only bundle).
+- **Exit gate:** single scorer proven; canonical risk terms only.
+- **Legacy deletion obligation:** mark alternate scorers / score traces for deletion (§9.11).
+- **Expected final-gate evidence:** constructor name, golden risk values, receipt + version proof.
+
+---
+
+### P06 — Active Score Ledger
+
+- **Purpose:** Publish the sole rider-facing semantic score authority.
+- **Input contract:** `RigidScoreLedger` revision (P05) plus explicitly approved default-scenario
+  contracts.
+- **Output contract:** `publishActiveScoreLedgerRevision(...)` producing an `ActiveScoreLedger`
+  revision.
+- **Authoritative owner:** `src/lib/active-score-ledger/`.
+- **Package roots allowed to change:** `src/lib/active-score-ledger/`, fixtures, architecture
+  tests.
+- **Package roots forbidden to change:** presentation, active-truth internals, cache/history,
+  scoring internals.
+- **Permitted responsibilities:** publish a rider-facing semantic revision for the **default /
+  non-temporal scenario only**.
+- **Forbidden responsibilities:** **no EXEC-058, DS-065, DS-066, route-time, or temporal-projection
+  integration**; no selection, repair, or rescoring; no presentation import.
+- **Deterministic fixtures:** missing-provider fixture (cannot publish); fresh/cache/history
+  identity fixture.
+- **Focused tests:** publish gating; default-scenario only; fail-closed on missing provider.
+- **Architecture/import checks:** active-score-ledger imports only `RigidScoreLedger` plus approved
+  scenario contracts; never presentation.
+- **Runtime proof status required:** publish unit proof.
+- **Fail-closed behavior:** a finite selected traffic value without explicit provider identity
+  cannot publish to `ActiveScoreLedger`; no RigidScoreLedger entry ⇒ no ActiveScoreLedger entry.
+- **Entry gate:** P05 PROCEED.
+- **Exit gate:** sole semantic authority proven; non-temporal only.
+- **Legacy deletion obligation:** mark `ProductionTrafficTruthArtifact` /
+  `TrafficTruthArtifactProvider` for deletion (§9.11).
+- **Expected final-gate evidence:** constructor name, publish gating proof, temporal-isolation
+  proof.
+
+---
+
+### P07 — Active Truth View Mechanical Projection
+
+- **Purpose:** Provide a deterministic mechanical projection of one `ActiveScoreLedger` revision.
+- **Input contract:** One `ActiveScoreLedger` revision (P06).
+- **Output contract:** `projectActiveScoreLedgerRevision(...)` producing an `ActiveTruthView`.
+- **Authoritative owner:** `src/lib/active-truth/`.
+- **Package roots allowed to change:** `src/lib/active-truth/`, fixtures, architecture tests.
+- **Package roots forbidden to change:** route-evidence, truth-selection, route-surface-truth,
+  scoring, presentation.
+- **Permitted responsibilities:** mechanical, deterministic projection of a single revision.
+- **Forbidden responsibilities:** **no independent semantic id or semantic digest**; no selection,
+  scoring, fallback, repair, provider inference, or receipt creation.
+- **Deterministic fixtures:** projection of the published revision from P06 fixtures.
+- **Focused tests:** determinism; no independent identity/digest; no semantic mutation.
+- **Architecture/import checks:** active-truth imports only active-score-ledger public contracts.
+- **Runtime proof status required:** projection determinism proof.
+- **Fail-closed behavior:** absent revision ⇒ no view; never fabricate.
+- **Entry gate:** P06 PROCEED.
+- **Exit gate:** mechanical projection proven; no semantic authority.
+- **Legacy deletion obligation:** mark the current direct `ActiveTruthView` composer for deletion
+  (§9.11).
+- **Expected final-gate evidence:** constructor name, determinism proof, identity-passthrough proof.
+
+---
+
+### P08A — Inspector And Inspect-Receipt Cutover
+
+- **Purpose:** Cut the main inspector surfaces to `ActiveTruthView` semantics.
+- **Input contract:** `ActiveTruthView` (P07).
+- **Output contract:** every one of the following reads exclusively from `ActiveTruthView`:
+  - main inspect panel;
+  - `SegmentInspector` or its successor;
+  - every rider-facing traffic-details dropdown;
+  - every expandable traffic/details row;
+  - traffic value;
+  - provider identity;
+  - source system/backend;
+  - source dataset/type;
+  - provenance;
+  - confidence;
+  - selection class where displayed;
+  - inspect receipt;
+  - mobile and desktop inspector/details variants.
+- **Phase-entry requirement:** before implementation, P08A must inventory every in-scope surface by
+  exact file, symbol, direct caller, direct consumer, and current semantic input. Any unlisted
+  rider-facing traffic/details read discovered during implementation blocks exit.
+- **Exit requirement:** no P08A surface may read selected-evidence snapshots, `HeatmapSegment`
+  traffic semantics, `RouteSpeedSegment` traffic semantics, `RouteSurfaceTruthBundle`,
+  `RigidScoreLedger`, source clients, cache payloads, or history payloads as an alternate
+  rider-facing authority.
+- **Authoritative owner:** `src/lib/presentation/active-truth/`.
+- **Package roots allowed to change:** `src/lib/presentation/active-truth/`, presentation surfaces,
+  fixtures, architecture tests.
+- **Package roots forbidden to change:** any canonical authority package internals.
+- **Permitted responsibilities:** presentation-only adaptation and formatting.
+- **Forbidden responsibilities:** selection, scoring, provider inference, receipt construction.
+- **Deterministic fixtures:** inspector render over the published revision.
+- **Focused tests:** inspector reads `ActiveTruthView`; source/provider/source-type separation
+  preserved.
+- **Architecture/import checks:** presentation consumes `ActiveTruthView` semantics only.
+- **Runtime proof status required:** inspector render proof over fixture.
+- **Fail-closed behavior:** unresolved ⇒ inspector shows unresolved, never a sentinel.
+- **Entry gate:** P07 PROCEED.
+- **Exit gate:** inspector cutover proven.
+- **Legacy deletion obligation:** mark selected-evidence display snapshots as rider truth for
+  deletion (§9.11).
+- **Expected final-gate evidence:** surface list, import-guard result, render proof.
+
+---
+
+### P08B — Receipt And Summary Surface Cutover
+
+- **Purpose:** Cut analyze-road receipt, cue sheet, cue detail, route summary, route score
+  explanation, and mobile/desktop duplicates to `ActiveTruthView`.
+- **Input contract:** `ActiveTruthView` (P07).
+- **Output contract:** every one of the following reads exclusively from `ActiveTruthView`:
+  - Analyze road receipt;
+  - Analyze road/details dropdowns;
+  - cue-sheet rows;
+  - cue detail;
+  - route summary;
+  - route score explanation;
+  - notable-driver explanation;
+  - mobile duplicates;
+  - desktop duplicates;
+  - any saved-route duplicate of those surfaces.
+- **Phase-entry requirement:** before implementation, P08B must inventory every in-scope surface by
+  exact file, symbol, direct caller, direct consumer, and current semantic input. An unlisted
+  rider-facing receipt, cue, summary, explanation, or details surface is a phase blocker.
+- **Receipt rule:** receipts must be rendered from upstream immutable receipt references. No P08B
+  surface may reconstruct, recalculate, rerank, infer providers, or apply risk thresholds.
+- **Authoritative owner:** `src/lib/presentation/active-truth/`.
+- **Package roots allowed to change:** presentation surfaces, fixtures, architecture tests.
+- **Package roots forbidden to change:** canonical authority internals.
+- **Permitted responsibilities:** presentation-only adaptation.
+- **Forbidden responsibilities:** selection, scoring, provider inference, receipt construction,
+  presentation traffic calculations.
+- **Deterministic fixtures:** summary/explanation render over published revision.
+- **Focused tests:** every listed surface and its duplicate read identical semantics.
+- **Architecture/import checks:** presentation consumes `ActiveTruthView` only.
+- **Runtime proof status required:** surface render proof.
+- **Fail-closed behavior:** unresolved ⇒ surfaced as unresolved.
+- **Entry gate:** P08A PROCEED.
+- **Exit gate:** all listed surfaces cut over with duplicate parity.
+- **Legacy deletion obligation:** mark presentation traffic calculations for deletion (§9.11).
+- **Expected final-gate evidence:** surface list, duplicate-parity proof.
+
+---
+
+### P08C — Route Paint And Quick/Robust Parity
+
+- **Purpose:** Guarantee that all finalized rider-facing route paint consumes one semantic source.
+  The purpose and output contract explicitly cover:
+  - all finalized rider-facing route paint;
+  - base/default route paint;
+  - `QuickPaint`;
+  - `RobustPaint`;
+  - zoom-level route paint;
+  - route paint used by inspection hitboxes or route interactions;
+  - paint-derived traffic/risk tooltips;
+  - mechanical geometry aggregation used for rendering.
+- **Input contract:** `ActiveTruthView` over one `ActiveScoreLedger` revision.
+- **Output contract:** all of the route-paint paths above must consume semantics from the **same
+  `ActiveTruthView` over the same `ActiveScoreLedger` revision** and must share:
+  - `ActiveScoreLedger` id;
+  - revision;
+  - digest;
+  - entry ids;
+  - route intervals;
+  - Road Risk;
+  - Crossing Risk;
+  - Total Risk;
+  - Risk Per Mile;
+  - risk bucket;
+  - notable driver;
+  - provider;
+  - source type;
+  - provenance;
+  - confidence;
+  - selection class;
+  - receipts.
+- **Phase-entry requirement:** before implementation, P08C must inventory every route-paint path by
+  exact file, symbol, direct caller, and direct consumer. An unlisted route-paint path is a blocker.
+- **Authoritative owner:** `src/lib/presentation/active-truth/`.
+- **Package roots allowed to change:** presentation paint adapters, fixtures, architecture tests.
+- **Package roots forbidden to change:** canonical authority internals.
+- **Permitted responsibilities:** rendering may differ only by **scheduling, animation, reveal
+  timing, density, zoom aggregation, geometric simplification that does not cross semantic
+  boundaries, and visual performance strategy.**
+- **Forbidden responsibilities:** any semantic selection, scoring, identity, or digest divergence
+  between any route-paint paths, including Quick and Robust.
+- **Deterministic fixtures:** Quick/Robust parity fixture (§9.9).
+- **Focused tests:** Quick and Robust assert identical id/revision/digest/entries/semantics/source
+  identities/receipts.
+- **Architecture/import checks:** both paints consume the same `ActiveTruthView`.
+- **Runtime proof status required:** Quick/Robust parity proof.
+- **Fail-closed behavior:** any semantic divergence fails the gate.
+- **Entry gate:** P08B PROCEED.
+- **Exit gate:** Quick/Robust semantic identity proven.
+- **Legacy deletion obligation:** mark Quick/Robust semantic selection for deletion (§9.11).
+- **Expected final-gate evidence:** parity assertion proof.
+
+---
+
+### P09 — Fresh, Cache, And History Reload Canonical Transport
+
+- **Purpose:** Preserve canonical identity across fresh, cache, and history transport. P09
+  explicitly covers both transport and actual product re-entry paths:
+  - fresh analysis completion;
+  - route-cache reload;
+  - route-history reload;
+  - saved-route reopening;
+  - any route restoration path that republishes rider-facing traffic or risk.
+- **Input contract:** An `ActiveScoreLedger` artifact.
+- **Output contract:** `serializeActiveScoreLedgerArtifact(...)` and
+  `hydrateActiveScoreLedgerArtifact(...)` preserving exact canonical ids, revisions, digests,
+  formulas, model versions, source identities, and receipts.
+- **Required invariant:** the same canonical `ActiveScoreLedger` artifact identity must survive all
+  paths, and every path must mechanically project the same `ActiveTruthView` semantics. Required
+  parity includes: ledger id; revision; digest; entry ids; route intervals; model/formula versions;
+  source identities; provider; provenance; confidence; selection class; score inputs; Road Risk;
+  Crossing Risk; Total Risk; Risk Per Mile; risk bucket; notable driver; receipt references.
+- **Explicitly forbidden:** cache payloads rendering directly; history payloads rendering directly;
+  reconstructing `ActiveTruthView` from display fields; rebuilding traffic; rebuilding scores;
+  source/provider inference; receipt reconstruction; semantic migration hidden inside hydration.
+- **Phase-entry requirement:** before implementation, P09 must inventory the fresh, cache reload,
+  history reload, and saved-route reopening paths by exact file, symbol, direct caller, and direct
+  consumer. An unlisted reload/reopen path is a blocker.
+- **Authoritative owner:** `src/lib/route-analysis-transport/`.
+- **Package roots allowed to change:** `src/lib/route-analysis-transport/`, fixtures, architecture
+  tests.
+- **Package roots forbidden to change:** all canonical authority internals.
+- **Permitted responsibilities:** serialize / hydrate transport only.
+- **Forbidden responsibilities:** **no reconstruction, rescoring, selection, repair, or provider
+  inference.**
+- **Deterministic fixtures:** fresh/cache/history identical-identity fixture (§9.9).
+- **Focused tests:** round-trip identity of ids/revisions/digests/formulas/model versions/source
+  identities/receipts.
+- **Architecture/import checks:** route-analysis-transport is not imported by any canonical
+  authority.
+- **Runtime proof status required:** round-trip parity proof.
+- **Fail-closed behavior:** any identity drift fails closed.
+- **Entry gate:** P08C PROCEED.
+- **Exit gate:** transport identity proven across all three paths.
+- **Legacy deletion obligation:** mark cache/history traffic reconstruction for deletion (§9.11).
+- **Expected final-gate evidence:** round-trip identity proof.
+
+---
+
+### P10 — Legacy Authority Deletion And Import Guard
+
+- **Purpose:** Delete or semantically strip all competing authorities and enforce forbidden
+  imports.
+- **Legacy route-surface-truth note (Amendment 2026-06-25 — P04A):** the legacy package
+  `src/lib/route-surface-truth/**` (barrel `@/lib/route-surface-truth`, legacy
+  `RouteSurfaceTruthBundle`) remains live legacy runtime code during P04–P09 and is **scheduled
+  for deletion/cutover review here in P10**, not in P04. P04 introduced the parallel traffic-spine
+  root `src/lib/traffic-spine/route-surface-truth/`; P10 owns retiring the legacy package and its
+  remaining consumers under the import guard.
+- **Input contract:** The legacy authority deletion register (§9.11).
+- **Output contract:** every competing authority deleted or semantically stripped; an enforceable
+  repository import guard at `scripts/architecture/traffic-spine-import-guard.mjs`; removal of any
+  temporary `src/lib/route-line-v2/axis.ts` direct-import exception.
+- **Authoritative owner:** Program governance plus `scripts/architecture/`.
+- **Package roots allowed to change:** any package carrying a registered legacy authority;
+  `scripts/architecture/`; architecture tests.
+- **Package roots forbidden to change:** none beyond registered targets and the guard.
+- **Permitted responsibilities:** deletion, semantic stripping, guard authoring.
+- **Forbidden responsibilities:** leaving any "deprecated but executable" authority alive.
+- **Deterministic fixtures:** guard-violation fixtures (each forbidden import must fail).
+- **Focused tests:** import guard fails on every forbidden edge in §9.10.
+- **Architecture/import checks:** full forbidden-import matrix enforced.
+- **Runtime proof status required:** guard failing-on-violation proof; legacy-authority zero count.
+- **Fail-closed behavior:** **no "deprecated but executable" authority survives.**
+- **Entry gate:** P09 PROCEED.
+- **Exit gate:** zero competing authorities; guard enforced; temporary exception removed.
+- **Legacy deletion obligation:** all register items resolved.
+- **Expected final-gate evidence:** deletion proof per register item; guard failing-edge proof.
+
+---
+
+### P11 — Final Proof And Reviewed PR To Main
+
+- **Purpose:** Prove the rebuilt spine end to end and land it.
+- **Input contract:** Integration branch at the approved P10 head.
+- **Output contract:** deterministic golden fixtures pass; live Dam Ride proof; fresh/cache/history
+  parity; Quick/Robust parity; complete architecture proof; legacy-authority zero count; one final
+  reviewed PR to `main`.
+- **Authoritative owner:** Program governance.
+- **Package roots allowed to change:** final proof fixtures/tests only.
+- **Package roots forbidden to change:** canonical authority semantics (frozen for proof).
+- **Permitted responsibilities:** final proof, PR.
+- **Forbidden responsibilities:** new feature work; deployment during P00–P11.
+- **Deterministic fixtures:** all golden fixtures (§9.9) plus live Dam Ride.
+- **Focused tests:** full architecture proof and parity suites.
+- **Architecture/import checks:** complete matrix green.
+- **Runtime proof status required:** live Dam Ride runtime proof.
+- **Fail-closed behavior:** any failing parity or non-zero legacy count blocks the PR.
+- **Entry gate:** P10 PROCEED.
+- **Exit gate:** reviewed PR to `main` with all proofs attached.
+- **Legacy deletion obligation:** confirm zero count holds.
+- **Expected final-gate evidence:** golden fixtures, live Dam Ride, parity proofs, zero-count proof,
+  PR link.
+
+---
+
+## 9.9 Golden Fixture Registry
+
+| Fixture | Exact value |
+| --- | --- |
+| South Las Vegas traffic source id | `supabase-hpms-read-proxy:2024:NV:106902:traffic_aadt` |
+| Expected total AADT | `57,000` |
+| Lane dimensional-safety source id | `supabase-hpms-read-proxy:2020:NV:161031:lane_count` |
+| Expected lane value | `4` |
+| West Hacienda coordinate | `36.12151, -115.17200` |
+
+- **Lane fixture scope:** the lane fixture **may populate lane semantics only.** It may **never**
+  populate AADT, speed, vehicles/minute, traffic factor, or risk.
+- **West Hacienda purpose:** unknown-versus-receipt disagreement proof.
+- **Highway Baseline:** typed candidate **before** selection; a selection class, **not** a provider.
+- **Missing provider:** finite selected traffic without explicit provider identity **cannot
+  publish** to `ActiveScoreLedger`.
+- **Fresh/cache/history:** identical canonical identities and digests across all three paths.
+- **QuickPaint/RobustPaint:** same `ActiveScoreLedger` revision and same semantic values.
+- **P11:** live Dam Ride proof.
+
+---
+
+## 9.10 Dependency And Import Guard Matrix
+
+**Allowed forward dependency DAG** (each arrow is the only permitted direction):
+
+```
+route-line (CanonicalRouteAxis)
+  -> source-normalization/traffic
+  -> source-projection/traffic
+  -> route-evidence/traffic (RouteIndexedEvidenceLedger)
+  -> truth-selection/traffic
+  -> traffic-spine/route-surface-truth (RouteSurfaceTruthBundle)   # src/lib/traffic-spine/route-surface-truth/ (P04 authority; Amendment 2026-06-25 — P04A)
+  -> rigid-score-ledger
+  -> active-score-ledger
+  -> active-truth (ActiveTruthView)
+  -> presentation/active-truth
+route-analysis-transport  : downstream transport only (never imported upstream)
+
+# Legacy (frozen, NOT in the traffic-spine DAG): src/lib/route-surface-truth/** (barrel
+# @/lib/route-surface-truth, legacy RouteSurfaceTruthBundle) — non-authoritative; P10
+# deletion/cutover candidate. No traffic-spine package may import it.
+```
+
+The P10 import guard (`scripts/architecture/traffic-spine-import-guard.mjs`) **must fail on at
+least** every reverse/forbidden edge below:
+
+- source normalization importing route distance, selection, scoring, presentation, cache, or
+  history;
+- route-evidence importing truth-selection;
+- route-evidence importing scoring;
+- route-evidence importing presentation;
+- truth-selection importing source clients;
+- traffic-spine/route-surface-truth (P04) importing heatmap / display / cache / history types;
+- **traffic-spine/route-surface-truth (P04) production importing the legacy
+  `@/lib/route-surface-truth` or `src/lib/route-surface-truth/**` package, `@/lib/route-evidence`,
+  source-normalization, or source-projection** (Amendment 2026-06-25 — P04A; P04 production imports
+  only `@/lib/truth-selection/traffic` and local files);
+- **rigid-score-ledger (P05) importing anything other than the traffic-spine
+  `@/lib/traffic-spine/route-surface-truth` bundle (never the legacy `@/lib/route-surface-truth`)
+  and its own versioned model policy;**
+- rigid-score-ledger importing `ActiveScoreLedger` implementation or presentation;
+- active-score-ledger importing presentation;
+- active-truth importing route-evidence, truth-selection, route-surface-truth, or scoring
+  implementations;
+- presentation importing route-evidence, source clients, selectors, `RouteSurfaceTruthBundle` as
+  authority, or `RigidScoreLedger` as authority;
+- cache/history packages imported by canonical authorities.
+
+---
+
+## 9.11 Legacy Authority Deletion Register
+
+Each item must be deleted or semantically stripped in its named phase, with the named proof. Any
+allowed surviving responsibility is mechanical only.
+
+| Legacy authority | Forbidden semantic responsibility | Deletion phase | Proof required | Allowed surviving mechanical responsibility |
+| --- | --- | --- | --- | --- |
+| `ProductionTrafficTruthArtifact` | rider-facing traffic truth | P06–P10 | zero references; guard edge | none |
+| `TrafficTruthArtifactProvider` | provider authority for traffic truth | P06–P10 | zero references; guard edge | none |
+| `TrafficScoringInputCutover` | scoring-input selection authority | P05–P10 | zero references | none |
+| `ResolvedTrafficTruth` | selected/resolved traffic authority | P04–P10 | zero references | none |
+| traffic semantics on `HeatmapSegment` | traffic/risk semantics | P08C rider-facing paint cutover; P10 final semantic strip and enforcement | semantics stripped; guard edge | geometry/paint geometry only |
+| traffic semantics on `RouteSpeedSegment` | traffic/risk semantics | P08C rider-facing paint cutover; P10 final semantic strip and enforcement | semantics stripped | speed geometry only |
+| selected-evidence display snapshots as rider truth | rider-facing truth | P08A inspector/details cutover and P08B receipt/summary cutover; P10 final zero rider-facing uses | zero rider-truth use | diagnostic display only |
+| current direct `ActiveTruthView` composer | independent projection authority | P07–P10 | replaced by mechanical projection | none |
+| provider reconstruction | provider inference | P06–P10 | zero reconstruction paths | none |
+| presentation traffic calculations | scoring/selection math in presentation | P08A inspector/details cutover, P08B receipt/summary cutover, and P08C route-paint cutover; P10 final zero calculation paths | zero calculations; guard edge | formatting only |
+| receipt reconstruction | receipt creation downstream | P07–P10 | zero reconstruction | none |
+| Quick/Robust semantic selection | independent semantic divergence | P08C–P10 | parity proof | scheduling/animation/density/timing/simplification |
+| cache/history traffic reconstruction | rescoring/reselection on transport | P09–P10 | round-trip identity | serialize/hydrate only |
+| route-analysis scoring authority | scoring authority in transport | P09–P10 | zero scoring in transport | transport only |
+| `truthRuns` scoring/selection authority | scoring/selection authority | P05–P10 | zero authority use | logging/diagnostic only |
+| independent notable-driver ranking | ranking outside RigidScoreLedger | P05–P10 | single-source ranking | none |
+| independent risk-threshold application | bucketing outside RigidScoreLedger | P05–P10 | single-source bucketing | none |
+| alternate score traces | competing score traces | P05–P10 | single trace | none |
+| route-truth-kernel as competing implementation authority | competing implementation authority | P10 | zero competing authority | none |
+
+---
+
+## 9.12 Branch And Review Protocol
+
+- **One phase at a time.**
+- **One fresh branch** per phase, from the exact approved integration SHA.
+- **One fresh worktree** per phase.
+- **One builder thread** and **one independent read-only reviewer thread.**
+- **Exact base and head SHAs** recorded on the phase-gate checklist.
+- **Exact file allowlist** per phase.
+- **No self-certification.**
+- **Builder commits and pushes but never merges.**
+- **Reviewer edits nothing.**
+- **Integration advances only after final PROCEED.**
+- **Fast-forward-only integration.**
+- **No rebase.** **No force-push.** **No amend after review.**
+- **Fixes are additive commits.**
+- **Main remains untouched until P11.**
+- **No deployment during the rebuild.**
+
+**Designated final independent GitHub gate.** The final independent GitHub gate is performed by
+Derek's designated Lanterne Traffic Truth Spine architecture gate in the ChatGPT oversight thread
+through direct inspection of the exact GitHub commit, complete diff, and source. The builder cannot
+satisfy this gate. The skeptical reviewer cannot satisfy this gate. A reviewer PASS is evidence
+submitted to the final gate; it is not permission to advance integration. The final architecture
+gate alone returns **PROCEED**, **REWORK**, or **STOP**.
+
+---
+
+## 9.13 Evidence Standard
+
+Every meaningful claim must identify: repository; branch; base SHA; head SHA; tree SHA; file;
+symbol; constructor; input/output contract; direct caller; direct consumer; and a test or runtime
+proof.
+
+- **Unit tests alone are not architecture proof.**
+- **Implementation and reviewer summaries are not final proof.**
+
+---
+
+## 9.14 Forbidden Report Language
+
+The following phrases are forbidden in any phase report:
+
+- "mostly complete"
+- "code-level done"
+- "one smoke test remains"
+- "appears fixed"
+- "practically finished"
+- "ActiveScoreLedger-backed" without naming the concrete type and constructor
+- "pre-existing failure" without normalized A/B proof
+
+---
+
+## 9.15 Promotion Rules
+
+- Each phase starts from the **exact approved integration SHA.**
+- The phase branch remains **unmerged** during builder and reviewer work.
+- **Only PROCEED** permits fast-forwarding integration.
+- **REWORK** requires additive commits on the same phase branch unless STOP says otherwise.
+- **STOP** freezes the phase branch as evidence.
+- **No phase branch merges directly to `main`.**
+- **No `main` merge before P11.**
+- **No deployment during P00–P11.**
+
+---
+
+## 9.16 Traffic Measurement Basis (Amendment 2026-06-25 — P03A)
+
+This amendment resolves the P03 authority gap (report
+`docs/04-execution/reports/p03-traffic-measurement-basis-authority-resolution.md`).
+The original P03 gate stopped correctly before implementation: requiring **every**
+traffic class to emit `total_aadt` was incorrect, because DS-015 / DS-029 define
+the Highway Baseline traffic value as an already-per-lane class proxy, and no
+accepted authority defines a highway-class **total-AADT** table. The controlling
+detail now lives in **DS-029 Appendix L** and **DS-067 §16**; this section pins the
+EXEC-060 gates to it.
+
+### Canonical selected unit
+
+P03 selects exactly one complete **`TrafficExposureBasis`** per atomic interval
+(DS-029 §L.2), with two forms:
+
+- `total_aadt_with_lane_basis` — `totalAadt` (`vehicles_per_day`) + `laneCount`
+  (`count`), retaining all contributing total-AADT and lane-count candidate ids.
+- `effective_right_lane_aadt` — `effectiveRightLaneAadt`
+  (`vehicles_per_day_per_lane`), `sourceForm` ∈ { `authoritative_direct`,
+  `highway_class_proxy` }.
+
+Canonical term: **effective right-lane AADT** (`aadtPerLane` is a compatibility
+alias only). Neither form is "total traffic" generically.
+
+### Class composition and Highway Baseline
+
+- `authoritative_posted` / `authoritative_inferred` / `local_area_predicted` carry
+  total AADT plus a lane basis of the matching strength (each completed class is no
+  stronger than its weakest required component).
+- `highway_baseline` is a direct `effective_right_lane_aadt` value from the
+  versioned table `ds015-highway-class-proxy-effective-right-lane-aadt.v1`
+  (DS-029 §L.4), provider `lanterne_highway_baseline_model.v1` (kind `model`). It
+  fabricates no total AADT and no lane count.
+- Precedence unchanged: `authoritative_posted` > `authoritative_inferred` >
+  `local_area_predicted` > `highway_baseline`; `unknown` is unresolved.
+
+### Revised P03 entry and exit gates
+
+- **Entry:** P02 PROCEED; ledger/axis identity verified.
+- **Exit (hard gates):** one candidate family; one selector; one selected
+  `TrafficExposureBasis` per atomic interval; all four approved classes
+  representable; Highway Baseline candidate present **before** selection; **no
+  fabricated total AADT; no fabricated lane count; no per-lane-to-total
+  multiplication**; immutable receipts recording measurement form and units;
+  unresolved when no complete class can be defended; provider integrity blockers
+  never hidden by weaker fallback.
+
+### Stage ownership (consistent with DS-067 §16)
+
+- **P03** constructs and selects the `TrafficExposureBasis`, combines compatible
+  facts **without arithmetic**, looks up the versioned baseline value, and performs
+  no Traffic Factor / risk / total-to-per-lane / per-lane-to-total conversion.
+- **P04** carries the selected `TrafficExposureBasis` **verbatim** with all
+  component ids/providers/provenance/confidence/receipts; no conversion or scoring.
+- **P05** is the **sole** owner of traffic-input conversion and scoring: it derives
+  effective right-lane AADT from `total_aadt_with_lane_basis` via the versioned
+  DS-015 formula, uses `effective_right_lane_aadt` directly, **never** reverse-
+  multiplies per-lane by lane count, and computes Traffic Factor / Road Risk only
+  after the basis is certified.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
