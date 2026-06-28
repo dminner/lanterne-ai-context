@@ -7734,6 +7734,46 @@ radius, superelevation by route + milepoint) may later **outrank** geometry-deri
 classification under the §6.2 precedence order. That source path is **not** implemented by this
 correction and remains future work.
 
+#### 8.4.2 Roadway-curve mask inputs (Amendment 2026-06-27 — P04C-C2-A2)
+
+§8.4.1 correctly identifies the score-ready curvature representation (a geometry-derived
+roadway-curve **classification** that is junction-masked and sustained-span). The first
+**P04C-C2-B** implementation attempt **correctly STOPPED with no commit** after establishing that
+**public route-axis geometry alone cannot reproduce the reference junction / maneuver mask**: a
+route axis exposes only per-segment geometry (heading, distances), so it has no way to know that a
+heading change is an intersection maneuver, a turn from one road onto another, a path-domain
+transition, or a route-family handoff rather than the road's own bend. The §8.4.1 mask is therefore
+not derivable from geometry by itself; it depends on **route semantics**:
+
+- **road identity continuity** (same-road vs road-change along the run);
+- **junction / maneuver events** (intersection turns, the rider leaving one road for another);
+- **path-domain transitions** (path crossing / join / exit neighborhoods);
+- **route-family handoff context** where already public.
+
+These route-semantic signals are **mask inputs, not scoring facts**. They never enter the
+`CurvatureFactor` formula and never become a likelihood or severity term; they only decide **which
+geometry samples are excluded** from roadway-curve classification so that maneuver / junction / path
+heading change is not misread as roadway curvature.
+
+**Authorized input boundary for P04C-C2-B.** To build the §8.4.1 classification, P04C-C2-B may
+consume — **read-only, for masking only** — the **public selected route-indexed identity / context
+artifacts** already produced by the traffic spine (road identity / same-road continuity, junction
+context / maneuver events, road / path-domain context, and public route-family handoff context).
+P04C-C2-B must still **compute the curve class from route geometry**; the identity / context
+artifacts only mask samples. P04C-C2-B must **not** mutate, reselect, or re-derive those artifacts;
+must **not** score or compute `CurvatureFactor`; and must **not** reach into legacy
+`route-analysis.ts`, legacy cue-sheet internals, legacy `conflict-events`, `safety-scoring`, source
+packages, or P05, nor import `route-geometry.ts` or shared scoring contracts as production
+dependencies.
+
+**Fail closed on missing mask context.** If a required mask input is absent for an interval,
+P04C-C2-B must **fail closed** — either **block** selected roadway-curve classification for that
+interval, or mark it **insufficient mask context** — and must **never** silently treat unmasked
+geometry as score-ready curvature. **P04E2** carries both the selected roadway-curve class and any
+mask-context blockers through the bundle; **P05 remains blocked** until P04E2 carries a score-ready
+roadway-curve classification. Corrected sequencing: P04C-C2-A → P04C-C2-A2 (this amendment) →
+P04C-C2-B → P04E2 → P05 (see EXEC-060 and DS-067).
+
 ### 8.5 Facility And Shoulder Factors
 
 Facility and shoulder reduce interaction opportunity by improving operating space. They are likelihood factors, not severity factors.
@@ -39721,6 +39761,26 @@ does **P05** map the selected class to `CurvatureFactor`. P05 remains **blocked*
 carries the roadway-curve class; a heading-change metric alone does not unblock it. Official /
 state DOT curve-inventory evidence may later outrank geometry-derived classification (DS-015 §8.4.1)
 but is not implemented by this correction.
+
+**Curve-mask input authority (Amendment 2026-06-27 — P04C-C2-A2).** The first **P04C-C2-B**
+implementation attempt **correctly STOPPED with no commit**: the geometry-derived roadway-curve
+classification of DS-015 §8.4.1 requires a junction / maneuver mask, and that mask **cannot be
+reproduced from public route-axis geometry alone** (a route axis carries only per-segment geometry,
+not road identity, maneuvers, or path-domain context). The accurate mask depends on **route
+semantics** — road identity / same-road continuity, junction / maneuver events, path-domain
+transitions, and public route-family handoff context. These are **mask inputs, not scoring facts**:
+they decide only which geometry samples are excluded from classification, and never enter
+`CurvatureFactor`. **P04C-C2-B is therefore authorized to consume the public selected route-indexed
+identity / context artifacts — read-only, for masking only** — while still computing the curve class
+from route geometry. P04C-C2-B must not mutate or reselect those artifacts, must not score or
+compute `CurvatureFactor`, and must not reach legacy `route-analysis.ts`, legacy cue-sheet
+internals, legacy `conflict-events`, source packages, or P05 (nor import `route-geometry.ts` /
+shared scoring contracts as production dependencies). If a required mask input is missing for an
+interval, P04C-C2-B **fails closed** — block the interval or mark it insufficient mask context —
+and never treats unmasked geometry as score-ready curvature. **P04E2** carries the selected
+roadway-curve class **and** any mask-context blockers through `RouteSurfaceRoadRiskInputFact`;
+**P05** stays blocked until P04E2 carries a score-ready classification. Corrected sequencing:
+P04C-C2-A → **P04C-C2-A2** → P04C-C2-B → P04E2 → P05.
 
 **P04 package boundary (Amendment 2026-06-25 — P04A):** the traffic-spine P04 authority
 root is **`src/lib/traffic-spine/route-surface-truth/`** (public import
