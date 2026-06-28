@@ -61114,6 +61114,13 @@ bundle ⇒ blocked ledger; no zero substitution; no Road-Risk-only Total Risk).
   DS-015 score-bearing inputs (speed, curvature, facility, shoulder, and all crossing-risk inputs).
   P05 retry is **gated on P04E PROCEED** (the extended bundle); see the P04B/P04C/P04D/P04E
   subphases above. The DS-015 formulas were never the gap.
+- **Output-contract correction (Amendment 2026-06-27 — P05A):** Risk bucket and notable-driver
+  ranking are **descoped from required P05 v1 output** and deferred to **P05B** (interpretation /
+  projection policy; see the P05B stub below). P05 v1 owns Road Risk, Crossing Risk, Total Risk,
+  Risk Per Mile, exact unrounded score inputs, scoring-model and traffic-formula versions, the
+  immutable score trace, calculation receipts, and scored/blocked status — it does **not** own risk
+  bucket or notable-driver ranking. No bucket thresholds or ranking rules are defined here. See
+  `docs/04-execution/reports/p05a-rigid-score-ledger-output-contract-correction.md`.
 - **Input contract:** the traffic-spine `RouteSurfaceTruthBundle` (P04, extended by **P04E**)
   imported from `@/lib/traffic-spine/route-surface-truth` (Amendment 2026-06-25 — P04A), never the
   legacy `@/lib/route-surface-truth`; P05 refuses to score a bundle whose `scoreReadiness` is
@@ -61135,12 +61142,12 @@ bundle ⇒ blocked ledger; no zero substitution; no Road-Risk-only Total Risk).
   right-lane AADT via the versioned DS-015 formula; for `effective_right_lane_aadt` it uses the
   selected value directly; it **never** multiplies effective-right-lane AADT by lane count to
   reconstruct a total. It owns exact unrounded inputs, **Road Risk**, **Crossing Risk**, **Total
-  Risk**, **Risk Per Mile**, risk bucket, notable-driver ranking, score trace, receipts (recording
-  measurement form and exact inputs), model version, and formula version.
+  Risk**, **Risk Per Mile**, score trace, receipts (recording
+  measurement form and exact inputs), model version, formula version, and scored/blocked status.
 - **Forbidden responsibilities:** importing `ActiveScoreLedger` implementation or presentation;
   any selection or projection.
 - **Deterministic fixtures:** South Las Vegas total AADT `57,000` driving Road Risk inputs.
-- **Focused tests:** unrounded inputs, Road/Crossing/Total Risk and Risk Per Mile, ranking, trace,
+- **Focused tests:** unrounded inputs, Road/Crossing/Total Risk and Risk Per Mile, trace,
   receipts, model/formula version.
 - **Architecture/import checks:** rigid-score-ledger imports only `RouteSurfaceTruthBundle` and its
   own internal versioned model policy.
@@ -61153,6 +61160,28 @@ bundle ⇒ blocked ledger; no zero substitution; no Road-Risk-only Total Risk).
 - **Exit gate:** single scorer proven; canonical risk terms only.
 - **Legacy deletion obligation:** mark alternate scorers / score traces for deletion (§9.11).
 - **Expected final-gate evidence:** constructor name, golden risk values, receipt + version proof.
+
+---
+
+### P05B — Score Interpretation Projection (stub)
+
+- **Status (Amendment 2026-06-27 — P05A):** Stub only. This entry reserves the phase and records the
+  deferral from P05A. It defines **no** bucket thresholds and **no** notable-driver ranking rules. A
+  full P05B specification is a separate, later authority step and is **not** authorized here.
+- **Purpose:** Own the interpretation / projection policy that turns canonical RigidScoreLedger
+  output into risk-bucket and notable-driver semantics.
+- **Deferred ownership (to be specified by a future P05B authority step):** risk bucket and
+  notable-driver ranking — including exact bucket thresholds, notable-driver sort keys, count limits,
+  tie-breaks, and rider-facing semantics. None of these are defined yet.
+- **Input contract:** consumes a `RigidScoreLedger` revision's immutable score trace and calculation
+  receipts (P05 v1).
+- **Hard boundary:** P05B **must not** rescore, reselect evidence, or modify canonical Road Risk,
+  Crossing Risk, Total Risk, or Risk Per Mile. It interprets the existing canonical score; it is not
+  a second scorer.
+- **Forbidden until specified:** no implementation, no tests, no thresholds invented, no ranking
+  rules invented, no integration promotion until reviewed.
+- **Entry gate:** a separate approved P05B authority specification (exact thresholds + ranking policy
+  + rider-facing semantics). Until then P05B remains a stub.
 
 ---
 
@@ -61548,8 +61577,8 @@ allowed surviving responsibility is mechanical only.
 | cache/history traffic reconstruction | rescoring/reselection on transport | P09–P10 | round-trip identity | serialize/hydrate only |
 | route-analysis scoring authority | scoring authority in transport | P09–P10 | zero scoring in transport | transport only |
 | `truthRuns` scoring/selection authority | scoring/selection authority | P05–P10 | zero authority use | logging/diagnostic only |
-| independent notable-driver ranking | ranking outside RigidScoreLedger | P05–P10 | single-source ranking | none |
-| independent risk-threshold application | bucketing outside RigidScoreLedger | P05–P10 | single-source bucketing | none |
+| independent notable-driver ranking | ranking outside P05B (interpretation/projection) | P05–P10 | single-source ranking | none |
+| independent risk-threshold application | bucketing outside P05B (interpretation/projection) | P05–P10 | single-source bucketing | none |
 | alternate score traces | competing score traces | P05–P10 | single trace | none |
 | route-truth-kernel as competing implementation authority | competing implementation authority | P10 | zero competing authority | none |
 

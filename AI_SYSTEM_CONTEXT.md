@@ -39226,8 +39226,6 @@ RigidScoreLedger owns:
 - Crossing Risk
 - Total Risk
 - Risk Per Mile where applicable
-- canonical risk bucket
-- canonical notable-driver ranking
 - deterministic tie-breaks
 - scoring-model version
 - traffic-formula version
@@ -39236,7 +39234,9 @@ RigidScoreLedger owns:
 - calculation receipts
 - immutable score trace
 
-No other module may independently calculate canonical Road Risk, Crossing Risk, Total Risk, Risk Per Mile, risk bucket, notable driver, or canonical score trace.
+No other module may independently calculate canonical Road Risk, Crossing Risk, Total Risk, Risk Per Mile, or canonical score trace.
+
+**Amendment 2026-06-27 — P05A (RigidScoreLedger Output Contract Correction).** Risk bucket and notable-driver ranking are **descoped from RigidScoreLedger v1** and deferred to **P05B** (interpretation / projection policy). RigidScoreLedger v1 owns Road Risk, Crossing Risk, Total Risk, Risk Per Mile, exact unrounded score inputs, scoring-model and traffic-formula versions, the immutable score trace, calculation receipts, and scored/blocked status. P05B may consume the RigidScoreLedger trace and receipts but must **not** rescore, reselect evidence, or modify canonical Road/Crossing/Total Risk or Risk Per Mile. P05B must define exact bucket thresholds, notable-driver sort keys, count limits, tie-breaks, and rider-facing semantics before any implementation; none are defined by this amendment. See `docs/04-execution/reports/p05a-rigid-score-ledger-output-contract-correction.md`.
 
 ---
 
