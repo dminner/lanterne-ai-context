@@ -61167,7 +61167,7 @@ DS-067.
   Presentation renders P05B / ActiveTruthView outputs and must never recompute drivers by
   rerunning scorer logic. No legacy bridge. No render-time fallback. No `HeatmapSegment`
   explanation authority. No `sectionDecisionModel` scorer calls.
-- **Sequencing:** P04E2 → **P05A2** → P05 → P05B → later UI cutover.
+- **Sequencing:** P04E2 → **P05A2** → P05A3 → P05 → P05B → later UI cutover.
 - **Controlling decisions:**
   - **Risk bucket:** Risk bucket is a projection from numeric Risk Per Mile. P05 v1 does not emit
     canonical rider-facing risk bucket labels. P05B owns the bucket threshold projection. The route
@@ -61213,6 +61213,73 @@ DS-067.
 
 ---
 
+### P05A3 — DS-015 / DS-029 / DS-067 Mapping and Confidence Reconciliation (docs-only)
+
+- **Status (Amendment 2026-06-28 — P05A3):** Documentation-only authority reconciliation. No
+  production code. No tests. No config. No scoring. No P05 implementation. No P05B implementation.
+  No bucket or notable-driver ranking authority. No UI / presentation / render fallback. No legacy
+  adapter. No integration promotion until reviewed.
+- **Why this phase exists:** **P05 v5 stopped correctly at the authority gate.** It stopped because
+  the score-authority docs did not fully align the DS-029 selected-input vocabulary with the
+  DS-015 scoring factor authority and the DS-067 ledger output authority. This phase closes those
+  vocabulary and confidence gaps. It answers: what selected inputs may P05 receive; how each maps to
+  DS-015 factors; what RigidScoreLedger emits for risk, confidence, and receipts; and what is
+  public-facing later (P05B) versus score-authority now (P05).
+- **Sequencing:** P04E2 → P05A2 → **P05A3** → P05 retry → P05B → later UI cutover.
+- **Controlling decisions (applied as authority; not invented here):**
+  - **Safety scope:** Safety remains narrowly motor-vehicle strike risk and injury severity; no
+    weather / fatigue / remoteness / wind / light families enter the narrow Safety Score.
+  - **Shoulder:** DS-015 §8.5 adds deterministic width-to-class breakpoints (metric authority):
+    `unknown`/`none`/`narrow` = 1.00, `normal` (DS-029 `regular`, `1.2 <= widthM < 2.4`) = 0.85,
+    `wide` (`widthM >= 2.4`) = 0.80. Unknown receives no credit but stays `unknown` — it never
+    becomes asserted `none`.
+  - **Facility:** DS-015 §8.5 maps every DS-029 facility value (`path / MUP`, `protected`,
+    `buffered`, `painted`, `shared`, `none`). `shared` = 1.00 (recognized, no credit, never safer
+    than `none`); existing protected 0.50 / buffered 0.75 / painted 0.80 preserved.
+  - **Path / MUP is zero Road Risk but not protected-equivalent.** `path / MUP` has zero
+    motor-vehicle Road Risk (DS-015 §8.6); `protected` remains an on-road / road-adjacent reduction
+    (0.50), not zero risk. The two must not be collapsed.
+  - **`path_crossing` remains score-bearing.** A path / MUP segment may be zero Road Risk, but a
+    path crossing a road still creates Crossing Risk. For v1, `path_crossing` is scored as a
+    **signed road crossing** (DS-015 §9.5) — risk from crossed-road speed/severity, traffic/exposure,
+    width/lanes, and signed control. No separate path-merge precision model; no ranking of
+    `path_crossing` vs `join` vs `exit`; no merge penalties.
+  - **Control:** Canonical control is `none` / `signed` / `signaled` (DS-029); DS-015 §9.4 uses
+    those. `signed` takes the former stop-controlled factor (1.00); `signaled` the signalized factor
+    (1.05); `none` the uncontrolled factor (1.00). `stop` is historical/alias only.
+  - **Movement:** DS-015 §9.5 maps `straight` / `left_across` / `right_merge` / `join` / `exit` /
+    `path_crossing` / `unknown`. `join` = 1.00 and `exit` = 1.00 (accepted, not separately
+    penalized in v1); `path_crossing` = signed road crossing treatment.
+  - **Confidence becomes part of P05 output.** P05 emits score confidence (status, level, road and
+    crossing confidence traces, summary, receipts, issues, per-family coverage, risk-weighted and
+    distance-weighted distributions) using the DS-029 ordinal `high` / `medium` / `low` /
+    `unresolved` (DS-015 §9A; DS-067 §8). **Public confidence projection is required later** as a
+    P05B / presentation obligation, projected from the P05 confidence artifacts only.
+  - **Confidence does not modify risk.** It never alters Road Risk, Crossing Risk, Total Risk, or
+    Risk Per Mile. Confidence is an honesty layer beside the score, not a multiplier.
+- **Package roots allowed to change:**
+  `docs/02-architecture/design/ds-015-safety_scoring_model.md`,
+  `docs/02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md`,
+  `docs/02-architecture/design/ds-067-single_route_truth_and_score_ledger_pipeline_spec.md`,
+  `docs/04-execution/exec-060-traffic_truth_spine_rebuild_program.md`,
+  `docs/04-execution/reports/p05a3-ds015-ds029-ds067-reconciliation.md` (new).
+- **Package roots forbidden to change:** `src/**`, all tests, all config, all scripts. No code. No
+  tests. No runtime changes. No formula rewrite beyond explicit vocabulary-mapping closure.
+- **Permitted responsibilities:** documentation reconciliation only — vocabulary mapping closure
+  and the confidence-output authority addition.
+- **Forbidden responsibilities:** any scoring, any TypeScript, any test, any implementation, any
+  config change; changing speed / traffic / curvature factors; adding bucket or notable-driver
+  ranking authority; P05 or P05B implementation; UI / presentation / render fallback; legacy
+  adapter; promoting integration.
+- **Entry gate:** P05A2 accepted (prior docs-only authority correction) and P05 v5 stopped at the
+  authority gate.
+- **Exit gate:** five docs changed (four amended, one new); no code/test/config change; git diff
+  --check passes.
+- **Expected final-gate evidence:** repository, base SHA, integration SHA before/after (unchanged),
+  phase branch, commit, five changed files, no unexpected files.
+
+---
+
 ### P05 — Rigid Score Ledger
 
 - **Purpose:** Compute the single authoritative score.
@@ -61240,6 +61307,18 @@ DS-067.
   trace fields are specified in DS-015 §5 (Amendment 2026-06-28 — P05A2). Contribution trace
   identity must be distance-first using half-open route-distance intervals `[startDistM, endDistM)`;
   `startIdx`/`endIdx` are compatibility outputs only.
+- **Vocabulary + confidence reconciliation (Amendment 2026-06-28 — P05A3):** P05 consumes the DS-029
+  canonical selected-input vocabularies (control `none`/`signed`/`signaled`; facility
+  `path / MUP`/`protected`/`buffered`/`painted`/`shared`/`none`; movement
+  `straight`/`left_across`/`right_merge`/`join`/`exit`/`path_crossing`/`unknown`) mapped to DS-015
+  factors per DS-015 §8.5 / §9.4 / §9.5. `path / MUP` is zero Road Risk (§8.6) but `path_crossing`
+  remains score-bearing as a signed road crossing (§9.5). P05 must also **emit score confidence**
+  beside the numeric score: `scoreConfidenceStatus`, `scoreConfidenceLevel` (`high`/`medium`/`low`/
+  `unresolved`), road and crossing confidence traces, confidence summary, confidence receipts,
+  issues/blockers, per-input-family coverage, and risk-weighted + distance-weighted confidence
+  distributions (DS-015 §9A; DS-067 §8). Confidence does **not** modify risk. Public confidence
+  labels/copy are a later P05B projection from these P05 artifacts, not a P05 or presentation
+  invention.
 - **Input contract:** the traffic-spine `RouteSurfaceTruthBundle` (P04, extended by **P04E2**)
   imported from `@/lib/traffic-spine/route-surface-truth` (Amendment 2026-06-25 — P04A), never the
   legacy `@/lib/route-surface-truth`; P05 refuses to score a bundle whose `scoreReadiness` is
@@ -61296,9 +61375,15 @@ DS-067.
   P05B specification is a separate, later authority step and is **not** authorized here.
 - **Purpose:** Own the interpretation / projection policy that turns canonical RigidScoreLedger
   output into risk-bucket and notable-driver semantics.
-- **Deferred ownership (to be specified by a future P05B authority step):** risk bucket and
-  notable-driver ranking — including exact bucket thresholds, notable-driver sort keys, count
-  limits, tie-breaks, grouping policy, and rider-facing semantics. None of these are defined yet.
+- **Deferred ownership (to be specified by a future P05B authority step):** risk bucket,
+  notable-driver ranking, and **public-facing confidence labels/copy** — including exact bucket
+  thresholds, notable-driver sort keys, count limits, tie-breaks, grouping policy, public confidence
+  label wording, and rider-facing semantics. None of these are defined yet.
+- **Public confidence projection (Amendment 2026-06-28 — P05A3):** Confidence is public-eligible,
+  not admin/debug-only. P05B owns the later projection of public-facing confidence labels and copy
+  **from the P05 confidence trace, confidence summary, and confidence receipts only** (DS-015 §9A;
+  DS-067 §8). P05B (and presentation) may not invent confidence from `HeatmapSegment`, presentation
+  state, or cache, and may not let confidence modify any risk term.
 - **Input contract:** consumes a `RigidScoreLedger` revision's immutable score trace and
   calculation receipts (P05 v1) — specifically the route-distance-indexed contribution trace
   carrying exact selected input values, exact factor values, and per-factor contributions

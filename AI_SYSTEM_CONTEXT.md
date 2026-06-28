@@ -7839,22 +7839,49 @@ P04C-C2-B → P04E2 → P05 (see EXEC-060 and DS-067).
 
 Facility and shoulder reduce interaction opportunity by improving operating space. They are likelihood factors, not severity factors.
 
-Facility table:
+**Vocabulary alignment (Amendment 2026-06-28 — P05A3).** The facility and shoulder factor tables
+below are keyed to the DS-029 canonical selected-input vocabularies (DS-029 §6.8 master matrix,
+Appendix A.1 facility, Appendix A.2 shoulder). DS-015 maps every DS-029 facility value and every
+DS-029 shoulder value; no DS-029 selected value is left unmapped. This amendment changes no
+existing factor value — it adds the `shared` facility mapping, the explicit `unknown / unavailable`
+no-credit rows, and the deterministic shoulder width breakpoints. The pre-existing factor values
+(protected 0.50, buffered 0.75, painted 0.80, none 1.00; normal shoulder 0.85, wide shoulder 0.80)
+are preserved exactly.
 
-| Facility class | FacilityLikelihoodFactor |
-| --- | ---: |
-| fully separated / protected on-road facility | 0.50 |
-| buffered bike lane | 0.75 |
-| painted bike lane | 0.80 |
-| no dedicated bike facility | 1.00 |
+Facility table (keyed to DS-029 canonical facility vocabulary `path / MUP`, `protected`,
+`buffered`, `painted`, `shared`, `none`):
 
-Shoulder table:
+| DS-029 facility value | Facility class | FacilityLikelihoodFactor |
+| --- | --- | ---: |
+| `protected` | fully separated / protected on-road or road-adjacent facility | 0.50 |
+| `buffered` | buffered bike lane | 0.75 |
+| `painted` | painted bike lane | 0.80 |
+| `shared` | shared lane / sharrow — recognized and traceable, no operating-space credit | 1.00 |
+| `none` | no dedicated bike facility | 1.00 |
+| `path / MUP` | off-road / materially separated non-motor corridor | scored by §8.6 (zero continuous-road risk), not by this table |
+| unknown / unavailable | facility status not resolved | 1.00 (no mitigation credit; remains `unknown` / unavailable in trace and provenance) |
 
-| Shoulder condition | ShoulderLikelihoodFactor |
-| --- | ---: |
-| none / narrow shoulder | 1.00 |
-| normal shoulder | 0.85 |
-| wide shoulder | 0.80 |
+`protected` is a risk **reduction** on an on-road or road-adjacent facility, not zero risk; it is
+distinct from `path / MUP`, which is off-road context handled by §8.6. `shared` is recognized and
+traceable but carries **no** safety credit; `shared` must never be treated as safer than `none`.
+Unknown / unavailable facility receives no credit (factor 1.00) but is **not** asserted as `none`;
+it remains `unknown` / unavailable in trace and provenance.
+
+Shoulder table (deterministic width-to-class breakpoints; **metric thresholds are the authority**,
+plain-English equivalents are approximate). The DS-029 selected-input shoulder class `regular`
+(DS-029 Appendix A.2 / §6.8) is the same class DS-015 scores as `normal`:
+
+| DS-029 shoulder value | Shoulder class | Width breakpoint (metric authority) | ShoulderLikelihoodFactor |
+| --- | --- | --- | ---: |
+| unknown / unavailable | unknown | width not resolved | 1.00 (no credit; remains `unknown` / unavailable in trace and provenance) |
+| `none` | none | `widthM < 0.6` (~2 ft) | 1.00 |
+| `narrow` | narrow | `0.6 <= widthM < 1.2` (~2-4 ft) | 1.00 |
+| `regular` (DS-029) / `normal` (DS-015) | normal | `1.2 <= widthM < 2.4` (~4-8 ft) | 0.85 |
+| `wide` | wide | `widthM >= 2.4` (~8 ft and wider) | 0.80 |
+
+Unknown / unavailable shoulder must never become an asserted `none`. Unknown receives no mitigation
+credit (factor 1.00) but remains `unknown` / unavailable in trace and provenance, and lowers
+confidence (§6.4).
 
 Application rules:
 
@@ -7866,6 +7893,13 @@ Application rules:
 ### 8.6 Path / MUP Domain
 
 A path, MUP, or similarly separated corridor carries **zero continuous-road risk** when the route slice is functionally outside the motor-vehicle roadway stream.
+
+**Path / MUP is not protected-equivalent (Amendment 2026-06-28 — P05A3).** `path / MUP` means
+off-road or materially separated non-motor facility context, and for road-risk interval scoring it
+has **zero motor-vehicle Road Risk**. This is distinct from the `protected` facility value (§8.5):
+`protected` remains an on-road or road-adjacent risk **reduction** (FacilityLikelihoodFactor 0.50),
+not zero risk. The two values must not be collapsed. `path / MUP` does not zero crossing-event
+risk — see §9 and the path-crossing treatment in §9.5.
 
 The same route may still carry **crossing-event risk** where it crosses, joins, exits, or interacts with motor-vehicle roads.
 
@@ -7970,23 +8004,57 @@ Lanes crossed may be tagged, imported, geometry-derived, relationship-inferred, 
 
 ### 9.4 Control Factor
 
-| Control | ControlFactor | Why |
-| --- | ---: | --- |
-| stop-controlled | 1.00 | Baseline controllable crossing condition. |
-| signalized | 1.05 | Signals often appear where the crossing problem is larger; signal does not automatically mean safer for cyclists without phasing and turning counts. |
-| uncontrolled | 1.00 | Known absence of governing stop/signal control. Neutral likelihood factor; uncontrolled context is represented separately on the severity side only when the event qualifies as `uncontrolled_left_across`. |
-| unknown | 1.025 | Arithmetic mean of known launch states; missing control lowers confidence. |
+**Canonical control vocabulary (Amendment 2026-06-28 — P05A3).** The DS-029 canonical P05 crossing
+control values are `none`, `signed`, and `signaled` (DS-029 §6.8, Appendix A.3, Appendix C.4).
+DS-015 uses those exactly. `stop` / `stop-controlled` is **not** canonical P05 control vocabulary —
+it is historical/prior terminology and a non-canonical synonym that resolves to `signed` before
+P05. `signed` means a sign-controlled conflict point where evidence proves sign control but does not
+reliably distinguish stop / yield / trail-crossing-warning / other subtype; it receives the **same**
+ControlFactor value previously assigned to stop-controlled crossings. Do not introduce
+`signed_stop`, `signed_yield`, or `signed_warning` at this time.
 
-Unknown control is not the same thing as uncontrolled. `uncontrolled` means local control evidence was sufficiently hydrated and no governing stop sign or signal was found for the rider's maneuver. `unknown` means control status could not be resolved. Missing OSM tags alone are not proof of an uncontrolled junction.
+| DS-029 control value | ControlFactor | Why |
+| --- | ---: | --- |
+| `none` | 1.00 | Known absence of governing sign/signal control. Neutral likelihood factor; uncontrolled context is represented separately on the severity side only when the event qualifies as `uncontrolled_left_across`. (This is the former `uncontrolled` factor.) |
+| `signed` | 1.00 | Sign-controlled conflict point (proven sign control; subtype not reliably distinguished). Baseline controllable crossing condition. (This is the former `stop-controlled` factor; `stop` is a historical alias.) |
+| `signaled` | 1.05 | Signal-controlled crossing. Signals often appear where the crossing problem is larger; a signal does not automatically mean safer for cyclists without phasing and turning counts. (This is the former `signalized` factor.) |
+| `unknown` | 1.025 | Control status could not be resolved. Arithmetic mean of known launch states; missing control lowers confidence. |
+
+Unknown control is not the same thing as `none`. `none` means local control evidence was
+sufficiently hydrated and no governing sign or signal was found for the rider's maneuver. `unknown`
+means control status could not be resolved. Missing OSM tags alone are not proof of an uncontrolled
+junction. Where prior text or trace says `uncontrolled`, read it as the canonical `none` value;
+where it says `stop` / `stop-controlled`, read it as the canonical `signed` value.
 
 ### 9.5 Movement Factor
 
-| Movement | MovementFactor | Why |
+**Canonical movement vocabulary (Amendment 2026-06-28 — P05A3).** The DS-029 canonical P05 crossing
+movement values are `straight`, `left_across`, `right_merge`, `join`, `exit`, `path_crossing`, and
+`unknown` (DS-029 §6.8, Appendix A.5). DS-015 maps every one. The pre-existing factors for
+`straight`, `left_across`, `right_merge`, and `unknown` are preserved exactly. For v1, `join` and
+`exit` are accepted and traceable but are **not** separately penalized (MovementFactor 1.00), and
+`path_crossing` is treated as a **signed road crossing** (see note below).
+
+| DS-029 movement value | MovementFactor | Why |
 | --- | ---: | --- |
-| straight-across | 1.00 | Baseline movement. |
-| right / merge | 1.05 | Adds conflict complexity, but remains modest without turning counts. |
-| left across traffic | 1.20 | Broadest common path conflict and strongest rider-facing concern. |
-| unknown / ambiguous | 1.0833 | Arithmetic mean of known launch states; missing movement lowers confidence. |
+| `straight` | 1.00 | Baseline movement (straight-across). |
+| `right_merge` | 1.05 | Adds conflict complexity, but remains modest without turning counts. (Right / merge.) |
+| `left_across` | 1.20 | Broadest common path conflict and strongest rider-facing concern (left across traffic). |
+| `join` | 1.00 | Route joins a motor road from path / MUP domain. Accepted and traceable; not separately penalized in v1. |
+| `exit` | 1.00 | Route exits a motor road to path / MUP domain. Accepted and traceable; not separately penalized in v1. |
+| `path_crossing` | 1.00 (movement term) | A path / MUP crossing a road. **Score-bearing as a signed road crossing — see note below**; the movement multiplier itself is baseline 1.00. |
+| `unknown` | 1.0833 | Arithmetic mean of known launch states; missing movement lowers confidence. |
+
+**`path_crossing` is equivalent to a SIGNED road crossing for v1 (Amendment 2026-06-28 — P05A3).**
+A path / MUP segment may carry zero continuous-road risk (§8.6), but a path crossing a road still
+creates **crossing-event risk**. For v1, a `path_crossing` event is scored as a road crossing under
+**signed control** (ControlFactor for `signed`, §9.4): its risk comes from the crossed road's
+speed / severity, traffic / exposure, width / lanes (§9.3), and signed-control treatment — exactly
+the standard crossing formula (§9.2) with `signed` control. The `path_crossing` movement multiplier
+itself is the baseline 1.00; the signed-road-crossing behavior lives in the control term and the
+crossed-road inputs, so the crossing treatment must not "miss" the road crossing merely because the
+movement multiplier is neutral. Do **not** create a separate path-merge precision model, do **not**
+rank `path_crossing` versus `join` versus `exit`, and do **not** invent merge penalties.
 
 Unknown movement should be rare. If it is common, the problem is movement classification quality, not the coefficient.
 
@@ -8057,6 +8125,96 @@ Crossing influence is controlled through:
 - corpus-level calibration diagnostics
 
 Expected crossing share ranges are diagnostics, not formula caps. If ordinary long-distance routes routinely show crossing shares far outside expected operating ranges, recalibrate event constants or eligibility instead of hiding the issue with a post-hoc clamp.
+
+## 9A. Score Confidence Output (Amendment 2026-06-28 — P05A3)
+
+Score confidence is a **P05-owned output that sits beside the numeric score**, not a presentation
+afterthought and not an admin/debug-only field. The public model must be able to say: *"Here is the
+risk prediction and the receipts for why. Here is the confidence in that prediction and the receipts
+for why."* Confidence is therefore **public-eligible**; P05 emits it as score authority, and P05B
+later projects the public-facing labels and copy (§9A.5).
+
+### 9A.1 Principles
+
+- **Confidence does not modify risk.** Confidence must not alter Road Risk, Crossing Risk, Total
+  Risk, or Risk Per Mile. Low confidence does not make a dangerous road safer; high confidence does
+  not make a road more dangerous. Confidence is an honesty layer **alongside** the score, not a
+  multiplier on it. (This is separate from the §6.4 unknown-input handling, which already lowers
+  confidence without rescaling risk, and from the DS-029 §5.1.3 risk-weighted confidence rollup.)
+- Confidence is computed from selected-input confidence and provenance coverage (DS-029 §5,
+  §6), carried into P04E2 and consumed by P05.
+- Confidence has **receipts** explaining why it is high / medium / low / unresolved.
+- P05 emits a confidence trace, a confidence summary, and confidence receipts.
+- Presentation may not invent confidence labels from `HeatmapSegment`, presentation state, or any
+  cache; public confidence labels are a P05B projection of the P05 confidence artifacts (§9A.5).
+
+### 9A.2 Required P05 confidence outputs
+
+P05 / RigidScoreLedger must emit, beside the numeric score:
+
+- `scoreConfidenceStatus`: `ready` | `partial` | `unavailable`
+- `scoreConfidenceLevel`: `high` | `medium` | `low` | `unresolved`
+- `roadRiskConfidenceTrace` — per road-interval confidence with the input families used
+- `crossingRiskConfidenceTrace` — per crossing-event confidence with the input families used
+- `confidenceSummary`
+- `confidenceReceipts` — explaining why confidence is high / medium / low / unresolved
+- confidence issues / blockers
+- per-input-family confidence coverage
+- risk-weighted confidence distribution
+- distance-weighted confidence distribution
+
+These use the DS-029 canonical four-level selected-input / score-confidence ordinal `high`,
+`medium`, `low`, `unresolved` (DS-029 §5.1.x). They are distinct from the DS-029 numeric confidence
+bands (`very_high` / `high` / `medium` / `low_medium` / `low`), which remain the numeric-rollup
+projection and are not changed here.
+
+### 9A.3 Exact v1 aggregation
+
+Confidence ordinal: `high = 3`, `medium = 2`, `low = 1`, `unresolved = 0`.
+
+- **Road interval confidence** = the **minimum** confidence across the required selected road-risk
+  input families used for that interval.
+- **Crossing event confidence** = the **minimum** confidence across the required selected
+  crossing-risk input families used for that event.
+- If a score-bearing input is **missing or blocked**, `scoreStatus` is `blocked` (per §5.2.2 and
+  DS-067 §8).
+- If a score-bearing **value exists but its confidence metadata is missing**, numeric scoring may
+  proceed, but `scoreConfidenceStatus` becomes `partial` and the missing confidence is recorded as
+  an issue.
+- The **risk-weighted confidence distribution** sums Road Risk and Crossing Risk contribution by
+  confidence level **after risk is computed**.
+- The **distance-weighted confidence distribution** sums road-interval distance by confidence level.
+- If `Total Risk > 0`, route-level `scoreConfidenceLevel` is derived from the **risk-weighted**
+  distribution.
+- If `Total Risk = 0` but route distance `> 0`, route-level `scoreConfidenceLevel` is derived from
+  the **distance-weighted** distribution.
+- If `scoreStatus` is `blocked`, `scoreConfidenceLevel` is `unresolved` and `scoreConfidenceStatus`
+  is `unavailable`.
+
+This aggregation is computed from confidence metadata only; it never reads back into or rescales any
+risk term (§9A.1).
+
+### 9A.4 Route-level thresholds (confidence-display authority only)
+
+These thresholds decide the route-level `scoreConfidenceLevel` label from the chosen
+confidence-weight basis (risk-weighted when `Total Risk > 0`, otherwise distance-weighted). **They
+are confidence-display authority only and do not alter any score math.**
+
+- `high`: at least **90%** of the chosen confidence-weight basis is `high`, and `low` + `unresolved`
+  is at most **5%**.
+- `medium`: at least **80%** of the chosen basis is `high` or `medium`, and `unresolved` is at most
+  **10%**.
+- `low`: otherwise, when scoring is `ready` but confidence is weak or mixed.
+- `unresolved`: score is blocked or confidence cannot be computed.
+
+### 9A.5 P05B projection boundary
+
+P05 owns the confidence trace, confidence summary, and confidence receipts. **P05B** later projects
+the public-facing confidence labels and copy **from those P05 artifacts only** — the same pattern as
+risk: here is the risk prediction and the risk receipts; here is the confidence and the confidence
+receipts. P05 must not write UI copy. P05B (and presentation) may not invent confidence; if the
+score ledger lacks confidence, presentation may not synthesize it from heatmap, presentation state,
+or cache.
 
 ## 10. Sustained Exposure And Critical Stretches
 
@@ -8342,8 +8500,8 @@ Source keys:
 | Crossing event eligibility rules | Decides which nodes enter score math | `S-BIKE-ISI`, `S-LOCATION`, `P-LANTERNE` | Calibration policy | Not every mapped node deserves to affect canonical score. |
 | Width factor concept | More lanes crossed means more conflict complexity | `S-BIKE-ISI` | Benchmark-informed / adapted | More crossing width increases exposure time and conflict space. |
 | Width values `1.00 / 1.10 / 1.20 / 1.30` | 1-2 / 3-4 / 5-6 / 7+ lanes | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Width matters, but remains bounded and secondary. |
-| Control factor concept | Stop versus signalized structure matters modestly | `S-BIKE-ISI` | Benchmark-informed / adapted | Signalization changes conflict structure but is not an automatic cyclist safety credit. |
-| Control values `1.00 / 1.05 / 1.00 / 1.025` | Stop / signal / uncontrolled / unknown | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Known uncontrolled is neutral on likelihood; unknown should stay neutral-ish and lower confidence. |
+| Control factor concept | Signed versus signaled structure matters modestly | `S-BIKE-ISI` | Benchmark-informed / adapted | Signalization changes conflict structure but is not an automatic cyclist safety credit. |
+| Control values `1.00 / 1.00 / 1.05 / 1.025` | `none` / `signed` / `signaled` / `unknown` (canonical; former uncontrolled / stop-controlled / signalized) | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | `none` (known absence of control) is neutral on likelihood; `signed` is baseline controllable; unknown should stay neutral-ish and lower confidence. See §9.4. |
 | Movement factor concept | Straight / right / left movement structure matters modestly | `S-BIKE-ISI`, `S-PBCAT` | Benchmark-informed / adapted | Different movements create different conflict problems, especially left-across traffic. |
 | Movement values `1.00 / 1.05 / 1.20 / 1.0833` | Straight / right / left / unknown | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Left is the strongest common conflict class; unknown stays neutral instead of worst-case. |
 | `uncontrolled_left_across` severity context factor 2.25 | Severity-side context for confidently uncontrolled left-across route handoffs | `S-NTSB-SS1901`, `P-LANTERNE` | Evidence-informed calibration prior | NTSB Table 7 fatality-to-estimated-crash ratios imply approximately 2.27x versus sign-controlled failed-yield crashes; DS-015 uses 2.25 and does not stack Table 9 OR 2.096. |
@@ -16740,6 +16898,58 @@ This is especially important for:
 because these are exactly the sources most likely to accumulate asymmetry
 between risk treatment and confidence treatment.
 
+### 5.5 Selected-input and score-confidence vocabulary reconciliation (Amendment 2026-06-28 — P05A3)
+
+This subsection reaffirms the canonical selected-input vocabularies consumed by P05 / DS-015 and
+adds the canonical confidence ordinal. It introduces no new product policy; it closes the
+DS-015 / DS-029 / DS-067 vocabulary gap that stopped EXEC-060 P05 v5.
+
+**Canonical selected-input vocabularies (reaffirmed).** These are the values P05 may receive and
+DS-015 must map:
+
+- **Crossing control:** `none`; `signed`; `signaled` (Appendix A.3, §6.8, Appendix C.4).
+- **Bike facility:** `path / MUP`; `protected`; `buffered`; `painted`; `shared`; `none`
+  (Appendix A.1, §6.8, Appendix C.2).
+- **Crossing movement:** `straight`; `left_across`; `right_merge`; `join`; `exit`; `path_crossing`;
+  `unknown` (Appendix A.5, §6.8).
+
+**Canonical confidence ordinal (new).** The selected-input and score-confidence ordinal is:
+
+- `high`
+- `medium`
+- `low`
+- `unresolved`
+
+This four-level ordinal is what selected inputs carry and what P05 emits as score confidence
+(DS-015 §9A). It is distinct from the numeric confidence **bands** of §5.1.2
+(`very_high` / `high` / `medium` / `low_medium` / `low`), which remain the presentation projection
+of numeric confidence and are unchanged. The ordinal is the discrete selected-input /
+score-confidence vocabulary; the numeric bands remain the projection of the numeric rollup
+(§5.1.3). `unresolved` is the ordinal state for confidence that cannot be computed (e.g. a blocked
+score); it has no numeric band because there is no numeric confidence to project.
+
+**Clarifications (reconciliation authority):**
+
+- Selected inputs preserve their provenance and confidence into P04E2 (the extended
+  `RouteSurfaceTruthBundle`). Confidence is not dropped at selection time.
+- P05 consumes selected-input confidence to produce a **score-confidence trace and confidence
+  receipts** (DS-015 §9A). P05 does not invent confidence; it aggregates what the selected inputs
+  carry.
+- **Presentation may not invent confidence.** If the score ledger lacks confidence for an input,
+  interval, or event, presentation may not synthesize a confidence label from `HeatmapSegment`,
+  presentation state, or any cache. Public confidence labels are a P05B projection of the P05
+  confidence artifacts.
+- **`stop` is not canonical P05 control vocabulary.** Canonical control is `none` / `signed` /
+  `signaled`. Where `stop` / `stop-controlled` appears it is historical/prior terminology resolved
+  to `signed` before P05.
+- **`path / MUP` and `protected` are distinct.** `path / MUP` is off-road / materially separated
+  context that triggers the separate DS-015 §8.6 path-domain scoring rule (zero continuous-road
+  risk). `protected` is an on-road or road-adjacent facility **reduction**, not zero risk. The two
+  values must not be collapsed.
+- **`path_crossing` is a crossing event, not a path-segment facility value.** It is a crossing
+  **movement** value (Appendix A.5); it is not a member of the bike-facility vocabulary
+  (Appendix A.1). DS-015 §9.5 scores it as a signed road crossing for v1.
+
 ## 6. Field-Specific Precedence Ladders
 
 This section is organized by DS-015 family first and concrete source type
@@ -17528,6 +17738,11 @@ separate path-domain scoring rule under `DS-015`.
 - `regular`
 - `wide`
 
+The DS-029 selected-input shoulder class `regular` is the same class DS-015 scores as `normal`
+(DS-015 §8.5; `1.2 <= widthM < 2.4`, ShoulderLikelihoodFactor 0.85). `regular` and `normal` are
+synonyms across the two specs. The unknown / unavailable shoulder state is carried as `unknown`
+provenance (Appendix D, §6.4 of DS-015) and is not a member of the resolved-class vocabulary above.
+
 ### A.3 Crossing control
 
 - `none`
@@ -17549,6 +17764,21 @@ separate path-domain scoring rule under `DS-015`.
 - `exit`
 - `path_crossing`
 - `unknown`
+
+`path_crossing` is a crossing **movement** value, not a bike-facility value. DS-015 §9.5 scores it
+as a signed road crossing for v1.
+
+### A.6 Confidence (selected-input and score-confidence ordinal)
+
+- `high`
+- `medium`
+- `low`
+- `unresolved`
+
+This is the discrete ordinal carried by selected inputs and emitted by P05 as score confidence
+(DS-015 §9A, §5.5 above). It is distinct from the numeric confidence bands of §5.1.2
+(`very_high` / `high` / `medium` / `low_medium` / `low`), which remain the presentation projection
+of numeric confidence.
 
 ## Appendix B. Source-link and Street View policy
 
@@ -39423,6 +39653,44 @@ product semantics. Safety remains narrowly motor-vehicle collision risk and inju
 a future accepted authority changes that scope.
 
 See `docs/04-execution/reports/p05a2-rigid-score-ledger-contribution-trace-authority.md`.
+
+**Amendment 2026-06-28 — P05A3 (RigidScoreLedger Confidence Output Requirement).** The
+RigidScoreLedger contract now **requires confidence output** beside the numeric score.
+
+*The public model should be able to say: "Here is the risk prediction and the receipts for why.
+Here is the confidence in that prediction and the receipts for why."*
+
+**P05 / RigidScoreLedger owns:**
+- the numeric score ledger (Road Risk, Crossing Risk, Total Risk, Risk Per Mile);
+- the immutable contribution trace (P05A2);
+- calculation receipts;
+- the **confidence trace** (`roadRiskConfidenceTrace`, `crossingRiskConfidenceTrace`);
+- the **confidence summary** (`scoreConfidenceStatus`, `scoreConfidenceLevel`, per-input-family
+  confidence coverage, risk-weighted and distance-weighted confidence distributions);
+- the **confidence receipts** explaining why confidence is `high` / `medium` / `low` / `unresolved`.
+
+The exact confidence outputs and the v1 aggregation are specified in DS-015 §9A (Amendment
+2026-06-28 — P05A3), using the DS-029 canonical confidence ordinal `high` / `medium` / `low` /
+`unresolved` (DS-029 §5.5, Appendix A.6).
+
+**P05B owns the later rider-facing projection of:**
+- risk bucket labels;
+- notable-driver labels and ranking;
+- **public confidence labels and copy** (projected from the P05 confidence trace and confidence
+  receipts only).
+
+**Clarifications:**
+- Confidence is **public-eligible** and must not be treated as admin/debug-only.
+- Confidence receipts explain why confidence is `high` / `medium` / `low` / `unresolved`.
+- **Confidence is not a score modifier.** It does not alter Road Risk, Crossing Risk, Total Risk,
+  or Risk Per Mile (DS-015 §9A.1). Low confidence does not make a dangerous road safer; high
+  confidence does not make a road more dangerous.
+- **Presentation may not compute a confidence fallback** from `HeatmapSegment`, presentation state,
+  or any cache. If the ledger lacks confidence, presentation shows no confidence — it does not
+  synthesize one.
+- **No legacy adapter is authorized** for confidence (or for score, trace, or receipts).
+
+See `docs/04-execution/reports/p05a3-ds015-ds029-ds067-reconciliation.md`.
 
 ---
 
