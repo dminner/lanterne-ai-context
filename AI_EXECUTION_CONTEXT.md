@@ -61156,6 +61156,63 @@ DS-067.
 
 ---
 
+### P05A2 — Contribution Trace Authority Clarification (docs-only)
+
+- **Status (Amendment 2026-06-28 — P05A2):** Documentation-only authority correction. No
+  production code. No tests. No P05 implementation. No P05B implementation. No P06. No integration
+  promotion until reviewed.
+- **Purpose:** Clarify the missing nuance from P05A: P05 does not own rider-facing notable-driver
+  labels, but P05 DOES own the immutable contribution trace required to make notable-driver
+  explanations honest. P05B owns interpretation and ranking projected from that trace.
+  Presentation renders P05B / ActiveTruthView outputs and must never recompute drivers by
+  rerunning scorer logic. No legacy bridge. No render-time fallback. No `HeatmapSegment`
+  explanation authority. No `sectionDecisionModel` scorer calls.
+- **Sequencing:** P04E2 → **P05A2** → P05 → P05B → later UI cutover.
+- **Controlling decisions:**
+  - **Risk bucket:** Risk bucket is a projection from numeric Risk Per Mile. P05 v1 does not emit
+    canonical rider-facing risk bucket labels. P05B owns the bucket threshold projection. The route
+    paint path must continue receiving numeric Risk Per Mile and a valid projection path. If the
+    numeric Risk Per Mile path breaks and bucket projection is removed, the route line can collapse
+    to unknown/grey. P05B must define bucket thresholds before any legacy presentation bucket path
+    is removed.
+  - **Notable drivers:** Rider-facing notable-driver labels and ranking are projection outputs.
+    P05B owns notable-driver ranking policy, count limits, tie-breaks, grouping, and rider-facing
+    semantics. P05B may consume only P05 trace/receipts and numeric scoring outputs. P05B may not
+    rescore, reselect evidence, call scorer internals, read `HeatmapSegment` as truth, or use
+    presentation cache as authority.
+  - **Contribution trace:** The contribution trace is not UI fluff. The contribution trace is
+    calculation evidence and belongs to P05 / RigidScoreLedger. P05 must emit enough
+    route-distance-indexed factor contribution data for P05B to rank notable drivers without
+    rerunning scorer logic. See DS-015 §5 (Amendment 2026-06-28 — P05A2) for minimum required
+    contribution trace fields.
+  - **Canonical identity:** Contribution trace identity must be distance-first. Use half-open
+    route-distance intervals `[startDistM, endDistM)`. Do not use `startIdx`/`endIdx` as canonical
+    trace identity; indexes may be compatibility outputs only.
+  - **Family scope guard:** Remoteness, fatigue, weather, wind, and similar route-intelligence
+    families may later reuse the route-indexed explanation-trace architecture. They must not be
+    silently included in the narrow motor-vehicle Safety Score. Future families need their own
+    authority, score/interpretation boundary, and product semantics.
+  - **Legacy prohibition:** No legacy adapter. No `sectionDecisionModel` fallback. No
+    `HeatmapSegment` cached explanation authority. No evidence resolver explanation authority. No
+    render-time scorer rerun. Certified spine output with no explanation trace means no
+    notable-driver output, not presentation fallback recomputation.
+- **Package roots allowed to change:** `docs/02-architecture/design/ds-015-safety_scoring_model.md`,
+  `docs/02-architecture/design/ds-067-single_route_truth_and_score_ledger_pipeline_spec.md`,
+  `docs/04-execution/exec-060-traffic_truth_spine_rebuild_program.md`,
+  `docs/04-execution/reports/p05a2-rigid-score-ledger-contribution-trace-authority.md` (new).
+- **Package roots forbidden to change:** `src/**`, all tests, all config, all scripts. No code. No
+  tests. No runtime changes.
+- **Permitted responsibilities:** documentation and authority clarification only.
+- **Forbidden responsibilities:** any scoring, any TypeScript, any test, any implementation,
+  any config change; inventing bucket thresholds; inventing ranking rules; promoting integration.
+- **Entry gate:** P04E2 PROCEED (the P04E2 phase is the prior accepted evidence step).
+- **Exit gate:** four docs changed (three amended, one new); no code/test/config change; git diff
+  --check passes.
+- **Expected final-gate evidence:** repository, base SHA, integration SHA before/after (unchanged),
+  phase branch, commit, four changed files, no unexpected files.
+
+---
+
 ### P05 — Rigid Score Ledger
 
 - **Purpose:** Compute the single authoritative score.
@@ -61175,7 +61232,15 @@ DS-067.
   immutable score trace, calculation receipts, and scored/blocked status — it does **not** own risk
   bucket or notable-driver ranking. No bucket thresholds or ranking rules are defined here. See
   `docs/04-execution/reports/p05a-rigid-score-ledger-output-contract-correction.md`.
-- **Input contract:** the traffic-spine `RouteSurfaceTruthBundle` (P04, extended by **P04E**)
+- **Contribution trace authority (Amendment 2026-06-28 — P05A2):** P05 / RigidScoreLedger owns
+  the immutable contribution trace. P05 must emit enough route-distance-indexed factor contribution
+  data — including exact selected input values, exact factor values, and per-factor contributions
+  to Road Risk or Crossing Risk — for P05B to rank notable drivers without rerunning scorer logic.
+  The contribution trace is calculation evidence, not UI decoration. Minimum required contribution
+  trace fields are specified in DS-015 §5 (Amendment 2026-06-28 — P05A2). Contribution trace
+  identity must be distance-first using half-open route-distance intervals `[startDistM, endDistM)`;
+  `startIdx`/`endIdx` are compatibility outputs only.
+- **Input contract:** the traffic-spine `RouteSurfaceTruthBundle` (P04, extended by **P04E2**)
   imported from `@/lib/traffic-spine/route-surface-truth` (Amendment 2026-06-25 — P04A), never the
   legacy `@/lib/route-surface-truth`; P05 refuses to score a bundle whose `scoreReadiness` is
   `blocked`.
@@ -61196,46 +61261,69 @@ DS-067.
   right-lane AADT via the versioned DS-015 formula; for `effective_right_lane_aadt` it uses the
   selected value directly; it **never** multiplies effective-right-lane AADT by lane count to
   reconstruct a total. It owns exact unrounded inputs, **Road Risk**, **Crossing Risk**, **Total
-  Risk**, **Risk Per Mile**, score trace, receipts (recording
-  measurement form and exact inputs), model version, formula version, and scored/blocked status.
+  Risk**, **Risk Per Mile**, the **immutable contribution trace** (route-distance-indexed factor
+  contributions with exact selected input values and exact factor values; see DS-015 §5 — P05A2),
+  score receipts (recording measurement form, exact inputs, per-factor contributions, upstream
+  P04E2 receipt ids), model version, formula version, and scored/blocked status.
 - **Forbidden responsibilities:** importing `ActiveScoreLedger` implementation or presentation;
-  any selection or projection.
+  any selection or projection; emitting rider-facing risk bucket labels; emitting rider-facing
+  notable-driver labels or ranking.
 - **Deterministic fixtures:** South Las Vegas total AADT `57,000` driving Road Risk inputs.
-- **Focused tests:** unrounded inputs, Road/Crossing/Total Risk and Risk Per Mile, trace,
-  receipts, model/formula version.
+- **Focused tests:** unrounded inputs, Road/Crossing/Total Risk and Risk Per Mile, trace including
+  per-factor contributions, receipts, model/formula version.
 - **Architecture/import checks:** rigid-score-ledger imports only `RouteSurfaceTruthBundle` and its
   own internal versioned model policy.
 - **Runtime proof status required:** scoring unit proof with golden values.
 - **Fail-closed behavior:** no certified selected traffic ⇒ no RigidScoreLedger entry; missing any
   required selected DS-015 input ⇒ blocked bundle ⇒ no RigidScoreLedger entry (Amendment
   2026-06-25 — P04B).
-- **Entry gate:** **P04E PROCEED** (Amendment 2026-06-25 — P04B; supersedes the prior "P04 PROCEED"
-  — P05 requires the DS-015-extended bundle, not the traffic-only bundle).
-- **Exit gate:** single scorer proven; canonical risk terms only.
+- **Entry gate:** **P04E2 PROCEED** (supersedes "P04E PROCEED" — P05 requires the bundle carrying
+  the roadway-curve class from P04E2; see Amendment 2026-06-27 — P04C-C2 and Amendment 2026-06-28
+  — P05A2).
+- **Exit gate:** single scorer proven; canonical risk terms only; contribution trace per-factor
+  fields populated.
 - **Legacy deletion obligation:** mark alternate scorers / score traces for deletion (§9.11).
-- **Expected final-gate evidence:** constructor name, golden risk values, receipt + version proof.
+- **Expected final-gate evidence:** constructor name, golden risk values, receipt + version proof,
+  contribution trace field evidence.
 
 ---
 
 ### P05B — Score Interpretation Projection (stub)
 
-- **Status (Amendment 2026-06-27 — P05A):** Stub only. This entry reserves the phase and records the
-  deferral from P05A. It defines **no** bucket thresholds and **no** notable-driver ranking rules. A
-  full P05B specification is a separate, later authority step and is **not** authorized here.
+- **Status (Amendment 2026-06-27 — P05A; clarified Amendment 2026-06-28 — P05A2):** Stub only.
+  This entry reserves the phase and records the deferral from P05A and the boundary clarification
+  from P05A2. It defines **no** bucket thresholds and **no** notable-driver ranking rules. A full
+  P05B specification is a separate, later authority step and is **not** authorized here.
 - **Purpose:** Own the interpretation / projection policy that turns canonical RigidScoreLedger
   output into risk-bucket and notable-driver semantics.
 - **Deferred ownership (to be specified by a future P05B authority step):** risk bucket and
-  notable-driver ranking — including exact bucket thresholds, notable-driver sort keys, count limits,
-  tie-breaks, and rider-facing semantics. None of these are defined yet.
-- **Input contract:** consumes a `RigidScoreLedger` revision's immutable score trace and calculation
-  receipts (P05 v1).
-- **Hard boundary:** P05B **must not** rescore, reselect evidence, or modify canonical Road Risk,
-  Crossing Risk, Total Risk, or Risk Per Mile. It interprets the existing canonical score; it is not
-  a second scorer.
+  notable-driver ranking — including exact bucket thresholds, notable-driver sort keys, count
+  limits, tie-breaks, grouping policy, and rider-facing semantics. None of these are defined yet.
+- **Input contract:** consumes a `RigidScoreLedger` revision's immutable score trace and
+  calculation receipts (P05 v1) — specifically the route-distance-indexed contribution trace
+  carrying exact selected input values, exact factor values, and per-factor contributions
+  (Amendment 2026-06-28 — P05A2). P05B may consume only P05 trace/receipts and numeric scoring
+  outputs.
+- **Hard boundary (P05A2 clarification):** P05B **must not** rescore, reselect evidence, call
+  scorer internals, read `HeatmapSegment` as explanation authority, use any presentation cache as
+  explanation authority, or modify canonical Road Risk, Crossing Risk, Total Risk, or Risk Per
+  Mile. It projects interpretation from the existing canonical score and trace; it is not a second
+  scorer and not an evidence resolver.
+- **Risk bucket projection:** P05B owns the bucket threshold projection from numeric Risk Per Mile.
+  P05B must define exact bucket thresholds before any legacy presentation bucket path is removed.
+  The route paint path must continue receiving numeric Risk Per Mile and a valid projection path
+  from P05B; if that path breaks and bucket projection is removed, the route line can collapse to
+  unknown/grey.
+- **Notable-driver ranking:** P05B owns notable-driver ranking policy, count limits, tie-breaks,
+  grouping, and rider-facing semantics, projected solely from the P05 contribution trace and
+  receipts. Certified spine output with no explanation trace means no notable-driver output, not
+  a presentation fallback recomputation.
+- **No legacy bridge:** No `sectionDecisionModel` fallback. No `HeatmapSegment` cached explanation
+  authority. No evidence resolver explanation authority. No render-time scorer rerun.
 - **Forbidden until specified:** no implementation, no tests, no thresholds invented, no ranking
   rules invented, no integration promotion until reviewed.
-- **Entry gate:** a separate approved P05B authority specification (exact thresholds + ranking policy
-  + rider-facing semantics). Until then P05B remains a stub.
+- **Entry gate:** a separate approved P05B authority specification (exact thresholds + ranking
+  policy + rider-facing semantics). Until then P05B remains a stub.
 
 ---
 

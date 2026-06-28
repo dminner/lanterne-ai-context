@@ -7309,6 +7309,67 @@ No implementation may persist only Route Family Rank, only a combined score, or 
 
 The score trace is not debug debris. It is the contract that lets the route line, scorecard, method card, receipt cards, admin views, and cache agree.
 
+**Amendment 2026-06-28 — P05A2 (Contribution Trace Authority Clarification).** The score trace
+is also **calculation evidence**. Rider-facing notable-driver labels and risk-bucket labels are
+projection outputs owned by P05B. But the contribution trace that makes those explanations honest
+is part of the P05 / RigidScoreLedger scoring output — not a UI decoration and not a P05B
+invention.
+
+Key invariants:
+
+- **P05 must emit enough route-distance-indexed factor contribution data** for P05B to rank
+  notable drivers without rerunning scorer logic. P05B may consume only P05 trace and receipts;
+  it may **not** rescore, reselect evidence, call scorer internals, read `HeatmapSegment` as
+  truth, or use any presentation cache as authority.
+- **Projection layers may interpret the canonical score trace but may not compute alternate score
+  truth.** P05B projects interpretation; it does not re-derive risk.
+- **Notable-driver ranking is not a P05 v1 output**, but the contribution trace required for that
+  ranking IS part of P05 scoring evidence. The phrase that governs: *"Rider-facing explanation
+  is a projection. The contribution trace that makes explanation honest is part of the score
+  ledger."*
+- **Presentation must never recompute drivers** by rerunning scorer logic. Certified spine output
+  with no explanation trace means no notable-driver output — not a presentation fallback
+  recomputation.
+- **No legacy bridge. No render-time fallback. No `HeatmapSegment` explanation authority. No
+  `sectionDecisionModel` scorer calls.**
+
+**Contribution trace minimum required fields (P05A2 authority).** In addition to the per-record
+fields in §5.1 and §5.2 below, every interval and event contribution record in the score trace
+must carry:
+
+- `routeAxisId` — canonical route axis identity
+- `routeAxisRevision` — route axis revision
+- `rigidScoreLedgerRevisionId` — the ledger revision that owns this trace
+- `rigidScoreLedgerDigest` (or equivalent revision digest)
+- `routeSurfaceTruthBundleId` — upstream bundle identity
+- upstream P04E2 receipt ids
+- `formulaVersion` — DS-015 formula version applied
+- `modelVersion` — safety model version
+- `roadRiskInputFactId` (for interval records) — links to the selected road risk input fact
+- `crossingRiskInputFactId` (for event records) — links to the selected crossing risk input fact
+- `[startDistM, endDistM)` — half-open route-distance interval for interval contributions; this is
+  the **canonical trace identity** — indexes are compatibility outputs only
+- `eventDistM` — route distance of crossing-event contributions
+- `factorFamily` — which factor this record describes
+- `selectedInputValue` — exact selected input value used
+- `factorValue` — exact factor value applied in math
+- `contributionToRoadRisk` or `contributionToCrossingRisk` — per-factor contribution
+- `blocker` — populated when a contribution was not computed (reason and type)
+- provenance, source lineage, and confidence references carried from the selected inputs where
+  applicable
+
+**Distance-first identity invariant (P05A2 authority).** Contribution trace identity must be
+distance-first. Use half-open route-distance intervals `[startDistM, endDistM)` as canonical
+identity. Do not use `startIdx`/`endIdx` as canonical trace identity; indexes may be compatibility
+outputs only.
+
+**Family scope guard (P05A2 authority).** Remoteness, fatigue, weather, wind, light, and similar
+route-intelligence families may later reuse the route-indexed explanation-trace architecture. They
+must not be silently included in the narrow motor-vehicle Safety Score. Future families need their
+own authority, score/interpretation boundary, and product semantics. Safety remains narrowly
+motor-vehicle collision risk and injury severity unless a future accepted authority explicitly
+changes that scope.
+
 ### 5.1 Continuous-Road Unit
 
 Each road-slice trace record must include:
@@ -39326,6 +39387,42 @@ RigidScoreLedger owns:
 No other module may independently calculate canonical Road Risk, Crossing Risk, Total Risk, Risk Per Mile, or canonical score trace.
 
 **Amendment 2026-06-27 — P05A (RigidScoreLedger Output Contract Correction).** Risk bucket and notable-driver ranking are **descoped from RigidScoreLedger v1** and deferred to **P05B** (interpretation / projection policy). RigidScoreLedger v1 owns Road Risk, Crossing Risk, Total Risk, Risk Per Mile, exact unrounded score inputs, scoring-model and traffic-formula versions, the immutable score trace, calculation receipts, and scored/blocked status. P05B may consume the RigidScoreLedger trace and receipts but must **not** rescore, reselect evidence, or modify canonical Road/Crossing/Total Risk or Risk Per Mile. P05B must define exact bucket thresholds, notable-driver sort keys, count limits, tie-breaks, and rider-facing semantics before any implementation; none are defined by this amendment. See `docs/04-execution/reports/p05a-rigid-score-ledger-output-contract-correction.md`.
+
+**Amendment 2026-06-28 — P05A2 (Contribution Trace Authority Clarification).** This amendment
+clarifies the nuance that P05A left implicit.
+
+*Rider-facing explanation is a projection. The contribution trace that makes explanation honest
+is part of the score ledger.*
+
+**P05 / RigidScoreLedger owns the immutable contribution trace.** The contribution trace is
+calculation evidence, not UI decoration. P05 must emit enough route-distance-indexed factor
+contribution data — including exact selected input values, exact factor values, and per-factor
+contributions to Road Risk or Crossing Risk — for P05B to rank notable drivers without rerunning
+scorer logic. The minimum required contribution trace fields are specified in DS-015 §5 (Amendment
+2026-06-28 — P05A2).
+
+**P05B owns bucket threshold projection and notable-driver ranking projected from P05 trace and
+receipts only.** P05B may not:
+- rescore or reselect evidence;
+- call scorer internals;
+- read `HeatmapSegment` as explanation authority;
+- use any presentation cache as explanation authority;
+- read `RouteSurfaceTruthBundle` directly as an explanation source;
+- invent notable-driver ranking from any source other than the P05 contribution trace and receipts.
+
+**Presentation consumes P05B / ActiveTruthView outputs. Presentation must not fall back to
+render-time scoring or recomputation.** Certified spine output with no explanation trace means no
+notable-driver output, not a presentation fallback recomputation. No legacy bridge, no
+render-time fallback, no `HeatmapSegment` explanation authority, and no `sectionDecisionModel`
+scorer calls are permitted at any presentation layer.
+
+**Future route-intelligence families may reuse the route-indexed contribution-trace architecture
+but must not contaminate the narrow motor-vehicle Safety Score.** Remoteness, fatigue, weather,
+wind, light, and similar families need their own authority, score/interpretation boundary, and
+product semantics. Safety remains narrowly motor-vehicle collision risk and injury severity unless
+a future accepted authority changes that scope.
+
+See `docs/04-execution/reports/p05a2-rigid-score-ledger-contribution-trace-authority.md`.
 
 ---
 
