@@ -61940,6 +61940,359 @@ alias only). Neither form is "total traffic" generically.
 
 ---
 
+## Source File: docs/04-execution/exec-061-route-indexed-driver-explanation-trace-spec.md
+
+# EXEC-061 — Route-Indexed Driver Explanation Trace (Corrected Future-Phase Spec, PARKED)
+
+**Status:** Parked architecture note. NOT a work order. NOT a phase start.
+**Date:** 2026-06-28
+**Filename:** `exec-061-route-indexed-driver-explanation-trace-spec.md`
+**Program:** EXEC-060 Traffic Truth Spine Rebuild (adjunct)
+**Git action for this note:** STOP / DO NOT IMPLEMENT.
+**Authority context:** subordinate to the accepted Traffic Truth Spine pipe and to the
+already-integrated P05A2/P05A3 contribution-trace + confidence authority. This note refines that
+authority for the rider-facing explanation layer; it does not start a phase. No phase begins
+without the previous phase's explicit PROCEED.
+
+---
+
+## 1. Verdict on the original plan
+
+- **Concept: accepted.** The diagnosis holds. Risk buckets are a thin projection of an owned numeric
+  Risk Per Mile; notable risk drivers are **not** a pure presentation projection; any
+  inspector/presentation path that re-ranks drivers by re-running scorer logic is an architectural
+  violation; driver contributions must be computed once and preserved as immutable route-indexed
+  trace.
+- **Immediate implementation: rejected.** No branch for coding, no `resolver.ts` edit, no
+  `HeatmapSegment` explanation field, no presentation fallback. Nothing in P00.
+- **Authority placement: reworked.** The original "explanation is a sibling of the score" framing is
+  wrong and is withdrawn. The trace is **produced by the score-ledger authority** even though it is
+  explanation-only in product meaning.
+- **Disposition: future phase only.** This parks as a P05B/P08 adjunct that cannot begin until the
+  score-ledger phases exist and receive explicit PROCEED.
+
+One reconciliation flag, stated up front because a skeptical partner should not bury it (detail in
+§3): this note says "RigidScoreLedger owns notable-driver ranking," while integrated P05A2 says P05B
+owns notable-driver *ranking policy*. These are reconcilable and resolved below — the **score-math
+ordering** (sort by counterfactual delta) is ledger-owned; the **rider-facing
+selection/labels/thresholds** are P05B projection. That split needs explicit confirmation before any
+future build.
+
+---
+
+## 2. Corrected architecture
+
+```
+RouteSurfaceTruthBundle
+  -> RigidScoreLedger
+       owns (one authority, score-math-derived, immutable):
+         - exact score inputs
+         - Road Risk / Crossing Risk / Total Risk / Risk Per Mile
+         - risk bucket (numeric threshold cut on owned Risk Per Mile)
+         - canonical ranked driver ordering (by counterfactual delta)
+         - immutable driver contribution trace  (route-indexed)
+         - formula/model version
+         - calculation receipt
+  -> ActiveScoreLedger        (carries selected RigidScoreLedger revision + lineage)
+  -> ActiveTruthView          (mechanical projection — no computation)
+  -> PresentationPanes        (display-only formatting)
+```
+
+The explanation trace lives **inside RigidScoreLedger**, as another immutable output of the same pass
+that produces the score trace and receipts (it is the rider-facing reading of the P05-owned
+contribution trace established in P05A2 / DS-015 §5). It is not produced by the evidence resolver,
+`HeatmapSegment`, `routeSpeedSegments`, the inspector, cache/history reconstruction, or presentation.
+
+**Required statement:**
+
+> **The safety driver explanation trace is explanation-only in product meaning, but
+> score-ledger-owned in system authority.**
+
+Consequence: the trace must never feed back into Road/Crossing/Total Risk or Risk Per Mile. It is
+derived **from** the score math; it never alters it. Explanation reads the score; the score never
+reads explanation.
+
+---
+
+## 3. Proposed future-phase placement
+
+Two coupled placements, both downstream of score-ledger authority:
+
+- **P05B (adjunct to RigidScoreLedger) — production of the trace.** Notable-driver ordering and the
+  per-factor counterfactual contribution trace belong with stable scoring, because they are
+  deterministic functions of the same `RouteSurfaceTruthBundle` + formula version. P05B is where the
+  immutable explanation trace and the canonical ranked ordering are emitted as score-ledger output.
+- **P08 (cutover dependency) — consumption of the trace.** Inspector / Analyze / cue sheets / summary
+  panels / route paint must render notable drivers from `ActiveTruthView` over a selected
+  `ActiveScoreLedger` revision, never by recomputation. The P08 cutover is gated on the P05B trace
+  existing.
+
+**Ranking-ownership reconciliation (the flag from §1):**
+- **RigidScoreLedger / P05B owns the canonical ranked ordering** — sorting factor contributions by
+  counterfactual delta magnitude with a deterministic, versioned tie-break. This is pure score math;
+  it belongs with the ledger and is part of the immutable trace.
+- **P05B-as-projection / presentation owns the rider-facing selection** — how many drivers to surface,
+  label wording, grouping, and the bucket label cutpoints applied to the owned numeric Risk Per Mile.
+  This is the "interpretation" layer P05A2 assigned to P05B. It selects and formats from the canonical
+  ordering; it never re-derives it.
+
+This refines the looser P05A2 phrase "notable-driver ranking policy": the *math ordering* is
+ledger-owned; the *display policy* is projection. **Do not start any of this before P00–P05 authority
+exists.** No phase begins without the previous phase's PROCEED.
+
+---
+
+## 4. Corrected package topology (future-facing names; not a scaffold order)
+
+```
+src/domain/score-ledger/rigid/explanation-trace/
+    # SAFETY TRACE PRODUCTION — lives inside the scorer authority.
+    # safetyDriverContributionTrace contracts + production; emitted by RigidScoreLedger only.
+
+src/domain/driver-explanation/
+    # REUSABLE, FAMILY-AGNOSTIC CONTRACTS + ranking/projection helpers.
+    # Pure types and deterministic sort/format helpers. NOT an authority.
+    # May be imported by the scorer (to shape output) and by projection (to read it).
+    # Importing this never grants the right to PRODUCE safety truth.
+
+src/domain/active-truth-view/
+    # MECHANICAL projection of explanation-trace fields from a selected ActiveScoreLedger revision.
+    # No computation, no repair, no inference.
+
+src/domain/presentation-panes/
+    # DISPLAY-ONLY formatting over ActiveTruthView explanation values.
+    # Labels, units, rounding, short copy. No scoring imports.
+```
+
+Explicit boundaries:
+- **Reusable contracts may live outside the scorer** (`driver-explanation/`) so future families share
+  shapes — but they are inert types/helpers, never producers of certified truth.
+- **Safety trace production must live inside RigidScoreLedger**
+  (`score-ledger/rigid/explanation-trace/`). Only this package may compute safety factor
+  contributions and counterfactual deltas.
+- **Projection helpers must not become authorities.** A helper in `driver-explanation/` that sorts or
+  formats is allowed; the same helper called from presentation to *fill in a missing contribution* is
+  forbidden.
+
+---
+
+## 5. Core contracts (TypeScript-like pseudocode — future, not for compilation)
+
+```ts
+// Inert family registry. Reserve names; mark implemented only when the phase ships.
+type DriverFamilyId = 'safety' | 'remoteness' | 'fatigue' | 'weather';
+
+interface DriverFamilyRegistryEntry {
+  familyId: DriverFamilyId;
+  implemented: boolean;            // ONLY 'safety' may be true, and only when P05B ships it
+  entersRigidSafetyScore: boolean; // MUST be false for all non-safety families, always
+  producedBy: 'rigid_score_ledger' | 'reserved';
+}
+
+// One factor's contribution to risk over an interval, with the counterfactual used for ranking.
+interface DriverFactorContribution {
+  factorKey:
+    | 'base'
+    | 'speed'
+    | 'traffic'
+    | 'shoulder'
+    | 'infrastructure'
+    | 'curvature'        // geometry, if present
+    | 'crossing_hazard'; // crossing/hazard, if present
+  selectedInputValue: string | number | null;   // exact selected fact value used
+  factorValue: number;                            // exact multiplier/term used in score math
+  contributionToRisk: number;                     // signed contribution to the interval risk
+  counterfactualDelta: number;                    // risk change if this factor were neutralized
+  counterfactualBasis: string;                    // versioned definition of "neutral" for this factor
+  sourceSelectedFactId: string | null;            // lineage to the selected input fact
+  confidence: 'high' | 'medium' | 'low' | 'unresolved';
+  provenance: string;                             // observed | official_imported | relationship_inferred | predicted | baseline | unknown
+  scoreRole: 'score_bearing';                     // this factor DID move the score
+  explanationOnly: false;                         // contributions are score-derived, not explanation-only
+  blocker: { code: string; detail: string } | null;
+}
+
+// The route-indexed unit. Half-open interval is the ONLY canonical identity.
+interface RouteIndexedDriverExplanationSpan {
+  schemaVersion: string;
+  familyId: DriverFamilyId;
+
+  // CANONICAL IDENTITY — distance-first.
+  startDistM: number;
+  endDistM: number;                 // half-open [startDistM, endDistM)
+  intervalOrdinal: number;          // compatibility output only; NEVER canonical identity
+
+  // LINEAGE — a deterministic traceId alone is NOT sufficient.
+  routeSurfaceTruthBundleId: string;
+  rigidScoreLedgerRevisionId: string;
+  rigidScoreLedgerDigest: string;
+  formulaVersion: string;
+  modelVersion: string;
+  routeAxisId: string;
+  routeAxisRevision: string;
+  calculationReceiptId: string | null;
+
+  traceId: string;                  // derived from canonicalized content (lineage + interval + contributions)
+
+  displayEligibility: 'rider' | 'admin' | 'debug' | 'hidden';
+}
+
+// Safety-specific value carried on the span.
+interface SafetyDriverExplanationValue extends RouteIndexedDriverExplanationSpan {
+  familyId: 'safety';
+  intervalRisk: number;             // the interval's risk contribution (from the score, not recomputed)
+  contributions: DriverFactorContribution[];           // all score-bearing factors for the interval
+  rankedDriverOrder: { factorKey: string; rank: number; counterfactualDelta: number }[];
+  rankingTieBreakVersion: string;   // deterministic, versioned ordering rule
+  intervalConfidence: 'high' | 'medium' | 'low' | 'unresolved';
+}
+
+// The whole-route immutable trace, owned by RigidScoreLedger.
+interface RigidScoreLedgerExplanationTrace {
+  schemaVersion: string;
+  familyId: 'safety';
+  rigidScoreLedgerRevisionId: string;
+  rigidScoreLedgerDigest: string;
+  routeSurfaceTruthBundleId: string;
+  formulaVersion: string;
+  modelVersion: string;
+  spans: SafetyDriverExplanationValue[];   // ordered by startDistM then traceId
+  status: 'ready' | 'blocked';
+  blockers: { startDistM: number | null; endDistM: number | null; code: string }[];
+}
+
+// PROJECTION ONLY. Built by P05B-as-projection / presentation FROM the trace above. Produces nothing new.
+interface NotableDriverProjection {
+  schemaVersion: string;
+  sourceRigidScoreLedgerRevisionId: string;   // proves it projects a specific revision
+  sourceRigidScoreLedgerDigest: string;
+  startDistM: number;
+  endDistM: number;
+  notableDrivers: {
+    factorKey: string;
+    rank: number;                  // taken from rankedDriverOrder; never recomputed
+    riderLabel: string;            // display copy (projection policy)
+    displayValue: string;          // formatted; rounding is display-only
+  }[];
+  certification: 'certified_active_score_ledger' | 'uncertified_legacy_explanation';
+  explanationOnly: true;           // this artifact never feeds the score
+}
+```
+
+Field-coverage check (all required present): `schemaVersion`, `familyId`, `startDistM`, `endDistM`,
+`intervalOrdinal`, parent lineage (`routeSurfaceTruthBundleId` / `rigidScoreLedgerRevisionId` /
+`rigidScoreLedgerDigest` / route interval identity / `sourceSelectedFactId` / `calculationReceiptId`),
+`formulaVersion`, `modelVersion`, factor values, `counterfactualDelta`, `confidence`, `provenance`,
+`displayEligibility`, and an explicit `scoreRole`/`explanationOnly` indicator.
+
+---
+
+## 6. Safety producer responsibility (future behavior)
+
+In the future P05B pass, **RigidScoreLedger** (and only RigidScoreLedger) computes, per half-open
+interval, in the same deterministic pass that produces the score and receipts:
+
+- exact **base** risk contribution;
+- **speed** contribution;
+- **traffic** contribution;
+- **shoulder** contribution;
+- **infrastructure** contribution;
+- **curvature/geometry** contribution, if present;
+- **hazard/crossing** contribution, if present;
+- the **counterfactual deltas** (each factor neutralized against a versioned baseline) that produce
+  the canonical ranked ordering.
+
+These are byte-stable functions of `RouteSurfaceTruthBundle` + formula/model version. **Presentation
+never recomputes any of them.** If a factor is blocked upstream, its contribution carries a typed
+blocker — it is not invented, defaulted, or dropped.
+
+---
+
+## 7. Projection responsibility (future behavior)
+
+- **ActiveScoreLedger** carries the selected immutable `RigidScoreLedger` revision + lineage. It does
+  not compute.
+- **ActiveTruthView** mechanically exposes: interval risk; risk bucket; notable driver; ranked driver
+  contributions; receipt references. It is a pure read of the selected revision — output changes
+  **only** when the selected `ActiveScoreLedger` revision changes.
+- **Presentation** only formats: labels, units, display rounding, short explanatory copy, and the
+  rider-facing *selection* of how many notable drivers to show. It reads `rankedDriverOrder`; it never
+  produces it.
+
+---
+
+## 8. Legacy bridge policy (fenced; future, optional)
+
+If stale pre-trace analyses must be supported during transition, the only acceptable shape:
+
+- the legacy path is **explicitly named** (e.g. `uncertifiedLegacyExplanationAdapter`) — never hidden
+  inside a generic helper;
+- it is **display-only**;
+- it **must not** claim `ActiveScoreLedger` certification;
+- it emits status `uncertified_legacy_explanation` on every artifact it produces;
+- it carries a **deletion gate in P10** with explicit removal criteria;
+- it has **no silent fallback** — no code path may quietly route to it when a certified trace is
+  absent.
+
+Absent a certified trace for an interval, the spine shows **no certified notable-driver line** for
+that interval (see §below). The legacy adapter is opt-in and visibly labeled, not a default.
+
+---
+
+## 9. Tests / proof required later
+
+- **Trace determinism:** same `RouteSurfaceTruthBundle` + formula/model version ⇒ identical trace ids,
+  digests, and contributions (byte-for-byte).
+- **Behavior-preservation golden test:** for synthetic intervals spanning speed, traffic, shoulder,
+  infra, curvature, and hazards, compare the new RigidScoreLedger trace to the legacy render-time
+  `computeWhatIf`-derived output **while the old path still exists as a test oracle only**. Divergences
+  are documented and explained, not silently accepted.
+- **Negative import test:** `sectionDecisionModel` / inspector / presentation must not import
+  `computeSegmentRisk`, `computeWhatIf`, `computeScoringFromTruth`, `safety-scoring` internals, or
+  resolver scoring helpers.
+- **Missing-trace fail-closed test:** no explanation trace ⇒ no certified notable-driver line; assert
+  the UI shows nothing certified and does **not** re-run scoring.
+- **Heatmap non-authority test:** `HeatmapSegment` cannot be the canonical explanation source; assert
+  certified explanation never reads from it.
+- **ActiveTruthView mechanical-projection test:** projection output changes only when the
+  `ActiveScoreLedger` revision changes; identical revision ⇒ identical projection.
+- **QuickPaint/RobustPaint parity:** both render the same `ActiveScoreLedger` revision and the same
+  explanation values.
+- **Cache/history parity:** fresh / cache / history preserve identical canonical explanation
+  identities and digests; no reconstruction, no recomputation.
+
+---
+
+## 10. Explicit anti-goals
+
+- No implementation now.
+- No random feature branch; no `feature/route-indexed-driver-explanation`.
+- No work from the dirty main checkout or any stale EXEC-059 worktree.
+- No resolver-owned canonical explanation authority; no `resolver.ts` edit now.
+- No `HeatmapSegment`-owned explanation authority; no canonical explanation field on it.
+- No presentation-side scorer; no render-time risk recomputation.
+- No hidden fallback behind generic helpers.
+- No remoteness/fatigue/weather contamination of the rigid safety score; reserved families stay inert
+  and out of the score.
+- No score mutation from the explanation trace — explanation reads the score, never the reverse.
+- No cache/history reconstruction of canonical explanation.
+- No fabricated ids or digests; identity derives from canonicalized content + lineage.
+
+---
+
+## 11. Final recommendation
+
+**Recommendation: park this as a future P05B/P08 architecture note. Do not implement until the Traffic
+Truth Spine reaches the score-ledger phases and receives explicit PROCEED.**
+
+One open decision to settle **before** any future build, not during it: confirm the §3 split —
+canonical ranked ordering (by counterfactual delta) is RigidScoreLedger-owned; rider-facing
+notable-driver selection, labels, and bucket cutpoints are P05B/presentation projection. Lock that
+boundary in the P05B spec text first; everything in this note depends on it.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
