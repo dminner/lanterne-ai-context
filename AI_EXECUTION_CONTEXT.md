@@ -60611,10 +60611,13 @@ CanonicalRouteAxis
   -> TruthSelectionBuilders / RouteBuilders
   -> RouteSurfaceTruthBundle
   -> RigidScoreLedger
+  -> ScoreInterpretationProjection
   -> ActiveScoreLedger
   -> mechanical ActiveTruthView projection
   -> PresentationPanes
 ```
+
+*(Amendment 2026-06-30 — P07A: `ScoreInterpretationProjection` (P05B) added to the accepted pipe; previously omitted because §9.4 predates the P05A/P05B amendments. The canonical active view now carries the full route-surface safety truth stack — traffic exposure, speed, shoulder, facility/path-domain, roadway-curve class, crossing-risk inputs, RigidScoreLedger outputs, contribution trace, confidence trace, risk bucket projection, notable-driver projection, and public confidence projection.)*
 
 There is **no** alternate semantic pipe, **no** compatibility authority, **no** Quick authority,
 **no** Robust authority, **no** debug authority, **no** cache authority, and **no** history
@@ -60635,8 +60638,8 @@ Exact public package boundaries:
 | Sole stable traffic selector | `src/lib/truth-selection/traffic/` |
 | Stable selected-fact bundle | `src/lib/traffic-spine/route-surface-truth/` (Amendment 2026-06-25 — P04A; legacy `src/lib/route-surface-truth/**` is frozen, not P04 authority) |
 | Sole stable scoring authority | `src/lib/rigid-score-ledger/` |
-| Sole rider-facing semantic score authority | `src/lib/active-score-ledger/` |
-| Mechanical projection | `src/lib/active-truth/` |
+| Sole rider-facing semantic score authority | `src/lib/traffic-spine/active-score-ledger/` (Amendment 2026-06-30 — P07A; the path `src/lib/active-score-ledger/` in this table is stale; the live implementation follows the traffic-spine nesting established by P04A; public import `@/lib/traffic-spine/active-score-ledger`) |
+| Mechanical projection | `src/lib/traffic-spine/active-truth-view/` (Amendment 2026-06-30 — P07A; the path `src/lib/active-truth/` in this table is stale; the live implementation follows traffic-spine nesting; public import `@/lib/traffic-spine/active-truth-view`; this package is distinct from — and must not import — the legacy `src/lib/active-truth/` package, which is frozen and non-authoritative for this pipeline) |
 | Presentation-only adapters and formatters | `src/lib/presentation/active-truth/` |
 | Canonical cache/history transport | `src/lib/route-analysis-transport/` |
 | Deterministic fixtures | `src/test/fixtures/traffic-spine/` |
@@ -60686,8 +60689,8 @@ change a name **only** through an explicit ADR/DS amendment approved **before** 
 | P03 | `selectStableTraffic(...)` |
 | P04 | `buildRouteSurfaceTruthBundle(...)` |
 | P05 | `buildRigidScoreLedgerRevision(...)` |
-| P06 | `publishActiveScoreLedgerRevision(...)` |
-| P07 | `projectActiveScoreLedgerRevision(...)` |
+| P06 | `buildActiveScoreLedger(...)` (Amendment 2026-06-30 — P07A; §9.6 listed `publishActiveScoreLedgerRevision`; the live implementation uses `buildActiveScoreLedger` at `@/lib/traffic-spine/active-score-ledger`; reconciled here) |
+| P07 | `buildActiveTruthView(...)` (Amendment 2026-06-30 — P07A; §9.6 listed `projectActiveScoreLedgerRevision`; the live implementation uses `buildActiveTruthView` at `@/lib/traffic-spine/active-truth-view`; P06 delivered both the ActiveScoreLedger bridge and the ActiveTruthView projection in one phase branch; reconciled here) |
 | P09 | `serializeActiveScoreLedgerArtifact(...)` |
 | P09 | `hydrateActiveScoreLedgerArtifact(...)` |
 
@@ -61443,9 +61446,13 @@ DS-067.
 - **Expected final-gate evidence:** constructor name, publish gating proof, temporal-isolation
   proof.
 
+**Amendment 2026-06-30 — P07A (P06 topology reconciliation).** The promoted P06 implementation delivers the ActiveScoreLedger bridge under `src/lib/traffic-spine/active-score-ledger/` (public import `@/lib/traffic-spine/active-score-ledger`) with public constructor `buildActiveScoreLedger(...)`. P06 additionally delivered the ActiveTruthView mechanical projection in the same phase branch under `src/lib/traffic-spine/active-truth-view/` with constructor `buildActiveTruthView(...)`. The §9.5/§9.6 literal paths and constructor names are stale and reconciled by P07A. Integration promoted to `eff1834fdafe42662e405e3d47bef6fb43b866a5`. **Actual package roots changed in P06:** `src/lib/traffic-spine/active-score-ledger/**`, `src/lib/traffic-spine/active-truth-view/**`, `src/test/fixtures/traffic-spine/`, `src/test/architecture/traffic-spine/`.
+
 ---
 
 ### P07 — Active Truth View Mechanical Projection
+
+**Amendment 2026-06-30 — P07A (satisfied by promoted P06 implementation).** P06 delivered the ActiveTruthView mechanical projection under `src/lib/traffic-spine/active-truth-view/` with public constructor `buildActiveTruthView({ activeScoreLedger }) -> { activeTruthView }`. The P07A topology reconciliation accepts this as satisfying the P07 implementation requirement. The standalone P07 code phase is therefore absorbed: P07 is a topology/acceptance checkpoint, not a separate implementation phase. The §9.5/§9.6 literal text (`src/lib/active-truth/` / `projectActiveScoreLedgerRevision`) is stale and reconciled by this amendment. The P07 hard semantics below remain in force: deterministic mechanical projection; no independent semantic id or semantic digest; no scoring; no fallback; no repair; no provider inference; no receipt creation; no presentation import; absent revision ⇒ no view, never fabricate.
 
 - **Purpose:** Provide a deterministic mechanical projection of one `ActiveScoreLedger` revision.
 - **Input contract:** One `ActiveScoreLedger` revision (P06).
@@ -61462,8 +61469,8 @@ DS-067.
 - **Architecture/import checks:** active-truth imports only active-score-ledger public contracts.
 - **Runtime proof status required:** projection determinism proof.
 - **Fail-closed behavior:** absent revision ⇒ no view; never fabricate.
-- **Entry gate:** P06 PROCEED.
-- **Exit gate:** mechanical projection proven; no semantic authority.
+- **Entry gate:** P06 PROCEED. *(Amendment 2026-06-30 — P07A: P06 PROCEED is confirmed at integration `eff1834fdafe42662e405e3d47bef6fb43b866a5`. The separate P07 implementation gate is satisfied by the promoted P06 code; the remaining gate is P07A docs acceptance.)*
+- **Exit gate:** mechanical projection proven; no semantic authority. *(Amendment 2026-06-30 — P07A: proven by promoted P06 code at `src/lib/traffic-spine/active-truth-view/`; exit confirmed by P07A independent review PROCEED.)*
 - **Legacy deletion obligation:** mark the current direct `ActiveTruthView` composer for deletion
   (§9.11).
 - **Expected final-gate evidence:** constructor name, determinism proof, identity-passthrough proof.
@@ -61471,6 +61478,8 @@ DS-067.
 ---
 
 ### P08A — Inspector And Inspect-Receipt Cutover
+
+**Amendment 2026-06-30 — P07A (entry gate update + expanded scope).** P08A entry gate is now **P06 promoted + P07A accepted** (replaces "P07 PROCEED"; the standalone P07 code phase is satisfied by the promoted P06 implementation subject to P07A topology reconciliation; P08A must not begin until P07A receives independent review PROCEED). P08A must consume `@/lib/traffic-spine/active-truth-view` — not the legacy `src/lib/active-truth/` package. The P08A scope must not be framed as traffic-only. The canonical `ActiveTruthView` now carries the full route-surface safety truth stack: traffic exposure, speed, shoulder, bike facility/path-domain, roadway-curve class, crossing-risk inputs, `RigidScoreLedger` outputs, contribution trace, confidence trace, risk bucket projection, notable-driver projection, and public confidence projection. Inspector, receipt, detail, cue, summary, explanation, and route-line consumers must ultimately consume `ActiveTruthView` for all canonical score-bearing and explanation-bearing semantics — not just traffic/provider fields. References to "traffic/details" in the output contract and surface list below are shorthand for this broader active-truth safety surface.
 
 - **Purpose:** Cut the main inspector surfaces to `ActiveTruthView` semantics.
 - **Input contract:** `ActiveTruthView` (P07).
@@ -61507,7 +61516,7 @@ DS-067.
 - **Architecture/import checks:** presentation consumes `ActiveTruthView` semantics only.
 - **Runtime proof status required:** inspector render proof over fixture.
 - **Fail-closed behavior:** unresolved ⇒ inspector shows unresolved, never a sentinel.
-- **Entry gate:** P07 PROCEED.
+- **Entry gate:** P06 promoted + P07A accepted. *(Amendment 2026-06-30 — P07A: replaces "P07 PROCEED"; see P08A amendment above.)*
 - **Exit gate:** inspector cutover proven.
 - **Legacy deletion obligation:** mark selected-evidence display snapshots as rider truth for
   deletion (§9.11).
@@ -61516,6 +61525,8 @@ DS-067.
 ---
 
 ### P08B — Receipt And Summary Surface Cutover
+
+**Amendment 2026-06-30 — P07A (expanded scope).** The same expanded scope as the P08A amendment applies to P08B: the canonical `ActiveTruthView` carries the full route-surface safety truth stack, not just traffic/provider fields. P08B must consume `@/lib/traffic-spine/active-truth-view` — not the legacy `src/lib/active-truth/` package. All receipt, cue, summary, explanation, and notable-driver surfaces must consume `ActiveTruthView` for all canonical score-bearing and explanation-bearing semantics, including contribution-trace-backed notable-driver labels and confidence projection.
 
 - **Purpose:** Cut analyze-road receipt, cue sheet, cue detail, route summary, route score
   explanation, and mobile/desktop duplicates to `ActiveTruthView`.
@@ -61745,8 +61756,9 @@ route-line (CanonicalRouteAxis)
   -> truth-selection/traffic
   -> traffic-spine/route-surface-truth (RouteSurfaceTruthBundle)   # src/lib/traffic-spine/route-surface-truth/ (P04 authority; Amendment 2026-06-25 — P04A)
   -> rigid-score-ledger
-  -> active-score-ledger
-  -> active-truth (ActiveTruthView)
+  -> score-interpretation                                           # src/lib/traffic-spine/score-interpretation/ (Amendment 2026-06-30 — P07A; ScoreInterpretationProjection added to DAG per P05B)
+  -> active-score-ledger                                            # src/lib/traffic-spine/active-score-ledger/ (Amendment 2026-06-30 — P07A)
+  -> active-truth (ActiveTruthView)                                 # src/lib/traffic-spine/active-truth-view/ (Amendment 2026-06-30 — P07A; not legacy src/lib/active-truth/)
   -> presentation/active-truth
 route-analysis-transport  : downstream transport only (never imported upstream)
 
@@ -61796,7 +61808,7 @@ allowed surviving responsibility is mechanical only.
 | traffic semantics on `HeatmapSegment` | traffic/risk semantics | P08C rider-facing paint cutover; P10 final semantic strip and enforcement | semantics stripped; guard edge | geometry/paint geometry only |
 | traffic semantics on `RouteSpeedSegment` | traffic/risk semantics | P08C rider-facing paint cutover; P10 final semantic strip and enforcement | semantics stripped | speed geometry only |
 | selected-evidence display snapshots as rider truth | rider-facing truth | P08A inspector/details cutover and P08B receipt/summary cutover; P10 final zero rider-facing uses | zero rider-truth use | diagnostic display only |
-| current direct `ActiveTruthView` composer | independent projection authority | P07–P10 | replaced by mechanical projection | none |
+| current direct `ActiveTruthView` composer | independent projection authority | P07–P10 | replaced by `buildActiveTruthView` at `src/lib/traffic-spine/active-truth-view/` (promoted P06 code; Amendment 2026-06-30 — P07A) | none |
 | provider reconstruction | provider inference | P06–P10 | zero reconstruction paths | none |
 | presentation traffic calculations | scoring/selection math in presentation | P08A inspector/details cutover, P08B receipt/summary cutover, and P08C route-paint cutover; P10 final zero calculation paths | zero calculations; guard edge | formatting only |
 | receipt reconstruction | receipt creation downstream | P07–P10 | zero reconstruction | none |

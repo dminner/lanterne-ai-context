@@ -39742,6 +39742,38 @@ Every active score entry must retain lineage to:
 
 ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
 
+> **Package-root, ownership scope, expanded semantics, and digest normalization (Amendment
+> 2026-06-30 — P07A).**
+>
+> The promoted P06 implementation delivers this mechanical projection under
+> **`src/lib/traffic-spine/active-truth-view/`** (public import
+> `@/lib/traffic-spine/active-truth-view`) with public constructor `buildActiveTruthView`.
+> This package is distinct from — and must not import — the legacy `src/lib/active-truth/`
+> package (which is frozen and non-authoritative for this pipeline). P07A topology
+> reconciliation accepts this package root.
+>
+> **ActiveTruthView does not own** semantic score identity, scoring, bucket threshold policy,
+> notable-driver ranking, confidence calculation, provider inference, receipt construction, or
+> runtime cutover. These belong exclusively to upstream certified authorities: `RigidScoreLedger`
+> (P05), `ScoreInterpretationProjection` (P05B), and `ActiveScoreLedger` (P06).
+>
+> **Expanded semantic scope.** The canonical ActiveTruthView now carries the full
+> route-surface safety truth stack: traffic exposure, speed, shoulder, bike
+> facility/path-domain, roadway-curve class, crossing-risk inputs, `RigidScoreLedger` outputs,
+> contribution trace, confidence trace, risk bucket projection, notable-driver projection, and
+> public confidence projection. Downstream consumers (inspector, receipt, summary, cue,
+> explanation, route-line) must consume `ActiveTruthView` for all canonical score-bearing and
+> explanation-bearing semantics — not just traffic/provider fields.
+>
+> **Digest-language normalization.** The "parent ActiveScoreLedger digest" in the carry list
+> below and the `parentActiveScoreLedgerDigest` invariant are normalized as follows: the active
+> view must preserve the parent ActiveScoreLedger id/revision and the upstream RigidScoreLedger
+> digest reference carried through the binding. A separate `activeScoreLedgerDigest` field is
+> deferred as a named cleanup item — it is not required unless a future explicitly accepted
+> authority adds it. The independent P06 skeptical review accepted the current lineage model
+> (parent id/revision + upstream ledger digest ref in the binding) as sufficient. This is a
+> non-blocking cleanup item and is not a P06 or P07 blocker.
+
 Conceptual function:
 
 ```text
@@ -39788,7 +39820,7 @@ Every ActiveTruthView must carry:
 
 - parent ActiveScoreLedger id
 - parent ActiveScoreLedger revision
-- parent ActiveScoreLedger digest
+- parent ActiveScoreLedger digest *(see digest-language normalization in the amendment above; a separate `activeScoreLedgerDigest` field is deferred; the upstream RigidScoreLedger digest ref carried through the binding satisfies this requirement until a future explicit addition)*
 - active scenario id/version
 - source ActiveScoreLedger entry ids
 - canonical route intervals
@@ -39796,12 +39828,17 @@ Every ActiveTruthView must carry:
 
 ActiveTruthView must not possess an independent semantic identity.
 
-Required digest invariant:
+Required digest invariant *(normalized — see amendment above)*:
 
 ```text
 activeTruthView.parentActiveScoreLedgerDigest
   === activeScoreLedger.digest
 ```
+
+*(Amendment 2026-06-30 — P07A: the live P06 binding carries parent ActiveScoreLedger id/revision
+and upstream RigidScoreLedger digest ref. A separate `activeScoreLedgerDigest` field is deferred.
+This invariant is understood as: the view must faithfully preserve parent ASL id/revision and the
+upstream ledger digest refs carried through the binding.)*
 
 A projection may optionally carry a non-authoritative structural checksum for transport corruption detection. That checksum is not a truth identity, is not a score identity, cannot be persisted as canonical analysis, cannot choose between competing values, and cannot make the projection authoritative.
 
