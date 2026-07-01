@@ -60544,7 +60544,12 @@ clean-room against the controlling authority.
 - **ADR-054 contained a package-path naming inconsistency** between the audit snapshot
   (`src/lib/active-truth-view`) and the canonical repository package root.
 - **This additive rework canonically chooses `src/lib/active-truth/`**, consistent with DS-055,
-  EXEC-060, and the existing repository package root.
+  EXEC-060, and the existing repository package root. *(Superseded — Amendment 2026-06-30 — P07A:
+  the canonical traffic-spine mechanical-projection package root is `src/lib/traffic-spine/active-truth-view/**`
+  (public import `@/lib/traffic-spine/active-truth-view`), as delivered by the promoted P06
+  implementation. Legacy `src/lib/active-truth/**` is not the traffic-spine authority and is a
+  P10 deletion candidate. This P00 bullet recorded a P00-era naming resolution that is now
+  superseded by P07A topology reconciliation.)*
 - **The change is an explicit owner-authorized P00 amendment** (Derek Minner), made as an additive
   commit on the existing P00 phase branch — not a restart, rebase, or amend of the initial commit.
 - **The change does not authorize reuse of current production ActiveTruthView composition.** It
@@ -61454,21 +61459,22 @@ DS-067.
 
 **Amendment 2026-06-30 — P07A (satisfied by promoted P06 implementation).** P06 delivered the ActiveTruthView mechanical projection under `src/lib/traffic-spine/active-truth-view/` with public constructor `buildActiveTruthView({ activeScoreLedger }) -> { activeTruthView }`. The P07A topology reconciliation accepts this as satisfying the P07 implementation requirement. The standalone P07 code phase is therefore absorbed: P07 is a topology/acceptance checkpoint, not a separate implementation phase. The §9.5/§9.6 literal text (`src/lib/active-truth/` / `projectActiveScoreLedgerRevision`) is stale and reconciled by this amendment. The P07 hard semantics below remain in force: deterministic mechanical projection; no independent semantic id or semantic digest; no scoring; no fallback; no repair; no provider inference; no receipt creation; no presentation import; absent revision ⇒ no view, never fabricate.
 
-- **Purpose:** Provide a deterministic mechanical projection of one `ActiveScoreLedger` revision.
-- **Input contract:** One `ActiveScoreLedger` revision (P06).
-- **Output contract:** `projectActiveScoreLedgerRevision(...)` producing an `ActiveTruthView`.
-- **Authoritative owner:** `src/lib/active-truth/`.
-- **Package roots allowed to change:** `src/lib/active-truth/`, fixtures, architecture tests.
+- **Purpose:** Provide a deterministic mechanical projection of one `ActiveScoreLedger` revision. P07 is satisfied by the promoted P06 implementation (see amendment paragraph above); it is a topology/acceptance checkpoint, not a separate code implementation phase.
+- **Input contract:** One `ActiveScoreLedger` revision — specifically `{ activeScoreLedger: ActiveScoreLedger }` (the P06 `BuildActiveTruthViewInput` contract).
+- **Output contract:** `buildActiveTruthView({ activeScoreLedger }) -> { activeTruthView }` producing an `ActiveTruthView`. (Amendment 2026-06-30 — P07A; replaces `projectActiveScoreLedgerRevision(...)`; live implementation at `@/lib/traffic-spine/active-truth-view`.)
+- **Authoritative owner:** `src/lib/traffic-spine/active-truth-view/` (public import `@/lib/traffic-spine/active-truth-view`). (Amendment 2026-06-30 — P07A; replaces `src/lib/active-truth/`; legacy `src/lib/active-truth/` is not the traffic-spine authority.)
+- **Package roots allowed to change:** none for this P07A docs-only acceptance phase; the P06 code under `src/lib/traffic-spine/active-truth-view/` is the accepted implementation. Presentation cutover begins at P08A/P08B (entry gate: P06 promoted + P07A accepted). (Amendment 2026-06-30 — P07A; replaces `src/lib/active-truth/`.)
 - **Package roots forbidden to change:** route-evidence, truth-selection, route-surface-truth,
   scoring, presentation.
 - **Permitted responsibilities:** mechanical, deterministic projection of a single revision.
 - **Forbidden responsibilities:** **no independent semantic id or semantic digest**; no selection,
-  scoring, fallback, repair, provider inference, or receipt creation.
-- **Deterministic fixtures:** projection of the published revision from P06 fixtures.
-- **Focused tests:** determinism; no independent identity/digest; no semantic mutation.
-- **Architecture/import checks:** active-truth imports only active-score-ledger public contracts.
-- **Runtime proof status required:** projection determinism proof.
-- **Fail-closed behavior:** absent revision ⇒ no view; never fabricate.
+  scoring, fallback, repair, provider inference, or receipt creation; no presentation import;
+  no runtime cutover; no cache/history write; no legacy `src/lib/active-truth/` import.
+- **Deterministic fixtures:** projection of the published revision from P06 fixtures (satisfied by promoted P06 tests).
+- **Focused tests:** determinism; no independent identity/digest; no semantic mutation (satisfied by promoted P06 tests).
+- **Architecture/import checks:** `src/lib/traffic-spine/active-truth-view/` imports only `@/lib/traffic-spine/active-score-ledger` public contracts and local files; no legacy `src/lib/active-truth/`; no presentation, React, Leaflet, Supabase, cache, or history imports. (Amendment 2026-06-30 — P07A; replaces `active-truth imports only active-score-ledger public contracts`.)
+- **Runtime proof status required:** projection determinism proof (satisfied by promoted P06 focused tests — 11 tests, architecture guard).
+- **Fail-closed behavior:** absent revision ⇒ no view; never fabricate; lineage-blocked binding ⇒ null value payloads.
 - **Entry gate:** P06 PROCEED. *(Amendment 2026-06-30 — P07A: P06 PROCEED is confirmed at integration `eff1834fdafe42662e405e3d47bef6fb43b866a5`. The separate P07 implementation gate is satisfied by the promoted P06 code; the remaining gate is P07A docs acceptance.)*
 - **Exit gate:** mechanical projection proven; no semantic authority. *(Amendment 2026-06-30 — P07A: proven by promoted P06 code at `src/lib/traffic-spine/active-truth-view/`; exit confirmed by P07A independent review PROCEED.)*
 - **Legacy deletion obligation:** mark the current direct `ActiveTruthView` composer for deletion
@@ -61558,7 +61564,7 @@ DS-067.
 - **Architecture/import checks:** presentation consumes `ActiveTruthView` only.
 - **Runtime proof status required:** surface render proof.
 - **Fail-closed behavior:** unresolved ⇒ surfaced as unresolved.
-- **Entry gate:** P08A PROCEED.
+- **Entry gate:** P06 promoted + P07A accepted + P08A PROCEED. *(Amendment 2026-06-30 — P07A: replaces `P08A PROCEED`; explicit gate matches P08A; consumption requirement: `@/lib/traffic-spine/active-truth-view`.)*
 - **Exit gate:** all listed surfaces cut over with duplicate parity.
 - **Legacy deletion obligation:** mark presentation traffic calculations for deletion (§9.11).
 - **Expected final-gate evidence:** surface list, duplicate-parity proof.

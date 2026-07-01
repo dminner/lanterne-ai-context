@@ -39368,10 +39368,13 @@ CanonicalRouteAxis
   -> TruthSelectionBuilders / RouteBuilders
   -> RouteSurfaceTruthBundle
   -> RigidScoreLedger
+  -> ScoreInterpretationProjection
   -> ActiveScoreLedger
   -> mechanical ActiveTruthView projection
   -> PresentationPanes
 ```
+
+*(Amendment 2026-06-30 — P07A: `ScoreInterpretationProjection` (P05B) added to the canonical pipe; previously omitted because §1 predates the P05A/P05B amendments. `ActiveTruthView` lives under `src/lib/traffic-spine/active-truth-view/` (public import `@/lib/traffic-spine/active-truth-view`), not legacy `src/lib/active-truth/`. The canonical active view carries the full route-surface safety truth stack: traffic exposure, speed, shoulder, facility/path-domain, roadway-curve class, crossing-risk inputs, RigidScoreLedger outputs, contribution trace, confidence trace, risk bucket projection, notable-driver projection, and public confidence projection.)*
 
 There is one pipe. Each stage has exactly one authority. The ActiveScoreLedger is the only rider-facing semantic score authority.
 
@@ -39774,10 +39777,10 @@ ActiveTruthView is a deterministic, immutable, non-authoritative mechanical proj
 > (parent id/revision + upstream ledger digest ref in the binding) as sufficient. This is a
 > non-blocking cleanup item and is not a P06 or P07 blocker.
 
-Conceptual function:
+Conceptual function *(constructor name superseded — see amendment above; live implementation: `buildActiveTruthView({ activeScoreLedger }) -> { activeTruthView }`)*:
 
 ```text
-projectActiveScoreLedgerRevision(
+projectActiveScoreLedgerRevision(          /* superseded by buildActiveTruthView (Amendment 2026-06-30 — P07A) */
   activeScoreLedgerRevision,
   presentationProjectionRequest
 ) -> ActiveTruthView
@@ -40018,10 +40021,13 @@ source normalization / route projection
   -> TruthSelectionBuilders / RouteBuilders
   -> RouteSurfaceTruthBundle
   -> RigidScoreLedger
+  -> ScoreInterpretationProjection
   -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection
+  -> mechanical ActiveTruthView projection   # src/lib/traffic-spine/active-truth-view/ (Amendment 2026-06-30 — P07A)
   -> PresentationPanes
 ```
+
+*(Amendment 2026-06-30 — P07A: `ScoreInterpretationProjection` (P05B) added to the dependency DAG; previously omitted because §14 predates the P05B amendment. `ActiveTruthView` package root is `src/lib/traffic-spine/active-truth-view/**`, not legacy `src/lib/active-truth/**`.)*
 
 Forbidden reverse imports:
 
