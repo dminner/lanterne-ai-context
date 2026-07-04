@@ -3419,7 +3419,6 @@ Route Safety Score must remain:
 | ADR-056 | Temporal Motor-Vehicle Risk Context and Traffic Volume Split | Proposed; superseded for active temporal model kernel by ADR-057 / DS-062 | DS-057 |
 | ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Accepted for hourly architecture and detached kernel; scenario/scoring integration deferred | DS-062, DS-063 accepted projection contract, DS-064 accepted component-adaptation contract |
 | ADR-058 | Viewport Road Data Plane and Overlay Ownership | Proposed | DS-061 |
-| ADR-059 | Single Route Truth And Score Ledger Pipeline | Accepted | DS-067 |
 
 ---
 
@@ -3478,7 +3477,6 @@ Route Safety Score must remain:
 | DS-062 | Hourly Temporal Exposure and Per-Pass Risk Specification | ADR-057, ADR-055, DS-056, DS-057 lineage, DS-058, DS-063, DS-064 | Accepted for detached model-kernel implementation; scenario/scoring integration deferred |
 | DS-063 | Hourly Temporal Scenario Projection Contract | ADR-055, ADR-057, DS-031, DS-056, DS-058, DS-062, EXEC-055, EXEC-056 | Accepted for headless prepared-input projection implementation; runtime not yet implemented |
 | DS-064 | Motor-Vehicle Temporal Component Adaptation And Coverage Contract | ADR-055, ADR-057, DS-015, DS-031, DS-056, DS-058, DS-062, DS-063, EXEC-055, EXEC-056 | Accepted for temporal component-adaptation contract only; runtime not implemented; preview, score, presentation, storage, and production deferred |
-| DS-067 | Single Route Truth And Score Ledger Pipeline Spec | ADR-059, ADR-045, ADR-054, DS-015, DS-029, DS-031, DS-032, DS-055 | Accepted for authority closure |
 
 ---
 
@@ -3499,28 +3497,10 @@ An earlier draft of the ride computer tile system was incorrectly numbered DS-00
 ### Hourly temporal model lineage
 ADR-057 and DS-062 define the active hourly temporal model architecture and detached model-kernel specification. DS-063 accepts the headless prepared-input scenario projection contract around that kernel. DS-064 accepts the follow-on motor-vehicle temporal component-adaptation and coverage contract as contract-only; it reuses canonical DS-015 scoring seams and authorizes no runtime, preview, score, presentation, storage, or production behavior. ADR-056 and DS-057 remain lineage for the conceptual split between traffic exposure and per-pass/contextual risk; their two-profile curves, broad night buckets, and fixed 1.60 / 2.10 broad-night factors are not runtime authority.
 
-DS-065 is reserved for the paused EXEC-058 long-route temporal/scenario contract lineage and must not be reused by any other design document. DS-066 is likewise reserved by EXEC-058 lineage for the later chunked temporal scenario worker and route manifest contract.
-
 EXEC-056 is the active hourly temporal model implementation plan. EXEC-055 remains lineage and retains the double-counting audit gate before any Planned Ride Risk integration. After accepted Phase 6A, the next gate is deciding whether to authorize a bounded headless road temporal-adaptation proof; complete component runtime, planned-risk preview, score, UI, storage, and production remain blocked.
 
 ### DS-061 reservation
 DS-061 is reserved for the viewport road-data-plane / overlay-ownership packet tied to ADR-058 and EXEC-057. DS-062 is therefore the hourly temporal model specification.
-
-### Single route truth and score ledger authority
-ADR-059 and DS-067 define the final single-pipe authority model:
-
-```text
-CanonicalRouteAxis
-  -> RouteIndexedEvidenceLedger
-  -> TruthSelectionBuilders / RouteBuilders
-  -> RouteSurfaceTruthBundle
-  -> RigidScoreLedger
-  -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection
-  -> PresentationPanes
-```
-
-ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It is not a ledger, selected truth authority, scorer, fallback path, cache/history authority, or alternate read-model authority.
 
 ---
 
@@ -7309,67 +7289,6 @@ No implementation may persist only Route Family Rank, only a combined score, or 
 
 The score trace is not debug debris. It is the contract that lets the route line, scorecard, method card, receipt cards, admin views, and cache agree.
 
-**Amendment 2026-06-28 — P05A2 (Contribution Trace Authority Clarification).** The score trace
-is also **calculation evidence**. Rider-facing notable-driver labels and risk-bucket labels are
-projection outputs owned by P05B. But the contribution trace that makes those explanations honest
-is part of the P05 / RigidScoreLedger scoring output — not a UI decoration and not a P05B
-invention.
-
-Key invariants:
-
-- **P05 must emit enough route-distance-indexed factor contribution data** for P05B to rank
-  notable drivers without rerunning scorer logic. P05B may consume only P05 trace and receipts;
-  it may **not** rescore, reselect evidence, call scorer internals, read `HeatmapSegment` as
-  truth, or use any presentation cache as authority.
-- **Projection layers may interpret the canonical score trace but may not compute alternate score
-  truth.** P05B projects interpretation; it does not re-derive risk.
-- **Notable-driver ranking is not a P05 v1 output**, but the contribution trace required for that
-  ranking IS part of P05 scoring evidence. The phrase that governs: *"Rider-facing explanation
-  is a projection. The contribution trace that makes explanation honest is part of the score
-  ledger."*
-- **Presentation must never recompute drivers** by rerunning scorer logic. Certified spine output
-  with no explanation trace means no notable-driver output — not a presentation fallback
-  recomputation.
-- **No legacy bridge. No render-time fallback. No `HeatmapSegment` explanation authority. No
-  `sectionDecisionModel` scorer calls.**
-
-**Contribution trace minimum required fields (P05A2 authority).** In addition to the per-record
-fields in §5.1 and §5.2 below, every interval and event contribution record in the score trace
-must carry:
-
-- `routeAxisId` — canonical route axis identity
-- `routeAxisRevision` — route axis revision
-- `rigidScoreLedgerRevisionId` — the ledger revision that owns this trace
-- `rigidScoreLedgerDigest` (or equivalent revision digest)
-- `routeSurfaceTruthBundleId` — upstream bundle identity
-- upstream P04E2 receipt ids
-- `formulaVersion` — DS-015 formula version applied
-- `modelVersion` — safety model version
-- `roadRiskInputFactId` (for interval records) — links to the selected road risk input fact
-- `crossingRiskInputFactId` (for event records) — links to the selected crossing risk input fact
-- `[startDistM, endDistM)` — half-open route-distance interval for interval contributions; this is
-  the **canonical trace identity** — indexes are compatibility outputs only
-- `eventDistM` — route distance of crossing-event contributions
-- `factorFamily` — which factor this record describes
-- `selectedInputValue` — exact selected input value used
-- `factorValue` — exact factor value applied in math
-- `contributionToRoadRisk` or `contributionToCrossingRisk` — per-factor contribution
-- `blocker` — populated when a contribution was not computed (reason and type)
-- provenance, source lineage, and confidence references carried from the selected inputs where
-  applicable
-
-**Distance-first identity invariant (P05A2 authority).** Contribution trace identity must be
-distance-first. Use half-open route-distance intervals `[startDistM, endDistM)` as canonical
-identity. Do not use `startIdx`/`endIdx` as canonical trace identity; indexes may be compatibility
-outputs only.
-
-**Family scope guard (P05A2 authority).** Remoteness, fatigue, weather, wind, light, and similar
-route-intelligence families may later reuse the route-indexed explanation-trace architecture. They
-must not be silently included in the narrow motor-vehicle Safety Score. Future families need their
-own authority, score/interpretation boundary, and product semantics. Safety remains narrowly
-motor-vehicle collision risk and injury severity unless a future accepted authority explicitly
-changes that scope.
-
 ### 5.1 Continuous-Road Unit
 
 Each road-slice trace record must include:
@@ -7405,59 +7324,6 @@ Each crossing-event trace record must include:
 - `crossingRisk`
 
 If a crossing is shown to riders but not score-bearing, the trace must say why.
-
-#### 5.2.1 Spine-native crossing substrate cross-reference (Amendment 2026-06-25 — P02C)
-
-The route-indexed `junction_context` evidence layer (DS-031 §3.3; admitted by EXEC-060
-P02C-B) is the planned spine-native route-indexed **substrate** for the crossing
-events described in §5.2 — it supplies junction kind, intersecting-road identity/class,
-lanes-crossed/width, control type, movement type, and diverter context as evidence.
-
-- `junction_context` is **evidence, not risk.** It is not selected crossing risk and
-  performs no scoring.
-- DS-015 crossing risk (likelihood × severity, this section and §6) remains owned by
-  **P05 / RigidScoreLedger** and is computed only after selected inputs are available.
-- The same `junction_context` evidence may support **both** crossing-risk construction
-  and `authoritative_inferred` traffic carry break boundaries (DS-029 Appendix N), but
-  the two consumers remain separate; sharing the substrate does not couple them.
-- **No scoring is authorized in P02C or P03.** This cross-reference adds no formula and
-  changes no DS-015 coefficient, threshold, or factor.
-
-#### 5.2.2 Selected scoring-input staging (Amendment 2026-06-25 — P04B)
-
-The first P05 / RigidScoreLedger attempt stopped (EXEC-060 P05) because the traffic-spine
-`RouteSurfaceTruthBundle` (EXEC-060 P04) currently carries selected **traffic** facts only,
-while the DS-015 §8 / §9 formulas require additional selected score-bearing inputs. **The gap
-is input availability, not formula authority** — every formula in this document (§7 core math,
-§8.1 road risk, §8.2–§8.5 factors, §9.2–§9.6 crossing risk) remains exact and unchanged and
-remains owned solely by P05.
-
-Staging rules (no formula, coefficient, threshold, or factor changes):
-
-- **Road Risk (§8.1)** is blocked until the bundle carries selected **traffic** (present),
-  **speed severity** (§8.3), **horizontal curvature** (§8.4), and **facility + shoulder**
-  (§8.5) inputs, plus interval length.
-- **Crossing Risk (§9.2)** is blocked until the bundle carries selected **crossed-road
-  effective right-lane AADT**, **crossed-road speed**, **lanes crossed / width** (§9.3),
-  **control type** (§9.4), **movement type** (§9.5), and **crossing context severity /
-  route-family handoff** (§9.6) inputs, plus event eligibility / non-event classification
-  (§9.1). Raw `junction_context` ids (§5.2.1) are **evidence, not selected crossing-risk
-  truth**, and are insufficient for P05.
-- **Crossing Risk must not be set to zero** because selected crossing inputs are absent; zero
-  is authorized only when the bundle carries certified no-event truth that DS-015 §9.1
-  recognizes as score-bearing.
-- **Road Risk must not be published as Total Risk** (§7); a blocked Crossing Risk blocks Total
-  Risk and Risk Per Mile.
-- Selected scoring inputs are produced by explicit upstream P04 subphases
-  (EXEC-060 P04C-A / P04C-B / P04C-C / P04D / P04E) **before** P05 retries; those subphases
-  carry selected inputs only and apply no DS-015 formula.
-- **Curvature input representation (Amendment 2026-06-27 — P04C-C2).** The "horizontal curvature
-  (§8.4)" input above means the geometry-derived **roadway-curve classification** of §8.4.1
-  (circumcircle / radius-style detection, junction-masked, sustained-span), **not** the P04C-C v1
-  accumulated-heading-change diagnostics (`curvatureDegPerKm` / `maxSingleTurnDeg`). The remaining
-  "input availability" gap therefore includes carrying the correct curvature *representation*: P05
-  stays blocked until the bundle carries the roadway-curve class, and P05 must not derive
-  `CurvatureFactor` from the heading-change metrics. Sequencing: P04C-C2-B → P04E2 → P05.
 
 ## 6. Truth Resolution, Provenance, And Confidence
 
@@ -7753,135 +7619,26 @@ Measurement rule:
 - Do not let one noisy vertex trigger a sharper class by itself.
 - Store curvature derivation and confidence in the trace.
 
-#### 8.4.1 Roadway-curve scoring representation (Amendment 2026-06-27 — P04C-C2)
-
-`CurvatureFactor` scores **roadway curve severity** — the sustained horizontal bend of the
-motor-vehicle roadway the rider occupies. It is **not** a function of arbitrary route heading
-change. The following are explicitly **not** roadway curvature and must never raise
-`CurvatureFactor`:
-
-- junction turns and intersection maneuvers (the rider turning from one road onto another);
-- GPS / digitization wiggle and single noisy vertices;
-- cue-style route bends (heading changes that exist because of the chosen route, not the road's
-  own geometry).
-
-The **accurate selected curvature input** for scoring is therefore a **geometry-derived
-roadway-curve classification**, produced by:
-
-- **circumcircle / radius-style** local curvature detection (classified by the geometry-derived
-  radius bands of the table above), **not** by accumulated heading change;
-- **junction masking** that removes intersection / maneuver zones before classification;
-- a **sustained-span** requirement (the worst class must persist for at least ~50 m of contiguous
-  slice-aligned roadway geometry, per the measurement rule above).
-
-This roadway-curve classification is the selected curvature input the scorer consumes; the
-geometric radius math and the class → `CurvatureFactor` lookup remain P05-owned.
-
-**P04C-C v1 metrics are diagnostic input, not the scoring representation.** The P04C-C v1
-selected-curvature fields `curvatureDegPerKm` and `maxSingleTurnDeg` are geometry-derived
-**accumulated-heading-change diagnostics**. Because they accumulate every heading delta —
-including junction turns and digitization wiggle — they over-report curvature and are **not** the
-DS-015 roadway-curve scoring representation. **P05 must not derive `CurvatureFactor` from
-`curvatureDegPerKm` or `maxSingleTurnDeg`.** These fields may be retained for diagnostics only.
-
-**P05 stays blocked on this input.** Road Risk (§8.1) remains blocked until the selected scoring
-bundle (§5.2.2) carries the geometry-derived roadway-curve **classification** described here; a
-heading-change metric alone does not satisfy the §8.4 curvature input. (Sequencing: P04C-C2-B
-produces the selected roadway-curve class; P04E2 carries it through the bundle; then P05 retries —
-see EXEC-060 and DS-067.)
-
-**Future source precedence.** Official / state DOT curve-inventory evidence (curve class, degree,
-radius, superelevation by route + milepoint) may later **outrank** geometry-derived curve
-classification under the §6.2 precedence order. That source path is **not** implemented by this
-correction and remains future work.
-
-#### 8.4.2 Roadway-curve mask inputs (Amendment 2026-06-27 — P04C-C2-A2)
-
-§8.4.1 correctly identifies the score-ready curvature representation (a geometry-derived
-roadway-curve **classification** that is junction-masked and sustained-span). The first
-**P04C-C2-B** implementation attempt **correctly STOPPED with no commit** after establishing that
-**public route-axis geometry alone cannot reproduce the reference junction / maneuver mask**: a
-route axis exposes only per-segment geometry (heading, distances), so it has no way to know that a
-heading change is an intersection maneuver, a turn from one road onto another, a path-domain
-transition, or a route-family handoff rather than the road's own bend. The §8.4.1 mask is therefore
-not derivable from geometry by itself; it depends on **route semantics**:
-
-- **road identity continuity** (same-road vs road-change along the run);
-- **junction / maneuver events** (intersection turns, the rider leaving one road for another);
-- **path-domain transitions** (path crossing / join / exit neighborhoods);
-- **route-family handoff context** where already public.
-
-These route-semantic signals are **mask inputs, not scoring facts**. They never enter the
-`CurvatureFactor` formula and never become a likelihood or severity term; they only decide **which
-geometry samples are excluded** from roadway-curve classification so that maneuver / junction / path
-heading change is not misread as roadway curvature.
-
-**Authorized input boundary for P04C-C2-B.** To build the §8.4.1 classification, P04C-C2-B may
-consume — **read-only, for masking only** — the **public selected route-indexed identity / context
-artifacts** already produced by the traffic spine (road identity / same-road continuity, junction
-context / maneuver events, road / path-domain context, and public route-family handoff context).
-P04C-C2-B must still **compute the curve class from route geometry**; the identity / context
-artifacts only mask samples. P04C-C2-B must **not** mutate, reselect, or re-derive those artifacts;
-must **not** score or compute `CurvatureFactor`; and must **not** reach into legacy
-`route-analysis.ts`, legacy cue-sheet internals, legacy `conflict-events`, `safety-scoring`, source
-packages, or P05, nor import `route-geometry.ts` or shared scoring contracts as production
-dependencies.
-
-**Fail closed on missing mask context.** If a required mask input is absent for an interval,
-P04C-C2-B must **fail closed** — either **block** selected roadway-curve classification for that
-interval, or mark it **insufficient mask context** — and must **never** silently treat unmasked
-geometry as score-ready curvature. **P04E2** carries both the selected roadway-curve class and any
-mask-context blockers through the bundle; **P05 remains blocked** until P04E2 carries a score-ready
-roadway-curve classification. Corrected sequencing: P04C-C2-A → P04C-C2-A2 (this amendment) →
-P04C-C2-B → P04E2 → P05 (see EXEC-060 and DS-067).
-
 ### 8.5 Facility And Shoulder Factors
 
 Facility and shoulder reduce interaction opportunity by improving operating space. They are likelihood factors, not severity factors.
 
-**Vocabulary alignment (Amendment 2026-06-28 — P05A3).** The facility and shoulder factor tables
-below are keyed to the DS-029 canonical selected-input vocabularies (DS-029 §6.8 master matrix,
-Appendix A.1 facility, Appendix A.2 shoulder). DS-015 maps every DS-029 facility value and every
-DS-029 shoulder value; no DS-029 selected value is left unmapped. This amendment changes no
-existing factor value — it adds the `shared` facility mapping, the explicit `unknown / unavailable`
-no-credit rows, and the deterministic shoulder width breakpoints. The pre-existing factor values
-(protected 0.50, buffered 0.75, painted 0.80, none 1.00; normal shoulder 0.85, wide shoulder 0.80)
-are preserved exactly.
+Facility table:
 
-Facility table (keyed to DS-029 canonical facility vocabulary `path / MUP`, `protected`,
-`buffered`, `painted`, `shared`, `none`):
+| Facility class | FacilityLikelihoodFactor |
+| --- | ---: |
+| fully separated / protected on-road facility | 0.50 |
+| buffered bike lane | 0.75 |
+| painted bike lane | 0.80 |
+| no dedicated bike facility | 1.00 |
 
-| DS-029 facility value | Facility class | FacilityLikelihoodFactor |
-| --- | --- | ---: |
-| `protected` | fully separated / protected on-road or road-adjacent facility | 0.50 |
-| `buffered` | buffered bike lane | 0.75 |
-| `painted` | painted bike lane | 0.80 |
-| `shared` | shared lane / sharrow — recognized and traceable, no operating-space credit | 1.00 |
-| `none` | no dedicated bike facility | 1.00 |
-| `path / MUP` | off-road / materially separated non-motor corridor | scored by §8.6 (zero continuous-road risk), not by this table |
-| unknown / unavailable | facility status not resolved | 1.00 (no mitigation credit; remains `unknown` / unavailable in trace and provenance) |
+Shoulder table:
 
-`protected` is a risk **reduction** on an on-road or road-adjacent facility, not zero risk; it is
-distinct from `path / MUP`, which is off-road context handled by §8.6. `shared` is recognized and
-traceable but carries **no** safety credit; `shared` must never be treated as safer than `none`.
-Unknown / unavailable facility receives no credit (factor 1.00) but is **not** asserted as `none`;
-it remains `unknown` / unavailable in trace and provenance.
-
-Shoulder table (deterministic width-to-class breakpoints; **metric thresholds are the authority**,
-plain-English equivalents are approximate). The DS-029 selected-input shoulder class `regular`
-(DS-029 Appendix A.2 / §6.8) is the same class DS-015 scores as `normal`:
-
-| DS-029 shoulder value | Shoulder class | Width breakpoint (metric authority) | ShoulderLikelihoodFactor |
-| --- | --- | --- | ---: |
-| unknown / unavailable | unknown | width not resolved | 1.00 (no credit; remains `unknown` / unavailable in trace and provenance) |
-| `none` | none | `widthM < 0.6` (~2 ft) | 1.00 |
-| `narrow` | narrow | `0.6 <= widthM < 1.2` (~2-4 ft) | 1.00 |
-| `regular` (DS-029) / `normal` (DS-015) | normal | `1.2 <= widthM < 2.4` (~4-8 ft) | 0.85 |
-| `wide` | wide | `widthM >= 2.4` (~8 ft and wider) | 0.80 |
-
-Unknown / unavailable shoulder must never become an asserted `none`. Unknown receives no mitigation
-credit (factor 1.00) but remains `unknown` / unavailable in trace and provenance, and lowers
-confidence (§6.4).
+| Shoulder condition | ShoulderLikelihoodFactor |
+| --- | ---: |
+| none / narrow shoulder | 1.00 |
+| normal shoulder | 0.85 |
+| wide shoulder | 0.80 |
 
 Application rules:
 
@@ -7893,13 +7650,6 @@ Application rules:
 ### 8.6 Path / MUP Domain
 
 A path, MUP, or similarly separated corridor carries **zero continuous-road risk** when the route slice is functionally outside the motor-vehicle roadway stream.
-
-**Path / MUP is not protected-equivalent (Amendment 2026-06-28 — P05A3).** `path / MUP` means
-off-road or materially separated non-motor facility context, and for road-risk interval scoring it
-has **zero motor-vehicle Road Risk**. This is distinct from the `protected` facility value (§8.5):
-`protected` remains an on-road or road-adjacent risk **reduction** (FacilityLikelihoodFactor 0.50),
-not zero risk. The two values must not be collapsed. `path / MUP` does not zero crossing-event
-risk — see §9 and the path-crossing treatment in §9.5.
 
 The same route may still carry **crossing-event risk** where it crosses, joins, exits, or interacts with motor-vehicle roads.
 
@@ -8004,57 +7754,23 @@ Lanes crossed may be tagged, imported, geometry-derived, relationship-inferred, 
 
 ### 9.4 Control Factor
 
-**Canonical control vocabulary (Amendment 2026-06-28 — P05A3).** The DS-029 canonical P05 crossing
-control values are `none`, `signed`, and `signaled` (DS-029 §6.8, Appendix A.3, Appendix C.4).
-DS-015 uses those exactly. `stop` / `stop-controlled` is **not** canonical P05 control vocabulary —
-it is historical/prior terminology and a non-canonical synonym that resolves to `signed` before
-P05. `signed` means a sign-controlled conflict point where evidence proves sign control but does not
-reliably distinguish stop / yield / trail-crossing-warning / other subtype; it receives the **same**
-ControlFactor value previously assigned to stop-controlled crossings. Do not introduce
-`signed_stop`, `signed_yield`, or `signed_warning` at this time.
-
-| DS-029 control value | ControlFactor | Why |
+| Control | ControlFactor | Why |
 | --- | ---: | --- |
-| `none` | 1.00 | Known absence of governing sign/signal control. Neutral likelihood factor; uncontrolled context is represented separately on the severity side only when the event qualifies as `uncontrolled_left_across`. (This is the former `uncontrolled` factor.) |
-| `signed` | 1.00 | Sign-controlled conflict point (proven sign control; subtype not reliably distinguished). Baseline controllable crossing condition. (This is the former `stop-controlled` factor; `stop` is a historical alias.) |
-| `signaled` | 1.05 | Signal-controlled crossing. Signals often appear where the crossing problem is larger; a signal does not automatically mean safer for cyclists without phasing and turning counts. (This is the former `signalized` factor.) |
-| `unknown` | 1.025 | Control status could not be resolved. Arithmetic mean of known launch states; missing control lowers confidence. |
+| stop-controlled | 1.00 | Baseline controllable crossing condition. |
+| signalized | 1.05 | Signals often appear where the crossing problem is larger; signal does not automatically mean safer for cyclists without phasing and turning counts. |
+| uncontrolled | 1.00 | Known absence of governing stop/signal control. Neutral likelihood factor; uncontrolled context is represented separately on the severity side only when the event qualifies as `uncontrolled_left_across`. |
+| unknown | 1.025 | Arithmetic mean of known launch states; missing control lowers confidence. |
 
-Unknown control is not the same thing as `none`. `none` means local control evidence was
-sufficiently hydrated and no governing sign or signal was found for the rider's maneuver. `unknown`
-means control status could not be resolved. Missing OSM tags alone are not proof of an uncontrolled
-junction. Where prior text or trace says `uncontrolled`, read it as the canonical `none` value;
-where it says `stop` / `stop-controlled`, read it as the canonical `signed` value.
+Unknown control is not the same thing as uncontrolled. `uncontrolled` means local control evidence was sufficiently hydrated and no governing stop sign or signal was found for the rider's maneuver. `unknown` means control status could not be resolved. Missing OSM tags alone are not proof of an uncontrolled junction.
 
 ### 9.5 Movement Factor
 
-**Canonical movement vocabulary (Amendment 2026-06-28 — P05A3).** The DS-029 canonical P05 crossing
-movement values are `straight`, `left_across`, `right_merge`, `join`, `exit`, `path_crossing`, and
-`unknown` (DS-029 §6.8, Appendix A.5). DS-015 maps every one. The pre-existing factors for
-`straight`, `left_across`, `right_merge`, and `unknown` are preserved exactly. For v1, `join` and
-`exit` are accepted and traceable but are **not** separately penalized (MovementFactor 1.00), and
-`path_crossing` is treated as a **signed road crossing** (see note below).
-
-| DS-029 movement value | MovementFactor | Why |
+| Movement | MovementFactor | Why |
 | --- | ---: | --- |
-| `straight` | 1.00 | Baseline movement (straight-across). |
-| `right_merge` | 1.05 | Adds conflict complexity, but remains modest without turning counts. (Right / merge.) |
-| `left_across` | 1.20 | Broadest common path conflict and strongest rider-facing concern (left across traffic). |
-| `join` | 1.00 | Route joins a motor road from path / MUP domain. Accepted and traceable; not separately penalized in v1. |
-| `exit` | 1.00 | Route exits a motor road to path / MUP domain. Accepted and traceable; not separately penalized in v1. |
-| `path_crossing` | 1.00 (movement term) | A path / MUP crossing a road. **Score-bearing as a signed road crossing — see note below**; the movement multiplier itself is baseline 1.00. |
-| `unknown` | 1.0833 | Arithmetic mean of known launch states; missing movement lowers confidence. |
-
-**`path_crossing` is equivalent to a SIGNED road crossing for v1 (Amendment 2026-06-28 — P05A3).**
-A path / MUP segment may carry zero continuous-road risk (§8.6), but a path crossing a road still
-creates **crossing-event risk**. For v1, a `path_crossing` event is scored as a road crossing under
-**signed control** (ControlFactor for `signed`, §9.4): its risk comes from the crossed road's
-speed / severity, traffic / exposure, width / lanes (§9.3), and signed-control treatment — exactly
-the standard crossing formula (§9.2) with `signed` control. The `path_crossing` movement multiplier
-itself is the baseline 1.00; the signed-road-crossing behavior lives in the control term and the
-crossed-road inputs, so the crossing treatment must not "miss" the road crossing merely because the
-movement multiplier is neutral. Do **not** create a separate path-merge precision model, do **not**
-rank `path_crossing` versus `join` versus `exit`, and do **not** invent merge penalties.
+| straight-across | 1.00 | Baseline movement. |
+| right / merge | 1.05 | Adds conflict complexity, but remains modest without turning counts. |
+| left across traffic | 1.20 | Broadest common path conflict and strongest rider-facing concern. |
+| unknown / ambiguous | 1.0833 | Arithmetic mean of known launch states; missing movement lowers confidence. |
 
 Unknown movement should be rare. If it is common, the problem is movement classification quality, not the coefficient.
 
@@ -8125,96 +7841,6 @@ Crossing influence is controlled through:
 - corpus-level calibration diagnostics
 
 Expected crossing share ranges are diagnostics, not formula caps. If ordinary long-distance routes routinely show crossing shares far outside expected operating ranges, recalibrate event constants or eligibility instead of hiding the issue with a post-hoc clamp.
-
-## 9A. Score Confidence Output (Amendment 2026-06-28 — P05A3)
-
-Score confidence is a **P05-owned output that sits beside the numeric score**, not a presentation
-afterthought and not an admin/debug-only field. The public model must be able to say: *"Here is the
-risk prediction and the receipts for why. Here is the confidence in that prediction and the receipts
-for why."* Confidence is therefore **public-eligible**; P05 emits it as score authority, and P05B
-later projects the public-facing labels and copy (§9A.5).
-
-### 9A.1 Principles
-
-- **Confidence does not modify risk.** Confidence must not alter Road Risk, Crossing Risk, Total
-  Risk, or Risk Per Mile. Low confidence does not make a dangerous road safer; high confidence does
-  not make a road more dangerous. Confidence is an honesty layer **alongside** the score, not a
-  multiplier on it. (This is separate from the §6.4 unknown-input handling, which already lowers
-  confidence without rescaling risk, and from the DS-029 §5.1.3 risk-weighted confidence rollup.)
-- Confidence is computed from selected-input confidence and provenance coverage (DS-029 §5,
-  §6), carried into P04E2 and consumed by P05.
-- Confidence has **receipts** explaining why it is high / medium / low / unresolved.
-- P05 emits a confidence trace, a confidence summary, and confidence receipts.
-- Presentation may not invent confidence labels from `HeatmapSegment`, presentation state, or any
-  cache; public confidence labels are a P05B projection of the P05 confidence artifacts (§9A.5).
-
-### 9A.2 Required P05 confidence outputs
-
-P05 / RigidScoreLedger must emit, beside the numeric score:
-
-- `scoreConfidenceStatus`: `ready` | `partial` | `unavailable`
-- `scoreConfidenceLevel`: `high` | `medium` | `low` | `unresolved`
-- `roadRiskConfidenceTrace` — per road-interval confidence with the input families used
-- `crossingRiskConfidenceTrace` — per crossing-event confidence with the input families used
-- `confidenceSummary`
-- `confidenceReceipts` — explaining why confidence is high / medium / low / unresolved
-- confidence issues / blockers
-- per-input-family confidence coverage
-- risk-weighted confidence distribution
-- distance-weighted confidence distribution
-
-These use the DS-029 canonical four-level selected-input / score-confidence ordinal `high`,
-`medium`, `low`, `unresolved` (DS-029 §5.1.x). They are distinct from the DS-029 numeric confidence
-bands (`very_high` / `high` / `medium` / `low_medium` / `low`), which remain the numeric-rollup
-projection and are not changed here.
-
-### 9A.3 Exact v1 aggregation
-
-Confidence ordinal: `high = 3`, `medium = 2`, `low = 1`, `unresolved = 0`.
-
-- **Road interval confidence** = the **minimum** confidence across the required selected road-risk
-  input families used for that interval.
-- **Crossing event confidence** = the **minimum** confidence across the required selected
-  crossing-risk input families used for that event.
-- If a score-bearing input is **missing or blocked**, `scoreStatus` is `blocked` (per §5.2.2 and
-  DS-067 §8).
-- If a score-bearing **value exists but its confidence metadata is missing**, numeric scoring may
-  proceed, but `scoreConfidenceStatus` becomes `partial` and the missing confidence is recorded as
-  an issue.
-- The **risk-weighted confidence distribution** sums Road Risk and Crossing Risk contribution by
-  confidence level **after risk is computed**.
-- The **distance-weighted confidence distribution** sums road-interval distance by confidence level.
-- If `Total Risk > 0`, route-level `scoreConfidenceLevel` is derived from the **risk-weighted**
-  distribution.
-- If `Total Risk = 0` but route distance `> 0`, route-level `scoreConfidenceLevel` is derived from
-  the **distance-weighted** distribution.
-- If `scoreStatus` is `blocked`, `scoreConfidenceLevel` is `unresolved` and `scoreConfidenceStatus`
-  is `unavailable`.
-
-This aggregation is computed from confidence metadata only; it never reads back into or rescales any
-risk term (§9A.1).
-
-### 9A.4 Route-level thresholds (confidence-display authority only)
-
-These thresholds decide the route-level `scoreConfidenceLevel` label from the chosen
-confidence-weight basis (risk-weighted when `Total Risk > 0`, otherwise distance-weighted). **They
-are confidence-display authority only and do not alter any score math.**
-
-- `high`: at least **90%** of the chosen confidence-weight basis is `high`, and `low` + `unresolved`
-  is at most **5%**.
-- `medium`: at least **80%** of the chosen basis is `high` or `medium`, and `unresolved` is at most
-  **10%**.
-- `low`: otherwise, when scoring is `ready` but confidence is weak or mixed.
-- `unresolved`: score is blocked or confidence cannot be computed.
-
-### 9A.5 P05B projection boundary
-
-P05 owns the confidence trace, confidence summary, and confidence receipts. **P05B** later projects
-the public-facing confidence labels and copy **from those P05 artifacts only** — the same pattern as
-risk: here is the risk prediction and the risk receipts; here is the confidence and the confidence
-receipts. P05 must not write UI copy. P05B (and presentation) may not invent confidence; if the
-score ledger lacks confidence, presentation may not synthesize it from heatmap, presentation state,
-or cache.
 
 ## 10. Sustained Exposure And Critical Stretches
 
@@ -8500,8 +8126,8 @@ Source keys:
 | Crossing event eligibility rules | Decides which nodes enter score math | `S-BIKE-ISI`, `S-LOCATION`, `P-LANTERNE` | Calibration policy | Not every mapped node deserves to affect canonical score. |
 | Width factor concept | More lanes crossed means more conflict complexity | `S-BIKE-ISI` | Benchmark-informed / adapted | More crossing width increases exposure time and conflict space. |
 | Width values `1.00 / 1.10 / 1.20 / 1.30` | 1-2 / 3-4 / 5-6 / 7+ lanes | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Width matters, but remains bounded and secondary. |
-| Control factor concept | Signed versus signaled structure matters modestly | `S-BIKE-ISI` | Benchmark-informed / adapted | Signalization changes conflict structure but is not an automatic cyclist safety credit. |
-| Control values `1.00 / 1.00 / 1.05 / 1.025` | `none` / `signed` / `signaled` / `unknown` (canonical; former uncontrolled / stop-controlled / signalized) | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | `none` (known absence of control) is neutral on likelihood; `signed` is baseline controllable; unknown should stay neutral-ish and lower confidence. See §9.4. |
+| Control factor concept | Stop versus signalized structure matters modestly | `S-BIKE-ISI` | Benchmark-informed / adapted | Signalization changes conflict structure but is not an automatic cyclist safety credit. |
+| Control values `1.00 / 1.05 / 1.00 / 1.025` | Stop / signal / uncontrolled / unknown | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Known uncontrolled is neutral on likelihood; unknown should stay neutral-ish and lower confidence. |
 | Movement factor concept | Straight / right / left movement structure matters modestly | `S-BIKE-ISI`, `S-PBCAT` | Benchmark-informed / adapted | Different movements create different conflict problems, especially left-across traffic. |
 | Movement values `1.00 / 1.05 / 1.20 / 1.0833` | Straight / right / left / unknown | `S-BIKE-ISI`, `P-LANTERNE` | Calibrated launch constants | Left is the strongest common conflict class; unknown stays neutral instead of worst-case. |
 | `uncontrolled_left_across` severity context factor 2.25 | Severity-side context for confidently uncontrolled left-across route handoffs | `S-NTSB-SS1901`, `P-LANTERNE` | Evidence-informed calibration prior | NTSB Table 7 fatality-to-estimated-crash ratios imply approximately 2.27x versus sign-controlled failed-yield crashes; DS-015 uses 2.25 and does not stack Table 9 OR 2.096. |
@@ -16898,58 +16524,6 @@ This is especially important for:
 because these are exactly the sources most likely to accumulate asymmetry
 between risk treatment and confidence treatment.
 
-### 5.5 Selected-input and score-confidence vocabulary reconciliation (Amendment 2026-06-28 — P05A3)
-
-This subsection reaffirms the canonical selected-input vocabularies consumed by P05 / DS-015 and
-adds the canonical confidence ordinal. It introduces no new product policy; it closes the
-DS-015 / DS-029 / DS-067 vocabulary gap that stopped EXEC-060 P05 v5.
-
-**Canonical selected-input vocabularies (reaffirmed).** These are the values P05 may receive and
-DS-015 must map:
-
-- **Crossing control:** `none`; `signed`; `signaled` (Appendix A.3, §6.8, Appendix C.4).
-- **Bike facility:** `path / MUP`; `protected`; `buffered`; `painted`; `shared`; `none`
-  (Appendix A.1, §6.8, Appendix C.2).
-- **Crossing movement:** `straight`; `left_across`; `right_merge`; `join`; `exit`; `path_crossing`;
-  `unknown` (Appendix A.5, §6.8).
-
-**Canonical confidence ordinal (new).** The selected-input and score-confidence ordinal is:
-
-- `high`
-- `medium`
-- `low`
-- `unresolved`
-
-This four-level ordinal is what selected inputs carry and what P05 emits as score confidence
-(DS-015 §9A). It is distinct from the numeric confidence **bands** of §5.1.2
-(`very_high` / `high` / `medium` / `low_medium` / `low`), which remain the presentation projection
-of numeric confidence and are unchanged. The ordinal is the discrete selected-input /
-score-confidence vocabulary; the numeric bands remain the projection of the numeric rollup
-(§5.1.3). `unresolved` is the ordinal state for confidence that cannot be computed (e.g. a blocked
-score); it has no numeric band because there is no numeric confidence to project.
-
-**Clarifications (reconciliation authority):**
-
-- Selected inputs preserve their provenance and confidence into P04E2 (the extended
-  `RouteSurfaceTruthBundle`). Confidence is not dropped at selection time.
-- P05 consumes selected-input confidence to produce a **score-confidence trace and confidence
-  receipts** (DS-015 §9A). P05 does not invent confidence; it aggregates what the selected inputs
-  carry.
-- **Presentation may not invent confidence.** If the score ledger lacks confidence for an input,
-  interval, or event, presentation may not synthesize a confidence label from `HeatmapSegment`,
-  presentation state, or any cache. Public confidence labels are a P05B projection of the P05
-  confidence artifacts.
-- **`stop` is not canonical P05 control vocabulary.** Canonical control is `none` / `signed` /
-  `signaled`. Where `stop` / `stop-controlled` appears it is historical/prior terminology resolved
-  to `signed` before P05.
-- **`path / MUP` and `protected` are distinct.** `path / MUP` is off-road / materially separated
-  context that triggers the separate DS-015 §8.6 path-domain scoring rule (zero continuous-road
-  risk). `protected` is an on-road or road-adjacent facility **reduction**, not zero risk. The two
-  values must not be collapsed.
-- **`path_crossing` is a crossing event, not a path-segment facility value.** It is a crossing
-  **movement** value (Appendix A.5); it is not a member of the bike-facility vocabulary
-  (Appendix A.1). DS-015 §9.5 scores it as a signed road crossing for v1.
-
 ## 6. Field-Specific Precedence Ladders
 
 This section is organized by DS-015 family first and concrete source type
@@ -17214,30 +16788,13 @@ Search radius:
 Computation:
 
 ```text
-# P03 completion stage (no arithmetic; emits a TrafficExposureBasis):
 broadClass = highwayType with `_link` stripped
 contributors = nearest eligible nearby total AADT readings within radius, capped by DS-053 field config
-expectedAADTTotal = roundToLocalUnit(appropriateAggregate(contributor AADT totals))   # appropriateAggregate = mean (initial), roundToLocalUnit = nearest 100 AADT
-lanes = known lane count if available, else documented inferred lane count
-# P03 emits: TrafficExposureBasis { kind: 'total_aadt_with_lane_basis', totalAadt: expectedAADTTotal, laneCount: lanes, ... }
-
-# P05 scoring stage ONLY (after P03 emits the basis) — NOT performed by P03/P04:
+expectedAADTTotal = roundToLocalUnit(appropriateAggregate(contributor AADT totals))
+lanes = known lane count if available, else inferred lane count
 aadtPerLane = expectedAADTTotal / lanes
 trafficFactor = ds015TrafficFactorFromAADTPerLane(aadtPerLane)
 ```
-
-Reconciliation (Amendment 2026-06-25 — P02C; supersedes the legacy arithmetic
-reading above): the `aadtPerLane` division and `trafficFactor` derivation are **P05
-scoring responsibilities** owned solely by P05 under the versioned DS-015 formula
-(DS-067 §16 stage ownership). P03 `completeTrafficCandidateSet(...)` performs **no
-division, multiplication, Traffic Factor, or risk math**; it emits a complete
-`total_aadt_with_lane_basis` `TrafficExposureBasis` (Appendix L.2/L.3) carrying the
-predicted total AADT plus an explicit known or documented-inferred lane basis, with
-all contributor candidate IDs attached. P03 performs **no** total-to-effective-right-lane
-conversion (Appendix L.6). The DS-053 field config (radius `8047 m` / `5 mi`,
-`minCount` `2`, `maxCount` `10`, `mean` initial aggregate, `nearest_100` rounding,
-contributor source type `authoritative_posted`/`official_imported` direct truth only)
-is unchanged.
 
 Confidence anchor:
 
@@ -17245,8 +16802,7 @@ Confidence anchor:
 
 Required trace:
 
-- same as speed, plus the lane-count basis used to complete the `total_aadt_with_lane_basis`
-  candidate (P03 records the lane basis; it does not divide by it)
+- same as speed, plus the lane-count basis used to convert total AADT into per-lane truth
 
 ### 7.3 `regional_prior`
 
@@ -17738,11 +17294,6 @@ separate path-domain scoring rule under `DS-015`.
 - `regular`
 - `wide`
 
-The DS-029 selected-input shoulder class `regular` is the same class DS-015 scores as `normal`
-(DS-015 §8.5; `1.2 <= widthM < 2.4`, ShoulderLikelihoodFactor 0.85). `regular` and `normal` are
-synonyms across the two specs. The unknown / unavailable shoulder state is carried as `unknown`
-provenance (Appendix D, §6.4 of DS-015) and is not a member of the resolved-class vocabulary above.
-
 ### A.3 Crossing control
 
 - `none`
@@ -17764,21 +17315,6 @@ provenance (Appendix D, §6.4 of DS-015) and is not a member of the resolved-cla
 - `exit`
 - `path_crossing`
 - `unknown`
-
-`path_crossing` is a crossing **movement** value, not a bike-facility value. DS-015 §9.5 scores it
-as a signed road crossing for v1.
-
-### A.6 Confidence (selected-input and score-confidence ordinal)
-
-- `high`
-- `medium`
-- `low`
-- `unresolved`
-
-This is the discrete ordinal carried by selected inputs and emitted by P05 as score confidence
-(DS-015 §9A, §5.5 above). It is distinct from the numeric confidence bands of §5.1.2
-(`very_high` / `high` / `medium` / `low_medium` / `low`), which remain the presentation projection
-of numeric confidence.
 
 ## Appendix B. Source-link and Street View policy
 
@@ -18057,415 +17593,6 @@ This document is intended to eliminate half-measures in provenance handling. Any
 - explicit math
 - traceability requirements
 
-## Appendix L. P03A Traffic Measurement Basis Amendment (2026-06-25)
-
-This appendix resolves the P03 authority gap recorded in
-`docs/04-execution/reports/p03-traffic-measurement-basis-authority-resolution.md`.
-It is controlling for the traffic truth spine (EXEC-060 / ADR-059 / DS-067).
-
-### L.1 Why this amendment exists
-
-The original P03 authority inventory stopped, correctly, before implementation
-because:
-
-- EXEC-060 requires four P03 traffic selection classes: `authoritative_posted`,
-  `authoritative_inferred`, `local_area_predicted`, `highway_baseline`.
-- P02 admits two source-measured traffic dimensions: `total_aadt` (units
-  `vehicles_per_day`) and `lane_count` (units `count`).
-- DS-015 §"Traffic" and DS-029 §7.5 / Appendix H.2 define the Highway Baseline
-  traffic value as an **already-per-lane class-proxy value** (effective right-lane
-  AADT), not a total AADT.
-- No accepted authority defines a highway-class **total-AADT** table.
-- Multiplying the per-lane baseline by lane count to fabricate a total AADT is not
-  authorized (DS-015 forbids multiplying an already per-lane/class-proxy value by
-  total lane count).
-
-Therefore the prior implicit expectation that **every** P03 class must emit a
-`total_aadt` value was incorrect. This amendment preserves the four classes
-without inventing a total-AADT baseline, by making the **selected unit** a typed
-traffic measurement basis rather than a bare total AADT.
-
-### L.2 Canonical `TrafficExposureBasis`
-
-P03 selects exactly one complete `TrafficExposureBasis` per atomic route interval.
-The semantic forms and units below are mandatory; exact TypeScript formatting may
-differ.
-
-```ts
-type TrafficExposureBasis =
-  | {
-      readonly kind: 'total_aadt_with_lane_basis';
-      readonly totalAadt: number;
-      readonly totalAadtUnit: 'vehicles_per_day';
-      readonly laneCount: number;
-      readonly laneCountUnit: 'count';
-      readonly totalAadtCandidateIds: readonly string[];
-      readonly laneCountCandidateIds: readonly string[];
-    }
-  | {
-      readonly kind: 'effective_right_lane_aadt';
-      readonly effectiveRightLaneAadt: number;
-      readonly unit: 'vehicles_per_day_per_lane';
-      readonly sourceForm:
-        | 'authoritative_direct'
-        | 'highway_class_proxy';
-    };
-```
-
-The canonical term is **effective right-lane AADT**. The legacy name `aadtPerLane`
-may appear only as a compatibility alias. Neither form is to be called "total
-traffic" generically: one carries total AADT plus a lane basis, the other carries
-a per-lane value.
-
-### L.3 Selection unit and composition
-
-- P03 selects one complete `TrafficExposureBasis` per atomic interval. It does NOT
-  independently select unrelated `total_aadt` and `lane_count` winners that could
-  form an incoherent pair.
-- Candidate completion may combine compatible total-AADT and lane-count evidence
-  into a candidate basis. It performs **no division, multiplication, Traffic
-  Factor, or risk math**. All contributing candidate IDs and receipts stay
-  attached.
-- A total-AADT fact without a defensible lane basis is **incomplete** and cannot
-  form a selected `total_aadt_with_lane_basis` candidate; it remains visible in
-  rejection/unresolved receipts. The fallback ladder may continue to a weaker
-  **complete** class.
-- A malformed or missing provider identity remains an integrity blocker and must
-  not be hidden by a weaker fallback.
-
-Class composition:
-
-- `authoritative_posted` — authoritative total AADT plus authoritative lane basis
-  (the form the current P02 vertical slice implements); or a directly
-  authoritative `effective_right_lane_aadt` source if a future admitted source
-  contract explicitly supplies it.
-- `authoritative_inferred` — authoritative total AADT with a relationship-inferred
-  lane basis; or relationship-inferred total AADT with a defensible lane basis. The
-  completed class is no stronger than its weakest required component.
-- `local_area_predicted` — predicted total AADT plus an explicit known or
-  documented inferred lane basis. P03 preserves the components and performs no
-  per-lane division.
-- `highway_baseline` — direct `effective_right_lane_aadt` from the canonical
-  class-proxy table (§L.4). No total AADT is fabricated, no lane count is
-  fabricated, and no reverse multiplication is permitted.
-
-Selection precedence is unchanged: `authoritative_posted` >
-`authoritative_inferred` > `local_area_predicted` > `highway_baseline`. `unknown`
-remains non-score-bearing and unresolved.
-
-### L.4 Pinned Highway Baseline table (now explicit authority)
-
-The previously implicit DS-015 highway-type class-proxy table is made explicit and
-versioned here. It is **effective right-lane AADT** (a per-lane proxy), **not total
-AADT**.
-
-- **table id:** `ds015-highway-class-proxy-effective-right-lane-aadt.v1`
-- **unit:** `vehicles_per_day_per_lane`
-
-| highway class | effective right-lane AADT | unit |
-| --- | --- | --- |
-| `motorway` | 50000 | vehicles_per_day_per_lane |
-| `motorway_link` | 18000 | vehicles_per_day_per_lane |
-| `trunk` | 30000 | vehicles_per_day_per_lane |
-| `trunk_link` | 12000 | vehicles_per_day_per_lane |
-| `primary` | 12000 | vehicles_per_day_per_lane |
-| `primary_link` | 6000 | vehicles_per_day_per_lane |
-| `secondary` | 6000 | vehicles_per_day_per_lane |
-| `secondary_link` | 3000 | vehicles_per_day_per_lane |
-| `tertiary` | 3000 | vehicles_per_day_per_lane |
-| `tertiary_link` | 1000 | vehicles_per_day_per_lane |
-| `residential` | 1000 | vehicles_per_day_per_lane |
-| `unclassified` | 1000 | vehicles_per_day_per_lane |
-| `living_street` | 500 | vehicles_per_day_per_lane |
-| `service` | 500 | vehicles_per_day_per_lane |
-
-- These are effective right-lane AADT class proxies; they are **not** total AADT.
-- An unsupported highway class yields **no baseline candidate** and remains
-  unresolved; **no default catch-all value is permitted**.
-- This table must be copied exactly into future versioned production policy.
-  Changing a value or adding a row requires a version change and an authority
-  amendment.
-- These values must match the existing
-  `DS015_HIGHWAY_TYPE_CLASS_PROXY_AADT_PER_LANE` contract at the approved
-  integration SHA `347e1a6289b6fd15d9b7ef62770b90941cfb06a5`
-  (`src/shared/scoring/ds015-contract.ts`). The code is evidence of the previously
-  implicit table; this amended DS-029 appendix is the authority.
-
-### L.5 Highway Baseline identity (separately typed)
-
-- **selection class:** `highway_baseline`
-- **DS-029 source type:** `highway_baseline`
-- **provenance family:** `baseline`
-- **provider identity:** `lanterne_highway_baseline_model.v1`
-- **provider kind:** `model`
-- **producer / model identity:** `ds015-highway-class-proxy-effective-right-lane-aadt.v1`
-
-Highway Baseline is the **selection class and truth form**. "Highway Baseline" is
-**not** a provider label, and `highway_baseline` must **not** be used as a
-provider id. Provider identity, selection class, source type, provenance family,
-model identity, lookup key, and table version remain separately typed. P03 creates
-this typed candidate **before** selection evaluates it.
-
-Highway Baseline is constructed only by `completeTrafficCandidateSet(...)` and lives
-only in `CompletedTrafficCandidateSet`; it exists **before** `selectStableTraffic(...)`
-runs, is **not** a `RouteIndexedEvidenceLedger` source-evidence candidate, and is
-**never written back** to `RouteIndexedEvidenceLedger`. `selectStableTraffic(...)`
-consumes `CompletedTrafficCandidateSet` only. The same placement applies to the
-`authoritative_inferred` and `local_area_predicted` completion-stage candidates.
-
-### L.6 Forbidden reverse conversion (directional)
-
-Conversion is strictly one-directional and owned solely by P05 scoring under the
-versioned DS-015 formula (DS-067 §16 stage ownership):
-
-```text
-total_aadt_with_lane_basis  ->  effective_right_lane_aadt   (P05 only)
-```
-
-- P05 alone may derive effective right-lane AADT from a certified
-  `total_aadt_with_lane_basis`.
-- **No stage, including P05,** may derive or reconstruct total AADT from an
-  `effective_right_lane_aadt` basis.
-- An `effective_right_lane_aadt` value is consumed directly by P05; it is never
-  multiplied by lane count.
-- Per-lane-to-total multiplication is prohibited everywhere.
-- P03 and P04 perform neither conversion.
-
-## Appendix M. P02B Road Context — highway-class source (2026-06-25)
-
-This appendix resolves the second P03 authority gap (report
-`docs/04-execution/reports/p02b-road-context-authority-resolution.md`): the
-road-class-dependent traffic classes (`highway_baseline`, `local_area_predicted`,
-`authoritative_inferred`) need a per-interval highway class, but no P03-allowed input
-exposed one. It defines the canonical road-class context source and how P03 may use
-it, **without** authorizing P03 to fetch OpenStreetMap.
-
-### M.1 Canonical launch road-class context source
-
-- The OpenStreetMap `highway=*` tag is the canonical launch road-class context source
-  for traffic.
-- `broadHighwayClass = highwayTag` with a trailing `_link` stripped; the original
-  `highwayTag` is preserved alongside it.
-- This context enters the pipeline **only** as the route-indexed `road_context`
-  evidence layer (DS-031 §3.1), admitted by P02B before P03. P03 reads the public
-  `road_context` ledger layer; P03 does **not** fetch OpenStreetMap, read source
-  clients, read route-line internals, or create `road_context` itself.
-
-### M.2 How P03 uses `highwayTag` vs `broadHighwayClass`
-
-The pinned Highway Baseline table (§L.4) is **exact-`highwayTag` keyed**, not broad-class
-keyed: its `_link` rows are intentionally distinct (e.g. `motorway` = 50000 vs
-`motorway_link` = 18000, `trunk` = 30000 vs `trunk_link` = 12000, `primary` = 12000 vs
-`primary_link` = 6000, `secondary` = 6000 vs `secondary_link` = 3000, `tertiary` = 3000
-vs `tertiary_link` = 1000). Collapsing `_link` into its parent class before lookup would
-corrupt the baseline value. Therefore:
-
-- **Highway Baseline lookup (exact tag):** P03 uses the **exact preserved `highwayTag`**
-  as the lookup key into the pinned class-proxy table
-  (`ds015-highway-class-proxy-effective-right-lane-aadt.v1`, §L.4). The table is
-  exact-tag keyed; `_link` values must **not** be collapsed into their parent class for
-  baseline lookup. `broadHighwayClass` **must not** be used as the Highway Baseline table
-  key. If `highwayTag` is missing or unsupported, **no** Highway Baseline candidate is
-  created and the class remains unresolved/ineligible for that interval. (The §L.4
-  baseline values are unchanged by this amendment.)
-- **Local prediction (broad class):** P03 uses `broadHighwayClass` for the "same broad
-  highway class" contributor eligibility required by §7.2 and DS-053 §8.1. The exact
-  `highwayTag` and the `isLink` flag remain preserved in trace; local prediction still
-  follows §7.2 and DS-053 §8.1 in full.
-- **Authoritative inference (broad continuity context):** P03 may use `broadHighwayClass`
-  as **one required** broad continuity/context input (e.g., equal-or-lower
-  through-road-class checks per §7.1), and may also preserve the exact `highwayTag` and
-  `isLink` in trace. `broadHighwayClass` alone is **not** sufficient proof of inference —
-  same-road identity, propagation path, distance/decay, and anchor provider are also
-  required. A future link-sensitive inference policy must use the exact `highwayTag` /
-  `isLink`, not a collapsed class alone.
-
-### M.3 Separation guarantees
-
-- `road_context` source type and provenance are **separate** from traffic source type
-  and provenance. `road_context` is `context_for_selection`, not a traffic truth form.
-- `road_context` **cannot upgrade or downgrade** a traffic source class (it never makes
-  an authoritative-posted value inferred/predicted/baseline, or vice versa).
-- `road_context` **cannot create a traffic provider identity.** Traffic provider
-  identity is governed solely by §L.5 and the traffic provider policy.
-- Missing or unresolved `road_context` blocks only the classes that require road class
-  for that interval; it never corrupts an authoritative direct traffic source fact and
-  never permits a guessed class.
-
-## Appendix N. Authoritative inferred traffic carry and traffic provider identity (Amendment 2026-06-25 — P02C)
-
-This appendix closes the authority gap that stopped the post-P03A/post-P02B P03
-attempt: `authoritative_inferred` is an approved traffic selection class (Appendix
-L.3 names its composition) but no concrete **continuity/carry policy** existed, so a
-builder would have had to invent the same-road identity test, carry boundaries,
-diverter significance, distance/decay behavior, lane-basis carry, and a versioned
-policy id. P03 may not invent those rules. This appendix defines the policy and pins
-the traffic provider identities. It does **not** authorize implementation; the carry
-remains **inactive** until its required evidence layers exist (§N.1).
-
-### N.0 Required evidence (carry is inactive until these exist)
-
-The authoritative inferred traffic carry depends on two new spine-native
-route-indexed **evidence** layers defined in DS-031 §3.2 and §3.3:
-
-- `road_identity` — corridor identity (OSM `name` / `ref` / route-relation refs,
-  normalized) for same-road continuity reasoning.
-- `junction_context` — junction / crossing / diverter context for topology breaks.
-
-Until `road_identity` and `junction_context` are implemented and certified on the
-`RouteIndexedEvidenceLedger`, `authoritative_inferred` traffic is **inactive /
-unavailable**. No tag-only, `broadHighwayClass`-only, route-name-only, or
-geometry-only proxy carry is approved as a substitute.
-
-### N.1 Authoritative inferred traffic carry
-
-- **Policy id:** `traffic-authoritative-inferred-corridor-carry.v1`
-- **Status:** inactive until `road_identity` and `junction_context` evidence are
-  implemented and certified.
-- **Selection class:** `authoritative_inferred`
-- **DS-029 source type:** `authoritative_inferred`
-- **Provenance family:** `relationship_inferred`
-
-When active, `authoritative_inferred` may carry an authoritative traffic basis along
-a same-road corridor.
-
-**Core rule — topology-bounded, not distance-decayed.** A carry remains eligible
-across distance only while the route stays on the same corridor and no major
-diverter / topology break occurs. Distance alone is **not** the validity limit: a
-homogeneous corridor may preserve one authoritative traffic count across long
-distances if no material traffic-diverting junction interrupts it. There is **no
-distance decay** in v1 (§N.4).
-
-**Inputs required:**
-
-- authoritative posted anchor candidate;
-- selected or candidate `road_identity` evidence for the anchor interval;
-- `road_identity` evidence for the target interval;
-- `junction_context` evidence between anchor and target;
-- compatible lane-basis evidence, if carrying `total_aadt_with_lane_basis`;
-- provider identity of the anchor;
-- route-axis identity;
-- exact policy version/digest.
-
-**Same-road corridor eligibility** (use all available, ordered by confidence):
-
-1. exact `ref` / route-ref continuity;
-2. exact normalized road-name continuity;
-3. same OSM relation / connected way family where available;
-4. directional / geometric coherence only as supporting evidence, never sufficient
-   alone.
-
-Explicitly **forbidden as sufficient proof**: same `broadHighwayClass` alone; same
-`highwayTag` alone; geometry alone; route name from presentation; HPMS route name
-alone.
-
-### N.2 Break conditions
-
-A carry must stop at:
-
-- any intervening authoritative posted traffic reading for the same dimension (the
-  posted reading supersedes; record why no intervening reading was overridden);
-- `road_identity` discontinuity;
-- missing / uncertified `road_identity` where continuity is required;
-- a `major_diverter` `junction_context` (§N.3);
-- a `road_context` / `highwayTag` change this authority marks incompatible;
-- lane-basis discontinuity when carrying a `total_aadt_with_lane_basis`;
-- conflict evidence;
-- missing provider identity;
-- route gaps or projection gaps.
-
-### N.3 Diverter policy
-
-A junction is a `major_diverter` when the intersecting or joining road plausibly
-adds or removes material traffic from the carried corridor.
-
-**Initial authority rule** — `major_diverter` if any of:
-
-- a `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`, or `primary_link`
-  road intersects / joins / exits the carried corridor;
-- `junctionKind` is `ramp` or a motorway/trunk/primary link;
-- `lanesCrossed >= 3` and `controlType` is `signalized` or `uncontrolled`;
-- `movementType` is `join` or `exit` involving an intersecting road whose class is
-  `secondary` or stronger;
-- a `roundabout` connecting `secondary` or stronger roads.
-
-`minor_diverter` / `non_diverter` examples: a `residential`/`service` driveway with
-`lanesCrossed <= 2` and non-signalized; a `service_access` / `driveway` not
-materially part of through traffic; a `same_ref_continuation` / `same_road_family`
-non-event.
-
-**Unknown diverter significance stops the carry.** If diverter significance is
-`unknown`, the carry must stop unless this policy explicitly classifies the junction
-as `non_diverter`. There is **no silent carry across unknown diverter status**.
-
-### N.4 No distance decay
-
-There is no distance decay in v1. Distance is recorded in trace but does not by
-itself invalidate the carry. A carried candidate may span long distances if topology
-continuity remains certified.
-
-### N.5 Lane basis
-
-A carried `total_aadt_with_lane_basis` candidate may be completed only when:
-
-- the target interval has a compatible authoritative or inferred lane basis; or
-- the lane basis is itself carried under the same topology policy with proof.
-
-No lane basis means an incomplete candidate, and the fallback ladder may continue to
-a weaker complete class (Appendix L.3).
-
-### N.6 Required trace
-
-- anchor candidate IDs;
-- anchor provider identity;
-- anchor source identity;
-- `road_identity` refs used;
-- `junction_context` refs inspected;
-- break / no-break decisions;
-- total carried distance;
-- policy id / digest;
-- why no intervening authoritative reading superseded the carry;
-- lane-basis carry / target lane-basis proof.
-
-### N.7 Provider
-
-`authoritative_inferred` **inherits the anchor provider identity** and records the
-anchor candidate IDs. It does **not** create a new provider. It remains source type
-`authoritative_inferred` and provenance family `relationship_inferred`.
-
-### N.8 Traffic provider identity pins
-
-Provider identity is a machine identity, not a display label. No provider labels may
-be created. The following are pinned:
-
-**Authoritative posted (HPMS / DOT):**
-
-- `providerId`: `hpms_authoritative_feed`
-- `providerKind`: `government_feed`
-- `providerVersion`: `null` unless the feed/version is explicitly available
-- Eligibility (all required): source dataset matches the accepted HPMS/DOT
-  government-feed pattern; source type `authoritative_posted`; provenance family
-  `official_imported`; explicit source record ID; explicit dataset identity.
-
-**Authoritative inferred:** inherits the provider identity of its authoritative
-anchor and records the anchor candidate IDs (§N.7). It never mints a provider.
-
-**Local-area predicted:**
-
-- `providerId`: `lanterne_local_area_traffic_model.v1`
-- `providerKind`: `model`
-- producer / model identity: `traffic-local-area-prediction.v1`
-
-**Highway baseline (unchanged, restated for completeness — see §L.5):**
-
-- `providerId`: `lanterne_highway_baseline_model.v1`
-- `providerKind`: `model`
-- producer / model identity: `ds015-highway-class-proxy-effective-right-lane-aadt.v1`
-
-A finite candidate without a valid explicit provider identity is ineligible and
-creates an integrity blocker; a stronger-class candidate missing provider identity
-blocks fallback to a weaker class and must not be silently hidden (Appendix L.3).
-
 
 ---
 
@@ -18559,7 +17686,7 @@ The system must not:
 **Date:** 2026-05-10  
 **Filename:** `ds-031-route_indexed_evidence_layer_spec.md`  
 **ADR Parent:** [ADR-045](../../03-adrs/adr-045-route_indexed_evidence_platform.md)  
-**Related:** [DS-067](./ds-067-single_route_truth_and_score_ledger_pipeline_spec.md), [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-025](./ds-025-transition_candidate_claim_and_projection_spec.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md)
+**Related:** [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-025](./ds-025-transition_candidate_claim_and_projection_spec.md), [DS-017](./ds-017-truth_resolution_and_propagation_spec.md)
 
 ---
 
@@ -18584,21 +17711,6 @@ This spec is intentionally broader than road ownership. Road ownership is the fi
 - effort metrics such as calories and watts
 
 Breadth of attachment is not breadth of launch scoring. Under DS-015, the launch Route Safety Score is driven only by road exposure and crossing exposure. Future/non-safety layers may attach to the route axis for display, diagnostics, effort, or separate route-reality models, but they are not score-driving for the narrow safety model unless a future versioned DS explicitly promotes them.
-
-DS-067 defines the final single-pipe authority chain for route score semantics:
-
-```text
-CanonicalRouteAxis
-  -> RouteIndexedEvidenceLedger
-  -> TruthSelectionBuilders / RouteBuilders
-  -> RouteSurfaceTruthBundle
-  -> RigidScoreLedger
-  -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection
-  -> PresentationPanes
-```
-
-This spec defines route-indexed evidence attachment. It does not authorize presentation panes, route cache, route history, heatmap/display objects, truth runs, or receipts to become evidence selectors or score authorities.
 
 ---
 
@@ -18733,9 +17845,6 @@ Initial layer ids:
 
 | Layer | Geometry | Score eligibility | Notes |
 | --- | --- | --- | --- |
-| `road_context` | span | context_for_selection | OSM `highway=*` road-class context for traffic candidate completion (P02B). Hidden; not road ownership; not traffic truth. |
-| `road_identity` | span | context_for_selection | OSM `name`/`ref`/route-relation corridor identity for continuity reasoning (P02C-A). Hidden; not traffic truth; not provider; not scoring. |
-| `junction_context` | point/span | context_for_selection | Junction/crossing/diverter context for topology breaks and crossing-risk substrate (P02C-B). Hidden; not crossing risk; not traffic truth; not scoring. |
 | `road_ownership` | span | confidence_only / substrate | Canonical V2 road/path identity |
 | `speed_limit` | span | score_driving | Posted/official/derived by DS-029 rules |
 | `traffic_aadt` | span | score_driving | Official or inferred traffic context |
@@ -18751,259 +17860,6 @@ Initial layer ids:
 | `sunlight` | span/series | display_only | Requires route time and heading |
 | `effort_watts` | series | derived display | Derived from speed/grade/wind/rider model |
 | `calories` | series/span | derived display | Derived from effort model |
-
-### 3.1 `road_context` (Amendment 2026-06-25 — P02B)
-
-`road_context` is a route-indexed **source-evidence** layer carrying OpenStreetMap
-`highway=*` road classification, admitted by P02B so that P03 candidate completion
-can evaluate road-class-dependent traffic classes. It is the canonical launch
-road-class context for traffic. It is **not** road ownership, **not** selected
-traffic, **not** a provider, **not** scoring, and **not** presentation.
-
-| Field | Value |
-| --- | --- |
-| layer id | `road_context` |
-| geometryType | `span` |
-| valueKind | `object` |
-| scoreEligibility | `context_for_selection` |
-| displayEligibility | `hidden` |
-| sourcePriority | `self_hosted_roads`, `raw_overpass`, `fixture` |
-| requiresRouteTime | `false` |
-| workerRequired | `true` |
-| implemented | planned / P02B |
-
-Required value shape:
-
-```ts
-interface RouteIndexedRoadContextValue {
-  readonly schemaVersion: 'road-context.v1';
-  readonly highwayTag: string;
-  readonly broadHighwayClass: string;
-  readonly isLink: boolean;
-  readonly sourceSystem: 'openstreetmap';
-  readonly sourceRecordType: 'way' | 'relation' | 'unknown';
-  readonly sourceRecordId: string;
-  readonly sourceVersion: string | null;
-  readonly confidence: 'high' | 'medium' | 'low';
-}
-```
-
-Rules:
-
-- `broadHighwayClass` is derived by stripping `_link` from `highwayTag`; the original
-  `highwayTag` (and the `isLink` flag) must be preserved.
-- Unsupported or missing highway tags emit **unresolved** `road_context` evidence (no
-  fabricated class, no catch-all).
-- `road_context` may not fabricate a class, may not use route name as class, may not
-  use HPMS facility type as the OSM highway class, may not use presentation road
-  labels, and may not imply provider identity for traffic.
-- `road_context` is contextual evidence, not traffic truth. It does not select traffic,
-  does not score, does not display directly to riders, and does not replace future road
-  ownership.
-- Accepted launch highway tags (aligned with the pinned Highway Baseline table
-  `ds015-highway-class-proxy-effective-right-lane-aadt.v1`, DS-029 §L.4):
-  `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`, `primary_link`,
-  `secondary`, `secondary_link`, `tertiary`, `tertiary_link`, `residential`,
-  `unclassified`, `living_street`, `service`. Other tags are unresolved for baseline
-  unless a future authority version adds them.
-
-P03 may **use** the public `road_context` ledger layer to evaluate `highway_baseline`,
-`local_area_predicted`, and `authoritative_inferred` eligibility. P03 may not create
-`road_context`, query OpenStreetMap, read source clients, or write `road_context` back
-into the ledger.
-
-### 3.2 `road_identity` (Amendment 2026-06-25 — P02C-A)
-
-`road_identity` is a route-indexed **source-evidence** layer carrying corridor
-identity (OpenStreetMap `name`, `ref`, and route-relation refs, normalized) so that
-P03 `authoritative_inferred` traffic carry can reason about same-road continuity. It
-is **not** traffic truth, **not** selected traffic, **not** a provider, **not**
-presentation, and **not** scoring.
-
-| Field | Value |
-| --- | --- |
-| layer id | `road_identity` |
-| geometryType | `span` |
-| valueKind | `object` |
-| scoreEligibility | `context_for_selection` |
-| displayEligibility | `hidden` |
-| sourcePriority | `self_hosted_roads`, `raw_overpass`, `fixture` |
-| requiresRouteTime | `false` |
-| workerRequired | `true` |
-| implemented | planned / P02C-A |
-
-Required value shape:
-
-```ts
-interface RouteIndexedRoadIdentityValue {
-  readonly schemaVersion: 'road-identity.v1';
-  readonly sourceSystem: 'openstreetmap';
-  readonly sourceRecordType: 'way' | 'relation' | 'unknown';
-  readonly sourceRecordId: string;
-  readonly sourceVersion: string | null;
-
-  readonly name: string | null;
-  readonly ref: string | null;
-  readonly routeRefs: readonly string[];
-  readonly normalizedNameKey: string | null;
-  readonly normalizedRefKeys: readonly string[];
-
-  readonly highwayTag: string | null;
-  readonly broadHighwayClass: string | null;
-  readonly isLink: boolean;
-
-  readonly confidence: 'high' | 'medium' | 'low';
-}
-```
-
-Rules:
-
-- OSM `name`, `ref`, and route-relation refs may be used for continuity evidence.
-- Exact OSM way/relation identity (`sourceRecordType`, `sourceRecordId`,
-  `sourceVersion`) must be preserved.
-- Name/ref normalization (`normalizedNameKey`, `normalizedRefKeys`) must be
-  deterministic.
-- Road identity **cannot** be inferred from presentation labels, **cannot** be
-  inferred from HPMS route name alone, and **cannot** be inferred from geometry
-  alone.
-- Missing `name`/`ref` does **not** fabricate continuity (emit unresolved or
-  null-keyed evidence; never invent a corridor identity).
-- `road_identity` is route-indexed source evidence admitted **before** P03. P03 may
-  use it but may not create it, query OpenStreetMap, read source clients, or write it
-  back into the ledger.
-
-### 3.3 `junction_context` (Amendment 2026-06-25 — P02C-B)
-
-`junction_context` is a route-indexed **source-evidence** layer carrying junction /
-crossing / diverter context (topology breaks) so that P03 `authoritative_inferred`
-traffic carry can decide corridor break boundaries, and so that a future DS-015
-crossing-risk stage has a spine-native substrate. It is **not** traffic truth,
-**not** selected traffic, **not** selected crossing risk, **not** scoring, and
-**not** presentation.
-
-| Field | Value |
-| --- | --- |
-| layer id | `junction_context` |
-| geometryType | `point` (or `span`) |
-| valueKind | `object` |
-| scoreEligibility | `context_for_selection` |
-| displayEligibility | `hidden` |
-| sourcePriority | `self_hosted_roads`, `raw_overpass`, `fixture` |
-| requiresRouteTime | `false` |
-| workerRequired | `true` |
-| implemented | planned / P02C-B |
-
-Required value shape:
-
-```ts
-interface RouteIndexedJunctionContextValue {
-  readonly schemaVersion: 'junction-context.v1';
-  readonly junctionId: string;
-  readonly routeDistM: number;
-  readonly junctionKind:
-    | 'crossing'
-    | 'join'
-    | 'exit'
-    | 'turn'
-    | 'ramp'
-    | 'roundabout'
-    | 'driveway'
-    | 'service_access'
-    | 'unknown';
-
-  readonly routeRoadIdentityRef: string | null;
-  readonly intersectingRoadIdentityRef: string | null;
-
-  readonly intersectingHighwayTag: string | null;
-  readonly intersectingBroadHighwayClass: string | null;
-  readonly intersectingIsLink: boolean;
-
-  readonly lanesCrossed: number | null;
-  readonly controlType:
-    | 'signalized'
-    | 'stop_controlled'
-    | 'signed'
-    | 'uncontrolled'
-    | 'unknown';
-
-  readonly movementType:
-    | 'straight'
-    | 'left_across'
-    | 'right_merge'
-    | 'join'
-    | 'exit'
-    | 'crossing'
-    | 'unknown';
-
-  readonly diverterClass:
-    | 'major_diverter'
-    | 'minor_diverter'
-    | 'non_diverter'
-    | 'unknown';
-
-  readonly confidence: 'high' | 'medium' | 'low';
-}
-```
-
-Rules:
-
-- `junction_context` is **evidence**, not selected crossing risk. It may later feed
-  DS-015 crossing risk (DS-015 cross-reference) and may also feed
-  `authoritative_inferred` traffic carry break decisions (DS-029 Appendix N.2/N.3).
-- It must preserve source lineage and trace.
-- It **cannot** create traffic values, **cannot** select traffic, and **cannot**
-  score.
-- `diverterClass` is contextual evidence; `unknown` diverter significance stops a
-  traffic carry per DS-029 §N.3 and is never silently treated as `non_diverter`.
-- `junction_context` is admitted **before** P03. P03 may use it but may not create
-  it, query OpenStreetMap, read source clients, or write it back into the ledger.
-
-### 3.4 Layer/input implementation status and selected-scoring-input reservation (Amendment 2026-06-25 — P04B)
-
-This section pins three distinct concepts so "substrate" is never overloaded, and records
-what is actually implemented vs planned. It authorizes **no** new runtime behavior.
-
-**Three concepts (do not conflate):**
-
-1. **Durable Source Evidence Substrate** — a durable/semi-durable indexed cache or index of
-   *source* facts (OSM road tags; HPMS/DOT traffic, lanes, shoulder, speed; official
-   bike/facility data; cached source geometries). It is a performance / data-access layer. It
-   is **not** route truth, **not** selected truth, **not** score authority. It may feed route
-   evidence ingestion, but **P05 may never consume it directly**.
-2. **`RouteIndexedEvidenceLedger`** — per-route candidate accounting: projected route-indexed
-   evidence candidates + unresolved evidence, built from source/substrate facts and
-   deterministic route geometry. It **does not select** and **does not score**. P05 may **not**
-   read it directly.
-3. **Selected DS-015 scoring inputs** — per-route selected score-bearing facts derived from
-   ledger candidates or deterministic route geometry by explicit builders/selectors **with
-   receipts** (selected speed / shoulder / facility / curvature / crossing-risk / crossed-road
-   traffic & speed). These — carried into the traffic-spine `RouteSurfaceTruthBundle` — are
-   what must reach P05. Only these reach the scorer.
-
-**Layer / input implementation status:**
-
-| Item | Kind | Status |
-| --- | --- | --- |
-| `traffic_aadt` | evidence layer | **implemented** (P01/P03 spine) |
-| `lane_count` | evidence layer | **implemented** (P02 spine) |
-| `road_context` | evidence layer | **implemented** (P02B) |
-| `road_identity` | evidence layer | **implemented** (P02C-A) |
-| `junction_context` | evidence layer | **implemented** (P02C-B) |
-| `speed_limit` | evidence layer | **planned** (P04C-A) — registry row exists; not yet admitted |
-| `shoulder` | evidence layer | **planned** (P04C-B) — registry row exists; not yet admitted |
-| `bike_infra` / facility | evidence layer | **planned** (P04C-B) — registry row exists; not yet admitted |
-| route curvature | deterministic geometry-derived input | **planned** (P04C-C) — derived from `CanonicalRouteAxis`, not a source-provider layer unless future authority says otherwise |
-| selected speed input fact | selected scoring input | **planned** (P04C-A) |
-| selected shoulder input fact | selected scoring input | **planned** (P04C-B) |
-| selected facility input fact | selected scoring input | **planned** (P04C-B) |
-| selected curvature input fact | selected scoring input | **planned** (P04C-C) |
-| selected road-risk input fact (`RouteSurfaceRoadRiskInputFact`) | selected scoring input | **planned** (P04E surface; composed in P04C/P04D) |
-| selected crossing-risk input fact (`RouteSurfaceCrossingRiskInputFact`) | selected scoring input | **planned** (P04D) |
-
-Unimplemented items above are **not** marked implemented; the registry's `score_driving`
-declarations for `speed_limit`/`shoulder`/`bike_infra` describe *intended* eligibility, not
-current presence. No item here authorizes P05 to consume the `RouteIndexedEvidenceLedger`,
-durable source substrate, or source packages directly.
 
 ---
 
@@ -19189,8 +18045,6 @@ Adapters must not mutate canonical layer evidence.
 
 Downstream consumers must not reach into V2 internals to compensate for missing adapter fields.
 
-After the DS-067 hard cutover, rider-facing adapters are mechanical projections from ActiveTruthView only. They may format or render exact upstream values, but they may not select evidence, create Highway Baseline, derive traffic exposure, score, choose risk buckets, rank notable drivers, reconstruct receipts, repair unknowns, or apply fallback.
-
 ---
 
 ## 11. Required Diagnostics
@@ -19238,7 +18092,6 @@ Do not move to scoring or presentation migration until road ownership spans are 
 The system must not:
 
 - use legacy truth runs as V2 evidence
-- treat legacy truth runs, truthSegments, routeSpeedSegments, HeatmapSegment, displaySegmentsByZoom, route cache, route history, receipts, QuickPaint, RobustPaint, or presentation panes as semantic route score authorities
 - use OSM way id as the canonical route join key
 - use raw GPX point index as the canonical route join key
 - silently convert unresolved spans into score-bearing truth
@@ -19259,7 +18112,7 @@ The system must not:
 **Date:** 2026-05-12  
 **Filename:** `ds-032-worker_streamed_route_construction_and_presentation_spec.md`  
 **ADR Parent:** [ADR-045](../../03-adrs/adr-045-route_indexed_evidence_platform.md)  
-**Related:** [DS-031](./ds-031-route_indexed_evidence_layer_spec.md), [DS-067](./ds-067-single_route_truth_and_score_ledger_pipeline_spec.md), [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-024](./ds-024-parallel_bike_facility_capture_and_corridor_ownership_spec.md)
+**Related:** [DS-031](./ds-031-route_indexed_evidence_layer_spec.md), [DS-030](./ds-030-route_analysis_contract.md), [DS-029](./ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-028](./ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [DS-024](./ds-024-parallel_bike_facility_capture_and_corridor_ownership_spec.md)
 
 ---
 
@@ -19268,8 +18121,6 @@ The system must not:
 This specification defines the V2 route construction pipeline and its streamed presentation contract.
 
 The route identity layer must be built from an ordered OSM graph path, not from "best nearby road per span" ownership. Presentation may run in parallel with identity, enrichment, and scoring, but it is a subscriber to streamed facts and progress events. Presentation must never become a source of route truth.
-
-DS-067 defines the final score authority chain. Streamed presentation events before ActiveScoreLedger availability are progress, diagnostics, neutral route geometry, or blocker state only. Final rider-facing score semantics must publish through a mechanical ActiveTruthView projection of one ActiveScoreLedger revision.
 
 The goals are:
 
@@ -19304,17 +18155,6 @@ But presentation remains read-only:
 facts drive presentation
 presentation does not drive facts
 ```
-
-For finalized rider-facing route score semantics, the required downstream contract is:
-
-```text
-RigidScoreLedger
-  -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection
-  -> PresentationPanes
-```
-
-Presentation streams may progressively reveal already-published facts, but they may not select evidence, score, apply fallback, choose risk buckets, rank notable drivers, derive traffic exposure, or create provider labels.
 
 ---
 
@@ -31875,7 +30715,7 @@ Phase D: evidence and Global Unit expansion
 **Status:** Draft for implementation
 **Date:** 2026-06-16
 **ADR Parent:** [ADR-054](../../03-adrs/adr-054-route_indexed_evidence_ledger_no_leak_architecture.md)
-**Related:** ADR-059, DS-031, DS-043, DS-044, DS-047, DS-067
+**Related:** DS-031, DS-043, DS-044, DS-047
 
 ---
 
@@ -31885,19 +30725,6 @@ This specification makes the ledger-first architecture executable.
 
 The route-distance axis is the canonical coordinate system. `RouteIndexedEvidenceLedger` is the only upstream source boundary for route-indexed evidence. Every later layer consumes selected or composed truth from the immediately prior boundary.
 
-ADR-059 / DS-067 define the final single-pipe authority model:
-
-```text
-CanonicalRouteAxis
-  -> RouteIndexedEvidenceLedger
-  -> TruthSelectionBuilders / RouteBuilders
-  -> RouteSurfaceTruthBundle
-  -> RigidScoreLedger
-  -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection
-  -> PresentationPanes
-```
-
 ## 2. Package Boundaries
 
 | Layer | Package | Allowed upstream reads |
@@ -31906,12 +30733,10 @@ CanonicalRouteAxis
 | Source Projection Workers | `src/lib/source-projection` | RouteAxis and raw external source facts |
 | RouteIndexedEvidenceLedger | `src/lib/route-evidence` | RouteAxis and source projection outputs |
 | Truth Selection Builders | `src/lib/truth-selection` | RouteIndexedEvidenceLedger only |
-| RouteSurfaceTruthBundle (traffic-spine) | `src/lib/traffic-spine/route-surface-truth` (Amendment 2026-06-25 — P04A) | public P03 `StableTrafficSelectionResult` only |
-| RigidScoreLedger | future `src/lib/rigid-score-ledger` | traffic-spine RouteSurfaceTruthBundle (`@/lib/traffic-spine/route-surface-truth`) only |
-| ActiveScoreLedger | future `src/lib/active-score-ledger` | RigidScoreLedger plus explicitly documented active-scenario inputs |
+| RouteSurfaceTruthBundle | `src/lib/route-surface-truth` | selected truth snapshots only |
 | Ride Context / Temporal Binding | `src/lib/route-time` | RouteAxis and ride context |
 | Temporal Projector | `src/lib/temporal-projection` | selected truth baseline and route-time binding |
-| ActiveTruthView | `src/lib/active-truth` | one ActiveScoreLedger revision only |
+| ActiveTruthView | `src/lib/active-truth` | selected stable truth and ride-context temporal ledger state |
 | Presentation | `src/components`, `src/pages` | ActiveTruthView only |
 
 ## 3. No-Leak Invariant
@@ -31920,9 +30745,7 @@ RouteIndexedEvidenceLedger is the only upstream source boundary for route-indexe
 
 Truth builders may consume the ledger.
 TruthBundle may snapshot selected evidence.
-RigidScoreLedger may score only RouteSurfaceTruthBundle outputs.
-ActiveScoreLedger may publish only RigidScoreLedger semantics plus explicitly documented active-scenario state.
-ActiveTruthView may mechanically project one ActiveScoreLedger revision.
+ActiveTruthView may compose selected truth with allowed temporal/context evidence.
 Presentation may read ActiveTruthView only.
 
 Presentation may not query raw HPMS.
@@ -31962,131 +30785,21 @@ Do not convert unresolved spans into score-bearing traffic truth.
 
 ## 6. Truth Selection
 
-Truth selection is two separate operations (amended 2026-06-25 — P03A), aligned with
-DS-029 Appendix L and DS-067 §16.
+Stable traffic baseline selection consumes the ledger only.
 
-### 6.1 Candidate completion — `completeTrafficCandidateSet(...)`
+The selector may:
 
-Candidate completion:
+- choose selected HPMS AADT spans
+- compute coverage
+- carry unresolved distance
+- preserve diagnostics
 
-- consumes `RouteIndexedEvidenceLedger` public contracts, `CanonicalRouteAxis` public
-  contracts, and immutable versioned authority policies;
-- may construct documented completion-stage `authoritative_inferred`,
-  `local_area_predicted`, and `highway_baseline` candidates that live only in
-  `CompletedTrafficCandidateSet` (never written back to the ledger) and that exist
-  **before** `selectStableTraffic(...)` runs — Highway Baseline in particular must be
-  present before the selector executes;
-- may not fetch or discover new external source evidence (all external source
-  evidence enters through source projection / ledger admission);
-- may not mutate the ledger;
-- may not fabricate total AADT or lane count;
-- may not score.
+The selector may not:
 
-### 6.2 Stable selector — `selectStableTraffic(...)`
-
-The stable selector:
-
-- consumes `CompletedTrafficCandidateSet` **only**;
-- may not read the ledger directly;
-- may not construct, infer, predict, or look up candidates;
-- may not query HPMS;
-- may not inspect legacy truth runs;
-- may not apply time-of-day multipliers;
-- may not score.
-
-### 6.3 Meaning of "do not infer missing AADT"
-
-"Do not infer missing AADT" continues to prohibit laundering missing source evidence
-into an **authoritative** AADT fact. It does **not** prohibit creating a separately
-typed, explicitly documented Highway Baseline **effective right-lane AADT** candidate
-under DS-029 Appendix L. Highway Baseline is a `baseline`-family pre-selector candidate
-with its own model/provider/table identity; it is **not** inferred AADT and is never
-represented as authoritative source truth.
-
-### 6.4 `road_context` evidence (Amendment 2026-06-25 — P02B)
-
-`road_context` (OSM `highway=*` road classification; DS-031 §3.1, DS-029 Appendix M) is
-**external source evidence** and must enter through the ledger via P02B source
-projection / admission, exactly like `traffic_aadt` and `lane_count`.
-
-- P03 candidate completion may **consume** the public `road_context` ledger layer to
-  evaluate the road-class-dependent classes (`highway_baseline`, `local_area_predicted`,
-  `authoritative_inferred`).
-- P03 may **not** discover `road_context` itself, query OpenStreetMap, read source
-  clients, read route-line internals, infer highway class from route name / HPMS
-  facility type / geometry alone, or write `road_context` back into the ledger.
-- Missing or uncertified `road_context` makes the road-class-dependent classes
-  **unresolved / ineligible** for that interval; it does **not** corrupt an
-  authoritative direct traffic source fact and does **not** permit a guessed class.
-- "Do not infer AADT from road class in this first proof layer" (§5) still holds:
-  `road_context` is class context for candidate **eligibility/lookup**, never a means to
-  invent or upgrade an authoritative AADT value.
-
-### 6.5 `road_identity` and `junction_context` evidence (Amendment 2026-06-25 — P02C)
-
-`road_identity` (corridor identity: OSM `name`/`ref`/route-relation refs; DS-031 §3.2)
-and `junction_context` (junction / crossing / diverter context; DS-031 §3.3) are
-**external source evidence** and must enter through the ledger via P02C-A / P02C-B
-source projection / admission, exactly like `road_context`, `traffic_aadt`, and
-`lane_count`. They obey the same no-leak invariant.
-
-- P03 `authoritative_inferred` traffic carry may **consume** the public `road_identity`
-  and `junction_context` ledger layers to evaluate same-road corridor continuity and
-  topology break boundaries (DS-029 Appendix N).
-- P03 may **not** discover `road_identity` / `junction_context` itself, query
-  OpenStreetMap, read source clients, read route-line internals, infer corridor
-  identity from presentation labels / HPMS route name / geometry alone, or write either
-  layer back into the ledger.
-- Both layers are **context_for_selection** evidence: they are never selected traffic,
-  never selected crossing risk, never a provider, never a score, and never presentation.
-  `junction_context` is the planned spine-native substrate for DS-015 crossing events
-  but is **not itself** crossing risk.
-- Missing or uncertified `road_identity` / `junction_context` where continuity is
-  required makes `authoritative_inferred` carry **unresolved / ineligible** for that
-  interval (it stops the carry; DS-029 §N.2). Unknown diverter significance stops the
-  carry and is never silently treated as a non-diverter (DS-029 §N.3). Neither layer may
-  invent, upgrade, or corrupt an authoritative direct traffic source fact.
-- Until both layers are implemented and certified, `authoritative_inferred` traffic is
-  **inactive / unavailable** (DS-029 §N.0); no tag-only, `broadHighwayClass`-only,
-  route-name-only, or geometry-only proxy carry is permitted as a substitute.
-
-### 6.6 P04 RouteSurfaceTruthBundle package boundary (Amendment 2026-06-25 — P04A)
-
-The traffic-spine P04 bundle is owned by the new package root
-**`src/lib/traffic-spine/route-surface-truth/`** (import
-`@/lib/traffic-spine/route-surface-truth`).
-
-- **No-leak input:** P04 consumes **only** the public P03 `StableTrafficSelectionResult`.
-  It does not read `RouteIndexedEvidenceLedger`, source-normalization, source-projection,
-  source clients, scoring, presentation, cache/history, or any display/debug object.
-- **Legacy isolation:** the pre-existing legacy package `src/lib/route-surface-truth/**`
-  (barrel `@/lib/route-surface-truth`, with its own legacy `RouteSurfaceTruthBundle` in
-  `types.ts`) is frozen legacy code and is **not** the traffic-spine P04 authority. P04
-  production must not import, modify, wrap, or barrel-export through it. The new bundle
-  type is scoped by its import path; the same-named legacy type stays legacy.
-- P04 carries the selected `TrafficExposureBasis` verbatim, performs no conversion and no
-  scoring, and a `blocked` bundle is never handed to P05 as score-bearing truth.
-- Legacy `src/lib/route-surface-truth/**` deletion/cutover is deferred to P10, not P04.
-
-### 6.7 No-leak enforcement for blocked / missing scoring inputs (Amendment 2026-06-25 — P04B)
-
-The traffic-spine P04 bundle must eventually carry **every** selected score-bearing DS-015
-input (not traffic alone). Until then — and whenever any required selected input is missing —
-the no-leak invariant is enforced as follows:
-
-- **No reach-around.** Scoring (P05 / RigidScoreLedger) must not reach around the P04 bundle to
-  read the `RouteIndexedEvidenceLedger`, the Durable Source Evidence Substrate (source-fact
-  cache/index), source-normalization, source-projection, source clients, `junction_context`
-  (or any evidence layer), legacy scoring (`safety-scoring.ts`), `route-analysis`,
-  `conflict-events`, `active-truth`, presentation, or cache/history.
-- **Blocked propagates.** A missing required score-bearing fact produces a **blocked** bundle,
-  which produces a **blocked** score ledger. There is no downstream repair, no zero
-  substitution for a missing risk dimension, no legacy-scoring fallback, and no
-  presentation/cache/history scoring path.
-- **No partial publication.** A blocked Crossing Risk blocks Total Risk and Risk Per Mile; Road
-  Risk is never published as Total Risk.
-- The Durable Source Evidence Substrate is a **source-fact cache/index**, not route truth and
-  not a P05 input; only selected DS-015 scoring inputs carried in the P04 bundle reach P05.
+- query HPMS
+- inspect legacy truth runs
+- infer missing AADT
+- apply time-of-day multipliers
 
 ## 7. Stable Surface Truth Output
 
@@ -32130,8 +30843,6 @@ The stable traffic output may not carry:
 - effective time-adjusted traffic exposure
 - scoring outputs
 - presentation or display fields
-
-Under ADR-059 / DS-067, RouteSurfaceTruthBundle and traffic-only partial stable outputs are not rider-facing semantic score authority. They feed RigidScoreLedger. Presentation must not use them as an alternate source of score truth.
 
 Future mapping:
 
@@ -32191,13 +30902,13 @@ All planned and observed clock inputs must include an explicit ISO timezone offs
 
 ## 9. Temporal Projection
 
-Temporal traffic exposure is contextual input to a documented active-scenario path:
+Temporal traffic exposure is downstream context:
 
 ```text
 selected traffic_aadt baseline
   x RouteTimeBinding
   x traffic-time multiplier
-  -> documented active-scenario input before ActiveScoreLedger
+  -> temporal overlay for ActiveTruthView
 ```
 
 Temporal projection must not mutate the ledger or the stable truth bundle.
@@ -32221,7 +30932,7 @@ Temporal exposure span envelopes must use derived-model source/provenance. HPMS 
 
 Given valid stable baseline truth and valid `RouteTimeBinding`, the temporal projection output must partition `[0,totalDistM)` into computed, unresolved baseline, conflict baseline, missing time binding, or missing multiplier intervals.
 
-`traffic_temporal_exposure` must not be added to the route-version evidence ledger layer registry. It is contextual scenario/view evidence, not candidate source truth. Any future rider-facing use must pass through the documented ActiveScoreLedger path before mechanical ActiveTruthView projection.
+`traffic_temporal_exposure` must not be added to the route-version evidence ledger layer registry. It is contextual overlay state for ActiveTruthView/RideContext composition, not candidate source truth.
 
 Temporal projection may not accept raw `traffic_aadt` candidate spans, query raw HPMS, read source-projection internals, inspect legacy `truthRuns`, select/promote candidates, mutate `StableTrafficBaselineSnapshot`, mutate `RouteSurfaceStableTrafficOutput`, mutate `RouteTimeBinding`, create new route-time revisions, or use presentation/scoring adapters.
 
@@ -32251,8 +30962,7 @@ actual progress changes route-time binding
   -> ledger marks temporal layer stale
   -> projector recomputes
   -> ledger accepts new projection if revision matches
-  -> ActiveScoreLedger may consume an approved active-scenario input later
-  -> ActiveTruthView mechanically projects the ActiveScoreLedger revision
+  -> ActiveTruthView reads current ledger state later
 ```
 
 It stores:
@@ -32289,70 +30999,48 @@ It must not mutate:
 - `RouteTimeBinding`
 - `TrafficTemporalExposureProjection`
 
-It may not query raw HPMS, run source projection, run truth selection, build stable truth, compose `ActiveTruthView`, build ActiveScoreLedger, score, heatmap, render presentation, read browser GPS APIs, or inspect legacy `truthRuns`.
+It may not query raw HPMS, run source projection, run truth selection, build stable truth, compose `ActiveTruthView`, score, heatmap, render presentation, read browser GPS APIs, or inspect legacy `truthRuns`.
 
 It stores stable traffic artifact IDs/digests and temporal projection refs only. Stable selected traffic truth remains owned by the stable truth boundary.
 
 ## 11. ActiveTruthView
 
-ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
+`ActiveTruthView` is the presentation firewall. It is not a source boundary, selector, projector, scorer, heatmap builder, RouteMap adapter, or mutable ride-context state.
 
-Conceptually:
+For the traffic POC, it lives in `src/lib/active-truth/active-truth-view.ts`.
 
-```text
-projectActiveScoreLedgerRevision(
-  activeScoreLedgerRevision,
-  presentationProjectionRequest
-) -> ActiveTruthView
-```
+It may consume:
 
-It may only:
+- `RouteSurfaceStableTrafficOutput`
+- `RideContextTemporalLedger`
+- selected traffic baseline snapshot types
 
-- select fields already present in an ActiveScoreLedger entry
-- select entries by canonical route-distance identity
-- organize those fields into a presentation-consumable shape
-- omit fields irrelevant to a specific pane
-- preserve exact semantic values
-- preserve exact receipt and lineage references
-- preserve the parent ActiveScoreLedger identity
+It may expose:
 
-It may not:
+- `viewId`, `viewKind`, `schemaVersion`, `generatedAt`, and deterministic `contentDigest`
+- route/session/axis metadata
+- source refs for stable traffic, ride-context ledger, route-time binding, and accepted temporal projection
+- stable `traffic_aadt_baseline` spans
+- current/stale/empty `traffic_temporal_exposure` layer state
+- route-time summaries
+- typed receipt index for stable traffic, temporal traffic, and ActiveTruthView composition receipts
+- diagnostics
+- `presentation.trafficOverlay`
+- quality summary
+- explicit capabilities showing it cannot promote candidates, fetch raw evidence, recompute traffic exposure, or mutate stable truth
 
-- select evidence
-- apply precedence
-- construct Highway Baseline
-- derive scoring traffic
-- derive AADT per lane
-- invoke scoring
-- apply risk thresholds
-- choose a risk bucket
-- rank notable drivers
-- infer source provider
-- substitute selection class for provider
-- substitute confidence for provider
-- repair unknown or unresolved values
-- borrow neighboring values
-- apply fallback
-- round a value that will later participate in calculation
-- create receipts
-- mutate ActiveScoreLedger
-- persist separate semantic state
-- become cache or history authority
+It must validate that:
 
-Every ActiveTruthView must carry parent ActiveScoreLedger id, parent ActiveScoreLedger revision, parent ActiveScoreLedger digest, active scenario id/version, source ActiveScoreLedger entry ids, canonical route intervals, and upstream receipt ids.
+- stable artifact id/digest matches the ride-context stable truth refs
+- route axis and total distance match
+- current temporal traffic exposure derives from the stable traffic artifact in the view
+- current temporal traffic exposure matches the current route-time binding id/revision
+- presentation overlay spans are a complete half-open route partition when paintable
+- policy budgets are not exceeded
 
-ActiveTruthView must not possess an independent semantic identity.
+If temporal traffic exposure is missing, the default view may expose a stable-only traffic overlay and must mark temporal paint unavailable. If temporal traffic exposure is stale, the stale layer may remain inspectable in the view, but it must not be painted as current temporal exposure. Any blocking route/source/payload/budget error seals the presentation overlay as invalid.
 
-Required invariant:
-
-```text
-activeTruthView.parentActiveScoreLedgerDigest
-  === activeScoreLedger.digest
-```
-
-Any optional projection checksum is non-authoritative transport validation only. It is not a truth identity, score identity, cache key for canonical analysis, or value-selection input.
-
-Historical POC implementations that composed selected stable traffic and ride-context temporal state directly into ActiveTruthView are lineage only after ADR-059 / DS-067. They are not a final rider-facing authority contract and must be migrated to the ActiveScoreLedger -> mechanical ActiveTruthView projection path.
+It may not import or call route evidence ledger builders, source projection workers, HPMS projection, truth selection builders, route-time builders, temporal projection functions, traffic-time models, scoring, heatmap, React, Supabase, browser GPS APIs, presentation components, `RouteMap`, or legacy `truthRuns`. It may import selected-truth types for stable input normalization, but it must not run selectors.
 
 ## 12. Enforcement
 
@@ -39342,970 +38030,460 @@ The next possible gate is a separate owner decision on whether to implement a bo
 
 ---
 
-## Source File: docs/02-architecture/design/ds-067-single_route_truth_and_score_ledger_pipeline_spec.md
+## Source File: docs/02-architecture/design/ds-065-road-overlay-selection-view-model.md
 
-# DS-067 - Single Route Truth And Score Ledger Pipeline Spec
+# DS-065 - Road Overlay Selection View Model
 
-**Status:** Accepted for authority closure
-**Date:** 2026-06-24
-**Filename:** `ds-067-single_route_truth_and_score_ledger_pipeline_spec.md`
-**ADR Parent:** [ADR-059](../../03-adrs/adr-059-single_route_truth_and_score_ledger_pipeline.md)
-**Related:** ADR-045, ADR-054, DS-015, DS-029, DS-031, DS-032, DS-055
+**Status:** Draft for implementation
+**Date:** 2026-07-02
+**Owner:** Derek Minner
+**Filename:** `ds-065-road-overlay-selection-view-model.md`
+**ADR Parent:** [ADR-059](../../03-adrs/adr-059-viewport-road-overlay-selection-boundary.md)
+**Related:** ADR-045, ADR-058, DS-029, DS-031, DS-032, DS-035, DS-061, EXEC-060
 
 ---
 
 ## 1. Purpose
 
-This specification defines Lanterne's single route truth and score-ledger pipeline.
+This specification defines the target typed selection and view-model layer for
+production road-overlay exploration.
 
-It closes the ambiguity between selected route evidence, stable route facts, score ledgers, ActiveTruthView, paint policies, and presentation panes.
+The goal is to let the viewport road overlay explain what was selected without making
+`RoadInfoCard` or `RoadInfoOverlay` parse DS-035 tags directly, and without changing
+analyzed route-line click semantics.
 
-The final pipeline is exactly:
+Phase 1 is length-only. The model intentionally leaves extension slots for future
+metric comparisons, but those future metrics are not part of the Phase 1 MVP.
+
+---
+
+## 2. Scope
+
+In scope:
+
+- viewport road-overlay clicks
+- DS-035/substrate metadata normalization for card and highlight presentation
+- selected visual slice versus available/corridor aggregate distinction
+- length-only Phase 1 metric
+- heatmap/stress colors off and on behavior
+- card/overlay view model
+- highlight plan owned by the overlay controller
+- diagnostics for missing, invalid, or fallback metadata
+
+Out of scope:
+
+- analyzed route-line clicks
+- route hitbox behavior
+- `RouteSurfaceTruthBundle`
+- `RouteOwnershipSpan`
+- route-indexed evidence
+- score-bearing evidence selection
+- source-of-record hydration
+- cache/history authority changes
+- mutating heatmap/stress-scoring truth
+- using `HeatmapSegment` as the canonical selection model
+- traffic, speed, elevation, or other metric implementation
+
+---
+
+## 3. Source Inputs
+
+The normalizer may accept the existing road-overlay compatibility inputs:
+
+- clicked `SpeedRoad`
+- click latitude/longitude
+- current overlay source mode, such as `road-cache` or `bbox`
+- current `renderMode`, such as neutral exploration or heatmap-colored exploration
+- current generation or render key
+- available rendered/source roads for corridor-member lookup
+- DS-035 metadata carried through typed payloads where available
+- DS-035 compatibility tags only inside the normalizer
+
+The normalizer may read these DS-035 compatibility tags while the runtime is still
+using `SpeedRoad`:
+
+- `_substrate_corridor_id`
+- `_substrate_corridor_display_name`
+- `_substrate_corridor_member_count`
+- `_substrate_corridor_source_way_ids`
+- `_substrate_corridor_total_length_m`
+
+Card components, overlay components, route inspection components, and drawer
+components must not parse these tags.
+
+---
+
+## 4. Core Model
+
+These names are the target implementation vocabulary. The shapes below are
+illustrative contracts, not a requirement to implement this documentation phase.
+
+### 4.1 `RoadOverlaySourceRoad`
+
+Responsibility: wrap the clicked viewport road and runtime context without declaring
+route truth.
+
+Fields should include:
+
+- stable source road id
+- display name and road type
+- clicked geometry or feature key
+- geometry length estimate for the selected visual slice
+- click coordinates
+- source mode
+- render mode
+- generation/render revision
+- raw `SpeedRoad` only as compatibility input, not as card contract
+
+### 4.2 `RoadOverlaySubstrateMetadata`
+
+Responsibility: normalized DS-035/substrate corridor metadata with explicit validity.
+
+Suggested fields:
+
+- `corridorId`
+- `corridorDisplayName`
+- `corridorSourceWayIds`
+- `corridorMemberCount`
+- `corridorTotalLengthM`
+- `aggregateScope`
+- `metadataSource`
+- `valid`
+- `diagnostics`
+
+`corridorTotalLengthM` is nullable. Missing, zero, negative, non-numeric, or
+contradictory values must remain invalid or unknown.
+
+### 4.3 `RoadOverlaySelectedSlice`
+
+Responsibility: describe the clicked visual slice.
+
+Suggested fields:
+
+- `featureKey`
+- `sourceRoadId`
+- `sourceWayId`
+- `selectedSliceLengthM`
+- `lengthSource`
+- `clickLat`
+- `clickLng`
+- `renderMode`
+- `selectionMode`
+- `diagnostics`
+
+`selectedSliceLengthM` can be approximate when derived from rendered geometry. The
+view model must be able to label or suppress approximate values.
+
+### 4.4 `RoadOverlayCorridorAggregate`
+
+Responsibility: describe the available road/corridor aggregate when known.
+
+Suggested fields:
+
+- `corridorId`
+- `displayName`
+- `sourceWayIds`
+- `memberCount`
+- `corridorTotalLengthM`
+- `aggregateScope`
+- `availableFeatureKeys`
+- `diagnostics`
+
+`aggregateScope` must make the claim narrow. Examples:
+
+- `substrate_corridor`
+- `available_viewport_corridor`
+- `single_source_road`
+- `unknown`
+
+If the runtime only knows the loaded viewport subset, it must not label that subset as
+the full corridor. Do not imply full-corridor geometry is loaded unless the available
+corridor geometry is actually present.
+
+### 4.5 `RoadOverlayMetricComparison`
+
+Responsibility: compare a selected metric to an aggregate metric without baking in
+length-only assumptions.
+
+Suggested fields:
+
+- `metricKey`
+- `metricLabel`
+- `unit`
+- `selectedMetric`
+- `aggregateMetric`
+- `aggregateScope`
+- `displayMode`
+- `diagnostics`
+
+Phase 1 allowed metric:
+
+- `length`
+
+Future possible metrics, each requiring a separate EXEC before implementation:
+
+- traffic: selected traffic value versus corridor average
+- speed: selected speed value versus corridor average
+- elevation: selected gain/loss versus corridor aggregate
+
+### 4.6 `RoadOverlaySelection`
+
+Responsibility: the canonical runtime selection object for road-overlay clicks.
+`RoadOverlaySelection` — not `HeatmapSegment` — is the canonical road-overlay selection
+model. `HeatmapSegment` is only a render input and must never be treated as the
+selection model.
+
+It combines:
+
+- `RoadOverlaySourceRoad`
+- `RoadOverlaySubstrateMetadata`
+- `RoadOverlaySelectedSlice`
+- optional `RoadOverlayCorridorAggregate`
+- one or more `RoadOverlayMetricComparison` entries (exactly one in Phase 1; see §9)
+- diagnostics
+
+It must carry `renderMode` and `selectionMode` so the card does not infer behavior
+from colors or tags.
+
+### 4.7 `RoadOverlaySelectionViewModel`
+
+Responsibility: stable card/overlay contract.
+
+Suggested fields:
+
+- display title
+- road type label
+- primary length label
+- optional comparison label
+- selected metric label
+- aggregate metric label
+- unknown/fallback label
+- rider-facing caveat when the aggregate is unavailable
+- compact diagnostics for admin/debug only
+
+The view model exposes only display strings; it carries no feature keys or style
+tokens (those live only on `RoadOverlayHighlightPlan`), so the card cannot target or
+mutate Leaflet layers.
+
+The view model, not the card component, decides whether to show:
+
+- `27.8 mi`
+- `2.3 of 27.8 mi`
+- `2.3 mi selected`
+- `Length unavailable`
+
+### 4.8 `RoadOverlayHighlightPlan`
+
+Responsibility: tell the overlay controller what to emphasize and what to clear.
+
+Suggested fields:
+
+- selected feature keys
+- aggregate feature keys
+- selected style token
+- aggregate style token
+- clear behavior
+- owner/controller id
+- generation/render revision
+- diagnostics
+
+The card never mutates Leaflet layers. Highlight state clears when the card is
+dismissed, the road overlay is disabled, roads are hidden, source generation changes,
+or map mode resets.
+
+---
+
+## 5. Naming Discipline
+
+Use these names consistently:
+
+- `selectedSliceLengthM`
+- `corridorTotalLengthM`
+- `selectedMetric`
+- `aggregateMetric`
+- `aggregateScope`
+- `renderMode`
+- `selectionMode`
+
+Avoid ambiguous names such as `length`, `total`, `roadLength`, `selectedRoadLength`,
+or `corridorLength` in public contracts when the selected-slice versus aggregate
+distinction matters.
+
+---
+
+## 6. Render And Selection Modes
+
+Suggested `renderMode` values:
+
+- `neutral_road_explore`
+- `heatmap_colored`
+
+Suggested `selectionMode` values:
+
+- `aggregate_only`
+- `slice_of_aggregate`
+- `single_road_fallback`
+- `unknown`
+
+The normalizer sets these explicitly. Cards do not infer them from color, speed band,
+source mode, or tag presence.
+
+---
+
+## 7. Heatmap Off Behavior
+
+When heatmap/stress colors are off:
+
+- road-explore mode renders neutral/dark clickable substrate roads
+- clicking a road selects the whole available road/corridor aggregate when the
+  aggregate is explicitly known
+- the highlight plan emphasizes the available corridor members, not only the clicked
+  rendered line, when member feature keys are available
+- the card shows the aggregate length only, such as `27.8 mi`
+- the card does not show `selected of aggregate` copy
+
+If aggregate metadata is missing or invalid, the view model must fall back to the
+known selected road/slice length and avoid claiming it is the full corridor.
+
+---
+
+## 8. Heatmap On Behavior
+
+When heatmap/stress colors are on:
+
+- a clicked heatmap-colored line is the selected visual slice
+- the corridor aggregate remains a separate model object
+- the card can show selected slice versus aggregate, such as `2.3 of 27.8 mi`
+- the selected slice receives the strongest highlight
+- the aggregate may receive a secondary halo or thickened context highlight when the
+  runtime can identify available member features
+
+If the aggregate is unavailable, invalid, or narrower than the selected slice, the
+view model must avoid `of corridor` copy and emit a diagnostic.
+
+---
+
+## 9. Phase 1 Metric
+
+Phase 1 implements only length, and emits exactly one `RoadOverlayMetricComparison`
+entry:
+
+- `metricKey` = `length`
+- selected metric = `selectedSliceLengthM`
+- aggregate metric = `corridorTotalLengthM`
 
 ```text
-CanonicalRouteAxis
-  -> RouteIndexedEvidenceLedger
-  -> TruthSelectionBuilders / RouteBuilders
-  -> RouteSurfaceTruthBundle
-  -> RigidScoreLedger
-  -> ScoreInterpretationProjection
-  -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection
-  -> PresentationPanes
+selectedSliceLengthM -> corridorTotalLengthM
 ```
 
-*(Amendment 2026-06-30 — P07A: `ScoreInterpretationProjection` (P05B) added to the canonical pipe; previously omitted because §1 predates the P05A/P05B amendments. `ActiveTruthView` lives under `src/lib/traffic-spine/active-truth-view/` (public import `@/lib/traffic-spine/active-truth-view`), not legacy `src/lib/active-truth/`. The canonical active view carries the full route-surface safety truth stack: traffic exposure, speed, shoulder, facility/path-domain, roadway-curve class, crossing-risk inputs, RigidScoreLedger outputs, contribution trace, confidence trace, risk bucket projection, notable-driver projection, and public confidence projection.)*
+All other `metricKey` values (for example traffic, speed, elevation, grade, shoulder,
+bike-infra, or safety score) are future-only and require a separate EXEC before
+implementation. No Phase 1 implementation may add a second metric comparison entry or
+any non-`length` metric to the road-overlay selection model.
 
-There is one pipe. Each stage has exactly one authority. The ActiveScoreLedger is the only rider-facing semantic score authority.
-
----
-
-## 2. Terminology Matrix
-
-| Term | Final status |
-| --- | --- |
-| CanonicalRouteAxis | sole route measurement axis |
-| RouteIndexedEvidenceLedger | sole route-evidence authority |
-| Truth Selection Builders | sole evidence selection stage |
-| RouteBuilders | grouping for docs-defined truth builders |
-| RouteSurfaceTruthBundle | sole selected stable-fact bundle |
-| RigidScoreLedger | sole stable scoring authority |
-| score trace | immutable constituent of RigidScoreLedger |
-| ActiveScoreLedger | sole rider-facing semantic score authority |
-| ActiveTruthView | non-authoritative mechanical projection of ActiveScoreLedger |
-| presentation DTO | non-authoritative projection payload |
-| truthRuns | delete as semantic authority; geometry adapter only if still required |
-| truthSegments | delete as semantic authority; presentation geometry only if required |
-| routeSpeedSegments | delete as semantic authority |
-| HeatmapSegment | presentation/interaction container only |
-| displaySegmentsByZoom | presentation geometry only |
-| QuickPaint | presentation policy |
-| RobustPaint | presentation policy |
-| route_cache | canonical artifact transport only |
-| route_history | canonical artifact transport only |
-
-There is no deprecated compatibility authority as a permitted final state.
+Length display uses the existing unit preference path where practical, but the
+selection model stores meters.
 
 ---
 
-## 3. Single-Authority Counts
+## 10. Future Metric Extension Slots
 
-Required final counts:
+Future metrics must use the same `RoadOverlayMetricComparison` contract and must
+define:
 
-```text
-canonicalRouteAxesPerRouteRevision = 1
-authoritativeRouteIndexedEvidenceLedgersPerAnalysisRevision = 1
-authoritativeTruthSelectionPipelinesPerAnalysisRevision = 1
-authoritativeRouteSurfaceTruthBundlesPerAnalysisRevision = 1
-authoritativeRigidScoreLedgersPerScoringRevision = 1
-authoritativeActiveScoreLedgersPerScenarioRevision = 1
-authoritativeRiderFacingSemanticSourcesPerScenarioRevision = 1
-```
+- selected metric source
+- aggregate metric source
+- unit
+- aggregate scope
+- availability rules
+- invalid/fallback behavior
+- diagnostics
+- rider-facing copy
+- tests
 
-Required final zero counts:
+Examples:
 
-```text
-independentActiveTruthAuthorities = 0
-independentReadModelAuthorities = 0
-independentScoreTraceAuthorities = 0
-presentationEvidenceSelectors = 0
-presentationScorers = 0
-presentationFallbackAuthorities = 0
-QuickPaintScoreAuthorities = 0
-RobustPaintScoreAuthorities = 0
-cacheScoreAuthorities = 0
-historyScoreAuthorities = 0
-receiptReconstructionAuthorities = 0
-legacyRiderFacingTruthAuthorities = 0
-```
+- traffic: `2/min of 5/min avg`
+- speed: `25 mph of 40 mph avg`
+- elevation: `+25 ft of -478 ft`
+
+Each future metric requires a separate EXEC and review gate.
 
 ---
 
-## 4. CanonicalRouteAxis
+## 11. Normalization Diagnostics
 
-`CanonicalRouteAxis` is the sole route measurement axis for a route revision.
+The normalizer must preserve uncertainty. Suggested diagnostics include:
 
-Responsibilities:
+- `raw_tag_fallback_used`
+- `missing_corridor_id`
+- `missing_corridor_total_length_m`
+- `invalid_corridor_total_length_m`
+- `missing_corridor_source_way_ids`
+- `member_count_mismatch`
+- `aggregate_not_loaded`
+- `selected_slice_length_approximated`
+- `selected_slice_exceeds_aggregate`
+- `single_road_fallback`
+- `route_truth_not_consulted`
 
-- define canonical route distance in meters
-- define half-open route intervals `[startDistM, endDistM)`
-- map route intervals to route geometry for downstream projection and rendering
-- preserve route revision identity
-
-Forbidden:
-
-- evidence selection
-- scoring
-- fallback
-- presentation formatting
-- cache/history truth authority
-
-Raw GPX point index, matcher sample index, OSM way id, HPMS row id, HeatmapSegment id, display segment id, and presentation geometry id are never canonical route join keys.
+Diagnostics are not rider-facing by default. They are for tests, debug views, and
+review reports.
 
 ---
 
-## 5. RouteIndexedEvidenceLedger
+## 12. Invalid, Unknown, And Fallback Behavior
 
-`RouteIndexedEvidenceLedger` is the sole route-evidence authority.
+The model must not overclaim.
 
-It consumes only:
+Rules:
 
-- CanonicalRouteAxis identity
-- normalized source projection outputs
+1. If `corridorTotalLengthM` is missing, invalid, or non-positive, do not show a full
+   corridor length.
+2. If source way ids are missing, do not highlight non-clicked corridor members.
+3. If aggregate scope is only the loaded viewport subset, label it as available or
+   viewport-scoped, not full corridor truth.
+4. If selected slice length is approximate, keep that approximation in diagnostics
+   and allow the view model to soften the display.
+5. If selected slice length exceeds aggregate length after normalization, suppress the
+   comparison and emit a diagnostic.
+6. If all length facts are unavailable, show an unavailable state rather than
+   guessing.
 
-It owns:
-
-- route-indexed evidence candidates
-- layer ids
-- typed values and units
-- route interval or point binding
-- source lineage
-- provenance
-- confidence
-- source record identity
-- projection diagnostics
-- selection eligibility
-- scoring eligibility
-- unresolved diagnostics
-
-It owns only **route-indexed source-evidence candidates** (authoritative direct source measurements) and typed unresolved source evidence admitted through the P01/P02 source pipeline. It does **not** own completion-stage derived/model candidates (`authoritative_inferred`, `local_area_predicted`, `highway_baseline`); those are constructed later, by `completeTrafficCandidateSet(...)`, and live in `CompletedTrafficCandidateSet` — never in this ledger.
-
-It may not:
-
-- select stable truth
-- score
-- infer provider labels for presentation
-- read presentation state
-- query route cache/history as truth
-- create Highway Baseline, local-area predictions, or relationship-inferred candidates
-- accept any completion-stage derived/model candidate written back from P03
-
-**Highway Baseline placement (supersedes the older rule; see §16).** Highway Baseline is **not** a `RouteIndexedEvidenceLedger` source-evidence candidate and must **not** enter or be written back into the ledger. It is a typed pre-selector candidate that must exist before `selectStableTraffic(...)` evaluates it, constructed only by `completeTrafficCandidateSet(...)` under the versioned authority-approved policy (DS-029 Appendix L), living only in `CompletedTrafficCandidateSet`. It must not first appear in `selectStableTraffic(...)`, RouteSurfaceTruthBundle, RigidScoreLedger, ActiveScoreLedger, receipts, presentation, cache hydration, or history hydration, and it must retain model/provider/table identity and exact lookup proof. (The earlier wording that Highway Baseline "must enter as a ledger candidate before truth selection" is superseded by §16 and DS-029 Appendix L: it is a completion-stage candidate, not a ledger source-evidence candidate.)
-
-A lane-count item may populate only lane semantics. A traffic-AADT item may populate only traffic semantics. No dimensional inference may occur because two fields both contain numbers.
+Unresolved and unavailable are valid states.
 
 ---
 
-## 6. TruthSelectionBuilders / RouteBuilders
+## 13. Source Lineage And Provenance Discipline
 
-`TruthSelectionBuilders / RouteBuilders` are the sole evidence selection and stable fact construction stage.
+Road-overlay selection may identify that a road came from DS-035 substrate-backed
+viewport data, cache-backed viewport data, or bbox hydration. That is runtime source
+context only.
 
-They consume only:
-
-- RouteIndexedEvidenceLedger public contracts
-- CanonicalRouteAxis public contracts
-
-They produce only:
-
-- selected stable route facts
-- rejected evidence refs
-- conflict spans
-- unresolved spans
-- stable receipts
-- immutable builder artifacts for RouteSurfaceTruthBundle
-
-They may:
-
-- select stable truth according to DS-029/DS-031/DS-055/DS-067 policies
-- build exact atomic route boundaries from selected evidence boundaries
-- preserve source lineage, provenance, confidence, and rejected refs
-- emit blockers
-
-They may not:
-
-- fetch external evidence
-- read source clients
-- inspect React or Leaflet state
-- inspect display segments
-- score
-- choose risk buckets
-- rank notable drivers
-- create provider labels
-- round values
-- build presentation strings
-- repair missing traffic outside selection policy
-- create scoring fallback
-- mutate RouteIndexedEvidenceLedger
-- read route cache/history as truth
-
-Builder blockers remain blockers. They must not be converted into guessed score-bearing truth.
+It must not claim scoring provenance, source-of-record authority, or route evidence
+validity. DS-031 and DS-029 provenance concepts remain separate from this view model.
 
 ---
 
-## 7. RouteSurfaceTruthBundle
-
-> **Package boundary (Amendment 2026-06-25 — P04A).** The traffic-spine
-> `RouteSurfaceTruthBundle` is owned by the new package root
-> **`src/lib/traffic-spine/route-surface-truth/`** (import
-> `@/lib/traffic-spine/route-surface-truth`). The pre-existing legacy
-> `src/lib/route-surface-truth/**` (which has its own legacy `RouteSurfaceTruthBundle`)
-> is **not** the traffic-spine P04 authority and must not be imported, modified, or
-> barrel-exported through by P04 production. The new type is scoped by its import path;
-> the same-named legacy type stays legacy. P04 semantics are unchanged: selected truth
-> only, verbatim `TrafficExposureBasis`, no conversion, no scoring.
-
-`RouteSurfaceTruthBundle` is the sole selected stable-fact bundle.
-
-It carries selected route facts and their receipt lineage. It is not a score ledger and is not the rider-facing semantic score source.
-
-It may contain:
-
-- selected road ownership
-- selected traffic baseline
-- selected speed
-- selected bike infrastructure
-- selected shoulder
-- selected surface
-- selected stable hazards when authorized
-- selected fact receipts
-- rejected evidence refs
-- unresolved and conflict spans
-
-It may not contain:
-
-- Road Risk
-- Crossing Risk
-- Total Risk
-- Risk Per Mile
-- active scenario score state
-- presentation formatting
-- QuickPaint or RobustPaint output
-- route cache/history authority
-
----
-
-## 8. RigidScoreLedger
-
-`RigidScoreLedger` is the sole stable scoring authority.
-
-It consumes only RouteSurfaceTruthBundle outputs and documented scoring policy inputs. It may not consume raw source records, evidence candidates directly, React state, Leaflet layers, HeatmapSegment, cache payloads, history payloads, compact display values, presentation labels, QuickPaint output, or RobustPaint output.
-
-RigidScoreLedger owns:
-
-- exact unrounded score inputs
-- exact factor contributions
-- mitigation inputs
-- Road Risk
-- Crossing Risk
-- Total Risk
-- Risk Per Mile where applicable
-- deterministic tie-breaks
-- scoring-model version
-- traffic-formula version
-- upstream RouteSurfaceTruthBundle identity
-- upstream RouteIndexedEvidenceLedger evidence identity
-- calculation receipts
-- immutable score trace
-
-No other module may independently calculate canonical Road Risk, Crossing Risk, Total Risk, Risk Per Mile, or canonical score trace.
-
-**Amendment 2026-06-27 — P05A (RigidScoreLedger Output Contract Correction).** Risk bucket and notable-driver ranking are **descoped from RigidScoreLedger v1** and deferred to **P05B** (interpretation / projection policy). RigidScoreLedger v1 owns Road Risk, Crossing Risk, Total Risk, Risk Per Mile, exact unrounded score inputs, scoring-model and traffic-formula versions, the immutable score trace, calculation receipts, and scored/blocked status. P05B may consume the RigidScoreLedger trace and receipts but must **not** rescore, reselect evidence, or modify canonical Road/Crossing/Total Risk or Risk Per Mile. P05B must define exact bucket thresholds, notable-driver sort keys, count limits, tie-breaks, and rider-facing semantics before any implementation; none are defined by this amendment. See `docs/04-execution/reports/p05a-rigid-score-ledger-output-contract-correction.md`.
-
-**Amendment 2026-06-28 — P05A2 (Contribution Trace Authority Clarification).** This amendment
-clarifies the nuance that P05A left implicit.
-
-*Rider-facing explanation is a projection. The contribution trace that makes explanation honest
-is part of the score ledger.*
-
-**P05 / RigidScoreLedger owns the immutable contribution trace.** The contribution trace is
-calculation evidence, not UI decoration. P05 must emit enough route-distance-indexed factor
-contribution data — including exact selected input values, exact factor values, and per-factor
-contributions to Road Risk or Crossing Risk — for P05B to rank notable drivers without rerunning
-scorer logic. The minimum required contribution trace fields are specified in DS-015 §5 (Amendment
-2026-06-28 — P05A2).
-
-**P05B owns bucket threshold projection and notable-driver ranking projected from P05 trace and
-receipts only.** P05B may not:
-- rescore or reselect evidence;
-- call scorer internals;
-- read `HeatmapSegment` as explanation authority;
-- use any presentation cache as explanation authority;
-- read `RouteSurfaceTruthBundle` directly as an explanation source;
-- invent notable-driver ranking from any source other than the P05 contribution trace and receipts.
-
-**Presentation consumes P05B / ActiveTruthView outputs. Presentation must not fall back to
-render-time scoring or recomputation.** Certified spine output with no explanation trace means no
-notable-driver output, not a presentation fallback recomputation. No legacy bridge, no
-render-time fallback, no `HeatmapSegment` explanation authority, and no `sectionDecisionModel`
-scorer calls are permitted at any presentation layer.
-
-**Future route-intelligence families may reuse the route-indexed contribution-trace architecture
-but must not contaminate the narrow motor-vehicle Safety Score.** Remoteness, fatigue, weather,
-wind, light, and similar families need their own authority, score/interpretation boundary, and
-product semantics. Safety remains narrowly motor-vehicle collision risk and injury severity unless
-a future accepted authority changes that scope.
-
-See `docs/04-execution/reports/p05a2-rigid-score-ledger-contribution-trace-authority.md`.
-
-**Amendment 2026-06-28 — P05A3 (RigidScoreLedger Confidence Output Requirement).** The
-RigidScoreLedger contract now **requires confidence output** beside the numeric score.
-
-*The public model should be able to say: "Here is the risk prediction and the receipts for why.
-Here is the confidence in that prediction and the receipts for why."*
-
-**P05 / RigidScoreLedger owns:**
-- the numeric score ledger (Road Risk, Crossing Risk, Total Risk, Risk Per Mile);
-- the immutable contribution trace (P05A2);
-- calculation receipts;
-- the **confidence trace** (`roadRiskConfidenceTrace`, `crossingRiskConfidenceTrace`);
-- the **confidence summary** (`scoreConfidenceStatus`, `scoreConfidenceLevel`, per-input-family
-  confidence coverage, risk-weighted and distance-weighted confidence distributions);
-- the **confidence receipts** explaining why confidence is `high` / `medium` / `low` / `unresolved`.
-
-The exact confidence outputs and the v1 aggregation are specified in DS-015 §9A (Amendment
-2026-06-28 — P05A3), using the DS-029 canonical confidence ordinal `high` / `medium` / `low` /
-`unresolved` (DS-029 §5.5, Appendix A.6).
-
-**P05B owns the later rider-facing projection of:**
-- risk bucket labels;
-- notable-driver labels and ranking;
-- **public confidence labels and copy** (projected from the P05 confidence trace and confidence
-  receipts only).
-
-**Clarifications:**
-- Confidence is **public-eligible** and must not be treated as admin/debug-only.
-- Confidence receipts explain why confidence is `high` / `medium` / `low` / `unresolved`.
-- **Confidence is not a score modifier.** It does not alter Road Risk, Crossing Risk, Total Risk,
-  or Risk Per Mile (DS-015 §9A.1). Low confidence does not make a dangerous road safer; high
-  confidence does not make a road more dangerous.
-- **Presentation may not compute a confidence fallback** from `HeatmapSegment`, presentation state,
-  or any cache. If the ledger lacks confidence, presentation shows no confidence — it does not
-  synthesize one.
-- **No legacy adapter is authorized** for confidence (or for score, trace, or receipts).
-
-See `docs/04-execution/reports/p05a3-ds015-ds029-ds067-reconciliation.md`.
-
----
-
-## 9. ActiveScoreLedger
-
-`ActiveScoreLedger` is the sole rider-facing semantic score authority.
-
-It consumes only:
-
-- RigidScoreLedger revisions
-- explicitly documented active-scenario inputs
-
-For a default/non-temporal route view, the active scenario is the default scenario revision that preserves the RigidScoreLedger semantics unchanged.
-
-ActiveScoreLedger may:
-
-- select the active scenario revision
-- expose rider-facing semantic score entries
-- preserve RigidScoreLedger lineage
-- preserve upstream RouteSurfaceTruthBundle and evidence lineage
-- preserve immutable revision/digest identity
-
-ActiveScoreLedger may not:
-
-- read RouteIndexedEvidenceLedger candidates
-- select evidence
-- rerun RouteBuilders
-- repair rigid scores
-- invent traffic
-- invent speed
-- apply undocumented temporal logic
-- change scoring formulas
-- change provider identity
-- use display-rounded values
-- accept QuickPaint or RobustPaint as inputs
-
-Every active score entry must retain lineage to:
-
-- one RigidScoreLedger entry
-- its upstream RouteSurfaceTruthBundle artifact
-- its upstream RouteIndexedEvidenceLedger entries
-- the scoring-model version
-- the active-scenario identity
-- immutable revision and digest
-
----
-
-## 10. Mechanical ActiveTruthView
-
-ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
-
-> **Package-root, ownership scope, expanded semantics, and digest normalization (Amendment
-> 2026-06-30 — P07A).**
->
-> The promoted P06 implementation delivers this mechanical projection under
-> **`src/lib/traffic-spine/active-truth-view/`** (public import
-> `@/lib/traffic-spine/active-truth-view`) with public constructor `buildActiveTruthView`.
-> This package is distinct from — and must not import — the legacy `src/lib/active-truth/`
-> package (which is frozen and non-authoritative for this pipeline). P07A topology
-> reconciliation accepts this package root.
->
-> **ActiveTruthView does not own** semantic score identity, scoring, bucket threshold policy,
-> notable-driver ranking, confidence calculation, provider inference, receipt construction, or
-> runtime cutover. These belong exclusively to upstream certified authorities: `RigidScoreLedger`
-> (P05), `ScoreInterpretationProjection` (P05B), and `ActiveScoreLedger` (P06).
->
-> **Expanded semantic scope.** The canonical ActiveTruthView now carries the full
-> route-surface safety truth stack: traffic exposure, speed, shoulder, bike
-> facility/path-domain, roadway-curve class, crossing-risk inputs, `RigidScoreLedger` outputs,
-> contribution trace, confidence trace, risk bucket projection, notable-driver projection, and
-> public confidence projection. Downstream consumers (inspector, receipt, summary, cue,
-> explanation, route-line) must consume `ActiveTruthView` for all canonical score-bearing and
-> explanation-bearing semantics — not just traffic/provider fields.
->
-> **Digest-language normalization.** The "parent ActiveScoreLedger digest" in the carry list
-> below and the `parentActiveScoreLedgerDigest` invariant are normalized as follows: the active
-> view must preserve the parent ActiveScoreLedger id/revision and the upstream RigidScoreLedger
-> digest reference carried through the binding. A separate `activeScoreLedgerDigest` field is
-> deferred as a named cleanup item — it is not required unless a future explicitly accepted
-> authority adds it. The independent P06 skeptical review accepted the current lineage model
-> (parent id/revision + upstream ledger digest ref in the binding) as sufficient. This is a
-> non-blocking cleanup item and is not a P06 or P07 blocker.
-
-Conceptual function *(constructor name superseded — see amendment above; live implementation: `buildActiveTruthView({ activeScoreLedger }) -> { activeTruthView }`)*:
-
-```text
-projectActiveScoreLedgerRevision(          /* superseded by buildActiveTruthView (Amendment 2026-06-30 — P07A) */
-  activeScoreLedgerRevision,
-  presentationProjectionRequest
-) -> ActiveTruthView
-```
-
-It may only:
-
-- select fields already present in an ActiveScoreLedger entry
-- select entries by canonical route-distance identity
-- organize those fields into a presentation-consumable shape
-- omit fields irrelevant to a specific pane
-- preserve exact semantic values
-- preserve exact receipt and lineage references
-- preserve the parent ActiveScoreLedger identity
-
-It may not:
-
-- select evidence
-- apply precedence
-- construct Highway Baseline
-- derive scoring traffic
-- derive AADT per lane
-- invoke scoring
-- apply risk thresholds
-- choose a risk bucket
-- rank notable drivers
-- infer source provider
-- substitute selection class for provider
-- substitute confidence for provider
-- repair unknown or unresolved values
-- borrow neighboring values
-- apply fallback
-- round a value that will later participate in calculation
-- create receipts
-- mutate ActiveScoreLedger
-- persist separate semantic state
-- become cache or history authority
-
-Every ActiveTruthView must carry:
-
-- parent ActiveScoreLedger id
-- parent ActiveScoreLedger revision
-- parent ActiveScoreLedger digest *(see digest-language normalization in the amendment above; a separate `activeScoreLedgerDigest` field is deferred; the upstream RigidScoreLedger digest ref carried through the binding satisfies this requirement until a future explicit addition)*
-- active scenario id/version
-- source ActiveScoreLedger entry ids
-- canonical route intervals
-- upstream receipt ids
-
-ActiveTruthView must not possess an independent semantic identity.
-
-Required digest invariant *(normalized — see amendment above)*:
-
-```text
-activeTruthView.parentActiveScoreLedgerDigest
-  === activeScoreLedger.digest
-```
-
-*(Amendment 2026-06-30 — P07A: the live P06 binding carries parent ActiveScoreLedger id/revision
-and upstream RigidScoreLedger digest ref. A separate `activeScoreLedgerDigest` field is deferred.
-This invariant is understood as: the view must faithfully preserve parent ASL id/revision and the
-upstream ledger digest refs carried through the binding.)*
-
-A projection may optionally carry a non-authoritative structural checksum for transport corruption detection. That checksum is not a truth identity, is not a score identity, cannot be persisted as canonical analysis, cannot choose between competing values, and cannot make the projection authoritative.
-
----
-
-## 11. PresentationPane Subscriber Contract
-
-Presentation panes publish from ActiveTruthView only.
-
-Presentation panes include:
-
-- RouteMap
-- SegmentInspector
-- RoadInfoCard
-- TruthSection
-- receipt panes
-- score summaries
-- route summaries
-- cue-associated risk displays
-- QuickPaint
-- RobustPaint
-- future temporal presentation surfaces
-
-They may:
-
-- render exact ActiveTruthView values
-- format units
-- apply locale formatting
-- round final displayed values
-- map an upstream canonical risk-style token to CSS
-- aggregate geometry for rendering only
-- animate or progressively reveal already-published facts
-
-They may not:
-
-- access RouteIndexedEvidenceLedger
-- access evidence candidates
-- invoke TruthSelectionBuilders or RouteBuilders
-- access RouteSurfaceTruthBundle as an alternate rider-facing source
-- access RigidScoreLedger as an alternate rider-facing source
-- invoke scoring
-- calculate risk
-- calculate risk deltas
-- choose notable drivers
-- derive traffic exposure
-- create source labels from generic fallback chains
-- reconstruct receipts
-- persist semantic truth
-- cache their own score interpretation
-
-No pane may use another pane's output as input.
-
----
-
-## 12. QuickPaint And RobustPaint
-
-QuickPaint and RobustPaint are presentation policies over the same ActiveTruthView projection from the same ActiveScoreLedger revision.
-
-They may differ only in:
-
-- draw scheduling
-- animation
-- reveal timing
-- render density
-- zoom aggregation
-- geometric simplification that does not cross semantic boundaries
-- visual performance strategy
-
-They must share:
-
-- parent ActiveScoreLedger id
-- parent ActiveScoreLedger revision
-- parent ActiveScoreLedger digest
-- ActiveScoreLedger entry ids
-- route intervals
-- evidence lineage
-- score inputs
-- Road Risk
-- Crossing Risk
-- Total Risk
-- Risk Per Mile
-- risk bucket
-- notable driver
-- source provider
-- provenance
-- confidence
-- selection classification
-- receipts
-
-There is no Quick evidence, Robust evidence, Quick RouteSurfaceTruthBundle, Robust RouteSurfaceTruthBundle, Quick RigidScoreLedger, Robust RigidScoreLedger, Quick ActiveScoreLedger, Robust ActiveScoreLedger, Quick fallback, Robust fallback, Quick cache truth, or Robust cache truth.
-
-A paint-mode toggle may not trigger source fetching, projection, ledger mutation, evidence selection, RouteBuilder execution, RigidScoreLedger construction, ActiveScoreLedger construction, cache hydration, history hydration, or rescoring.
-
----
-
-## 13. Hard-Cutover Deletion Contract
-
-The canonical pipe requires hard cutover. The new pipe must not feed the old semantic pipe through a permanent compatibility adapter.
-
-During isolated development:
-
-- the current production implementation may remain untouched
-- the new pipe may run only in tests and diagnostics
-- comparisons may be produced outside rider-facing presentation
-
-At production cutover:
-
-1. activate the new canonical pipe
-2. connect presentation solely through ActiveTruthView
-3. delete or strip all competing semantic authorities in the same cutover program
-4. invalidate incompatible cache/history artifacts
-5. do not retain a rider-facing fallback to the old semantic path
-
-Shadow comparison is allowed only when:
-
-- it is diagnostics-only
-- it cannot feed presentation
-- it cannot feed scoring
-- it cannot change selection
-- it cannot become cache/history truth
-- it is deleted when cutover certification completes
-
-Temporary compatibility code must have a named deletion gate, an owning execution item, a prohibition against rider-facing use, and required removal before production certification.
-
-The cutover must delete or semantically strip at minimum:
-
-- route-analysis score authority
-- route-analysis traffic fallback authority
-- truthRuns score authority
-- truthRuns evidence-selection authority
-- truthSegments score authority
-- routeSpeedSegments score authority
-- HeatmapSegment score authority
-- displaySegmentsByZoom score authority
-- heatmap risk calculation
-- cached display-risk fallback
-- receipt traffic reconstruction
-- receipt score reconstruction
-- inspector traffic repair
-- inspector speed repair
-- inspector scoring
-- sectionDecisionModel current-score calculation
-- sectionDecisionModel risk-threshold application
-- routeScoreExplanation independent notable-driver ranking
-- presentation traffic-exposure derivation
-- generic sourceLabel fallback chains
-- route_cache score reconstruction
-- route_history score reconstruction
-- QuickPaint semantic output
-- RobustPaint semantic output
-- any alternate score trace
-- any independent sealed read-model authority
-
-A surviving structure may remain only when reduced to a pure mechanical presentation or geometry container.
-
-For example, Heatmap/display geometry may survive only if:
-
-- it is produced from ActiveTruthView
-- it carries parent ActiveScoreLedger ids
-- it carries no independent scoring logic
-- it carries no independent evidence selection
-- it carries no fallback
-- its risk style is copied mechanically from upstream
-- it cannot be persisted as canonical semantic truth
-
-Do not label old semantic authority deprecated and leave it executable. Delete it or strip it.
-
----
-
-## 14. Package Dependency DAG
-
-Required dependency direction:
-
-```text
-source normalization / route projection
-  -> RouteIndexedEvidenceLedger
-  -> TruthSelectionBuilders / RouteBuilders
-  -> RouteSurfaceTruthBundle
-  -> RigidScoreLedger
-  -> ScoreInterpretationProjection
-  -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection   # src/lib/traffic-spine/active-truth-view/ (Amendment 2026-06-30 — P07A)
-  -> PresentationPanes
-```
-
-*(Amendment 2026-06-30 — P07A: `ScoreInterpretationProjection` (P05B) added to the dependency DAG; previously omitted because §14 predates the P05B amendment. `ActiveTruthView` package root is `src/lib/traffic-spine/active-truth-view/**`, not legacy `src/lib/active-truth/**`.)*
-
-Forbidden reverse imports:
-
-- RouteIndexedEvidenceLedger -> RouteBuilders
-- RouteIndexedEvidenceLedger -> scoring
-- RouteIndexedEvidenceLedger -> ActiveScoreLedger
-- RouteIndexedEvidenceLedger -> presentation
-- RouteBuilders -> RigidScoreLedger implementation
-- RouteBuilders -> ActiveScoreLedger
-- RouteBuilders -> presentation
-- RigidScoreLedger -> ActiveScoreLedger implementation
-- RigidScoreLedger -> presentation
-- ActiveScoreLedger -> presentation implementation
-- PresentationPanes -> RouteIndexedEvidenceLedger
-- PresentationPanes -> RouteBuilders
-- PresentationPanes -> RigidScoreLedger as authority
-- PresentationPanes -> source clients
-
-Canonical packages must not import React, Leaflet, components, pages, RouteMap, SegmentInspector, heatmap display builders, receipt presentation builders, route cache, route history, QuickPaint, RobustPaint, presentation formatters, or source HTTP clients, except where this spec explicitly identifies the downstream presentation subscriber boundary.
-
----
-
-## 15. Cache And History
-
-`route_cache` and `route_history` may transport canonical artifacts only after they preserve the canonical artifact ids, revisions, digests, model versions, and invalidation policy required by the upstream authority.
-
-They may not reconstruct score, select evidence, repair missing values, create fallback traffic, infer provider labels, or become rider-facing semantic truth.
-
-Incompatible cache/history artifacts must be invalidated at cutover.
-
-## 16. Traffic Measurement Basis And Stage Ownership (Amendment 2026-06-25 — P03A)
-
-This section is controlling for traffic and aligns DS-067 with
-`DS-029` Appendix L and the EXEC-060 P03/P04/P05 gates. It resolves the P03
-authority gap without inventing a highway-class total-AADT table.
-
-### 16.1 Canonical selected unit
-
-The selected traffic unit carried through the pipeline is a typed
-`TrafficExposureBasis` (defined in `DS-029` Appendix L.2), with exactly two forms:
-
-- `total_aadt_with_lane_basis` — `totalAadt` (`vehicles_per_day`) plus `laneCount`
-  (`count`), retaining all `totalAadtCandidateIds` and `laneCountCandidateIds`.
-- `effective_right_lane_aadt` — `effectiveRightLaneAadt`
-  (`vehicles_per_day_per_lane`), with `sourceForm` of `authoritative_direct` or
-  `highway_class_proxy`.
-
-The canonical term is **effective right-lane AADT**; `aadtPerLane` is a
-compatibility alias only. Neither form is "total traffic" generically.
-
-### 16.2 Stage ownership
-
-The road-class context that P03 needs for `highway_baseline`, `local_area_predicted`,
-and `authoritative_inferred` enters as the `road_context` evidence layer **before** P03
-(Amendment 2026-06-25 — P02B; DS-031 §3.1, DS-029 Appendix M):
-
-```text
-P02B: OpenStreetMap highway=* tag / existing route-road source facts
-        -> project / admit route-indexed road_context evidence
-        -> RouteIndexedEvidenceLedger
-P03 : RouteIndexedEvidenceLedger (traffic_aadt + lane_count + road_context) + CanonicalRouteAxis
-        -> completeTrafficCandidateSet(...)
-        -> CompletedTrafficCandidateSet
-        -> selectStableTraffic(...)
-```
-
-**P02B — Road Context evidence (source projection / ledger admission):**
-
-- projects/admits route-indexed `road_context` spans (OSM `highway=*` class) and typed
-  unresolved `road_context` evidence into `RouteIndexedEvidenceLedger`;
-- is the only stage responsible for `road_context` admission;
-- performs no traffic selection, no scoring, no provider creation, no presentation, no
-  baseline lookup, no local prediction, and no P03 candidate completion.
-
-**P03 — TruthSelectionBuilders / RouteBuilders (`truth-selection/traffic`):**
-
-- `completeTrafficCandidateSet(...)` is the only completion authority; it consumes
-  only `RouteIndexedEvidenceLedger` public contracts (the `traffic_aadt`, `lane_count`,
-  and `road_context` layers), `CanonicalRouteAxis` public contracts, and immutable
-  versioned authority policy; it **may use** the public `road_context` layer for
-  road-class-dependent eligibility but may not query OpenStreetMap, read source clients,
-  read route-line internals, infer class from route name / HPMS facility type / geometry
-  alone, create `road_context`, or write `road_context` back into the ledger;
-- it constructs the documented completion-stage pre-selector candidates —
-  `authoritative_inferred`, `local_area_predicted`, and `highway_baseline` — which
-  live **only** in `CompletedTrafficCandidateSet` and are **not** written back into
-  `RouteIndexedEvidenceLedger`;
-- `selectStableTraffic(...)` consumes `CompletedTrafficCandidateSet` **only**; it does
-  not read the ledger directly, regenerate candidates, look up baseline values, infer,
-  predict, fetch, or score;
-- Highway Baseline must exist as a typed pre-selector candidate **before**
-  `selectStableTraffic(...)` executes;
-- constructs and selects one complete `TrafficExposureBasis` per atomic interval;
-- may combine exact compatible source facts into a complete basis **without
-  arithmetic** (no division, multiplication, Traffic Factor, or risk math);
-- may look up the versioned Highway Baseline effective-right-lane value
-  (`ds015-highway-class-proxy-effective-right-lane-aadt.v1`, DS-029 §L.4);
-- performs **no** total-to-per-lane and **no** per-lane-to-total conversion;
-- performs **no** Traffic Factor or risk calculation;
-- keeps every component candidate id, provider, provenance, confidence, and receipt
-  attached.
-
-**P04 — RouteSurfaceTruthBundle (Amendment 2026-06-25 — P04A; package root
-`src/lib/traffic-spine/route-surface-truth/`):**
-
-- consumes only the public P03 `StableTrafficSelectionResult`;
-- carries the selected `TrafficExposureBasis` **verbatim** into the bundle;
-- preserves all component candidate ids, providers, producer/model identity, provenance,
-  source type, confidence, road_context/road_identity/junction_context ids, completion
-  proof digest, and selection receipt id;
-- performs **no** conversion, **no** scoring, and **no** presentation formatting;
-- gates score-readiness (does not hand a blocked bundle to P05 as score-bearing truth).
-
-**P04 selected-scoring-input extension required before P05 (Amendment 2026-06-25 — P04B):**
-The P04 implementation to date carries selected **traffic** facts only. DS-015 scoring needs
-more selected score-bearing inputs than traffic alone, so P04 must be **extended** from a
-*selected traffic fact bundle* into a *selected DS-015 scoring input bundle* before P05 retries.
-This is an **input-availability** gap, not a formula-authority gap (DS-015 §8/§9 formulas are
-exact and remain owned solely by P05). The extension is delivered by explicit non-scoring
-subphases — **P04C-A** (selected speed input), **P04C-B** (selected shoulder + facility input),
-**P04C-C** (deterministic curvature input), **P04D** (selected crossing-risk input facts), and
-**P04E** (bundle extension carrying `RouteSurfaceTrafficFact` + `RouteSurfaceRoadRiskInputFact`
-+ `RouteSurfaceCrossingRiskInputFact` + complete DS-015 score-readiness). P04 remains
-**non-scoring** throughout; each subphase carries selected inputs only and applies no formula.
-Raw `junction_context` ids are evidence, not selected crossing-risk truth.
-
-**Curvature scoring-input correction (Amendment 2026-06-27 — P04C-C2).** The DS-015 §8/§9
-*formulas* are exact and P05-owned, but the selected **curvature input representation** the bundle
-must carry was under-specified. DS-015 `CurvatureFactor` (§8.4) scores **roadway curve severity**,
-not arbitrary route heading change — junction turns, intersection maneuvers, GPS / digitization
-wiggle, and cue-style route bends are **not** roadway curvature (DS-015 §8.4.1). The P04C-C **v1**
-fields `curvatureDegPerKm` / `maxSingleTurnDeg` are geometry-derived accumulated-heading-change
-**diagnostics** that over-report curvature; they are **not** the scoring representation, and **P05
-must not derive `CurvatureFactor` from them**. The accurate selected curvature input is a
-geometry-derived **roadway-curve classification** (circumcircle / radius-style detection,
-junction-masked, sustained-span). Sequencing: **P04C-C2-B** computes and carries that selected
-roadway-curve class, **P04E2** carries it through `RouteSurfaceRoadRiskInputFact`, and only then
-does **P05** map the selected class to `CurvatureFactor`. P05 remains **blocked** until the bundle
-carries the roadway-curve class; a heading-change metric alone does not unblock it. Official /
-state DOT curve-inventory evidence may later outrank geometry-derived classification (DS-015 §8.4.1)
-but is not implemented by this correction.
-
-**Curve-mask input authority (Amendment 2026-06-27 — P04C-C2-A2).** The first **P04C-C2-B**
-implementation attempt **correctly STOPPED with no commit**: the geometry-derived roadway-curve
-classification of DS-015 §8.4.1 requires a junction / maneuver mask, and that mask **cannot be
-reproduced from public route-axis geometry alone** (a route axis carries only per-segment geometry,
-not road identity, maneuvers, or path-domain context). The accurate mask depends on **route
-semantics** — road identity / same-road continuity, junction / maneuver events, path-domain
-transitions, and public route-family handoff context. These are **mask inputs, not scoring facts**:
-they decide only which geometry samples are excluded from classification, and never enter
-`CurvatureFactor`. **P04C-C2-B is therefore authorized to consume the public selected route-indexed
-identity / context artifacts — read-only, for masking only** — while still computing the curve class
-from route geometry. P04C-C2-B must not mutate or reselect those artifacts, must not score or
-compute `CurvatureFactor`, and must not reach legacy `route-analysis.ts`, legacy cue-sheet
-internals, legacy `conflict-events`, source packages, or P05 (nor import `route-geometry.ts` /
-shared scoring contracts as production dependencies). If a required mask input is missing for an
-interval, P04C-C2-B **fails closed** — block the interval or mark it insufficient mask context —
-and never treats unmasked geometry as score-ready curvature. **P04E2** carries the selected
-roadway-curve class **and** any mask-context blockers through `RouteSurfaceRoadRiskInputFact`;
-**P05** stays blocked until P04E2 carries a score-ready classification. Corrected sequencing:
-P04C-C2-A → **P04C-C2-A2** → P04C-C2-B → P04E2 → P05.
-
-**P04 package boundary (Amendment 2026-06-25 — P04A):** the traffic-spine P04 authority
-root is **`src/lib/traffic-spine/route-surface-truth/`** (public import
-`@/lib/traffic-spine/route-surface-truth`). The pre-existing **legacy** package
-`src/lib/route-surface-truth/**` (barrel `@/lib/route-surface-truth`, including its own
-legacy `RouteSurfaceTruthBundle` in `types.ts`) is **not** the traffic-spine P04 authority:
-P04 production may not modify, import, wrap, or barrel-export through it. The new
-traffic-spine `RouteSurfaceTruthBundle` is scoped by the new import path; the identically
-named legacy type remains legacy and non-authoritative for this pipeline. Legacy
-deletion/cutover is deferred to P10, not P04.
-
-**P05 — RigidScoreLedger (`rigid-score-ledger`):**
-
-- is the **sole** owner of traffic-input conversion and scoring math;
-- for `total_aadt_with_lane_basis`, derives effective right-lane AADT using the
-  versioned DS-015 formula (`effective right-lane AADT = total AADT / direction
-  divisor / directional lane count`);
-- for `effective_right_lane_aadt`, uses the selected value directly;
-- **never** multiplies effective-right-lane AADT by lane count to reconstruct a
-  total;
-- computes Traffic Factor, Road Risk, and downstream risk only after the basis is
-  certified;
-- records the measurement form and exact inputs in score receipts;
-- **consumes the traffic-spine P04 `RouteSurfaceTruthBundle` from
-  `@/lib/traffic-spine/route-surface-truth`** (Amendment 2026-06-25 — P04A), never the
-  legacy `@/lib/route-surface-truth` package; it refuses to score a bundle whose
-  `scoreReadiness` is `blocked`.
-
-**P05 retry entry gate and no-leak forbiddances (Amendment 2026-06-25 — P04B):** The first
-P05 attempt **stopped** because the P04 bundle carried selected traffic only and lacked the
-remaining selected DS-015 score-bearing inputs (speed, curvature, facility, shoulder, and all
-crossing-risk inputs). P05 retry requires a **P04E PROCEED** (the extended bundle carrying every
-selected score-bearing input required by the enabled DS-015 model). P05 remains the **sole**
-scorer and consumes **only** the traffic-spine P04 bundle. P05 must **not**:
-
-- read the `RouteIndexedEvidenceLedger`, the Durable Source Evidence Substrate (source-fact
-  cache/index), source-normalization, source-projection, source clients, or any evidence layer
-  (including `junction_context`) directly;
-- import or fall back to legacy scoring (`safety-scoring.ts`), `route-analysis`, or
-  `conflict-events`;
-- set a missing risk dimension (including Crossing Risk) to **zero** because its selected inputs
-  are absent — zero is allowed only for certified no-event truth per DS-015 §9.1;
-- publish **Road Risk as Total Risk**, or publish a partial Total Risk while Crossing Risk is
-  blocked (a blocked Crossing Risk blocks Total Risk and Risk Per Mile).
-
-Conversion is strictly one-directional and P05-owned:
-
-```text
-total_aadt_with_lane_basis  ->  effective_right_lane_aadt   (P05 only)
-```
-
-- P05 alone may derive effective right-lane AADT from a certified
-  `total_aadt_with_lane_basis`.
-- No stage, **including P05**, may derive or reconstruct total AADT from an
-  `effective_right_lane_aadt` basis.
-- An `effective_right_lane_aadt` value is consumed directly by P05.
-- Per-lane-to-total multiplication is prohibited everywhere.
-- P03 and P04 perform neither conversion.
-
-No other stage may perform these calculations. No stage may fabricate a total AADT
-from a per-lane proxy, fabricate a lane count, or reverse-multiply a per-lane value
-into a total.
-
-### 16.3 Road identity and junction context evidence for inferred carry (Amendment 2026-06-25 — P02C)
-
-`authoritative_inferred` traffic is **topology-bounded, not distance-decayed** (DS-029
-Appendix N). It requires two new spine-native route-indexed **evidence** layers,
-admitted **before** P03, exactly like `road_context`:
-
-```text
-P02C-A: OpenStreetMap name/ref/route-relation source facts
-          -> project / admit route-indexed road_identity evidence
-          -> RouteIndexedEvidenceLedger
-P02C-B: OpenStreetMap junction/crossing source facts
-          -> project / admit route-indexed junction_context evidence
-          -> RouteIndexedEvidenceLedger
-P03   : RouteIndexedEvidenceLedger
-          (traffic_aadt + lane_count + road_context + road_identity + junction_context)
-          + CanonicalRouteAxis
-          -> completeTrafficCandidateSet(...)
-          -> CompletedTrafficCandidateSet
-          -> selectStableTraffic(...)
-```
-
-**P02C-A — Road Identity evidence (source projection / ledger admission):**
-
-- projects/admits route-indexed `road_identity` spans (OSM `name`/`ref`/route-relation
-  corridor identity; DS-031 §3.2) and typed unresolved `road_identity` evidence;
-- is the only stage responsible for `road_identity` admission;
-- performs no traffic selection, no carry, no scoring, no provider creation, no
-  presentation.
-
-**P02C-B — Junction Context evidence (source projection / ledger admission):**
-
-- projects/admits route-indexed `junction_context` point/span evidence (junction /
-  crossing / diverter context; DS-031 §3.3) and typed unresolved evidence;
-- is the only stage responsible for `junction_context` admission;
-- is the planned spine-native substrate for DS-015 crossing events but is **not**
-  crossing risk;
-- performs no traffic selection, no carry, no scoring, no crossing-risk computation, no
-  presentation.
-
-**P03 inferred-carry use:** `completeTrafficCandidateSet(...)` may **consume** the
-public `road_identity` and `junction_context` layers to evaluate
-`authoritative_inferred` corridor continuity and break boundaries under
-`traffic-authoritative-inferred-corridor-carry.v1` (DS-029 Appendix N). It may not
-create either layer, query OpenStreetMap, read source clients, read route-line
-internals, or write either layer back into the ledger. The carry is **inactive until
-both layers are implemented and certified** (DS-029 §N.0); no tag-only,
-`broadHighwayClass`-only, route-name-only, or geometry-only proxy carry is permitted.
-Unknown diverter significance stops the carry (DS-029 §N.3). P02C and P03 perform **no
-scoring**; DS-015 crossing risk remains owned by P05 / RigidScoreLedger after selected
-inputs exist.
-
-**P03 retry entry gate:** `P02B PROCEED` + `P02C-A PROCEED` + `P02C-B PROCEED` while
-`authoritative_inferred` is required by P03 (EXEC-060 sequencing).
-
+## 14. Route-Line Separation
+
+This model has no dependency on route-line truth.
+
+It must not read or mutate:
+
+- `RouteSurfaceTruthBundle`
+- `RouteOwnershipSpan`
+- `RigidScoreLedger`
+- `ActiveTruthView`
+- `SegmentInspector` or `SegmentInspectorDrawer`
+- selected route truth sessions
+- route-indexed evidence ledgers
+- analyzed route hitbox behavior
+- route scoring state
+- heatmap/stress-scoring truth
+
+Existing route-line card and inspect behavior may continue to use route truth
+adapters. Road-overlay exploration must remain separate.
 
 
 ---
@@ -47862,7 +46040,7 @@ This ADR does **not** redefine Route Safety Score semantics.
 
 **Status:** Accepted  
 **Date:** 2026-05-10  
-**Related:** [DS-031](../02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md), [DS-067](../02-architecture/design/ds-067-single_route_truth_and_score_ledger_pipeline_spec.md), [DS-030](../02-architecture/design/ds-030-route_analysis_contract.md), [DS-029](../02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-017](../02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md), [EXEC-024](../04-execution/exec-024-route_line_interval_ownership_program.md), [ADR-059](./adr-059-single_route_truth_and_score_ledger_pipeline.md), ADR-042, ADR-043
+**Related:** [DS-031](../02-architecture/design/ds-031-route_indexed_evidence_layer_spec.md), [DS-030](../02-architecture/design/ds-030-route_analysis_contract.md), [DS-029](../02-architecture/design/ds-029-provenance_precedence_confidence_and_traceability_spec.md), [DS-017](../02-architecture/design/ds-017-truth_resolution_and_propagation_spec.md), [EXEC-024](../04-execution/exec-024-route_line_interval_ownership_program.md), ADR-042, ADR-043
 
 ---
 
@@ -47921,21 +46099,6 @@ route axis
   -> derived metrics
   -> display / scoring / inspection adapters
 ```
-
-ADR-059 / DS-067 close the final authority chain for rider-facing route score semantics:
-
-```text
-CanonicalRouteAxis
-  -> RouteIndexedEvidenceLedger
-  -> TruthSelectionBuilders / RouteBuilders
-  -> RouteSurfaceTruthBundle
-  -> RigidScoreLedger
-  -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection
-  -> PresentationPanes
-```
-
-ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
 
 ---
 
@@ -48006,8 +46169,6 @@ Downstream scoring, route paint, viewport overlays, hazards, receipts, inspectio
 
 They may not reach backward into V2 internals, and V2 may not absorb scoring/presentation rules.
 
-After the ADR-059 hard cutover, rider-facing presentation surfaces may consume only mechanical ActiveTruthView projections from ActiveScoreLedger. Any surviving adapter must be mechanical presentation or geometry projection only and must not select evidence, score, apply fallback, infer provider labels, or reconstruct receipts.
-
 ---
 
 ## 4. Non-Goals
@@ -48076,8 +46237,6 @@ The migration path is:
 6. Promote V2 outputs only when they are more correct and more inspectable.
 
 Legacy truth may be used for comparison only. It must not become V2 evidence.
-
-ADR-059 requires hard cutover for rider-facing semantics. Legacy truth, truth runs, heatmap segments, route cache, route history, and old presentation structures may survive only as diagnostics, artifact transport, or mechanical geometry containers after their semantic authority is deleted or stripped.
 
 ---
 
@@ -50575,9 +48734,7 @@ The route-line v2 topology builder should:
 
 Status: Accepted
 Date: 2026-06-16
-Amended: 2026-06-24 — canonical ActiveTruthView package path corrected to `src/lib/active-truth/`
-Amended: 2026-06-25 — P03A: `completeTrafficCandidateSet(...)` may construct completion-stage derived/model candidates (not ledger source evidence); `selectStableTraffic(...)` consumes the completed set only
-Related: ADR-045, ADR-052, ADR-053, ADR-059, DS-031, DS-043, DS-044, DS-047, DS-055, DS-067
+Related: ADR-045, ADR-052, ADR-053, DS-031, DS-043, DS-044, DS-047, DS-055
 
 ------
 
@@ -50595,22 +48752,61 @@ The corrected architecture is ledger-first and no-leak.
 
 Lanterne will enforce `RouteIndexedEvidenceLedger` as the only upstream source boundary for route-indexed evidence.
 
-The ADR-059 / DS-067 required end-state architecture is:
+The required end-state architecture is:
 
-```text
-CanonicalRouteAxis
-  -> RouteIndexedEvidenceLedger
-  -> TruthSelectionBuilders / RouteBuilders
-  -> RouteSurfaceTruthBundle
-  -> RigidScoreLedger
-  -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection
-  -> PresentationPanes
-```
+1. Route Inputs
+   GPX / Manual / RWGPS / RUSA / edits
 
-`RouteIndexedEvidenceLedger` remains the only upstream source boundary for route-indexed evidence. `ActiveScoreLedger` is the only rider-facing semantic score authority.
+2. RouteAxis / LinearRef
+   canonical route-distance coordinate system
+   `distM` / `startDistM` / `endDistM`
 
-`ActiveTruthView` is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
+3. Source Projection Workers
+   project external facts onto RouteAxis
+   HPMS traffic is first proof layer
+
+4. RouteIndexedEvidenceLedger
+   route-version-scoped evidence ledger
+   candidate source facts
+   source lineage
+   provenance
+   confidence
+   diagnostics
+   unresolved gaps
+   layer registry
+
+5. Truth Selection Builders
+   Quick Builder / Robust Builder
+   consume the ledger only
+   select stable truth snapshots
+
+6. RouteSurfaceTruthBundle
+   durable selected truth
+   selected HPMS AADT baseline snapshots
+   stable score-driving evidence
+   receipts
+   rejected evidence refs
+   unresolved spans
+
+7. Ride Context / Temporal Binding
+   planned start time
+   expected pace
+   actual GPS progress later
+   `distM -> estimatedClockTime`
+
+8. Temporal Projector
+   selected `traffic_aadt` baseline
+   x route-time binding
+   x traffic-time multiplier
+
+9. ActiveTruthView
+   TruthBundle
+   + allowed temporal/context overlays
+   + receipts
+   + presentation-ready adapters
+
+10. Presentation
+    reads ActiveTruthView only
 
 ------
 
@@ -50620,9 +48816,7 @@ RouteIndexedEvidenceLedger is the only upstream source boundary for route-indexe
 
 Truth builders may consume the ledger.
 TruthBundle may snapshot selected evidence.
-RigidScoreLedger may score only RouteSurfaceTruthBundle outputs.
-ActiveScoreLedger may publish only RigidScoreLedger semantics plus explicitly documented active-scenario state.
-ActiveTruthView may mechanically project one ActiveScoreLedger revision.
+ActiveTruthView may compose selected truth with allowed temporal/context evidence.
 Presentation may read ActiveTruthView only.
 
 Presentation may not query raw HPMS.
@@ -50648,28 +48842,15 @@ The ledger does not become a presentation API. It is the input to truth selectio
 
 ### Truth selection is a separate boundary
 
-TruthSelectionBuilders / RouteBuilders consume the ledger only. They may select stable truth snapshots and preserve rejected evidence refs, but they may not query raw HPMS, inspect legacy truth runs, discover source candidates themselves, score, format presentation strings, or act as rider-facing truth.
-
-**Amendment 2026-06-25 — P03A completion-stage candidates.** Truth-selection production code may not discover or fetch external source evidence; all external source evidence must come through `RouteIndexedEvidenceLedger` via source projection / ledger admission. Within that boundary, `completeTrafficCandidateSet(...)` may mechanically construct documented completion-stage **derived/model** candidates (`authoritative_inferred`, `local_area_predicted`, `highway_baseline`) from ledger facts, route-axis context, and immutable versioned authority policy. Those candidates are **not** source evidence and do **not** become ledger entries (they are never written back to `RouteIndexedEvidenceLedger`); they live only in `CompletedTrafficCandidateSet` and exist **before** `selectStableTraffic(...)` runs — Highway Baseline in particular must be present before the selector executes. `selectStableTraffic(...)` consumes only the completed candidate set and never reads the ledger directly. No presentation, scoring, cache/history, or runtime state may influence completion or selection. This preserves — and does not weaken — the ledger-first / no-leak architecture: discovery and admission of source evidence remain confined to source projection and the ledger.
+Quick Builder and Robust Builder consume the ledger only. They may select stable truth snapshots and preserve rejected evidence refs, but they may not query raw HPMS, inspect legacy truth runs, or discover source candidates themselves.
 
 ### RouteSurfaceTruthBundle is selected truth
 
 `RouteSurfaceTruthBundle` carries durable selected truth, selected HPMS AADT baseline snapshots, stable score-driving evidence, receipts, rejected refs, and unresolved spans.
 
-It may snapshot selected evidence. It must not become a raw source reader, score ledger, rider-facing semantic score source, presentation DTO, cache authority, or history authority.
+It may snapshot selected evidence. It must not become a raw source reader.
 
 For the traffic proof layer, the Phase 1.4 bridge is `RouteSurfaceStableTrafficOutput`: a traffic-only, partial, RouteSurfaceTruthBundle-compatible stable artifact that consumes `StableTrafficBaselineSnapshot` only. It preserves selected AADT value snapshots, unresolved and conflict spans, receipts, refs, coverage, and future bundle mapping. It is not the whole `RouteSurfaceTruthBundle`, and it must not carry ride-session state, temporal traffic exposure, scoring output, or presentation fields.
-
-**Package-boundary correction (Amendment 2026-06-25 — P04A).** The traffic-spine
-`RouteSurfaceTruthBundle` is owned by a **new** package root,
-`src/lib/traffic-spine/route-surface-truth/` (import
-`@/lib/traffic-spine/route-surface-truth`). The pre-existing legacy package
-`src/lib/route-surface-truth/**` (barrel `@/lib/route-surface-truth`, including its own
-legacy `RouteSurfaceTruthBundle` type) is **not** the traffic-spine P04 authority: the
-traffic-spine P04 has its own root and **cannot import, modify, wrap, or barrel-export
-through** the legacy surface-truth package. The new bundle type is scoped by its import
-path; the identically named legacy type remains legacy and non-authoritative for this
-pipeline. Legacy deletion/cutover is deferred to the later cutover phase (P10).
 
 ### Temporal traffic is contextual
 
@@ -50681,30 +48862,17 @@ Temporal traffic exposure is not source truth. It is derived later from:
 
 `RouteTimeBinding` is ride-context state that maps canonical route distance to planned, observed, or actual-adjusted clock time. It uses meters, seconds, `speedKph`, absolute ISO instants, and explicit clock context. It must not read the evidence ledger, selected traffic output, traffic multipliers, scoring, heatmap, presentation modules, browser GPS APIs, or environment-local clock APIs.
 
-Temporal projection may feed a documented active-scenario input path before ActiveScoreLedger. It must not mutate the stable truth bundle, ledger, RigidScoreLedger, ActiveScoreLedger, or ActiveTruthView.
+Temporal projection may feed `ActiveTruthView`, but it must not mutate the stable truth bundle or ledger.
 
 The traffic temporal projection POC is `src/lib/temporal-projection/traffic-temporal-exposure.ts`. It consumes selected stable traffic truth, route-time binding, and an explicit `TrafficTimeMultiplierModel`, then emits route-indexed `traffic_temporal_exposure` spans plus receipts. This is contextual overlay state, not a route-version evidence ledger layer. The output uses `aadtEquivalent` for time-adjusted view exposure; it must not rename that estimate into durable effective AADT truth. Temporal spans use derived-model source/provenance, while HPMS lineage remains inside selected baseline refs and receipts. The projector must not query raw HPMS, source-projection internals, truth selection runtime selectors, legacy `truthRuns`, scoring, heatmap, presentation modules, browser GPS APIs, or environment-local clock APIs.
 
 `RideContextTemporalLedger` is the writable session/context ledger for route-time bindings and temporal overlays. The traffic POC implementation is `src/lib/ride-context/ride-context-temporal-ledger.ts` so `src/lib/route-time` remains traffic-agnostic. It is reducer-owned state, not a mutable object for components to poke. The clean transition is planned binding -> temporal projection -> ledger accepts projection; actual progress changes route-time binding -> ledger marks dependent temporal layer stale -> projector recomputes -> ledger accepts the new projection only if the current binding revision still matches. It may store planned/current `RouteTimeBinding`, binding history summaries, route-distance keyed observed timing summaries, `traffic_temporal_exposure` projection spans/receipts/coverage, projection id/digest refs, stable artifact id/digest refs, diagnostics, budgets, and a typed event log. It stores stable traffic artifact refs only; it must not mutate the evidence ledger, selected stable traffic truth, route-time bindings, temporal projections, future truth bundles, scoring, heatmap, presentation state, browser GPS payloads, or legacy truth runs.
 
-`ActiveTruthView` is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
-
-Conceptually:
-
-```text
-projectActiveScoreLedgerRevision(
-  activeScoreLedgerRevision,
-  presentationProjectionRequest
-) -> ActiveTruthView
-```
-
-Every ActiveTruthView must carry its parent ActiveScoreLedger id, revision, digest, active scenario id/version, source ActiveScoreLedger entry ids, canonical route intervals, and upstream receipt ids. It must not possess an independent semantic identity or independent truth digest. Any optional projection checksum is transport-only and cannot choose between values, become persisted truth, or make the projection authoritative.
-
-Historical POC implementations that composed selected stable traffic and ride-context temporal state directly into ActiveTruthView are lineage only after ADR-059 / DS-067. They are not a final rider-facing authority contract and must be migrated to the ActiveScoreLedger -> mechanical ActiveTruthView projection path.
+`ActiveTruthView` is the presentation firewall for the POC. The traffic implementation is `src/lib/active-truth/active-truth-view.ts`. It composes `RouteSurfaceStableTrafficOutput` with current `RideContextTemporalLedger` state, validates stable artifact id/digest, route axis, total distance, current route-time revision, route partition coverage, and policy budgets, then emits a sealed read model with `stable.trafficAadtBaseline`, `temporal.routeTime`, optional `temporal.trafficTemporalExposure`, `presentation.trafficOverlay`, `inspection.receiptIndex`, diagnostics, quality, capabilities, and deterministic content digest. It does not fetch, project, select, score, heatmap, render UI, promote candidates, query raw sources, inspect legacy `truthRuns`, couple to `RouteMap`, or recompute temporal traffic exposure. Missing temporal traffic may produce stable-only overlay. Stale temporal overlays may remain inspectable, but they must not be painted as current temporal exposure. Blocking route/source/payload/budget errors seal the presentation overlay as invalid.
 
 ### Presentation is downstream-only
 
-Presentation reads mechanical `ActiveTruthView` projections only. Presentation adapters can format, filter, and render already-published ActiveScoreLedger semantics.
+Presentation reads `ActiveTruthView` only. Presentation adapters can format, filter, and render already-selected truth and allowed overlays.
 
 Presentation cannot:
 
@@ -50713,11 +48881,6 @@ Presentation cannot:
 - recompute traffic exposure independently
 - promote candidates
 - decide score-driving truth
-- invoke scoring
-- choose risk buckets
-- rank notable drivers
-- reconstruct receipts
-- persist semantic truth
 
 ------
 
@@ -50728,25 +48891,11 @@ The codebase should keep these packages separate:
 - `src/lib/route-evidence`: ledger contracts, layer registry, evidence types
 - `src/lib/source-projection`: source projection workers/modules, starting with HPMS AADT
 - `src/lib/truth-selection`: stable truth selection builders that consume ledgers
-- `src/lib/traffic-spine/route-surface-truth`: durable selected traffic-spine truth bundles
-  (the new P04 authority; Amendment 2026-06-25 — P04A)
-- `src/lib/route-surface-truth/**`: **frozen legacy** surface-truth package (barrel
-  `@/lib/route-surface-truth`, with its own legacy `RouteSurfaceTruthBundle`) — **not** the
-  traffic-spine P04 authority; live legacy runtime code retained for later P10 legacy
-  deletion/cutover review only
-- future `src/lib/rigid-score-ledger`: stable scoring and immutable score trace
-- future `src/lib/active-score-ledger`: active scenario semantic score authority
+- `src/lib/route-surface-truth`: durable selected truth bundles
 - `src/lib/route-time`: ride context and route-time binding
 - future `src/lib/temporal-projection`: temporal/context projectors
-- future `src/lib/active-truth`: mechanical ActiveScoreLedger projection only
-- presentation components: mechanical ActiveTruthView consumers only
-
-P00 path correction: the immutable audit snapshot named this package
-`src/lib/active-truth-view`. The canonical production package boundary is
-`src/lib/active-truth/`, consistent with DS-055, EXEC-060, and the existing
-repository package root. This corrects package naming only. It does not approve,
-preserve, or certify the current `src/lib/active-truth/` implementation as the
-new mechanical ActiveTruthView authority.
+- future `src/lib/active-truth-view`: presentation-ready active truth composition
+- presentation components: ActiveTruthView consumers only
 
 Any code path that violates these package responsibilities is architectural debt and should be removed, not normalized.
 
@@ -50757,8 +48906,6 @@ Any code path that violates these package responsibilities is architectural debt
 Legacy truth runs may be used for comparison, diagnostics, or compatibility adapters only.
 
 They must not be treated as RouteIndexedEvidenceLedger source facts. If an HPMS value exists only inside legacy truth runs, the V2 ledger must report an architectural gap or unresolved span rather than laundering that value into evidence.
-
-ADR-059 requires hard cutover. Compatibility adapters must not survive as rider-facing semantic paths. Any compatibility code must be diagnostics-only or mechanical geometry/transport only, must have a named deletion gate, and must be removed or semantically stripped before production certification.
 
 ------
 
@@ -50950,10 +49097,10 @@ Scenario results must not be cached as durable route truth.
 
 ### Presentation rule
 
-Presentation reads mechanical projections from the active semantic authority:
+Presentation reads:
 
-- `ActiveTruthView` projected from ActiveScoreLedger
-- future scenario views only if they are equivalently mechanical projections from an approved active scenario score authority
+- `ActiveTruthView`
+- future `ScenarioTruthView` or `ScenarioView`
 
 Presentation must not run the optimizer, fetch evidence, select candidates, or recompute contextual projections independently.
 
@@ -52212,314 +50359,191 @@ The architecture is satisfied only when:
 
 ---
 
-## Source File: docs/03-adrs/adr-059-single_route_truth_and_score_ledger_pipeline.md
+## Source File: docs/03-adrs/adr-059-viewport-road-overlay-selection-boundary.md
 
-# ADR-059 - Single Route Truth And Score Ledger Pipeline
+# ADR-059 - Viewport Road Overlay Selection Boundary
 
-Status: Accepted
-Date: 2026-06-24
-Related: ADR-045, ADR-054, DS-031, DS-032, DS-055, DS-067, DS-015, DS-029
+**Status:** Proposed
+**Date:** 2026-07-02
+**Owner:** Derek Minner
+**Companion DS:** [DS-065](../02-architecture/design/ds-065-road-overlay-selection-view-model.md)
+**Related:** ADR-045, ADR-058, DS-031, DS-032, DS-035, DS-061, EXEC-060
 
-------
+---
 
-## Context
+## 1. Context
 
-Lanterne now has enough route-indexed evidence, selected-truth, scoring, diagnostic, and presentation surfaces that compatibility language can accidentally become a second route truth system.
+Lanterne already has a production viewport road-risk overlay controlled by the eyeball
+road overlay control. The current speed overlay is rendered from
+`useViewportSpeedOverlayController`, which selects viewport source roads, filters and
+merges display roads, creates Leaflet polylines, and wires road-click events.
 
-The long-term architecture must not allow RouteMap, SegmentInspector, receipts, heatmap segments, truth runs, route cache, route history, QuickPaint, RobustPaint, or any presentation pane to own semantic route truth or score truth.
+In the DS-035 substrate-backed path,
+`ds035SubstrateProfileCandidateToSpeedRoad` adapts substrate candidates into the
+legacy `SpeedRoad` compatibility shape. It serializes corridor presentation metadata
+onto `SpeedRoad.tags`, including corridor id, display name, member count, source way
+ids, and corridor total length.
 
-This ADR closes that ambiguity.
+That compatibility path is useful, but it is not an acceptable central presentation
+boundary for production road-overlay selection intelligence. A card-only patch would
+force `RoadInfoCard` or `RoadInfoOverlay` to parse raw DS-035 tag strings, guess
+whether a clicked visual line is a slice or an aggregate, and own highlight semantics
+that belong to the map overlay controller.
 
-------
+The product target is road-overlay exploration only:
 
-## Decision
+- Heatmap/stress colors off: clickable substrate roads render neutral/dark; clicking
+  a road should thicken or highlight the available corridor geometry when the corridor
+  aggregate is explicitly known; the card shows the available corridor aggregate length
+  only (for example `27.8 mi`). This copy does not imply full-corridor geometry is
+  loaded unless it is actually available.
+- Heatmap/stress colors on: a clicked heatmap-colored line is treated as a selected
+  visual slice of a larger available road/corridor; the card can communicate
+  selected slice versus aggregate, such as `2.3 of 27.8 mi`.
+- Phase 1 is length-only. Future traffic, speed, elevation, or other comparisons need
+  separate authorization and execution plans.
 
-The accepted route truth and score pipeline is exactly:
+---
 
-```text
-CanonicalRouteAxis
-  -> RouteIndexedEvidenceLedger
-  -> TruthSelectionBuilders / RouteBuilders
-  -> RouteSurfaceTruthBundle
-  -> RigidScoreLedger
-  -> ActiveScoreLedger
-  -> mechanical ActiveTruthView projection
-  -> PresentationPanes
-```
+## 2. Decision
 
-There is one pipe. There is no deprecated compatibility option, alternate rider-facing truth contract, provisional score ledger, Quick score, Robust score, legacy rider-facing truth, fallback score path, or presentation-owned score state.
+Viewport road-overlay selection is a typed presentation/runtime selection model.
 
-Each stage has exactly one authority:
+It is not:
 
-| Stage | Authority |
-| --- | --- |
-| CanonicalRouteAxis | Sole route measurement axis |
-| RouteIndexedEvidenceLedger | Sole route-evidence authority |
-| TruthSelectionBuilders / RouteBuilders | Sole evidence selection and stable fact construction stage |
-| RouteSurfaceTruthBundle | Sole selected stable-fact bundle (traffic-spine package root `src/lib/traffic-spine/route-surface-truth/`; see boundary note below) |
-| RigidScoreLedger | Sole stable route scoring authority |
-| ActiveScoreLedger | Sole rider-facing semantic score authority |
-| ActiveTruthView | Non-authoritative mechanical projection of one ActiveScoreLedger revision |
-| PresentationPanes | Rendering, formatting, and interaction only |
+- route truth
+- scoring truth
+- a `RouteSurfaceTruthBundle`
+- a `RouteOwnershipSpan`
+- a `RigidScoreLedger`
+- an `ActiveTruthView`
+- route-indexed evidence
+- canonical source lineage or scoring provenance
 
-The ActiveScoreLedger is the only rider-facing source of route score truth.
+The card and overlay UI must consume a stable road-overlay selection view model. They
+must not parse DS-035 raw tags, substrate tag strings, source blobs, or profile-cache
+payload strings directly.
 
-**RouteSurfaceTruthBundle package boundary (Amendment 2026-06-25 — P04A).** The single
-pipe's `RouteSurfaceTruthBundle` stage is owned by the new traffic-spine package root
-**`src/lib/traffic-spine/route-surface-truth/`** (import
-`@/lib/traffic-spine/route-surface-truth`). It consumes only the public P03
-`StableTrafficSelectionResult` and carries the selected `TrafficExposureBasis` verbatim.
-The pre-existing legacy package `src/lib/route-surface-truth/**` (which has its own legacy
-`RouteSurfaceTruthBundle`) is **not** this stage's authority and must not be imported,
-modified, or barrel-exported through by the traffic-spine pipeline. Legacy
-deletion/cutover is deferred to the later cutover phase (P10), not P04.
+Road-overlay selection must distinguish:
 
-------
+- the selected visual slice: the clicked rendered line or heatmap-colored segment
+- the corridor aggregate: the available substrate corridor or road aggregate that the
+  clicked slice belongs to, when that aggregate is explicitly known
 
-## ActiveTruthView Definition
+The map overlay controller owns road-overlay selection and highlight semantics. It
+may call `RoadOverlaySubstrateMetadataNormalizer` — the single approved normalizer
+seam — which reads existing `SpeedRoad` compatibility fields and DS-035 metadata, but
+the resulting selection and highlight plan are typed runtime outputs.
 
-ActiveTruthView is a deterministic, immutable, non-authoritative mechanical projection of one ActiveScoreLedger revision. It performs no selection, scoring, fallback, repair, source inference, or semantic mutation. Its rider-facing semantics are exactly those of its parent ActiveScoreLedger revision.
+Analyzed route-line click behavior is explicitly out of scope and must not change.
+Route inspection, `RouteSurfaceTruthBundle`, route-indexed evidence, ownership spans,
+and route-line hitbox semantics remain separate.
 
-Conceptually:
+---
 
-```text
-projectActiveScoreLedgerRevision(
-  activeScoreLedgerRevision,
-  presentationProjectionRequest
-) -> ActiveTruthView
-```
+## 3. Boundary Rules
 
-ActiveTruthView may only:
-
-- select fields already present in an ActiveScoreLedger entry
-- select entries by canonical route-distance identity
-- organize those fields into a presentation-consumable shape
-- omit fields irrelevant to a specific pane
-- preserve exact semantic values
-- preserve exact receipt and lineage references
-- preserve the parent ActiveScoreLedger identity
-
-ActiveTruthView may not:
-
-- select evidence
-- apply precedence
-- construct Highway Baseline
-- derive scoring traffic
-- derive AADT per lane
-- invoke scoring
-- apply risk thresholds
-- choose a risk bucket
-- rank notable drivers
-- infer source provider
-- substitute selection class for provider
-- substitute confidence for provider
-- repair unknown or unresolved values
-- borrow neighboring values
-- apply fallback
-- round a value that will later participate in calculation
-- create receipts
-- mutate ActiveScoreLedger
-- persist separate semantic state
-- become cache or history authority
-
-Every ActiveTruthView must carry:
-
-- parent ActiveScoreLedger id
-- parent ActiveScoreLedger revision
-- parent ActiveScoreLedger digest
-- active scenario id/version
-- source ActiveScoreLedger entry ids
-- canonical route intervals
-- upstream receipt ids
-
-ActiveTruthView must not possess an independent semantic identity.
-
-If a projection identifier is operationally useful, it may identify only the projection request, field selection, or presentation version. It may not represent independent route truth.
-
-The only rider-facing semantic source identity is the ActiveScoreLedger revision.
-
-------
-
-## No Independent ActiveTruthView Digest
-
-The required invariant is:
+The allowed boundary is:
 
 ```text
-activeTruthView.parentActiveScoreLedgerDigest
-  === activeScoreLedger.digest
+viewport source road / DS-035 compatibility tags
+        -> RoadOverlaySubstrateMetadataNormalizer (only approved raw-tag seam)
+        -> RoadOverlaySelection
+        -> RoadOverlaySelectionViewModel
+        -> card / overlay UI
+
+RoadOverlaySelection
+        -> RoadOverlayHighlightPlan
+        -> overlay controller / Leaflet renderer
 ```
 
-A projection may optionally have a non-authoritative structural checksum for transport corruption detection.
+The forbidden boundary is:
 
-That checksum:
+```text
+RoadInfoCard / RoadInfoOverlay
+        -> parse _substrate_* tags
+        -> infer corridor truth
+        -> decide highlight ownership
+```
 
-- is not a truth identity
-- is not a score identity
-- cannot be persisted as canonical analysis
-- cannot be used to choose between competing values
-- cannot make the projection authoritative
+Raw DS-035/substrate tag parsing is allowed only in
+`RoadOverlaySubstrateMetadataNormalizer`, the single approved normalizer seam — never
+in card components, overlay components, or arbitrary "equivalent" adapters. The
+normalizer must emit diagnostics for missing, invalid, stale, or fallback metadata
+instead of laundering uncertainty into a rider-facing certainty.
 
-------
+---
 
-## Presentation Panes
+## 4. Consequences
 
-All presentation panes publish from the same ActiveScoreLedger revision through its mechanical ActiveTruthView projection.
+This decision creates a small typed seam between existing viewport road renderers and
+the card UI. It lets the safe MVP ship without turning card components into substrate
+parsers or route-truth consumers.
 
-Presentation panes include:
+The selected slice and corridor aggregate can evolve independently. Phase 1 can show
+length-only comparisons while leaving explicit extension slots for traffic, speed,
+elevation, and other metrics.
 
-- RouteMap
-- SegmentInspector
-- RoadInfoCard
-- TruthSection
-- receipt panes
-- score summaries
-- route summaries
-- cue-associated risk displays
-- QuickPaint
-- RobustPaint
-- future temporal presentation surfaces
+The overlay controller can clear and update highlight state when the card is
+dismissed, the overlay is disabled, the source generation changes, roads are hidden,
+or the map mode resets. The card does not own Leaflet layer mutation.
 
-Presentation panes may:
+Unknown aggregate state remains visible. If the normalizer cannot prove a corridor
+aggregate length, the view model must not claim a full corridor length.
 
-- render exact ActiveTruthView values
-- format units
-- apply locale formatting
-- round final displayed values
-- map an upstream canonical risk-style token to CSS
-- aggregate geometry for rendering only
-- animate or progressively reveal already-published facts
+There is some compatibility cost: future implementation may keep passing the legacy
+`SpeedRoad` alongside the new view model during migration. That compatibility does
+not authorize card-level raw tag parsing.
 
-Presentation panes may not:
+---
 
-- access RouteIndexedEvidenceLedger
-- access evidence candidates
-- invoke TruthSelectionBuilders or RouteBuilders
-- access RouteSurfaceTruthBundle as an alternate rider-facing source
-- access RigidScoreLedger as an alternate rider-facing source
-- invoke scoring
-- calculate risk
-- calculate risk deltas
-- choose notable drivers
-- derive traffic exposure
-- create source labels from generic fallback chains
-- reconstruct receipts
-- persist semantic truth
-- cache their own score interpretation
+## 5. Non-Goals
 
-No pane may use another pane's output as input.
+This ADR does not:
 
-------
+- authorize runtime implementation in this documentation phase
+- change analyzed route-line click behavior, `SegmentInspector`, or `SegmentInspectorDrawer`
+- change route inspection or route-surface truth selection
+- change scoring, route ownership, route-indexed evidence, or evidence provenance
+- mutate `RigidScoreLedger`, `ActiveTruthView`, or heatmap/stress-scoring truth
+- use `HeatmapSegment` as the canonical road-overlay selection model
+- change DS-035 source authority, profile-cache authority, or substrate cache writes
+- require a RouteMap rewrite
+- require renderer migration
+- implement traffic, speed, elevation, or other future metric comparisons
+- claim that substrate corridor continuity is canonical route continuity
 
-## QuickPaint And RobustPaint
+---
 
-QuickPaint and RobustPaint are presentation policies over the same ActiveTruthView projection from the same ActiveScoreLedger revision.
+## 6. Relationship To Existing Architecture
 
-They may differ only in:
+ADR-045 and DS-031 continue to govern route-indexed evidence. A road-overlay
+selection is presentation/runtime state, not an evidence layer and not a route
+measure-keyed truth record. Downstream presentation must use adapters rather than
+reach backward into V2 internals.
 
-- draw scheduling
-- animation
-- reveal timing
-- render density
-- zoom aggregation
-- geometric simplification that does not cross semantic boundaries
-- visual performance strategy
+DS-031 also keeps source lineage and provenance separate. The road-overlay view model
+may describe the runtime source of a viewport road, but it must not claim scoring
+provenance or source-of-record authority.
 
-They must share:
+DS-032 continues to require that facts drive presentation. The selection view model is
+derived from approved runtime facts and explicit diagnostics; card presentation does
+not create facts.
 
-- parent ActiveScoreLedger id
-- parent ActiveScoreLedger revision
-- parent ActiveScoreLedger digest
-- ActiveScoreLedger entry ids
-- route intervals
-- evidence lineage
-- score inputs
-- Road Risk
-- Crossing Risk
-- Total Risk
-- Risk Per Mile
-- risk bucket
-- notable driver
-- source provider
-- provenance
-- confidence
-- selection classification
-- receipts
+DS-035 continues to define substrate and profile-aware hydration semantics.
+Presentation continuity may group source ways into cyclist corridors, but it is not
+canonical route continuity.
 
-There is no Quick evidence, Robust evidence, Quick RouteSurfaceTruthBundle, Robust RouteSurfaceTruthBundle, Quick RigidScoreLedger, Robust RigidScoreLedger, Quick ActiveScoreLedger, Robust ActiveScoreLedger, Quick fallback, Robust fallback, Quick cache truth, or Robust cache truth.
+ADR-058 and DS-061 continue to govern viewport road runtime and overlay ownership.
+This ADR adds the specific selection/view-model boundary needed for road-overlay
+clicks and highlight behavior.
 
-A paint-mode toggle may not trigger source fetching, projection, ledger mutation, evidence selection, RouteBuilder execution, RigidScoreLedger construction, ActiveScoreLedger construction, cache hydration, history hydration, or rescoring.
+---
 
-------
+## 7. Human Gate
 
-## Hard Cutover
-
-The new canonical pipe must be activated by hard cutover.
-
-During isolated development:
-
-- the current production implementation may remain untouched
-- the new pipe may run only in tests and diagnostics
-- comparisons may be produced outside rider-facing presentation
-
-At production cutover:
-
-1. activate the new canonical pipe
-2. connect presentation solely through ActiveTruthView
-3. delete or strip all competing semantic authorities in the same cutover program
-4. invalidate incompatible cache/history artifacts
-5. do not retain a rider-facing fallback to the old semantic path
-
-Shadow comparison is allowed only when it is diagnostics-only, cannot feed presentation, cannot feed scoring, cannot change selection, cannot become cache/history truth, and is deleted when cutover certification completes.
-
-No temporary compatibility code may survive without a named deletion gate, an owning execution item, a prohibition against rider-facing use, and required removal before production certification.
-
-------
-
-## Semantic Authorities To Delete Or Strip At Cutover
-
-At cutover, the implementation must delete or semantically strip every competing authority, including at minimum:
-
-- route-analysis score authority
-- route-analysis traffic fallback authority
-- truthRuns score authority
-- truthRuns evidence-selection authority
-- truthSegments score authority
-- routeSpeedSegments score authority
-- HeatmapSegment score authority
-- displaySegmentsByZoom score authority
-- heatmap risk calculation
-- cached display-risk fallback
-- receipt traffic reconstruction
-- receipt score reconstruction
-- inspector traffic repair
-- inspector speed repair
-- inspector scoring
-- sectionDecisionModel current-score calculation
-- sectionDecisionModel risk-threshold application
-- routeScoreExplanation independent notable-driver ranking
-- presentation traffic-exposure derivation
-- generic sourceLabel fallback chains
-- route_cache score reconstruction
-- route_history score reconstruction
-- QuickPaint semantic output
-- RobustPaint semantic output
-- any alternate score trace
-- any independent sealed read-model authority
-
-A surviving structure may remain only when reduced to a pure mechanical presentation or geometry container produced from ActiveTruthView, carrying parent ActiveScoreLedger ids, carrying no independent scoring logic, carrying no independent evidence selection, carrying no fallback, copying risk style mechanically from upstream, and unable to persist as canonical semantic truth.
-
-Old semantic authority must not be labeled deprecated and left executable. It must be deleted or stripped.
-
-------
-
-## Consequences
-
-- The RouteIndexedEvidenceLedger remains the only route-evidence authority.
-- TruthSelectionBuilders / RouteBuilders remain the only stage that can select or build stable route facts.
-- RouteSurfaceTruthBundle remains selected stable fact storage, not rider-facing score truth.
-- RigidScoreLedger owns stable scoring and canonical score trace.
-- ActiveScoreLedger owns rider-facing semantic score truth for an active scenario revision.
-- ActiveTruthView is a mechanical projection, not a ledger, selector, scorer, cache, or independent read-model authority.
-- Presentation panes subscribe and render only.
-
+This decision touches rider-facing road-overlay semantics and selection language. Any
+implementation that changes rider-facing safety wording, route truth authority,
+scoring, cache/history authority, or public claims still requires the Derek/ChatGPT
+human gate described in `AGENTS.md`.
 
