@@ -40765,7 +40765,6 @@ inputs exist.
 `authoritative_inferred` is required by P03 (EXEC-060 sequencing).
 
 
-
 ---
 
 ## Source File: docs/03-adrs/adr-000-README.md
@@ -52979,7 +52978,6 @@ Old semantic authority must not be labeled deprecated and left executable. It mu
 - ActiveScoreLedger owns rider-facing semantic score truth for an active scenario revision.
 - ActiveTruthView is a mechanical projection, not a ledger, selector, scorer, cache, or independent read-model authority.
 - Presentation panes subscribe and render only.
-
 
 
 ---
