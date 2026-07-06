@@ -4422,7 +4422,7 @@ flowchart TD
 >
 >   # 🔴 Core Objective
 >
->   Enable riders to:
+>   Enabling riders to:
 >
 >   - plan a push
 >   - execute a push
@@ -4798,6 +4798,7 @@ flowchart TD
 >   Not:
 >
 >   > “What numbers can we show on a screen?”
+
 
 ---
 
