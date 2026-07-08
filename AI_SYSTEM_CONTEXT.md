@@ -53170,3 +53170,35 @@ implementation that changes rider-facing safety wording, route truth authority,
 scoring, cache/history authority, or public claims still requires the Derek/ChatGPT
 human gate described in `AGENTS.md`.
 
+
+---
+
+## Source File: docs/03-adrs/adr-061-compact-first-paint-core-route-seed-cache.md
+
+# ADR-061 — Compact First-Paint Core and Route Seed Cache
+
+**Status:** Accepted (program definition; per-phase implementation individually gated)
+**Date:** 2026-07-08
+**Mirror of:** `docs/04-execution/reports/cutover-3c-compact-first-paint-core-route-seed-program.md` (authoritative program document — see it for phase details, guardrails, and owner decisions A–E)
+**Numbering note:** sequential successor to ADR-060 (`docs/03-adrs/` numbering verified at authoring time).
+
+## Context
+
+The V2 Route Builder's fresh-load first paint regressed from ~10 s to ~30 s (Dam Ride, same machine); recon attributes the growth to score-seed contract machinery (`a5f7c0eb`, an emergency unblocker) running before paint. Separately, CUTOVER-3B-2H proved a compact route-indexed analysis artifact (~2.8 KB/km raw, gzip 12–14×) can replay display inputs without re-running topology. Both problems share one boundary question: what is the minimum a route load must compute (or read) before the rider sees a painted, clickable route?
+
+## Decision
+
+Define **one compact first-paint core** — encoded route polyline, provisional truth-layer risk paint spans, ownership/identity skeleton (names, way IDs, confidence, transition anchors), hazard markers, four invalidation fingerprints (`routeGeometryHash`, `analysisVersion`, `safetyModelVersion`, `candidateUniverseFingerprint`), and a score-header slot — and make both entry paths serve it:
+
+- **Fresh load:** compute only the core, paint immediately, then run score-seed promotion, refinement, receipts, artifact/cache promotion, and diagnostics after paint (`score pending` label until the score lands).
+- **Reload:** replay the core from a persisted, gzip-compressed seed (a projection of `RouteIndexedAnalysisArtifactV1`, ~40 KB gz / 200 km), painted as `provisional-from-cache`; a fingerprint-gated background refresh always re-fetches evidence and re-scores, and live truth always supersedes the seed.
+
+The seed is **provisional display, never authority**: it feeds neither ActiveTruth, nor receipt authority, nor the Safety Score formula. Invalidation is fail-closed on all four keys. Warm-starting the scorer from the cached skeleton is a separate authority expansion, unauthorized until a shadow-only phase proves byte-equal skeletons and byte-equal scores (grounded in ADR-quality determinism from CUTOVER-3B-2D and the shared candidate universe from 3B-2G). Seed storage is route_history-adjacent or a separate artifact store — never `route_cache` (RXON-guard precedent). Robust remains admin/advisory and non-canonical; Safety Score semantics are unchanged (ordering/deferral only); route distance remains the canonical join key (DS-031/ADR-045) and presentation remains read-only over facts (DS-032).
+
+## Consequences
+
+- Fresh loads regain first-paint speed by deferring, not deleting, score-bearing work; the a5f7c0eb recovery behavior is preserved behind a regression test.
+- Reloads become near-instant at tile-class payload sizes, honestly labeled until re-scored.
+- Two display truth tiers now exist pre-score (provisional vs score-bearing); label vocabulary and fail-closed staleness are mandatory, permanent obligations.
+- The program runs as CUTOVER-3C-0 … 3C-6 (measurement → contract → demotion → write-only store → fail-closed replay → warm-start proof → smoke/decision), each phase owner-spec'd and Codex-reviewed; no phase authorizes deployment, runtime enablement, or flag flips.
+
