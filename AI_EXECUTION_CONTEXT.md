@@ -62295,6 +62295,362 @@ These must not be implemented in Phase 1.
 
 ---
 
+## Source File: docs/04-execution/exec-062-cutover-3d1f-gate-live-canonical-evidence-waterfall-capture.md
+
+# CUTOVER-3D-1F-GATE-LIVE — Canonical Evidence Waterfall Captures (Short Route + Dam Ride)
+
+## 1. Phase metadata
+
+- **Phase:** CUTOVER-3D-1F-GATE-LIVE — owner-executed live capture of the merged GATE diagnostic; documented durably here per owner instruction (evidence was previously chat-only, which triggered a Codex INCONCLUSIVE on missing raw data — this file is the durable resubmission record).
+- **Diagnostic under test:** the "Canonical evidence coverage waterfall" merged by PR #31 (main `60d3dd70f6e692d22841bf2d0644efdc2025f0e0`, reviewed head `836bd666`); see the companion phase report: [cutover-3d1f-gate-long-route-canonical-evidence-waterfall-report.md](./reports/cutover-3d1f-gate-long-route-canonical-evidence-waterfall-report.md).
+- **Runtime:** owner-operated admin session against the post-PR-#31 build. Read-only capture; no repository, cache, history, flag, or policy mutation occurred in the capture or in this documentation phase (docs-only commit).
+
+## 2. Capture limitation (declared up front)
+
+The waterfall section was captured with its detail toggle **collapsed** (the `▸` is visible in the raw text). The expanded per-stage rows (per-family coverage rows, record counts, source-ID retention, measurement-status indicators) were therefore **not captured** and no claim below depends on them. What IS raw in the captures: the waterfall headline (proven route-axis digest + first-material-loss stage/family), the complete runtime-blocker inventory (every masked-gap range with typed reasons), the complete score-blocker decomposition (typed counts, meters, percentages), and the readiness chain with artifact ids. Every derived number below is labeled DERIVED with arithmetic shown for independent verification.
+
+## 3. Freshness / build-identity markers (all inside the raw captures)
+
+`propagation eligible anchors` (copy introduced by the GATE merge) · R1-only rejection codes (`propagation_anchor_identity_mismatch`, `propagation_anchor_identity_unresolved`) · the waterfall headline itself (exists only ≥ `60d3dd70`) · distinct route-axis SHA-256 digests per route (no request mixing) · per-run artifact ids (bundle/ledger/rsl/asl/atv). The corrected readiness wording also rendered as designed: both runs show `Blocked at Rigid score ledger` with the bundle READY and its id present — not the old "Blocked at Route surface truth bundle" misattribution.
+
+## 4. RAW CAPTURE 1 — SHORT ROUTE ("Test loop"), VERBATIM, UNABRIDGED
+
+```
+Test loop ActiveTruth Debug
+BLOCKED
+collapse
+Blocked at Rigid score ledger: RigidScoreLedger score status is blocked; the active-truth stack is blocked
+ROUTE-LEVEL TRUTH
+Not computed because Rigid score ledger is blocked before scoring — this is not a "no notable drivers" result.
+bundle
+route-surface-truth-bundle:1ru4zd6
+score ledger
+asl:n8hego
+truth view
+atv:aslr:yajer4
+SELECTED STRETCH
+No route selection
+select a route stretch to see its active truth detail
+READINESS CHAIN
+Route axis
+READY
+route-axis:75c6201dd2ca24c2::route_axis_sha256:75c6201dd2ca24c2fbce2ced5d4dcd5bf2549b037c7872c370903ffe5208fed0
+Canonical evidence ledger
+READY
+riel:17m37g7
+Route surface truth bundle
+READY
+route-surface-truth-bundle:1ru4zd6
+Rigid score ledger
+BLOCKED
+rsl:yb4hot
+rigid_score_ledger_score_blocked: RigidScoreLedger score status is blocked; the active-truth stack is blocked
+Score interpretation
+BLOCKED
+si:3fef9e04
+Active score ledger
+BLOCKED
+asl:n8hego
+Active truth view
+READY
+atv:aslr:yajer4
+RUNTIME BLOCKERS (27)
+rigid_score_ledger:rigid_score_ledger_score_blocked
+RigidScoreLedger score status is blocked; the active-truth stack is blocked
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [311.28455054649555m,312.21341290987164m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [2265.185839236214m,2266.111724283951m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [3127.831463632602m,3128.727530678527m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [6660.707704634411m,6661.600973094761m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [7500.72725659334m,7501.619303056256m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [10717.79092015676m,10718.692055137166m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [12861.74419704222m,14431.875m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [15602.5870178737m,15603.362829256595m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [19153.02399224143m,19154.011996120717m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [20736.566551610667m,20737.093642135m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [21627.082034549196m,21627.811525911897m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [22470.324668362682m,22471.241876590015m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [23382.612530529485m,23383.209397897113m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [311.28455054649555m,312.21341290987164m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [2265.185839236214m,2266.111724283951m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [3127.831463632602m,3128.727530678527m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [6660.707704634411m,6661.600973094761m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [7500.72725659334m,7501.619303056256m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [12861.74419704222m,14431.875m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [15602.5870178737m,15603.362829256595m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [19153.02399224143m,19154.011996120717m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [20736.566551610667m,20737.093642135m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [21627.082034549196m,21627.811525911897m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [22470.324668362682m,22471.241876590015m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [23382.612530529485m,23383.209397897113m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+route_surface_truth_bundle:route_surface_truth_bundle_score_blocked
+510 score-readiness blocker(s): interval_unresolved, overall_selection_blocked, road_risk_interval_incomplete, selection_conflict_present, speed_set_blocked
+SCORE BLOCKERS (DECOMPOSITION)
+overall_selection_blocked=1 · speed_set_blocked=1 · interval_unresolved=170 · selection_conflict_present=157 · road_risk_interval_incomplete=181
+traffic: blocked · unresolved 170 (10116m = 43.0% · max run 5362m) · no_complete_candidate=13 strongest_class_conflict=157
+speed: blocked · unresolved 59 (2920m = 12.4% · max run 1570m) · no_speed_candidate=59 · ladder 44 (17396m = 73.9%) highway_baseline=44 · ladder attempted 103 (20316m) / completed 44 (17396m) / unresolved 59 (2920m) · rejected propagation_identity_unresolved=13 road_context_uncovered=13 local_area_predicted:missing_urbanicity=59 regional_prior:no_candidate_row=59 highway_area_baseline:no_candidate_row=59 highway_baseline:unknown_highway_class=59 propagation_anchor_identity_unresolved=13 road_context_conflicting_classes=46 propagation_identity_changed=26 propagation_anchor_too_far=4 propagation_anchor_identity_mismatch=3 · propagation eligible anchors 39 / propagated 0 (0m) / unresolved 59 · authoritative_inferred=0 osm_inferred=0 observation_inferred=0 · rejected propagation_anchor_identity_unresolved=37 propagation_identity_changed=36 propagation_identity_unresolved=14 propagation_anchor_identity_mismatch=12 propagation_anchor_too_far=4
+shoulder: ready · unresolved 0 (0m = 0.0% · max run 0m) · unknown(no-credit) 1 (23546m = 100.0% · max run 23546m)
+facility: ready · unresolved 0 (0m = 0.0% · max run 0m) · unknown(no-credit) 3 (23233m = 98.7% · max run 17131m)
+road-risk missing: curvature=58 · traffic=181 · speed=53
+curve abstention: 18 interval(s) · 698.6m (2.97%) · max run 98.4m · grade partial
+
+CANONICAL EVIDENCE COVERAGE WATERFALL
+▸
+route-axis route-axis:75c6201dd2ca24c2@route_axis_sha256:75c6201dd2ca24c2fbce2ced5d4dcd5bf2549b037c7872c370903ffe5208fed0 · first material loss = canonical_ledger:speed_limit (speed_limit)
+RECEIPTS
+No receipts because the chain is blocked at Rigid score ledger.
+Legacy heatmap / cue-sheet route intelligence exists for this route but is not ActiveTruth authority (display-only; never promoted).
+ROUTE PAINT
+No paint — blocked renders nothing (never a grey replacement over the base heatmap).
+Interval unavailable / blocked
+Route truth blocked
+The left drawer Receipts tab is the receipt surface for the active route path.
+```
+
+## 5. RAW CAPTURE 2 — DAM RIDE, VERBATIM, UNABRIDGED
+
+```
+ActiveTruth Debug
+BLOCKED
+collapse
+Blocked at Rigid score ledger: RigidScoreLedger score status is blocked; the active-truth stack is blocked
+ROUTE-LEVEL TRUTH
+Not computed because Rigid score ledger is blocked before scoring — this is not a "no notable drivers" result.
+bundle
+route-surface-truth-bundle:1kurlqs
+score ledger
+asl:uq4lme
+truth view
+atv:aslr:15x3jpz
+SELECTED STRETCH
+No route selection
+select a route stretch to see its active truth detail
+READINESS CHAIN
+Route axis
+READY
+route-axis:9c2d9b6b85a3f14f::route_axis_sha256:9c2d9b6b85a3f14f8256a861cc7197d13de9646cbcc3033f1103e7e6c664a3c2
+Canonical evidence ledger
+READY
+riel:1opczqa
+Route surface truth bundle
+READY
+route-surface-truth-bundle:1kurlqs
+Rigid score ledger
+BLOCKED
+rsl:1a4nrx4
+rigid_score_ledger_score_blocked: RigidScoreLedger score status is blocked; the active-truth stack is blocked
+Score interpretation
+BLOCKED
+si:1e777f6d
+Active score ledger
+BLOCKED
+asl:uq4lme
+Active truth view
+READY
+atv:aslr:15x3jpz
+RUNTIME BLOCKERS (56)
+rigid_score_ledger:rigid_score_ledger_score_blocked
+RigidScoreLedger score status is blocked; the active-truth stack is blocked
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [0m,661.8457319039326m) is masked (identity_gap_masked_unknown_bracket); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [1495.3125m,9417.1875m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [9613.125m,10388.213632804993m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [10449.375m,34626.5625m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [34867.455102104344m,39526.446214436815m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [39644.15380408683m,40628.23587726083m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [40681.68099440862m,40721.023467790816m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [40764.6686472852m,40811.075256306576m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [40862.8125m,42537.04426963784m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [42669.375m,42709.94340637635m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [42815.20935058151m,75331.56699397632m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [75850.3125m,77016.5625m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [78732.1875m,80456.25m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [81020.625m,81824.0625m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [81912.39461000335m,83752.5m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [83875.3125m,84997.5m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [85541.62219785117m,104550m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [105458.70134227446m,107251.92327421714m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [107365.89278871362m,107366.40619012443m) is masked (identity_gap_masked_junction_like_heading); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [107548.125m,109200.9375m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [109368.75m,109595.625m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [109953.75m,111735m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [111915m,116748.75m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [116884.30436031954m,159880.7863069354m) is masked (identity_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_identity:road_identity_gap_masked_interval
+road_identity coverage gap [161156.5965659365m,199865.1884409461m) is masked (identity_gap_masked_unknown_bracket); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [0m,661.8457319039326m) is masked (road_context_gap_masked_unknown_bracket); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [1495.3125m,9417.1875m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [9613.125m,9829.6875m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [10029.375m,10388.213632804993m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [10449.375m,34626.5625m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [34867.455102104344m,39219.10006318536m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [39499.29718345909m,39526.446214436815m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [39572.8125m,41921.25m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [42115.3125m,42537.04426963784m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [42669.375m,42709.94340637635m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [42815.20935058151m,75331.56699397632m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [75850.3125m,77016.5625m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [78732.1875m,80456.25m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [81169.6875m,81824.0625m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [81912.39461000335m,83752.5m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [83875.3125m,84997.5m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [85541.62219785117m,104550m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [105458.70134227446m,107251.92327421714m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [107365.89278871362m,107366.40619012443m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [107548.125m,109200.9375m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [109368.75m,109595.625m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [109760.625m,109796.25m) is masked (road_context_gap_masked_gap_too_long); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [109953.75m,111735m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [111915m,116748.75m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [116884.30436031954m,117956.25m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [118131.5625m,118158.75m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [118332.1875m,137299.53566673573m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [137496.5625m,159880.7863069354m) is masked (road_context_gap_masked_identity_contradiction); roadway curvature inside the gap is blocked, never fabricated
+road_context:road_context_gap_masked_interval
+road_context coverage gap [161156.5965659365m,199865.1884409461m) is masked (road_context_gap_masked_unknown_bracket); roadway curvature inside the gap is blocked, never fabricated
+route_surface_truth_bundle:route_surface_truth_bundle_score_blocked
+3705 score-readiness blocker(s): interval_unresolved, overall_selection_blocked, road_risk_interval_incomplete, selection_conflict_present, speed_set_blocked
+SCORE BLOCKERS (DECOMPOSITION)
+overall_selection_blocked=1 · speed_set_blocked=1 · interval_unresolved=814 · road_risk_interval_incomplete=2131 · selection_conflict_present=758
+traffic: blocked · unresolved 814 (163501m = 81.8% · max run 21160m) · no_complete_candidate=56 strongest_class_conflict=758
+speed: blocked · unresolved 34 (190935m = 95.5% · max run 42996m) · no_speed_candidate=34 · ladder 11 (3250m = 1.6%) highway_baseline=11 · ladder attempted 45 (194186m) / completed 11 (3250m) / unresolved 34 (190935m) · rejected propagation_identity_unresolved=34 road_context_uncovered=29 local_area_predicted:missing_urbanicity=34 regional_prior:no_candidate_row=34 highway_area_baseline:no_candidate_row=34 highway_baseline:unknown_highway_class=34 highway_baseline:unsupported_highway_class=5 · propagation eligible anchors 23 / propagated 0 (0m) / unresolved 34 · authoritative_inferred=0 osm_inferred=0 observation_inferred=0 · rejected propagation_anchor_identity_mismatch=9 propagation_identity_unresolved=36
+shoulder: ready · unresolved 0 (0m = 0.0% · max run 0m) · unknown(no-credit) 1 (199865m = 100.0% · max run 199865m)
+facility: ready · unresolved 0 (0m = 0.0% · max run 0m) · unknown(no-credit) 9 (194909m = 97.5% · max run 94406m)
+road-risk missing: traffic=1724 · speed=2090 · curvature=2144
+curve abstention: 36 interval(s) · 1861.5m (0.93%) · max run 244.3m · grade ready_with_warnings
+
+CANONICAL EVIDENCE COVERAGE WATERFALL
+▸
+route-axis route-axis:9c2d9b6b85a3f14f@route_axis_sha256:9c2d9b6b85a3f14f8256a861cc7197d13de9646cbcc3033f1103e7e6c664a3c2 · first material loss = canonical_ledger:shoulder (shoulder)
+RECEIPTS
+No receipts because the chain is blocked at Rigid score ledger.
+Legacy heatmap / cue-sheet route intelligence exists for this route but is not ActiveTruth authority (display-only; never promoted).
+ROUTE PAINT
+No paint — blocked renders nothing (never a grey replacement over the base heatmap).
+Interval unavailable / blocked
+Route truth blocked
+The left drawer Receipts tab is the receipt surface for the active route path.
+```
+
+## 6. Derivation appendix (independently checkable from the raw gap inventories above)
+
+**Short route, road_identity uncovered (13 raw gap ranges):** 0.93 + 0.93 + 0.90 + 0.89 + 0.89 + 0.90 + **1,570.13** + 0.78 + 0.99 + 0.53 + 0.73 + 0.92 + 0.60 ≈ **1,580.1 m** → DERIVED coverage ≈ (23,546 − 1,580)/23,546 ≈ **93.3%**.
+
+**Dam Ride, road_identity uncovered (25 raw gap ranges):** 661.85 + 7,921.88 + 775.09 + 24,177.19 + 4,658.99 + 984.08 + 39.34 + 46.41 + 1,674.23 + 40.57 + 32,516.36 + 1,166.25 + 1,724.06 + 803.44 + 1,840.11 + 1,122.19 + 19,008.38 + 1,793.22 + 0.51 + 1,652.81 + 226.88 + 1,781.25 + 4,833.75 + 42,996.48 + 38,708.59 ≈ **191,153.9 m** of 199,865.2 → DERIVED coverage ≈ **4.36%**. Road_context gaps are co-located (same ranges, with a few finer subdivisions leaving small covered slivers, e.g. [9,829.7–10,029.4), [39,219.1–39,499.3), [117,956.3–118,131.6), [137,299.5–137,496.6)) → context coverage marginally above identity's, same order of magnitude.
+
+**Headline artifact (documented for the diagnostic's next revision):** Dam's `first material loss = canonical_ledger:shoulder` is a stage-ordering artifact of the ≥5%-below-running-max rule — identity/context (~4%) never raise the running max; the max first rises at HPMS-fed traffic/lane stages, so the first ≥5% drop registers at shoulder's **by-design 0%** (shoulder is intentionally absent → unknown/no-credit downstream; `shoulder: ready` in the same capture). Short route's headline (`speed_limit`) is meaningful because identity/context (~93%) set a high running max first. Candidate diagnostic improvement (future phase, not done here): exclude by-design-absent families from the material-loss rule, or report per-family first-loss. The classification below does not rely on the headline.
+
+## 7. Causal classification (from raw fields only)
+
+**Short route:** NO upstream material loss (identity ≈93.3% DERIVED). Residuals: sparse direct posted speed (raw: ladder attempted 20,316 m of 23,546 m), mostly repaired by ladder to 73.9%; traffic 43.0% unresolved is selection conflict (raw: `strongest_class_conflict=157`; conflict ≠ absence). Selection-stage loss only.
+
+**Dam Ride: MULTIPLE INDEPENDENT LOSSES; earliest = acquisition/window truncation in the Overpass lane.** Three raw discriminators:
+1. road_identity and road_context lose **co-located ranges** — per-family normalization/projection/admission failures would diverge by family; co-located holes mean the same raw source rows were absent for those regions;
+2. many gap edges sit on a quantized grid (1,495.3125 · 9,417.1875 · 34,626.5625 · 116,748.75 — exact multiples of 0.9375 m) while others are irregular projections — grid-aligned edges are fetch-window boundaries, i.e., whole windows contributed nothing;
+3. the loss is **provider-asymmetric**: HPMS/DOT-fed traffic evidence spans the route (raw: 758 same-class conflicts + 814 unresolved intervals distributed across it), while every Overpass-fed family collapses.
+
+Speed 95.5% unresolved and curvature (2,144 missing road-risk intervals) are downstream consequences (raw rejected reasons: `road_context_uncovered=29`, `unknown_highway_class=34`, `propagation_identity_unresolved=34/36`) — not independent defects. Traffic selection conflict is the independent second loss, shared with the short route.
+
+## 8. Owned-OSM static findings (file:line receipts)
+
+The repair question is not "widen Overpass" — an owned OSM spatial read already exists in the design and is broken on long routes:
+
+1. The source-read execution policy is `'owned_osm_overpass_source_reads.v1'` (`src/lib/route-line-v2/route-evidence-admission-plan.ts:223`) — owned-OSM reads + Overpass reads together, by design.
+2. The CUTOVER-3B-2G report recorded the owned-OSM read on the Dam Ride: **planned 800 way-ids, succeeded 44, unavailable 756** (small loop: 88/88) — explicitly deferred then ("outside 3B-2G scope") and never repaired.
+3. `src/lib/route-line-v2/owned-roads-source.ts`, despite its name, parses raw Overpass elements; `route-line-v2-candidate-universe.ts:13` documents it requesting the "near-full OSM highway universe per window from Overpass."
+4. The owned source is registered with regional scoping (`'owned-osm', 'Owned OSM road source', 'Lanterne', 'USA', 'NJ'` at `v2ss-evidence-source-abstraction.ts:352`; also `nuremberg-owned_osm` :2705) — the 756 failures may be a spatial-coverage limit rather than a query bug; this is the repair phase's first audit item.
+5. The canonical snapshot retains only raw proxy rows (`v2ss-current-route-production-engine.ts:1530–1548`); owned/substrate adapter outputs are excluded (`substrate_accepted_as_truth=false` :6515).
+
+## 9. Codex review round
+
+First Codex review of the live evidence returned **INCONCLUSIVE** solely because the raw captures were not embedded after the delimiter (they lived only in chat). This file is the durable resubmission record: raw captures verbatim (§4–§5), derivations checkable (§6), classification from raw fields only (§7), plus the owned-OSM static findings (§8).
+
+## 10. Next-phase classification (classification only; no implementation specified)
+
+**Owned-OSM read repair / source-snapshot investigation** for the Overpass lane on long routes: first diagnose the 756/800 owned-read failures (regional coverage vs. id/bbox resolution), then decide whether repaired owned reads are retained into the canonical snapshot. Not a fetch-budget widening. Traffic selected-set repair remains a separate later class (3D-1G territory).
+
+## 11. Non-authorization + integrity
+
+This capture and this documentation commit changed no evidence, selection, scoring, policy, budget, flag, cache, or route-history state. Docs-only. Deployment, runtime enablement, default flips, substrate-to-spine promotion, fetch-budget increases, normalization/projection/admission changes, speed/traffic policy changes, and 3D-1G all remain unauthorized. All eight defaults remain false on main `60d3dd70`.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System
