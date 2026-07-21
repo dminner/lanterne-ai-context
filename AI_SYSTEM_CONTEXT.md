@@ -7435,8 +7435,16 @@ remains owned solely by P05.
 Staging rules (no formula, coefficient, threshold, or factor changes):
 
 - **Road Risk (§8.1)** is blocked until the bundle carries selected **traffic** (present),
-  **speed severity** (§8.3), **horizontal curvature** (§8.4), and **facility + shoulder**
-  (§8.5) inputs, plus interval length.
+  **speed severity** (§8.3), and **facility + shoulder** (§8.5) inputs, plus interval length.
+  **Horizontal curvature (§8.4)** participates **additively** (Amendment 2026-07-17 —
+  GATE-2-STABILIZATION-1; §8.4.2 history): **confirmed** curvature contributes under the existing
+  §8.4 factor law, while **uncertain / missing / masked / ambiguous** curvature becomes an
+  explicit, receipt-backed **abstention** that applies **no** curvature contribution and does
+  **not** block a road interval whose required non-curvature inputs are complete. Unknown curvature
+  is **never** treated as straight, and public score confidence **discloses** the curvature
+  omission. Missing required **non-curvature** evidence (speed, traffic, required crossing) still
+  blocks. The additive behaviour is a bounded candidate contract behind the existing policy seam and
+  is **not runtime-activated by this ticket**.
 - **Crossing Risk (§9.2)** is blocked until the bundle carries selected **crossed-road
   effective right-lane AADT**, **crossed-road speed**, **lanes crossed / width** (§9.3),
   **control type** (§9.4), **movement type** (§9.5), and **crossing context severity /
@@ -7451,13 +7459,16 @@ Staging rules (no formula, coefficient, threshold, or factor changes):
 - Selected scoring inputs are produced by explicit upstream P04 subphases
   (EXEC-060 P04C-A / P04C-B / P04C-C / P04D / P04E) **before** P05 retries; those subphases
   carry selected inputs only and apply no DS-015 formula.
-- **Curvature input representation (Amendment 2026-06-27 — P04C-C2).** The "horizontal curvature
-  (§8.4)" input above means the geometry-derived **roadway-curve classification** of §8.4.1
-  (circumcircle / radius-style detection, junction-masked, sustained-span), **not** the P04C-C v1
-  accumulated-heading-change diagnostics (`curvatureDegPerKm` / `maxSingleTurnDeg`). The remaining
-  "input availability" gap therefore includes carrying the correct curvature *representation*: P05
-  stays blocked until the bundle carries the roadway-curve class, and P05 must not derive
-  `CurvatureFactor` from the heading-change metrics. Sequencing: P04C-C2-B → P04E2 → P05.
+- **Curvature input representation (Amendment 2026-06-27 — P04C-C2; revised 2026-07-17 —
+  GATE-2-STABILIZATION-1).** The "horizontal curvature (§8.4)" input above means the
+  geometry-derived **roadway-curve classification** of §8.4.1 (circumcircle / radius-style
+  detection, junction-masked, sustained-span), **not** the P04C-C v1 accumulated-heading-change
+  diagnostics (`curvatureDegPerKm` / `maxSingleTurnDeg`); P05 must never derive `CurvatureFactor`
+  from the heading-change metrics. A **confirmed** roadway-curve class contributes under the §8.4
+  factor law. When the class is **unavailable / blocked / masked / ambiguous**, curvature is an
+  explicit, receipt-backed **abstention** (no contribution, never relabelled straight) that does
+  **not** block an interval whose required non-curvature inputs are complete — it no longer makes
+  P05 "remain blocked solely because curvature is unavailable." Sequencing: P04C-C2-B → P04E2 → P05.
 
 ## 6. Truth Resolution, Provenance, And Confidence
 
@@ -7784,11 +7795,15 @@ including junction turns and digitization wiggle — they over-report curvature 
 DS-015 roadway-curve scoring representation. **P05 must not derive `CurvatureFactor` from
 `curvatureDegPerKm` or `maxSingleTurnDeg`.** These fields may be retained for diagnostics only.
 
-**P05 stays blocked on this input.** Road Risk (§8.1) remains blocked until the selected scoring
-bundle (§5.2.2) carries the geometry-derived roadway-curve **classification** described here; a
-heading-change metric alone does not satisfy the §8.4 curvature input. (Sequencing: P04C-C2-B
-produces the selected roadway-curve class; P04E2 carries it through the bundle; then P05 retries —
-see EXEC-060 and DS-067.)
+**Curvature is additive to this input (revised 2026-07-17 — GATE-2-STABILIZATION-1; §8.4.2
+history).** A **confirmed** geometry-derived roadway-curve **classification** contributes to Road
+Risk under the §8.4 factor law; a heading-change metric alone still does **not** satisfy the §8.4
+curvature input (P05 must never score it). When the classification is unavailable / blocked, P05 no
+longer stays blocked on curvature alone: curvature is recorded as an explicit, receipt-backed
+**abstention** (no contribution, never treated as straight) and the interval scores from its
+required non-curvature inputs. (Sequencing: P04C-C2-B produces the selected roadway-curve class;
+P04E2 carries it — and, under the additive candidate contract, the confirmed|abstained curvature
+disposition — through the bundle; then P05 scores. See EXEC-060 and DS-067.)
 
 **Future source precedence.** Official / state DOT curve-inventory evidence (curve class, degree,
 radius, superelevation by route + milepoint) may later **outrank** geometry-derived curve
@@ -7830,10 +7845,46 @@ dependencies.
 **Fail closed on missing mask context.** If a required mask input is absent for an interval,
 P04C-C2-B must **fail closed** — either **block** selected roadway-curve classification for that
 interval, or mark it **insufficient mask context** — and must **never** silently treat unmasked
-geometry as score-ready curvature. **P04E2** carries both the selected roadway-curve class and any
-mask-context blockers through the bundle; **P05 remains blocked** until P04E2 carries a score-ready
-roadway-curve classification. Corrected sequencing: P04C-C2-A → P04C-C2-A2 (this amendment) →
+geometry as score-ready curvature. **P04E2** carries the selected roadway-curve class, any
+mask-context blockers, and (under the additive candidate contract) the explicit confirmed|abstained
+**curvature disposition** through the bundle. A missing/blocked/masked/ambiguous classification is
+carried as a receipt-backed **abstention**: it applies **no** curvature contribution and does
+**not**, by itself, keep P05 blocked when the interval's required non-curvature inputs are complete;
+a **confirmed** class contributes under the §8.4 factor law. Sequencing: P04C-C2-A → P04C-C2-A2 →
 P04C-C2-B → P04E2 → P05 (see EXEC-060 and DS-067).
+
+**Amendment history — curvature blocking → additive (2026-07-17, GATE-2-STABILIZATION-1).** The
+prior wording of §8.4 / §8.4.1 / §8.4.2 stated that *"P05 remains blocked until P04E2 carries a
+score-ready roadway-curve classification"* and that *"Road Risk (§8.1) remains blocked until the
+selected scoring bundle carries the geometry-derived roadway-curve classification; a heading-change
+metric alone does not satisfy the §8.4 curvature input"* — i.e. that unavailable/blocked curvature
+blocked the whole score. That is superseded (governing model): confirmed curvature contributes under
+the existing §8.4 factor law; uncertain/missing/masked/ambiguous curvature is an explicit,
+receipt-backed abstention that applies no curvature contribution and does not block an otherwise
+score-ready interval; unknown curvature is never treated as straight; public score confidence
+discloses the curvature omission; every confirmed/abstained disposition is receipt-backed; and
+missing required **non-curvature** evidence (speed, traffic, required crossing) still blocks. The DS-029
+selected-input / score-confidence numeric evidence-confidence (§9A) is a **separate** honesty layer
+and is unchanged: curvature abstention drives only the *score-confidence* curvature component to
+`unresolved`, never the numeric DS-029 evidence confidence. The additive model is realized as a
+bounded candidate contract behind the existing policy seam and is **not runtime-activated** by this
+ticket (the LIVE runtime remains the omit-path policy).
+
+**Amendment — receipt VALIDATION + certified route-occurrence lineage (2026-07-17,
+GATE-2-STABILIZATION-1 FOLLOW-UP 2).** "Receipt-backed" is strengthened from *a nonempty receipt id*
+to *a fully VALIDATED receipt OBJECT*: one canonical validator recomputes the disposition receipt id
+from its semantic payload and checks the route-axis binding, interval bounds, disposition kind
+(confirmed↔confirmed / abstained↔abstained), selected fact id, abstention reason, contribution
+applicability, parent receipts, occurrence lineage, confidence and provenance. Under the additive
+candidate contract an interval is curvature-compatible ONLY with a validated matching receipt for
+BOTH dispositions (a confirmed disposition without one is NOT score-ready; typed
+`curvature_disposition_receipt_missing` / `curvature_disposition_receipt_invalid` blockers).
+Separately, the disposition's route-occurrence lineage now comes ONLY from the certified
+route-occurrence AUTHORITY (`route-evidence/route-occurrence`; proof = the committed road-identity
+projection sustained-run chain): `certified` (id + positional ordinal + certification receipt),
+explicit `unavailable`/`unresolved` (+ exact blocker; never a fabricated ordinal 0), or `ambiguous`
+(ALL competing occurrence ids preserved + an ambiguity receipt). RouteSurfaceTruth never constructs
+occurrence identity (the prior admission-fragment ordinal derivation was removed as fabricated).
 
 ### 8.5 Facility And Shoulder Factors
 
