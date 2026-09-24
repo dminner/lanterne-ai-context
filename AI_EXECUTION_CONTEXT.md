@@ -62567,6 +62567,135 @@ Production carries nothing to roll back from this ticket.
 
 ---
 
+## Source File: docs/04-execution/exec-063-hpms-deadline-ladder-implementation-ticket.md
+
+# EXEC-063 — HPMS deadline ladder and truncation subdivision: implementation ticket
+
+**Phase:** P7 (tracking issue #53). **ADR:** [ADR-063](../03-adrs/adr-063-hpms-deadline-ladder-and-truncation-subdivision.md) (Proposed).
+**Origin:** Finding 23 of the overnight record; Codex's host diagnosis of 2026-09-24; Derek's direction on subdivision.
+**Builder:** Codex. **Reviewer:** independent skeptical review. **Final gate:** Derek/ChatGPT. **Verifier of the result:** Claude.
+**Branch/PR:** new branch from `main` (after PR #55 or rebased onto it, since it edits the same Edge constant); builder report under `docs/04-execution/reports/`; no merge without the gate.
+
+## 1. Scope
+
+Three layers, in this rollout order, each safe on its own:
+
+1. Edge `hpms-read-proxy`: hosted upstream deadline 12,000 ms; truncated hosted answers become a
+   typed split control response; the ArcGIS fallback path gets one bounded deadline.
+2. Host Nginx: `proxy_read_timeout 10s` (and `proxy_send_timeout 10s`) on the
+   `/v1/p7/hpms/sections` location only, under the host's change governance, with the site
+   configuration's SHA-256 recorded before and after.
+3. Engine: browser per-state-year deadline 15,000 ms; subdivision of a split-required window; the
+   completeness proof by sub-window union; receipts and diagnostics; a ladder-ordering test.
+
+## 2. Non-goals
+
+- No change to `HPMS_SECTIONS_MAX_LIMIT` (5,000), the statement timeout (8,000 ms), the year
+  policy, retention caps, scoring, or the compiler's `hpms_acquisition_complete=true` gate.
+- No fallback of any kind for a truncated hosted answer.
+- No change to the compiler's 30,000 ms deadline or its window concurrency of 1.
+- No rider-facing text.
+
+## 3. Read first
+
+`AGENTS.md`; ADR-063; Findings 19 and 23; `supabase/functions/hpms-read-proxy/index.ts` (the
+hosted branch, lines ~118–205: `hostedReadFallback`, the validation rejection, the fallback into
+`queryHpmsYearWithFallback`), `supabase/functions/hpms-read-proxy/hosted-boundary.ts`
+(`NUREMBERG_HPMS_UPSTREAM_TIMEOUT_MS`), `supabase/functions/hpms-proxy/hpms-schema.ts` (the
+`response_truncated` / `completeness_unproven` validator, ~line 244);
+`src/lib/route-line-v2/v2ss-current-route-production-engine.ts`
+(`CURRENT_ROUTE_HPMS_STATE_YEAR_FETCH_TIMEOUT_MS` line 576, `fetchHpmsRouteDistanceWindowedResponse`
+line 6261, window planning around line 7316 with the 5,000 m requested window and the 64-window
+bound, the completeness receipts around lines 2385–2435 with `response_truncated`, and the
+`hpms_*` diagnostics block around lines 6780–6870); the existing architecture test
+`src/test/architecture/p7-hpms-read-proxy-hosted-boundary.test.ts` (PR #55).
+
+## 4. Changes
+
+### 4.1 Edge
+
+- `hosted-boundary.ts`: `NUREMBERG_HPMS_UPSTREAM_TIMEOUT_MS = 12_000`. Update the boundary test
+  (survives 8,000 and 11,999 ms, aborts at 12,000 ms).
+- `index.ts`: when the hosted validation rejects with `response_truncated` **and** the record
+  carries `truncated === true` (a genuine row-limit truncation, not a malformed answer), return
+  HTTP 422 with an exact-key control body:
+  `{ schemaVersion: 'hpms-read-proxy-control.v1', status: 'split_required',
+  code: 'hpms_window_split_required', stateCode, year, bbox: { south, west, north, east },
+  rowLimit: 5000, sourceRevision: <hosted revision if the answer carries one, else null> }`.
+  No ArcGIS call on that path. Every other rejection keeps today's behaviour.
+- `index.ts`: give the fallback path one total deadline, `HPMS_FALLBACK_TOTAL_TIMEOUT_MS = 45_000`
+  (a named constant with a test); on expiry answer 503 with `hpms_fallback_deadline_exceeded` and
+  the existing `hostedReadFallback` detail, so the caller sees a typed failure before the gateway's
+  150 s idle limit.
+
+### 4.2 Nginx (host, Codex, read the host's governance first)
+
+- `location /v1/p7/hpms/sections`: `proxy_read_timeout 10s; proxy_send_timeout 10s;` only. Record
+  the configuration SHA-256 before and after, `nginx -t`, reload per the host's procedure, no other
+  directive touched. Do this only after the Edge 12 s is live. Verify: the DC box
+  `S38.88897 W-77.01618 N38.9344 E-76.9908`, year 2020, answers 200 through Nginx and through the
+  Edge (expect 4,971 complete rows, about 5 s); the Des Moines box still answers 3,611.
+
+### 4.3 Engine
+
+- `CURRENT_ROUTE_HPMS_STATE_YEAR_FETCH_TIMEOUT_MS = 15_000`.
+- In `fetchHpmsRouteDistanceWindowedResponse`: a 422 control response with
+  `code === 'hpms_window_split_required'` (validated exact keys, echoed state/year/bbox equal to the
+  request) is neither a success nor a failure: the window is split into two sub-windows at the
+  midpoint of its route-point span (bounding boxes recomputed from the sub-spans with the same
+  corridor padding), both sub-windows are enqueued for every acquisition year, to a maximum depth
+  `HPMS_WINDOW_SUBDIVISION_MAX_DEPTH = 4`, counting against the existing attempt budget. A
+  sub-window still split-required at maximum depth is recorded as
+  `hpms_window_truncated_irreducible` and the parent window fails as a failed window fails today.
+- Completeness: a subdivided window is complete only when every sub-window for every year answered
+  `complete: true, truncated: false`; the window's rows are the union of sub-window rows,
+  de-duplicated by the existing global dedupe; per-window caps apply to the union.
+- Receipts and diagnostics: `hpms_window_subdivisions=<windowId>:<depth>:<subWindowCount>,...`,
+  `hpms_window_subdivision_request_count=<n>`, `hpms_window_truncated_irreducible=<ids>`; the
+  completeness reason `response_truncated` is kept for the irreducible case.
+- Ladder test (architecture test): browser constant > Edge constant > 8,000, and the compiler
+  constant > the browser constant.
+
+### 4.4 Downstream (verify, no change expected)
+
+The retention policy, cap fairness, dedupe and route pruning operate on rows and are unaware of
+sub-windows; `hpms_slowest_windows` and window duration percentiles should report the parent
+window with its sub-window total.
+
+## 5. Tests (vitest, Node 22, plus the Edge boundary suite)
+
+Edge: 12 s default; truncated hosted answer → 422 control body, no fetch to ArcGIS (assert the
+fallback fetch is never invoked); malformed hosted answer → unchanged rejection and fallback;
+fallback deadline → typed 503. Engine: split on control, two sub-windows per year, depth bound,
+irreducible → window failed and acquisition incomplete; completeness only with all sub-windows
+complete; a sub-window timeout still fails the window; attempt budget shared; ladder ordering.
+Type-check parity with the base (multiset ignoring positions); ESLint no new diagnostics.
+
+## 6. Acceptance evidence (numbers, not adjectives)
+
+- Through the Edge with the rider account, one at a time: DC 2020 `S38.88897 W-77.01618 N38.9344
+  E-76.9908` → 200, hosted, 4,971 rows (after Nginx 10 s); Madison 2020 `S43.0567 W-89.4733
+  N43.0808 E-89.3814` → 422 split control (after the Edge change), and a route-window request
+  through the engine completes it by subdivision with every sub-window complete, or reports
+  `hpms_window_truncated_irreducible` with the sub-window receipts.
+- The fifteen boxes of the 2026-09-24 fleet probe (overnight record, "Nürnberg HPMS release
+  verified"): all fifteen hosted, none via fallback.
+- `compile-one` for Capitol to Capitol (`26cde7f7-6c43-4341-95f9-32c7f05d4b1a`): the HPMS gate
+  clears (`hpms_acquisition_complete=true`); the material gaps of ADR-062 remain the next blocker.
+- Tims Fresh 100 loads in the browser without the terminal purple failure (rider account, immutable
+  frontend URL, before promotion).
+- No-regression: Batsto canonical digest unchanged; MACTRI unchanged.
+
+## 7. Builder report, review, gate, rollback
+
+As EXEC-062 sections 8–10, with the ADR-063 gate items marked as human-gate items. Rollback per
+layer: Edge redeploy from the previous commit; Nginx restore the recorded configuration; frontend
+the previous deployment. Each layer is independently reversible and each is safe alone in the
+stated order.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System

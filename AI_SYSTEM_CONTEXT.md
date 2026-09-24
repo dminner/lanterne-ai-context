@@ -53387,3 +53387,94 @@ bounds: 3 refused segments in two runs at points 15121–15122 and 15143–15145
 4. The hazard-lane rule in Decision 5.
 5. Confirmation that no rider-facing language changes (Decision 7).
 
+
+---
+
+## Source File: docs/03-adrs/adr-063-hpms-deadline-ladder-and-truncation-subdivision.md
+
+# ADR-063 — HPMS Window Deadline Ladder and Truncation Subdivision
+
+**Status:** Proposed (requires the Derek/ChatGPT human gate; touches an Edge fallback policy, a host proxy setting and the acquisition completeness proof)
+**Date:** 2026-09-24
+**Author:** Claude (builder), from Finding 23 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`, on Codex's host diagnosis of the same day
+**Implementation ticket:** `docs/04-execution/exec-063-hpms-deadline-ladder-implementation-ticket.md`
+**Numbering note:** sequential successor to ADR-062.
+
+## Context
+
+One HPMS state-year request crosses four deadlines, and today they are in the wrong order:
+
+| Layer | Deadline | Where |
+| --- | --- | --- |
+| Browser, per state-year request | 4,000 ms | `CURRENT_ROUTE_HPMS_STATE_YEAR_FETCH_TIMEOUT_MS` (engine); the server compiler uses 30,000 ms |
+| Nginx, `location /v1/p7/hpms/sections` | 4 s | host only; maps upstream 502/504 to `503 hpms_service_unavailable / origin_not_ready` |
+| Edge `hpms-read-proxy`, hosted upstream | 4,500 ms on `main`, 10,000 ms deployed (v13, draft PR #55) | `NUREMBERG_HPMS_UPSTREAM_TIMEOUT_MS` |
+| Nürnberg, Postgres statement | 8,000 ms since the 2026-09-24 release (was 1,800) | `HPMS_SECTIONS_BOUNDS.statementTimeoutMilliseconds` |
+
+The innermost bound is larger than two outer ones, so every query that needs between 4 and 8 s is
+killed by Nginx at 4 s and by the browser at 4 s while the database is still working. The
+statement-timeout release therefore fixed the boxes under 4 s (thirteen of the fifteen that failed
+on 2026-09-24) and none above it. Codex measured the two survivors on the host: the DC Mall box
+answers in 5.04–5.07 s with 4,971 complete rows directly, and 503 at 4.09 s through Nginx; the
+Madison box answers in 4.63 s directly with 5,000 rows, `truncated: true`, and 503 at 4.1–4.2 s
+through Nginx. `origin_not_ready` is Nginx's wording for the cut-off, not a readiness state.
+
+A second, independent limit: the hosted read returns at most `HPMS_SECTIONS_MAX_LIMIT = 5,000`
+rows and marks `truncated: true` beyond it. The Edge validator rejects any truncated or
+incomplete hosted answer (`response_truncated`), which is right, and then falls back to the public
+ArcGIS feed, which is not: that path has no bounded deadline, the Supabase gateway ends it at 150 s
+(`IDLE_TIMEOUT`, observed as HTTP 504), and its pages are themselves unproven. Madison downtown is
+denser than one 5,000-row window. Derek's direction (2026-09-24): if a section is too dense to fit
+inside one answer, take a subsection approach.
+
+## Decision (proposed)
+
+1. **A strict deadline ladder, outer greater than inner by at least 2 s of transport margin,
+   with every value a named constant.** Postgres statement 8,000 ms (as released) < Nginx
+   `proxy_read_timeout` 10 s on the HPMS location < Edge hosted upstream 12,000 ms < browser
+   per-state-year 15,000 ms. The compiler keeps 30,000 ms. A Lanterne architecture test asserts
+   browser > Edge > 8,000 ms; the Nginx value is recorded with the site configuration's SHA-256 in
+   the release receipt, since it lives only on the host.
+2. **Truncation becomes a typed split signal, never a fallback.** When the hosted answer is
+   `truncated: true`, the Edge returns a typed, non-data control response (HTTP 422,
+   `hpms_window_split_required`, echoing state, year, bounding box and the row limit) instead of
+   consulting ArcGIS. The engine splits that route window into two sub-windows by route distance,
+   requests both for every year, recursively to a maximum depth of 4 (16 sub-windows) inside the
+   existing attempt budget. The window's official traffic is complete only when every sub-window
+   answered `complete: true, truncated: false`; a sub-window still truncated at maximum depth is
+   `hpms_window_truncated_irreducible`, and the window fails exactly as a failed window fails
+   today (canonical blocked, interactive baseline continuation), with the sub-window receipts.
+3. **The ArcGIS fallback is bounded.** Where it still applies (hosted network or configuration
+   failure, not truncation), the Edge gives the whole fallback path one deadline (proposed 45 s)
+   and answers a typed failure before the gateway's 150 s limit.
+4. **Nothing else moves.** Retention caps, the year policy (2024 primary, 2020 companion), scoring,
+   the compiler's `hpms_acquisition_complete=true` gate and the 5,000-row hosted limit are
+   unchanged.
+
+## Alternatives considered
+
+- Raise the 5,000-row limit: bytes and query time grow with it and collide with the 8 s bound;
+  subdivision keeps every answer small and proven.
+- Treat a failed 2020 companion as non-fatal when 2024 succeeded: a year-policy change Derek
+  declined ("get 2020 not to fail").
+- Keep ArcGIS as the answer for dense boxes: slow, paged, completeness unproven; it turned a 5 s
+  query into a 136 s or 504 answer.
+
+## Consequences
+
+- Boxes that need 4–8 s answer from Nürnberg through every layer. On 2026-09-24 that is the DC Mall
+  box, which unblocks the compiler's HPMS gate for Capitol to Capitol.
+- Dense boxes above 5,000 rows cost extra requests only where they occur; Madison becomes two or
+  more proven sub-windows.
+- Live loads of dense routes spend longer in the HPMS phase, bounded by 15 s per request over the
+  existing concurrency; the compiler path is unaffected.
+- Rollout order matters: Edge 12 s first (harmless while Nginx is 4 s), then Nginx 10 s, then the
+  browser and engine change through the frontend gate.
+
+## Gate items
+
+1. The browser deadline of 15,000 ms (a UX and load-time decision).
+2. The Nginx change on the host, under the host's own change governance and receipt.
+3. The Edge change: 12,000 ms, truncation passthrough instead of fallback, bounded fallback.
+4. The subdivision semantics and the completeness proof by sub-window union.
+
