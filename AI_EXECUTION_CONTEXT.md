@@ -62644,13 +62644,32 @@ bound, the completeness receipts around lines 2385–2435 with `response_truncat
   request) is neither a success nor a failure: the window is split into
   `HPMS_WINDOW_SUBDIVISION_FANOUT = 4` sub-windows of equal route-point span (bounding boxes
   recomputed from the sub-spans with the same corridor padding), and all four are requested for
-  every acquisition year **concurrently**, inside the existing per-window state-year concurrency
-  and the attempt budget (measure whether the two waves that the per-window bound of 4 implies
-  matter on Madison; if they do, the ticket may let a subdivided window use 8, never above the
-  route-wide bound of 16). A sub-window that is itself split-required is split the same way once
-  more, `HPMS_WINDOW_SUBDIVISION_MAX_DEPTH = 2` (at most 16 sub-windows). A sub-window still
-  split-required at the second level is recorded as `hpms_window_truncated_irreducible` and the
-  parent window fails as a failed window fails today.
+  every acquisition year through **one shared scheduler with at most four requests in flight
+  across all parent windows and children** (`HPMS_HOSTED_MAX_IN_FLIGHT = 4`, matching Nürnberg's
+  four HPMS connections, which answer HTTP 429 to any request beyond them rather than queueing).
+  Four children times two years is two waves. A sub-window that is itself split-required is split
+  the same way once more, `HPMS_WINDOW_SUBDIVISION_MAX_DEPTH = 2` (at most 16 sub-windows). A
+  sub-window still split-required at the second level is recorded as
+  `hpms_window_truncated_irreducible` and the parent window fails as a failed window fails today.
+- 429 handling, bounded and counted: a hosted 429 (surfaced by the Edge as
+  `hosted_upstream_http_429`; the Edge must not fall back to ArcGIS on 429) is retried after the
+  server's `Retry-After` when present, else a short backoff, at most `HPMS_429_MAX_RETRIES = 3`
+  per request; beyond that the request fails as a failed request fails today. Diagnostics:
+  `hpms_hosted_429_count`, `hpms_hosted_429_retries`, `hpms_scheduler_max_in_flight`.
+- The scheduler replaces today's browser fan-out of up to 16 in flight (four windows times four
+  state-years, `MAX_HPMS_STATE_YEAR_CONCURRENCY_PER_ROUTE_WINDOW` and the route-experience window
+  concurrency); the compiler already runs one window at a time. Before changing it, measure once
+  what the current 16-way burst does against the four-connection backend in Production (count of
+  429s and fallbacks on one dense route load), and record it: it may be a live cause of slow loads.
+- Seam de-duplication: rows returned by more than one sub-window (sections crossing a seam) are
+  de-duplicated by section identity **before** the parent window's retention cap and before the
+  global dedupe, so the cap is applied to the parent's true row set and counts are not inflated.
+- Coverage and completeness proof (mandatory; a union is not a proof): (a) the sub-windows tile
+  the parent's route-point interval exactly, no gap, no overlap; (b) for every state and year the
+  parent required, every sub-window whose corridor touches that state answered `complete: true,
+  truncated: false`, and the union of sub-window state sets covers the parent's state set; (c) the
+  seam de-duplication above. Any failed proof marks the parent window failed with the proof that
+  failed in the receipt.
 - Optional refinement, only if the gate wants it and as a separate additive backend change: when
   the hosted answer carries `truncatedTotalCount`, choose the fan-out width as
   `ceil(truncatedTotalCount / 3,500)`, at least 2 and at most 8; without the field use 4. The
@@ -62692,9 +62711,9 @@ Type-check parity with the base (multiset ignoring positions); ESLint no new dia
   clears (`hpms_acquisition_complete=true`); the material gaps of ADR-062 remain the next blocker.
 - Tims Fresh 100 loads in the browser without the terminal purple failure (rider account, immutable
   frontend URL, before promotion).
-- Timing of the Madison window end to end under the fan-out (first attempt plus the parallel
-  level), and Nürnberg's HPMS pool size as read from the running process environment, so the real
-  parallelism ceiling is on record.
+- Timing of the Madison window end to end under the scheduler (first attempt plus the waves), as
+  measured, not estimated; the count of 429s seen; and the one-time measurement of today's 16-way
+  browser burst against the four-connection backend.
 - No-regression: Batsto canonical digest unchanged; MACTRI unchanged.
 
 ## 7. Builder report, review, gate, rollback

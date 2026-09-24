@@ -53442,8 +53442,13 @@ inside one answer, take a subsection approach.
    distance and requests all four, for every year, **in parallel** inside the existing concurrency
    and attempt budget, so a dense window costs one further wait rather than a chain of them. A
    sub-window that is itself truncated is split the same way once more (two levels, at most 16
-   sub-windows). The window's official traffic is complete only when every sub-window answered
-   `complete: true, truncated: false`; a sub-window still truncated at the second level is
+   sub-windows). The window's official traffic is complete only when three proofs hold, and a bare
+   union is not one of them: (a) the sub-windows tile the parent's route-point interval exactly, no
+   gap and no overlap; (b) for every state and year the parent required, every sub-window whose
+   corridor touches that state answered `complete: true, truncated: false`, and the union of the
+   sub-windows' state sets covers the parent's; (c) rows shared across sub-window seams are
+   de-duplicated by section identity before any per-window retention cap is applied, so the cap
+   sees the parent's true row set. A sub-window still truncated at the second level is
    `hpms_window_truncated_irreducible`, and the window fails exactly as a failed window fails today
    (canonical blocked, interactive baseline continuation), with the sub-window receipts.
    *Optional refinement, a separate additive backend change:* the hosted service may include the
@@ -53477,9 +53482,15 @@ inside one answer, take a subsection approach.
 - Dense boxes above 5,000 rows cost extra requests only where they occur; Madison becomes four
   proven sub-windows after one further parallel wait. The first attempt on a dense window still
   costs its full query (4.6 s on Madison); no variant avoids that without counting first.
-- Parallel fan-out helps only up to Nürnberg's HPMS connection pool; beyond it requests queue.
-  The engine already runs up to 16 requests in flight per load, so four sub-windows fit inside
-  what exists.
+- **Nürnberg's HPMS read path has four connections and answers HTTP 429 to any request beyond
+  them; excess requests are rejected, not queued** (Codex, verified on the host 2026-09-24). The
+  fan-out therefore runs under one shared scheduler of at most four requests in flight across all
+  parent windows and their children, with bounded, counted handling of 429 (retry after the
+  server's hint or a short backoff, a small maximum, then the request fails as a failed request
+  fails today). Four children times two years is already two waves under that scheduler. This
+  bound also applies to the browser's existing fan-out, which today allows up to 16 in flight
+  (four windows times four state-years); whether that burst produces 429s and fallbacks in
+  Production is unmeasured and is measured by the ticket.
 - Live loads of dense routes spend longer in the HPMS phase, bounded by 15 s per request over the
   existing concurrency; the compiler path is unaffected.
 - Rollout order matters: Edge 12 s first (harmless while Nginx is 4 s), then Nginx 10 s, then the
