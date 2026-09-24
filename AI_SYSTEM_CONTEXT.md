@@ -53438,12 +53438,20 @@ inside one answer, take a subsection approach.
 2. **Truncation becomes a typed split signal, never a fallback.** When the hosted answer is
    `truncated: true`, the Edge returns a typed, non-data control response (HTTP 422,
    `hpms_window_split_required`, echoing state, year, bounding box and the row limit) instead of
-   consulting ArcGIS. The engine splits that route window into two sub-windows by route distance,
-   requests both for every year, recursively to a maximum depth of 4 (16 sub-windows) inside the
-   existing attempt budget. The window's official traffic is complete only when every sub-window
-   answered `complete: true, truncated: false`; a sub-window still truncated at maximum depth is
-   `hpms_window_truncated_irreducible`, and the window fails exactly as a failed window fails
-   today (canonical blocked, interactive baseline continuation), with the sub-window receipts.
+   consulting ArcGIS. The engine splits that route window into **four** sub-windows by route
+   distance and requests all four, for every year, **in parallel** inside the existing concurrency
+   and attempt budget, so a dense window costs one further wait rather than a chain of them. A
+   sub-window that is itself truncated is split the same way once more (two levels, at most 16
+   sub-windows). The window's official traffic is complete only when every sub-window answered
+   `complete: true, truncated: false`; a sub-window still truncated at the second level is
+   `hpms_window_truncated_irreducible`, and the window fails exactly as a failed window fails today
+   (canonical blocked, interactive baseline continuation), with the sub-window receipts.
+   *Optional refinement, a separate additive backend change:* the hosted service may include the
+   total row count in a truncated answer (`truncatedTotalCount`, computed only when truncating,
+   under the same statement bound, `null` if it cannot be computed in time), and the engine then
+   chooses the fan-out width as `ceil(count / 3,500)`, capped at 8. The count is a planning hint;
+   it is never evidence of completeness. Counting before every window was considered and rejected:
+   it adds a round trip to every window of every route to help the few dense ones.
 3. **The ArcGIS fallback is bounded.** Where it still applies (hosted network or configuration
    failure, not truncation), the Edge gives the whole fallback path one deadline (proposed 45 s)
    and answers a typed failure before the gateway's 150 s limit.
@@ -53459,13 +53467,19 @@ inside one answer, take a subsection approach.
   declined ("get 2020 not to fail").
 - Keep ArcGIS as the answer for dense boxes: slow, paged, completeness unproven; it turned a 5 s
   query into a 136 s or 504 answer.
+- Recursive halving on truncation: correct but serial in depth (each level is another wait);
+  superseded by the one-shot four-way fan-out above, which has the same proof and one wait.
 
 ## Consequences
 
 - Boxes that need 4–8 s answer from Nürnberg through every layer. On 2026-09-24 that is the DC Mall
   box, which unblocks the compiler's HPMS gate for Capitol to Capitol.
-- Dense boxes above 5,000 rows cost extra requests only where they occur; Madison becomes two or
-  more proven sub-windows.
+- Dense boxes above 5,000 rows cost extra requests only where they occur; Madison becomes four
+  proven sub-windows after one further parallel wait. The first attempt on a dense window still
+  costs its full query (4.6 s on Madison); no variant avoids that without counting first.
+- Parallel fan-out helps only up to Nürnberg's HPMS connection pool; beyond it requests queue.
+  The engine already runs up to 16 requests in flight per load, so four sub-windows fit inside
+  what exists.
 - Live loads of dense routes spend longer in the HPMS phase, bounded by 15 s per request over the
   existing concurrency; the compiler path is unaffected.
 - Rollout order matters: Edge 12 s first (harmless while Nginx is 4 s), then Nginx 10 s, then the

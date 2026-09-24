@@ -62641,12 +62641,20 @@ bound, the completeness receipts around lines 2385–2435 with `response_truncat
 - `CURRENT_ROUTE_HPMS_STATE_YEAR_FETCH_TIMEOUT_MS = 15_000`.
 - In `fetchHpmsRouteDistanceWindowedResponse`: a 422 control response with
   `code === 'hpms_window_split_required'` (validated exact keys, echoed state/year/bbox equal to the
-  request) is neither a success nor a failure: the window is split into two sub-windows at the
-  midpoint of its route-point span (bounding boxes recomputed from the sub-spans with the same
-  corridor padding), both sub-windows are enqueued for every acquisition year, to a maximum depth
-  `HPMS_WINDOW_SUBDIVISION_MAX_DEPTH = 4`, counting against the existing attempt budget. A
-  sub-window still split-required at maximum depth is recorded as
-  `hpms_window_truncated_irreducible` and the parent window fails as a failed window fails today.
+  request) is neither a success nor a failure: the window is split into
+  `HPMS_WINDOW_SUBDIVISION_FANOUT = 4` sub-windows of equal route-point span (bounding boxes
+  recomputed from the sub-spans with the same corridor padding), and all four are requested for
+  every acquisition year **concurrently**, inside the existing per-window state-year concurrency
+  and the attempt budget (measure whether the two waves that the per-window bound of 4 implies
+  matter on Madison; if they do, the ticket may let a subdivided window use 8, never above the
+  route-wide bound of 16). A sub-window that is itself split-required is split the same way once
+  more, `HPMS_WINDOW_SUBDIVISION_MAX_DEPTH = 2` (at most 16 sub-windows). A sub-window still
+  split-required at the second level is recorded as `hpms_window_truncated_irreducible` and the
+  parent window fails as a failed window fails today.
+- Optional refinement, only if the gate wants it and as a separate additive backend change: when
+  the hosted answer carries `truncatedTotalCount`, choose the fan-out width as
+  `ceil(truncatedTotalCount / 3,500)`, at least 2 and at most 8; without the field use 4. The
+  count is a planning hint and must never feed the completeness receipt.
 - Completeness: a subdivided window is complete only when every sub-window for every year answered
   `complete: true, truncated: false`; the window's rows are the union of sub-window rows,
   de-duplicated by the existing global dedupe; per-window caps apply to the union.
@@ -62684,6 +62692,9 @@ Type-check parity with the base (multiset ignoring positions); ESLint no new dia
   clears (`hpms_acquisition_complete=true`); the material gaps of ADR-062 remain the next blocker.
 - Tims Fresh 100 loads in the browser without the terminal purple failure (rider account, immutable
   frontend URL, before promotion).
+- Timing of the Madison window end to end under the fan-out (first attempt plus the parallel
+  level), and Nürnberg's HPMS pool size as read from the running process environment, so the real
+  parallelism ceiling is on record.
 - No-regression: Batsto canonical digest unchanged; MACTRI unchanged.
 
 ## 7. Builder report, review, gate, rollback
