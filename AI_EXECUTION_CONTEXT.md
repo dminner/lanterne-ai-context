@@ -62623,6 +62623,12 @@ bound, the completeness receipts around lines 2385–2435 with `response_truncat
   code: 'hpms_window_split_required', stateCode, year, bbox: { south, west, north, east },
   rowLimit: 5000, sourceRevision: <hosted revision if the answer carries one, else null> }`.
   No ArcGIS call on that path. Every other rejection keeps today's behaviour.
+- `index.ts`: a hosted HTTP 429 is returned to the caller as a typed control, HTTP 429 with body
+  `{ schemaVersion: 'hpms-read-proxy-control.v1', status: 'rate_limited',
+  code: 'hpms_hosted_rate_limited', stateCode, year, bbox, retryAfterMs }` where `retryAfterMs`
+  is the hosted `Retry-After` converted to milliseconds and clamped to
+  `HPMS_RETRY_AFTER_MAX_MS = 10_000` (absent → `null`). No ArcGIS fallback on 429: the backend is
+  present and busy, and a fallback would only add load and latency.
 - `index.ts`: give the fallback path one total deadline, `HPMS_FALLBACK_TOTAL_TIMEOUT_MS = 45_000`
   (a named constant with a test); on expiry answer 503 with `hpms_fallback_deadline_exceeded` and
   the existing `hostedReadFallback` detail, so the caller sees a typed failure before the gateway's
@@ -62683,7 +62689,38 @@ bound, the completeness receipts around lines 2385–2435 with `response_truncat
 - Ladder test (architecture test): browser constant > Edge constant > 8,000, and the compiler
   constant > the browser constant.
 
-### 4.4 Downstream (verify, no change expected)
+### 4.4 Transport wrappers (both, or the controls never reach the engine)
+
+Two fetch wrappers sit between the Edge and the engine and today turn every non-2xx from
+`hpms-read-proxy` into a generic error: the browser worker
+(`src/workers/current-route-v2-production-worker-core.ts`, the `fetch` loop around line 214, which
+also applies two hidden retries of 300 and 800 ms to any non-2xx from any function except
+`p7-materialize-proxy`) and the compiler
+(`scripts/admin/run-p7-rusa-route-artifact-compiler.ts`, the source fetch around line 545, which
+fails on any non-2xx except a materialize control). Both already pass a validated 422 through
+for `p7-materialize-proxy` by way of `isP7MaterializeProxyControlHttpReceipt`; copy that pattern
+exactly:
+
+- Add to the contract a typed gate `isHpmsReadProxyControlHttpReceipt({ functionName, status,
+  request, response })`: true only for `functionName === 'hpms-read-proxy'` with HTTP 422 and a
+  `split_required` body, or HTTP 429 and a `rate_limited` body, both with exact keys and with
+  `stateCode`, `year` and `bbox` equal to the request. Anything else is not a control.
+- Both wrappers return the validated control body (with `httpStatus` attached) instead of
+  throwing, exactly as they do for the materialize control; an unvalidated 422/429 remains an
+  error.
+- Hidden retries: `hpms-read-proxy` joins `p7-materialize-proxy` in the browser wrapper's
+  no-hidden-retry set (`delays = []`). The shared scheduler in the engine is the only place that
+  retries an HPMS request, so each retry is counted once, honours `retryAfterMs`, and stops on
+  cancellation (the wrapper's combined abort signal and the scheduler's own sleeps both observe
+  the run signal). The compiler wrapper has no request-level retries; its route-level
+  `maximumAttemptsPerRoute` is unchanged and must not be confused with request retries.
+- Tests, per wrapper: a 422 split control reaches the caller with its body intact and is not
+  retried; a 429 control reaches the caller with `retryAfterMs` and is not retried by the wrapper;
+  an unvalidated 422/429 still errors; a cancelled run aborts an in-flight request and no retry
+  follows; the materialize control path is unchanged. Engine: the scheduler counts exactly one
+  attempt per wrapper call (assert with a counting fetch stub across a 429, a retry and a success).
+
+### 4.5 Downstream (verify, no change expected)
 
 The retention policy, cap fairness, dedupe and route pruning operate on rows and are unaware of
 sub-windows; `hpms_slowest_windows` and window duration percentiles should report the parent

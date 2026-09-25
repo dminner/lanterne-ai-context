@@ -53460,7 +53460,12 @@ inside one answer, take a subsection approach.
 3. **The ArcGIS fallback is bounded.** Where it still applies (hosted network or configuration
    failure, not truncation), the Edge gives the whole fallback path one deadline (proposed 45 s)
    and answers a typed failure before the gateway's 150 s limit.
-4. **Nothing else moves.** Retention caps, the year policy (2024 primary, 2020 companion), scoring,
+4. **The typed controls must survive the transport.** The browser worker and the compiler fetch
+   wrappers pass a validated 422 split control and a validated 429 control through to the engine,
+   as they already do for the materialize control, and apply no hidden retries to
+   `hpms-read-proxy`; the shared scheduler is the only retrier, so attempts are counted once and
+   stop on cancellation.
+5. **Nothing else moves.** Retention caps, the year policy (2024 primary, 2020 companion), scoring,
    the compiler's `hpms_acquisition_complete=true` gate and the 5,000-row hosted limit are
    unchanged.
 
@@ -53501,5 +53506,5 @@ inside one answer, take a subsection approach.
 1. The browser deadline of 15,000 ms (a UX and load-time decision).
 2. The Nginx change on the host, under the host's own change governance and receipt.
 3. The Edge change: 12,000 ms, truncation passthrough instead of fallback, bounded fallback.
-4. The subdivision semantics and the completeness proof by sub-window union.
+4. The subdivision semantics and the three-part completeness proof.
 
