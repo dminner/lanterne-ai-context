@@ -53387,32 +53387,6 @@ bounds: 3 refused segments in two runs at points 15121–15122 and 15143–15145
 4. The hazard-lane rule in Decision 5.
 5. Confirmation that no rider-facing language changes (Decision 7).
 
-## Implementation findings — proposed gate addendum, 2026-09-25
-
-The first sealed implementation acquired Capitol's nine refusals in the same two runs, but the
-untruncated union contains **543,245 nearby-way associations**, exceeding the existing aggregate
-524,288 bound. Gap support and the leaf-bound fix alone therefore do not open this route. The
-candidate adds an explicit compiler aggregate association bound of **1,000,000**, capped by the
-owner validator's existing total-context-reference ceiling. The browser stays at 524,288; per-window
-SQL-equivalent counts, complete-union validation, byte caps and all source policy rules remain.
-The actual bound travels in acquisition accounting and is checked before either validation memo
-can return. This is an additional operational-bound decision for the final gate, not an accepted
-amendment or a reason to discard associations.
-
-Independent review also identified a zero-measure case: a refused duplicate-point segment can
-vanish from distance intervals. Every declared receipt now withholds complete owner status even
-when its length is zero. When *all* refusals have zero measure and no other owner gap exists, the
-existing partial display/backend contract cannot express the result: it requires positive grey
-coverage. Such a route remains blocked with its v2 receipt; no phantom grey distance is invented.
-Capitol contains positive-measure gaps as well, so this limitation does not describe its two runs.
-The final gate must explicitly accept this conservative limitation or commission the separate
-partial-contract extension; changing Nürnberg's contract remains outside EXEC-062.
-
-A retained-response CPU profile found the same deeply frozen partial projection being rehashed
-for every donor row. The builder now validates its full content once before issuing the private
-object-identity capability. Serialized content validation remains intact and clones cannot acquire
-that capability. This changes validation cost, not the projection, ownership law or digest.
-
 
 ---
 
@@ -53533,4 +53507,179 @@ inside one answer, take a subsection approach.
 2. The Nginx change on the host, under the host's own change governance and receipt.
 3. The Edge change: 12,000 ms, truncation passthrough instead of fallback, bounded fallback.
 4. The subdivision semantics and the three-part completeness proof.
+
+
+---
+
+## Source File: docs/03-adrs/adr-064-browser-acquisition-bounds-ladder.md
+
+# ADR-064 — Browser Acquisition Bounds Follow the Compiler's, and Every Window Deadline Sits Above the Proxy's Typed Timeout
+
+**Status:** Accepted by Derek (owner gate, 2026-09-25, in session); implementation ticket EXEC-064; skeptical review and ChatGPT final gate on the implementing PR
+**Date:** 2026-09-25
+**Author:** Claude (builder), from Findings 22–24 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
+**Implementation ticket:** `docs/04-execution/exec-064-browser-acquisition-bounds-implementation-ticket.md`
+**Related:** ADR-062 (bounded receipted material gaps, including the validator leaf cap following the caller's bound), ADR-063 / EXEC-063 (HPMS ladder), ADR-065 (direction for 3,000-mile live loads)
+**Numbering note:** sequential successor to ADR-063.
+
+## Context
+
+Dense routes that acquire under the server compiler fail in the browser for two reasons that have
+nothing to do with route truth.
+
+1. **The material window deadline is inside the proxy's typed timeout.** The materialize proxy
+   aborts a slow hosted read at 4,500 ms and answers a typed 503 that the client bisects; the
+   browser's own per-window deadline is 6,000 ms. Add Edge transport and a slow window's typed
+   control arrives after the browser has already aborted it as a terminal `request_timeout`, which
+   fails the whole route closed. The compiler waits 20,000 ms and receives the control. Tims Fresh
+   100 fails live exactly this way (Finding 24): nine leaves in 2.0–3.7 s, the tenth aborted at
+   6,000 ms; the same route acquires under the compiler in 62 s within every browser budget.
+2. **The sealed aggregate budgets are the compiler's divided by four or more.** Browser: 128 leaf
+   windows, 255 requests, 64 MiB of requests, 64 MiB of responses, 120 s wall. Compiler: 512,
+   1,023, 1 GiB, 512 MiB, 480 s. Capitol to Capitol needs 174 leaves, 279 requests, 101.6 MB and
+   142 MB over 221 s (Finding 22), so it exceeds every browser budget even after ADR-062 makes its
+   gaps admissible.
+
+Derek's direction (2026-09-25): a densely populated 126-mile route failing to load live is
+unacceptable for the product; 3,000-mile routes should load live eventually. This ADR is the part
+of that direction that constants can deliver; ADR-065 is the part they cannot.
+
+## Decision (proposed)
+
+1. **Material deadline ladder.** Postgres statement 1,800 ms (unchanged) < materialize proxy
+   upstream 4,500 ms (unchanged, answered as the typed control) < browser window deadline
+   **20,000 ms** (from 6,000; equal to the compiler's). An architecture test asserts the ordering
+   with at least 2 s of transport margin, as ADR-063 does for HPMS.
+2. **Browser aggregate budgets follow the compiler's.** `P7_MATERIAL_CLIENT_BOUNDS` for the
+   interactive engine becomes 512 leaves, 1,023 requests, 1 GiB request bytes, 512 MiB response
+   bytes, 480 s wall, the values the compiler has run since 2026-09-24 without incident. The
+   validator's leaf cap follows the caller's bound as ADR-062 Decision 6 already requires; the
+   4,096-leaf ceiling stays.
+3. **Same laws, same proofs.** Nothing changes in what counts as material, a gap (ADR-062), a
+   split (ADR-063) or completeness; only how long and how much the browser is allowed to wait and
+   carry. A route that exhausts the wider budgets fails closed exactly as today.
+4. **The user sees progress, not a blank purple.** While the wider budgets are in use the load
+   shell's existing phase label continues to update per completed window (window count and
+   elapsed), so a four-minute acquisition is visible as work, not a hang. No new rider-facing
+   safety language; this is a progress label.
+
+## Expected effect, from measurements
+
+| Route | Live today | After ADR-064 (and ADR-062 for Capitol) |
+| --- | --- | --- |
+| Tims Fresh 100 (100 km, 3,690 points) | fails at one 6 s window | about 1–2 min: 62 s material plus HPMS and engine time |
+| Capitol to Capitol (200 km, 11,084 points) | fails: gaps, then every budget | about 4–5 min: 221 s material plus engine time, 53.5 m of grey gap |
+| Batsto, MACTRI, rural routes | unchanged | unchanged; they never touched the old bounds |
+
+The costs are real and are the gate items: a dense 200 km route uploads about 100 MB of repeated
+geometry and downloads about 140 MB of material in one live load, holds it in browser memory, and
+takes minutes. That is acceptable as a floor for the product Derek describes and unacceptable as a
+ceiling, which is why ADR-065 exists.
+
+## Alternatives considered
+
+- Widen only the window deadline (Decision 1) and keep the aggregate budgets: fixes Tims and every
+  route whose frontier already fits; leaves Capitol and all dense 200 km routes to the compiler.
+  This is the minimal step and is acceptable as phase one if the gate prefers it.
+- Budgets scaling with route length instead of fixed values: better long-term, but the request
+  bytes are dominated by geometry repetition, so scaling the byte budget only postpones the wall;
+  deferred to ADR-065.
+
+## Consequences
+
+- Dense 100–200 km routes load live, slowly, with honest partial paint where material or HPMS is
+  unproven; repeat loads come from published artifacts and are fast.
+- Live loads of dense routes cost minutes and hundreds of megabytes on the current transport.
+- The compiler remains the authority path; nothing here changes what it publishes.
+
+## Gate items
+
+1. Decision 1, the 20,000 ms browser window deadline (latency).
+2. Decision 2, the wider aggregate budgets (browser memory, mobile data, latency); or phase one,
+   Decision 1 alone.
+3. Decision 4, the progress label wording (a product label, not safety language).
+
+
+---
+
+## Source File: docs/03-adrs/adr-065-scalable-live-acquisition-direction.md
+
+# ADR-065 — Scalable Live Acquisition: the Direction for 3,000-Mile Routes
+
+**Status:** Direction accepted by Derek (owner gate, 2026-09-25, in session); each step is its own gated ticket, none written yet
+**Date:** 2026-09-25
+**Author:** Claude (builder), on Derek's product direction of 2026-09-25 and Findings 22–24 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
+**Related:** ADR-061 (compact first-paint core and provisional display tier), ADR-062, ADR-063, ADR-064
+
+## Context
+
+Derek's requirement: people should be able to live-load 3,000-mile routes; a dense 126-mile route
+failing to live-load is unacceptable. ADR-064 raises the browser's constants to the compiler's,
+which makes dense 100–200 km routes load live in minutes. Constants cannot go further, for one
+structural reason and three consequences of it:
+
+- **Every window request repeats the full route geometry.** Capitol to Capitol (11,084 points)
+  sends about 364 KB per request; 279 requests made 101.6 MB of uploads for a 200 km route. A
+  3,000-mile route of roughly 150,000 points would send about 5 MB per request over thousands of
+  windows: tens of gigabytes, from a phone, per load. No budget admits that.
+- **Acquisition is all-or-nothing.** The whole-route contract seals material only when every
+  window has answered; a 30-minute acquisition shows nothing until the last window, and one
+  terminal window discards all of it.
+- **Every load repeats every other load.** Two riders opening the same route acquire the same
+  windows twice; the material service's per-target cache helps the server, not the transport.
+- **Budgets are fixed, not proportional.** 512 leaves suit 200 km; 3,000 miles needs about 25×
+  the windows.
+
+## Decision (proposed direction)
+
+1. **Geometry once.** The client registers the route axis (geometry, fingerprint, axis id and
+   revision) with the material service once per load or reuses a registered axis; window requests
+   reference the axis and a point range and carry no geometry. Request volume falls from
+   windows × points to points. The service already binds every answer to the axis revision, so the
+   proofs (coverage, tiling, source revision) are unchanged; only the wire shape changes. This is a
+   material contract version (v3) on both sides.
+2. **Stream and paint progressively.** Windows are acquired under the shared scheduler and each
+   sealed window is handed to the display tier as it completes, as a provisional paint in the sense
+   of ADR-061: visibly provisional, never authority, never fed to ActiveTruth or scoring. Truth is
+   still sealed once, at the end, under the unchanged fail-closed laws; display stops being
+   all-or-nothing.
+3. **A shared window cache of record.** A completed, sealed window (material, hazard, HPMS
+   sub-window results) is stored server-side keyed by axis revision, point range, policy and source
+   revision, so the second rider, and the compiler, reuse it. This is the honest form of the
+   "cache the provisional artifact on load" idea: nothing provisional is cached; only sealed windows
+   with their receipts are, and the compiler remains the only publisher of route artifacts.
+4. **Budgets proportional to length.** Leaf, request and wall budgets scale with route length
+   from a per-100 km allowance, with an absolute ceiling and the same fail-closed behaviour beyond
+   it.
+5. **Sequential hydration by location and zoom for cross-country routes.** As previously agreed
+   with Derek, a very long route is hydrated in the order the rider needs it, by position along
+   the route and by map zoom, not all at once; the streamed windows of Decision 2 are the unit of
+   that sequence, and scoring follows the same order, sealed per hydrated span and never
+   extrapolated to spans not yet hydrated.
+6. **Demand-driven compilation stays the fast path.** A route first opened live is queued for the
+   compiler at the front; its published artifact makes every later open instant. Live acquisition
+   is the first-open experience, not the steady state.
+
+## What this does not change
+
+The route-truth laws: no fallback authority, material gaps receipted and bounded, HPMS subdivision
+proven per sub-window, canonical only when gap-free, partial otherwise. Scoring, year policy and
+rider-facing safety language.
+
+## Consequences
+
+- 3,000-mile live loads become a question of time and server capacity, not of gigabytes in a
+  browser: about 150,000 points once, then thousands of small window requests, painted as they
+  arrive, most of them served from the shared cache after the first rider.
+- Two contract versions (material v3, a cache contract) and a display-tier change; each is its
+  own gated ticket. Suggested order: geometry once (largest cost removed), then progressive paint,
+  then the shared cache, then proportional budgets.
+- The material service's per-request bounds (256 targets, 1,024 objects, 5,000 HPMS rows) stay;
+  density is handled by subdivision, length by streaming.
+
+## Gate items
+
+1. Adopt the direction and its order, or amend it.
+2. Authorize the first ticket, geometry-once transport (material contract v3, both repositories).
+3. Confirm the provisional display tier of ADR-061 is the right home for progressive paint.
 
