@@ -62768,6 +62768,67 @@ stated order.
 
 ---
 
+## Source File: docs/04-execution/exec-064-browser-acquisition-bounds-implementation-ticket.md
+
+# EXEC-064 — Browser acquisition bounds ladder: implementation ticket
+
+**Phase:** P7 (tracking issue #53). **ADR:** [ADR-064](../03-adrs/adr-064-browser-acquisition-bounds-ladder.md) (accepted by Derek 2026-09-25).
+**Builder:** Codex. **Reviewer:** independent skeptical review. **Final gate:** Derek/ChatGPT. **Verifier:** Claude.
+**Branch/PR:** new branch from `main` (or stacked on PR #56 if still open, since both touch the engine); builder report under `docs/04-execution/reports/`; no merge without the gate.
+
+## 1. Scope
+
+1. `P7_MATERIAL_CLIENT_BOUNDS` (`src/lib/traffic-spine/runtime-canonical-evidence/p7/p7-material-service-contract.ts`):
+   `timeoutMs` 6,000 → 20,000; `maximumWholeRouteLeafWindowCount` 128 → 512;
+   `maximumWholeRouteRequestAttemptCount` 255 → 1,023; `maximumWholeRouteWallMs` 120,000 → 480,000;
+   `maximumWholeRouteAggregateRequestBytes` 64 MiB → 1 GiB; `maximumWholeRouteAggregateResponseBytes`
+   64 MiB → 512 MiB. `proxyUpstreamTimeoutMs` (4,500), `backendSqlTimeoutMs` (1,800) and the 4,096
+   ceiling are unchanged. The server-compiler override in the engine becomes equal to the defaults;
+   keep the override mechanism, drop nothing.
+2. Validator leaf cap follows the caller's bound (ADR-062 Decision 6) if EXEC-062 has not landed
+   first; otherwise no change there.
+3. Architecture test: browser window deadline > proxy upstream timeout + 2,000 ms > backend SQL
+   bound; compiler and browser bounds equal by assertion, so a later divergence is deliberate.
+4. Load shell progress label: per completed material window, show windows completed of planned
+   and elapsed seconds in the existing phase label (`createRouteLoadShellPresentation` /
+   `setRouteLoadUi` in `src/pages/Index.tsx`, whichever field the shell already uses); no new
+   rider-facing safety wording.
+5. Update every test that pins the old constants (the client bounds test "sets aggregate
+   whole-route limits to exactly 128 policy-v2 windows", the widened-bounds override probe, and any
+   worker test asserting 6,000 ms).
+
+## 2. Non-goals
+
+No change to any proof, gap, split or completeness law; no material contract or policy version
+change; no fallback source; no HPMS change beyond EXEC-063; no publication or pin change.
+
+## 3. Tests
+
+Vitest under Node 22: the material client suite, the engine suite, the worker suite, the
+architecture ladder test, the `Index` load-shell test if one exists. Type-check parity with the
+base (identical multiset ignoring positions). ESLint on changed files: no new diagnostics.
+
+## 4. Acceptance evidence (numbers)
+
+- Tims Fresh 100 (`50c803c5-b758-44a7-b47c-3714e25d0038`) under the new browser bounds in the
+  diagnostic engine (`P7_DIAG_INTERACTIVE_BOUNDS`) or a staged frontend: material acquisition
+  ready; report leaves, attempts, bytes, wall, and the end-to-end load time on the immutable
+  frontend URL with the rider account, before promotion.
+- Capitol to Capitol (`26cde7f7-6c43-4341-95f9-32c7f05d4b1a`): with EXEC-062 landed, live load
+  completes with the receipted gaps; without it, the acquisition reaches the irreducible windows
+  and fails there and nowhere else. Report the same numbers.
+- Batsto and MACTRI: canonical payload digests and partial outputs unchanged.
+- Browser memory on the Capitol load (DevTools heap after acquisition) recorded once.
+
+## 5. Rollout
+
+Frontend only: staged immutable deployment, acceptance above, then promotion by Derek. Rollback is
+the previous deployment. Order relative to EXEC-063: independent; if both stage together, measure
+Tims with both.
+
+
+---
+
 ## Source File: docs/04-execution/01_system_manuals/sys-001-expedition_system.md
 
 # System Manual — Expedition System

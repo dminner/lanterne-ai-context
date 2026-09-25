@@ -53515,9 +53515,10 @@ inside one answer, take a subsection approach.
 
 # ADR-064 — Browser Acquisition Bounds Follow the Compiler's, and Every Window Deadline Sits Above the Proxy's Typed Timeout
 
-**Status:** Proposed (requires the Derek/ChatGPT human gate; changes live-load latency, browser memory and upload volume, not route truth)
+**Status:** Accepted by Derek (owner gate, 2026-09-25, in session); implementation ticket EXEC-064; skeptical review and ChatGPT final gate on the implementing PR
 **Date:** 2026-09-25
 **Author:** Claude (builder), from Findings 22–24 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
+**Implementation ticket:** `docs/04-execution/exec-064-browser-acquisition-bounds-implementation-ticket.md`
 **Related:** ADR-062 (bounded receipted material gaps, including the validator leaf cap following the caller's bound), ADR-063 / EXEC-063 (HPMS ladder), ADR-065 (direction for 3,000-mile live loads)
 **Numbering note:** sequential successor to ADR-063.
 
@@ -53605,7 +53606,7 @@ ceiling, which is why ADR-065 exists.
 
 # ADR-065 — Scalable Live Acquisition: the Direction for 3,000-Mile Routes
 
-**Status:** Proposed direction (architecture decision for the gate; no implementation ticket yet)
+**Status:** Direction accepted by Derek (owner gate, 2026-09-25, in session); each step is its own gated ticket, none written yet
 **Date:** 2026-09-25
 **Author:** Claude (builder), on Derek's product direction of 2026-09-25 and Findings 22–24 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
 **Related:** ADR-061 (compact first-paint core and provisional display tier), ADR-062, ADR-063, ADR-064
@@ -53650,7 +53651,12 @@ structural reason and three consequences of it:
 4. **Budgets proportional to length.** Leaf, request and wall budgets scale with route length
    from a per-100 km allowance, with an absolute ceiling and the same fail-closed behaviour beyond
    it.
-5. **Demand-driven compilation stays the fast path.** A route first opened live is queued for the
+5. **Sequential hydration by location and zoom for cross-country routes.** As previously agreed
+   with Derek, a very long route is hydrated in the order the rider needs it, by position along
+   the route and by map zoom, not all at once; the streamed windows of Decision 2 are the unit of
+   that sequence, and scoring follows the same order, sealed per hydrated span and never
+   extrapolated to spans not yet hydrated.
+6. **Demand-driven compilation stays the fast path.** A route first opened live is queued for the
    compiler at the front; its published artifact makes every later open instant. Live acquisition
    is the first-open experience, not the steady state.
 
