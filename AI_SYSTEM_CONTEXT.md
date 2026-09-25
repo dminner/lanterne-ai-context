@@ -53256,6 +53256,140 @@ The seed is **provisional display, never authority**: it feeds neither ActiveTru
 
 ---
 
+## Source File: docs/03-adrs/adr-062-bounded-receipted-material-gaps.md
+
+# ADR-062 — Bounded, Receipted Material Gaps in Whole-Route P7 Acquisition
+
+**Status:** Proposed (route-truth authority change; requires the Derek/ChatGPT human gate before merge or rollout)
+**Date:** 2026-09-24
+**Author:** Claude (builder), from Finding 22 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
+**Implementation ticket:** `docs/04-execution/exec-062-bounded-material-gaps-implementation-ticket.md`
+**Numbering note:** sequential successor to ADR-061 (`docs/03-adrs/` numbering verified at authoring time).
+
+## Context
+
+Whole-route P7 material acquisition (`acquireP7MaterialForWholeRoute`) asks the owned material
+service for the route corridor in bounded windows of at most 129 inclusive route points. A window
+the service cannot deliver within its per-window bounds answers a typed, source-revision-bound
+HTTP 422 control response and the client bisects deterministically. The contract's law today is:
+"any irreducible/incomplete/invalid window fails the whole route closed; Overpass, route_cache and
+P5 are never fallback authority."
+
+That law has a case it did not anticipate. A window of one segment cannot be bisected. When the
+material service refuses such a window (`p7_whole_route_candidate_window_irreducible`, detail
+`bound_source_object_limit_exceeded` and
+`cached_immutable_receipt_validation_evidence_bytes_exceeded`), the whole route fails, and it fails
+identically in the browser and in the server compiler. Finding 22 shows it on RUSA 5067 ("Capitol
+to Capitol, Monument to Monument", 11,084 points, 200.4 km): the segment between route points 4
+and 5, about 5 m on the US Capitol grounds, is refused, so 200.4 km of route paint nothing.
+Census route 18 (Des Moines–Madison, 15,146 points) hit the same class at points 15121–15122 after
+149 completed leaves. The source cache for both routes is complete; the limit is the per-window
+delivery bound of the material service on the densest few metres of the corridor, not hydration.
+
+Two families of fix exist:
+
+- **Service side.** Give a one-segment window a larger evidence budget or a narrower corridor.
+  This changes the material policy identity (`p7-material-policy.v2` → v3) on Nürnberg and its
+  Lanterne mirror, needs a host release under the backup rule, and only moves the cliff: some
+  corridor somewhere will exceed the next bound too.
+- **Contract side.** Let the client record an irreducible one-segment refusal as an explicit,
+  bounded, receipted gap and carry on, so the rest of the route becomes truth and the gap stays an
+  unknown. Nothing is guessed for the gap; it is painted as unresolved, exactly as an unresolved
+  owner span is painted today. This is a Lanterne-only change to the acquisition contract and its
+  validators; the material service and the backend artifact contracts are untouched.
+
+The downstream pipeline already tolerates coverage gaps: `inspectWholeRouteTargetPartitionCoverage`
+in `prehydrated-p7-road-identity.ts` turns a `partition_gap` into the typed unresolved receipt
+`whole_route_target_partition_coverage_incomplete` and a `partial` owner status, which is how every
+partial artifact in the overnight census was produced. Only the acquisition client and the sealed
+bundle validators fail closed before that point.
+
+## Decision (proposed)
+
+1. **A material gap is a first-class, receipted outcome of whole-route acquisition.** A refused
+   segment is an inclusive route-point window `[k, k+1]` for which the material service answered
+   the exact, validated window-bound control envelope (`isP7WholeRouteWindowBoundControlResponse`)
+   with every reason code in `{p7_whole_route_candidate_window_irreducible,
+   p7_whole_route_candidate_window_split_required}`. Adjacent refused segments form one **gap
+   run**; the measurement below shows refusals arrive as runs (five and four consecutive segments
+   on the Capitol grounds), so runs are the unit the bounds apply to, and metres are the measure,
+   never segment counts, which only reflect GPS point density. A proxy upstream timeout (503) on a
+   one-segment window stays terminal and retryable, as today; it is transient, not a bound.
+2. **Gaps are bounded, and beyond the bounds the route still fails closed.** Sealed client bounds
+   (proposed values, gate-settable): at most 8 gap runs per route; each run at most 100 m of route
+   axis; at most 250 m of gap in total. A refused run longer than the per-run bound is unexplained
+   and fails the route as today. A route that yields only gaps fails.
+3. **Every gap is carried as a receipt bound to the service's own refusal:** route-point window,
+   segment length, reason codes and details, `sourceRevisionId`, `queryDigest` and the
+   `requestAuthority` echoed by the control response, sealed by a gap digest. The receipt travels in
+   the window bundle, the aggregate candidate coverage, the merged hazard coverage, the acquisition
+   receipt and the engine diagnostics, so a reviewer can see exactly which metres were never
+   delivered and why.
+4. **Gap-free acquisitions are byte-identical to today.** The v2 bundle, coverage, hazard-coverage
+   and receipt shapes exist only when at least one gap is present; without gaps the v1 shapes and
+   digests are emitted unchanged. Batsto's canonical artifact digest and MACTRI's partial digest must
+   not move.
+5. **A gap can never become canonical truth.** The gap has no material, so the owner solve is
+   partial, `p7_owner_axis_incomplete` blocks the canonical attestation, and the route compiles as
+   `display_only_unresolved`, the existing partial path. The full-axis hazard lane reports
+   `ready=false` with the distinct reason `p7_material_gaps_declared` while still delivering the
+   hazard material of every covered window. No fallback source is consulted for the gap.
+6. **The sealed leaf-window cap follows the caller's aggregate bound.** The bundle validator's
+   `maximumWholeRouteLeafWindowCount` check uses the bound the acquisition ran under (the server
+   compiler's 512, never above the 4,096 ceiling); the browser's sealed 128 is unchanged. Without
+   this, routes that need more than 128 leaves finish acquisition and are then rejected as
+   `window_bundle_shape_invalid` (Finding 18; Codex review of PR #54, finding 4).
+7. **No rider-facing language changes.** The gap paints as today's unresolved grey with identity
+   withheld. Any label that names the gap is a separate gate.
+
+## Alternatives considered
+
+- Service-side budget or corridor scaling for one-segment windows (above): deferred, not
+  rejected; it can follow later and would simply produce fewer gaps.
+- Treating an irreducible window as covered by its neighbours: rejected, it would claim a corridor
+  search that never happened.
+- Silently skipping the window: rejected, a gap without a receipt is a lie of omission.
+
+## Measurement (this session, diagnostic client with refusals recorded as gaps)
+
+RUSA 5067 under the server compiler's bounds: 9 refused segments in two runs, points 4–9
+(19.4 m, at the start) and 307–311 (34.1 m, 5.77 km in, where the route passes the Capitol
+again), 53.5 m undelivered of 200.4 km; 174 leaf windows, 279 requests (96 splits), 101.6 MB of
+requests (each repeats the 11,084-point geometry), 142.0 MB of responses, 221 s. Under the sealed
+browser bounds the same route ends after 34 s as `unavailable`: a 16-point window
+(`candidate_window_80_96`) exceeds the browser's 6 s per-window deadline, which is terminal; and
+even without that, 174 leaves, 279 requests, 101.6 MB and 142.0 MB each exceed the browser's
+128, 255, 64 MiB and 64 MiB. The same run's HPMS acquisition was incomplete only because three
+DC 2020 windows exceeded 30 s (Finding 19). Des Moines–Madison (15,146 points) under server
+bounds: 3 refused segments in two runs at points 15121–15122 and 15143–15145 near the route end,
+155 leaves, 197 requests, 65.6 MB of responses, 124 s; also above the sealed 128-leaf cap.
+
+## Consequences
+
+- Routes with a few tens of metres of undeliverable corridor become partial artifacts instead of
+  nothing. On RUSA 5067 that is 53.5 m in two grey runs on the Capitol grounds.
+- Partial, not canonical, remains the honest ceiling for such routes until the material service
+  can deliver the segments; the receipts name the exact segments to fix.
+- The browser's sealed budgets still bound live loads. RUSA 5067 cannot be acquired live under
+  them on any count; after this change it loads through the compiler's published partial
+  artifact, not through the live engine. That is a property of dense 200 km routes under the
+  sealed browser bounds, not of this change.
+- The HPMS gate of the compile runner is independent: RUSA 5067 also needs the pending Nürnberg
+  statement-timeout release (Finding 19) before it can compile.
+- Decision 6 (leaf cap follows the caller's bound) is required for this route: 174 leaves exceed
+  the sealed 128 that the validator enforces today regardless of the server override.
+
+## Gate items (each needs an explicit decision)
+
+1. The contract law change in Decision 1 and 3 (route-truth authority).
+2. The bound values in Decision 2 (8 runs, 100 m per run, 250 m total).
+3. The leaf-cap rule in Decision 6.
+4. The hazard-lane rule in Decision 5.
+5. Confirmation that no rider-facing language changes (Decision 7).
+
+
+---
+
 ## Source File: docs/03-adrs/adr-063-hpms-deadline-ladder-and-truncation-subdivision.md
 
 # ADR-063 — HPMS Window Deadline Ladder and Truncation Subdivision
@@ -53373,4 +53507,173 @@ inside one answer, take a subsection approach.
 2. The Nginx change on the host, under the host's own change governance and receipt.
 3. The Edge change: 12,000 ms, truncation passthrough instead of fallback, bounded fallback.
 4. The subdivision semantics and the three-part completeness proof.
+
+
+---
+
+## Source File: docs/03-adrs/adr-064-browser-acquisition-bounds-ladder.md
+
+# ADR-064 — Browser Acquisition Bounds Follow the Compiler's, and Every Window Deadline Sits Above the Proxy's Typed Timeout
+
+**Status:** Proposed (requires the Derek/ChatGPT human gate; changes live-load latency, browser memory and upload volume, not route truth)
+**Date:** 2026-09-25
+**Author:** Claude (builder), from Findings 22–24 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
+**Related:** ADR-062 (bounded receipted material gaps, including the validator leaf cap following the caller's bound), ADR-063 / EXEC-063 (HPMS ladder), ADR-065 (direction for 3,000-mile live loads)
+**Numbering note:** sequential successor to ADR-063.
+
+## Context
+
+Dense routes that acquire under the server compiler fail in the browser for two reasons that have
+nothing to do with route truth.
+
+1. **The material window deadline is inside the proxy's typed timeout.** The materialize proxy
+   aborts a slow hosted read at 4,500 ms and answers a typed 503 that the client bisects; the
+   browser's own per-window deadline is 6,000 ms. Add Edge transport and a slow window's typed
+   control arrives after the browser has already aborted it as a terminal `request_timeout`, which
+   fails the whole route closed. The compiler waits 20,000 ms and receives the control. Tims Fresh
+   100 fails live exactly this way (Finding 24): nine leaves in 2.0–3.7 s, the tenth aborted at
+   6,000 ms; the same route acquires under the compiler in 62 s within every browser budget.
+2. **The sealed aggregate budgets are the compiler's divided by four or more.** Browser: 128 leaf
+   windows, 255 requests, 64 MiB of requests, 64 MiB of responses, 120 s wall. Compiler: 512,
+   1,023, 1 GiB, 512 MiB, 480 s. Capitol to Capitol needs 174 leaves, 279 requests, 101.6 MB and
+   142 MB over 221 s (Finding 22), so it exceeds every browser budget even after ADR-062 makes its
+   gaps admissible.
+
+Derek's direction (2026-09-25): a densely populated 126-mile route failing to load live is
+unacceptable for the product; 3,000-mile routes should load live eventually. This ADR is the part
+of that direction that constants can deliver; ADR-065 is the part they cannot.
+
+## Decision (proposed)
+
+1. **Material deadline ladder.** Postgres statement 1,800 ms (unchanged) < materialize proxy
+   upstream 4,500 ms (unchanged, answered as the typed control) < browser window deadline
+   **20,000 ms** (from 6,000; equal to the compiler's). An architecture test asserts the ordering
+   with at least 2 s of transport margin, as ADR-063 does for HPMS.
+2. **Browser aggregate budgets follow the compiler's.** `P7_MATERIAL_CLIENT_BOUNDS` for the
+   interactive engine becomes 512 leaves, 1,023 requests, 1 GiB request bytes, 512 MiB response
+   bytes, 480 s wall, the values the compiler has run since 2026-09-24 without incident. The
+   validator's leaf cap follows the caller's bound as ADR-062 Decision 6 already requires; the
+   4,096-leaf ceiling stays.
+3. **Same laws, same proofs.** Nothing changes in what counts as material, a gap (ADR-062), a
+   split (ADR-063) or completeness; only how long and how much the browser is allowed to wait and
+   carry. A route that exhausts the wider budgets fails closed exactly as today.
+4. **The user sees progress, not a blank purple.** While the wider budgets are in use the load
+   shell's existing phase label continues to update per completed window (window count and
+   elapsed), so a four-minute acquisition is visible as work, not a hang. No new rider-facing
+   safety language; this is a progress label.
+
+## Expected effect, from measurements
+
+| Route | Live today | After ADR-064 (and ADR-062 for Capitol) |
+| --- | --- | --- |
+| Tims Fresh 100 (100 km, 3,690 points) | fails at one 6 s window | about 1–2 min: 62 s material plus HPMS and engine time |
+| Capitol to Capitol (200 km, 11,084 points) | fails: gaps, then every budget | about 4–5 min: 221 s material plus engine time, 53.5 m of grey gap |
+| Batsto, MACTRI, rural routes | unchanged | unchanged; they never touched the old bounds |
+
+The costs are real and are the gate items: a dense 200 km route uploads about 100 MB of repeated
+geometry and downloads about 140 MB of material in one live load, holds it in browser memory, and
+takes minutes. That is acceptable as a floor for the product Derek describes and unacceptable as a
+ceiling, which is why ADR-065 exists.
+
+## Alternatives considered
+
+- Widen only the window deadline (Decision 1) and keep the aggregate budgets: fixes Tims and every
+  route whose frontier already fits; leaves Capitol and all dense 200 km routes to the compiler.
+  This is the minimal step and is acceptable as phase one if the gate prefers it.
+- Budgets scaling with route length instead of fixed values: better long-term, but the request
+  bytes are dominated by geometry repetition, so scaling the byte budget only postpones the wall;
+  deferred to ADR-065.
+
+## Consequences
+
+- Dense 100–200 km routes load live, slowly, with honest partial paint where material or HPMS is
+  unproven; repeat loads come from published artifacts and are fast.
+- Live loads of dense routes cost minutes and hundreds of megabytes on the current transport.
+- The compiler remains the authority path; nothing here changes what it publishes.
+
+## Gate items
+
+1. Decision 1, the 20,000 ms browser window deadline (latency).
+2. Decision 2, the wider aggregate budgets (browser memory, mobile data, latency); or phase one,
+   Decision 1 alone.
+3. Decision 4, the progress label wording (a product label, not safety language).
+
+
+---
+
+## Source File: docs/03-adrs/adr-065-scalable-live-acquisition-direction.md
+
+# ADR-065 — Scalable Live Acquisition: the Direction for 3,000-Mile Routes
+
+**Status:** Proposed direction (architecture decision for the gate; no implementation ticket yet)
+**Date:** 2026-09-25
+**Author:** Claude (builder), on Derek's product direction of 2026-09-25 and Findings 22–24 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
+**Related:** ADR-061 (compact first-paint core and provisional display tier), ADR-062, ADR-063, ADR-064
+
+## Context
+
+Derek's requirement: people should be able to live-load 3,000-mile routes; a dense 126-mile route
+failing to live-load is unacceptable. ADR-064 raises the browser's constants to the compiler's,
+which makes dense 100–200 km routes load live in minutes. Constants cannot go further, for one
+structural reason and three consequences of it:
+
+- **Every window request repeats the full route geometry.** Capitol to Capitol (11,084 points)
+  sends about 364 KB per request; 279 requests made 101.6 MB of uploads for a 200 km route. A
+  3,000-mile route of roughly 150,000 points would send about 5 MB per request over thousands of
+  windows: tens of gigabytes, from a phone, per load. No budget admits that.
+- **Acquisition is all-or-nothing.** The whole-route contract seals material only when every
+  window has answered; a 30-minute acquisition shows nothing until the last window, and one
+  terminal window discards all of it.
+- **Every load repeats every other load.** Two riders opening the same route acquire the same
+  windows twice; the material service's per-target cache helps the server, not the transport.
+- **Budgets are fixed, not proportional.** 512 leaves suit 200 km; 3,000 miles needs about 25×
+  the windows.
+
+## Decision (proposed direction)
+
+1. **Geometry once.** The client registers the route axis (geometry, fingerprint, axis id and
+   revision) with the material service once per load or reuses a registered axis; window requests
+   reference the axis and a point range and carry no geometry. Request volume falls from
+   windows × points to points. The service already binds every answer to the axis revision, so the
+   proofs (coverage, tiling, source revision) are unchanged; only the wire shape changes. This is a
+   material contract version (v3) on both sides.
+2. **Stream and paint progressively.** Windows are acquired under the shared scheduler and each
+   sealed window is handed to the display tier as it completes, as a provisional paint in the sense
+   of ADR-061: visibly provisional, never authority, never fed to ActiveTruth or scoring. Truth is
+   still sealed once, at the end, under the unchanged fail-closed laws; display stops being
+   all-or-nothing.
+3. **A shared window cache of record.** A completed, sealed window (material, hazard, HPMS
+   sub-window results) is stored server-side keyed by axis revision, point range, policy and source
+   revision, so the second rider, and the compiler, reuse it. This is the honest form of the
+   "cache the provisional artifact on load" idea: nothing provisional is cached; only sealed windows
+   with their receipts are, and the compiler remains the only publisher of route artifacts.
+4. **Budgets proportional to length.** Leaf, request and wall budgets scale with route length
+   from a per-100 km allowance, with an absolute ceiling and the same fail-closed behaviour beyond
+   it.
+5. **Demand-driven compilation stays the fast path.** A route first opened live is queued for the
+   compiler at the front; its published artifact makes every later open instant. Live acquisition
+   is the first-open experience, not the steady state.
+
+## What this does not change
+
+The route-truth laws: no fallback authority, material gaps receipted and bounded, HPMS subdivision
+proven per sub-window, canonical only when gap-free, partial otherwise. Scoring, year policy and
+rider-facing safety language.
+
+## Consequences
+
+- 3,000-mile live loads become a question of time and server capacity, not of gigabytes in a
+  browser: about 150,000 points once, then thousands of small window requests, painted as they
+  arrive, most of them served from the shared cache after the first rider.
+- Two contract versions (material v3, a cache contract) and a display-tier change; each is its
+  own gated ticket. Suggested order: geometry once (largest cost removed), then progressive paint,
+  then the shared cache, then proportional budgets.
+- The material service's per-request bounds (256 targets, 1,024 objects, 5,000 HPMS rows) stay;
+  density is handled by subdivision, length by streaming.
+
+## Gate items
+
+1. Adopt the direction and its order, or amend it.
+2. Authorize the first ticket, geometry-once transport (material contract v3, both repositories).
+3. Confirm the provisional display tier of ADR-061 is the right home for progressive paint.
 
