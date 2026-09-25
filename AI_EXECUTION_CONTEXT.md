@@ -62657,11 +62657,12 @@ bound, the completeness receipts around lines 2385–2435 with `response_truncat
   the same way once more, `HPMS_WINDOW_SUBDIVISION_MAX_DEPTH = 2` (at most 16 sub-windows). A
   sub-window still split-required at the second level is recorded as
   `hpms_window_truncated_irreducible` and the parent window fails as a failed window fails today.
-- 429 handling, bounded and counted: a hosted 429 (surfaced by the Edge as
-  `hosted_upstream_http_429`; the Edge must not fall back to ArcGIS on 429) is retried after the
-  server's `Retry-After` when present, else a short backoff, at most `HPMS_429_MAX_RETRIES = 3`
-  per request; beyond that the request fails as a failed request fails today. Diagnostics:
-  `hpms_hosted_429_count`, `hpms_hosted_429_retries`, `hpms_scheduler_max_in_flight`.
+- 429 handling, bounded and counted: a hosted 429 arrives as the Edge's typed
+  `hpms_hosted_rate_limited` control (section 4.1; the Edge must not fall back to ArcGIS on 429)
+  and is retried by the scheduler after the control's `retryAfterMs` when present, else a short
+  backoff, at most `HPMS_429_MAX_RETRIES = 3` per request; beyond that the request fails as a
+  failed request fails today. Diagnostics: `hpms_hosted_429_count`, `hpms_hosted_429_retries`,
+  `hpms_scheduler_max_in_flight`.
 - The scheduler replaces today's browser fan-out of up to 16 in flight (four windows times four
   state-years, `MAX_HPMS_STATE_YEAR_CONCURRENCY_PER_ROUTE_WINDOW` and the route-experience window
   concurrency); the compiler already runs one window at a time. Before changing it, measure once
@@ -62693,9 +62694,10 @@ bound, the completeness receipts around lines 2385–2435 with `response_truncat
 
 Two fetch wrappers sit between the Edge and the engine and today turn every non-2xx from
 `hpms-read-proxy` into a generic error: the browser worker
-(`src/workers/current-route-v2-production-worker-core.ts`, the `fetch` loop around line 214, which
-also applies two hidden retries of 300 and 800 ms to any non-2xx from any function except
-`p7-materialize-proxy`) and the compiler
+(`src/workers/current-route-v2-production-worker-core.ts`, the `fetch` loop around line 214, whose
+`shouldRetry` filter applies two hidden retries of 300 and 800 ms to transient statuses only: a
+Node 22 probe by Codex on 2026-09-25 measured 422 → one request, 429 → one request, 503 → three
+requests; the receipt is in Derek's secure notes) and the compiler
 (`scripts/admin/run-p7-rusa-route-artifact-compiler.ts`, the source fetch around line 545, which
 fails on any non-2xx except a materialize control). Both already pass a validated 422 through
 for `p7-materialize-proxy` by way of `isP7MaterializeProxyControlHttpReceipt`; copy that pattern
@@ -62709,8 +62711,10 @@ exactly:
   throwing, exactly as they do for the materialize control; an unvalidated 422/429 remains an
   error.
 - Hidden retries: `hpms-read-proxy` joins `p7-materialize-proxy` in the browser wrapper's
-  no-hidden-retry set (`delays = []`). The shared scheduler in the engine is the only place that
-  retries an HPMS request, so each retry is counted once, honours `retryAfterMs`, and stops on
+  no-hidden-retry set (`delays = []`). Today's wrapper does not retry 422 or 429, only transient
+  statuses such as 503; the change is still required so that the scheduler's attempt accounting is
+  exact for every status. The shared scheduler in the engine is the only place that retries an
+  HPMS request, so each retry is counted once, honours `retryAfterMs`, and stops on
   cancellation (the wrapper's combined abort signal and the scheduler's own sleeps both observe
   the run signal). The compiler wrapper has no request-level retries; its route-level
   `maximumAttemptsPerRoute` is unchanged and must not be confused with request retries.
@@ -62730,7 +62734,8 @@ window with its sub-window total.
 
 Edge: 12 s default; truncated hosted answer → 422 control body, no fetch to ArcGIS (assert the
 fallback fetch is never invoked); malformed hosted answer → unchanged rejection and fallback;
-fallback deadline → typed 503. Engine: split on control, two sub-windows per year, depth bound,
+fallback deadline → typed 503. Engine: split on control, four sub-windows per year under the
+four-in-flight scheduler, depth bound,
 irreducible → window failed and acquisition incomplete; completeness only with all sub-windows
 complete; a sub-window timeout still fails the window; attempt budget shared; ladder ordering.
 Type-check parity with the base (multiset ignoring positions); ESLint no new diagnostics.
