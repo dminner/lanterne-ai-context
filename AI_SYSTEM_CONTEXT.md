@@ -53253,3 +53253,284 @@ The seed is **provisional display, never authority**: it feeds neither ActiveTru
 - Two display truth tiers now exist pre-score (provisional vs score-bearing); label vocabulary and fail-closed staleness are mandatory, permanent obligations.
 - The program runs as CUTOVER-3C-0 … 3C-6 (measurement → contract → demotion → write-only store → fail-closed replay → warm-start proof → smoke/decision), each phase owner-spec'd and Codex-reviewed; no phase authorizes deployment, runtime enablement, or flag flips.
 
+
+---
+
+## Source File: docs/03-adrs/adr-062-bounded-receipted-material-gaps.md
+
+# ADR-062 — Bounded, Receipted Material Gaps in Whole-Route P7 Acquisition
+
+**Status:** Proposed (route-truth authority change; requires the Derek/ChatGPT human gate before merge or rollout)
+**Date:** 2026-09-24
+**Author:** Claude (builder), from Finding 22 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
+**Implementation ticket:** `docs/04-execution/exec-062-bounded-material-gaps-implementation-ticket.md`
+**Numbering note:** sequential successor to ADR-061 (`docs/03-adrs/` numbering verified at authoring time).
+
+## Context
+
+Whole-route P7 material acquisition (`acquireP7MaterialForWholeRoute`) asks the owned material
+service for the route corridor in bounded windows of at most 129 inclusive route points. A window
+the service cannot deliver within its per-window bounds answers a typed, source-revision-bound
+HTTP 422 control response and the client bisects deterministically. The contract's law today is:
+"any irreducible/incomplete/invalid window fails the whole route closed; Overpass, route_cache and
+P5 are never fallback authority."
+
+That law has a case it did not anticipate. A window of one segment cannot be bisected. When the
+material service refuses such a window (`p7_whole_route_candidate_window_irreducible`, detail
+`bound_source_object_limit_exceeded` and
+`cached_immutable_receipt_validation_evidence_bytes_exceeded`), the whole route fails, and it fails
+identically in the browser and in the server compiler. Finding 22 shows it on RUSA 5067 ("Capitol
+to Capitol, Monument to Monument", 11,084 points, 200.4 km): the segment between route points 4
+and 5, about 5 m on the US Capitol grounds, is refused, so 200.4 km of route paint nothing.
+Census route 18 (Des Moines–Madison, 15,146 points) hit the same class at points 15121–15122 after
+149 completed leaves. The source cache for both routes is complete; the limit is the per-window
+delivery bound of the material service on the densest few metres of the corridor, not hydration.
+
+Two families of fix exist:
+
+- **Service side.** Give a one-segment window a larger evidence budget or a narrower corridor.
+  This changes the material policy identity (`p7-material-policy.v2` → v3) on Nürnberg and its
+  Lanterne mirror, needs a host release under the backup rule, and only moves the cliff: some
+  corridor somewhere will exceed the next bound too.
+- **Contract side.** Let the client record an irreducible one-segment refusal as an explicit,
+  bounded, receipted gap and carry on, so the rest of the route becomes truth and the gap stays an
+  unknown. Nothing is guessed for the gap; it is painted as unresolved, exactly as an unresolved
+  owner span is painted today. This is a Lanterne-only change to the acquisition contract and its
+  validators; the material service and the backend artifact contracts are untouched.
+
+The downstream pipeline already tolerates coverage gaps: `inspectWholeRouteTargetPartitionCoverage`
+in `prehydrated-p7-road-identity.ts` turns a `partition_gap` into the typed unresolved receipt
+`whole_route_target_partition_coverage_incomplete` and a `partial` owner status, which is how every
+partial artifact in the overnight census was produced. Only the acquisition client and the sealed
+bundle validators fail closed before that point.
+
+## Decision (proposed)
+
+1. **A material gap is a first-class, receipted outcome of whole-route acquisition.** A refused
+   segment is an inclusive route-point window `[k, k+1]` for which the material service answered
+   the exact, validated window-bound control envelope (`isP7WholeRouteWindowBoundControlResponse`)
+   with every reason code in `{p7_whole_route_candidate_window_irreducible,
+   p7_whole_route_candidate_window_split_required}`. Adjacent refused segments form one **gap
+   run**; the measurement below shows refusals arrive as runs (five and four consecutive segments
+   on the Capitol grounds), so runs are the unit the bounds apply to, and metres are the measure,
+   never segment counts, which only reflect GPS point density. A proxy upstream timeout (503) on a
+   one-segment window stays terminal and retryable, as today; it is transient, not a bound.
+2. **Gaps are bounded, and beyond the bounds the route still fails closed.** Sealed client bounds
+   (proposed values, gate-settable): at most 8 gap runs per route; each run at most 100 m of route
+   axis; at most 250 m of gap in total. A refused run longer than the per-run bound is unexplained
+   and fails the route as today. A route that yields only gaps fails.
+3. **Every gap is carried as a receipt bound to the service's own refusal:** route-point window,
+   segment length, reason codes and details, `sourceRevisionId`, `queryDigest` and the
+   `requestAuthority` echoed by the control response, sealed by a gap digest. The receipt travels in
+   the window bundle, the aggregate candidate coverage, the merged hazard coverage, the acquisition
+   receipt and the engine diagnostics, so a reviewer can see exactly which metres were never
+   delivered and why.
+4. **Gap-free acquisitions are byte-identical to today.** The v2 bundle, coverage, hazard-coverage
+   and receipt shapes exist only when at least one gap is present; without gaps the v1 shapes and
+   digests are emitted unchanged. Batsto's canonical artifact digest and MACTRI's partial digest must
+   not move.
+5. **A gap can never become canonical truth.** The gap has no material, so the owner solve is
+   partial, `p7_owner_axis_incomplete` blocks the canonical attestation, and the route compiles as
+   `display_only_unresolved`, the existing partial path. The full-axis hazard lane reports
+   `ready=false` with the distinct reason `p7_material_gaps_declared` while still delivering the
+   hazard material of every covered window. No fallback source is consulted for the gap.
+6. **The sealed leaf-window cap follows the caller's aggregate bound.** The bundle validator's
+   `maximumWholeRouteLeafWindowCount` check uses the bound the acquisition ran under (the server
+   compiler's 512, never above the 4,096 ceiling); the browser's sealed 128 is unchanged. Without
+   this, routes that need more than 128 leaves finish acquisition and are then rejected as
+   `window_bundle_shape_invalid` (Finding 18; Codex review of PR #54, finding 4).
+7. **No rider-facing language changes.** The gap paints as today's unresolved grey with identity
+   withheld. Any label that names the gap is a separate gate.
+
+## Alternatives considered
+
+- Service-side budget or corridor scaling for one-segment windows (above): deferred, not
+  rejected; it can follow later and would simply produce fewer gaps.
+- Treating an irreducible window as covered by its neighbours: rejected, it would claim a corridor
+  search that never happened.
+- Silently skipping the window: rejected, a gap without a receipt is a lie of omission.
+
+## Measurement (this session, diagnostic client with refusals recorded as gaps)
+
+RUSA 5067 under the server compiler's bounds: 9 refused segments in two runs, points 4–9
+(19.4 m, at the start) and 307–311 (34.1 m, 5.77 km in, where the route passes the Capitol
+again), 53.5 m undelivered of 200.4 km; 174 leaf windows, 279 requests (96 splits), 101.6 MB of
+requests (each repeats the 11,084-point geometry), 142.0 MB of responses, 221 s. Under the sealed
+browser bounds the same route ends after 34 s as `unavailable`: a 16-point window
+(`candidate_window_80_96`) exceeds the browser's 6 s per-window deadline, which is terminal; and
+even without that, 174 leaves, 279 requests, 101.6 MB and 142.0 MB each exceed the browser's
+128, 255, 64 MiB and 64 MiB. The same run's HPMS acquisition was incomplete only because three
+DC 2020 windows exceeded 30 s (Finding 19). Des Moines–Madison (15,146 points) under server
+bounds: 3 refused segments in two runs at points 15121–15122 and 15143–15145 near the route end,
+155 leaves, 197 requests, 65.6 MB of responses, 124 s; also above the sealed 128-leaf cap.
+
+## Consequences
+
+- Routes with a few tens of metres of undeliverable corridor become partial artifacts instead of
+  nothing. On RUSA 5067 that is 53.5 m in two grey runs on the Capitol grounds.
+- Partial, not canonical, remains the honest ceiling for such routes until the material service
+  can deliver the segments; the receipts name the exact segments to fix.
+- The browser's sealed budgets still bound live loads. RUSA 5067 cannot be acquired live under
+  them on any count; after this change it loads through the compiler's published partial
+  artifact, not through the live engine. That is a property of dense 200 km routes under the
+  sealed browser bounds, not of this change.
+- The HPMS gate of the compile runner is independent: RUSA 5067 also needs the pending Nürnberg
+  statement-timeout release (Finding 19) before it can compile.
+- Decision 6 (leaf cap follows the caller's bound) is required for this route: 174 leaves exceed
+  the sealed 128 that the validator enforces today regardless of the server override.
+
+## Gate items (each needs an explicit decision)
+
+1. The contract law change in Decision 1 and 3 (route-truth authority).
+2. The bound values in Decision 2 (8 runs, 100 m per run, 250 m total).
+3. The leaf-cap rule in Decision 6.
+4. The hazard-lane rule in Decision 5.
+5. Confirmation that no rider-facing language changes (Decision 7).
+
+## Implementation findings — proposed gate addendum, 2026-09-25
+
+The first sealed implementation acquired Capitol's nine refusals in the same two runs, but the
+untruncated union contains **543,245 nearby-way associations**, exceeding the existing aggregate
+524,288 bound. Gap support and the leaf-bound fix alone therefore do not open this route. The
+candidate adds an explicit compiler aggregate association bound of **1,000,000**, capped by the
+owner validator's existing total-context-reference ceiling. The browser stays at 524,288; per-window
+SQL-equivalent counts, complete-union validation, byte caps and all source policy rules remain.
+The actual bound travels in acquisition accounting and is checked before either validation memo
+can return. This is an additional operational-bound decision for the final gate, not an accepted
+amendment or a reason to discard associations.
+
+Independent review also identified a zero-measure case: a refused duplicate-point segment can
+vanish from distance intervals. Every declared receipt now withholds complete owner status even
+when its length is zero. When *all* refusals have zero measure and no other owner gap exists, the
+existing partial display/backend contract cannot express the result: it requires positive grey
+coverage. Such a route remains blocked with its v2 receipt; no phantom grey distance is invented.
+Capitol contains positive-measure gaps as well, so this limitation does not describe its two runs.
+The final gate must explicitly accept this conservative limitation or commission the separate
+partial-contract extension; changing Nürnberg's contract remains outside EXEC-062.
+
+A retained-response CPU profile found the same deeply frozen partial projection being rehashed
+for every donor row. The builder now validates its full content once before issuing the private
+object-identity capability. Serialized content validation remains intact and clones cannot acquire
+that capability. This changes validation cost, not the projection, ownership law or digest.
+
+
+---
+
+## Source File: docs/03-adrs/adr-063-hpms-deadline-ladder-and-truncation-subdivision.md
+
+# ADR-063 — HPMS Window Deadline Ladder and Truncation Subdivision
+
+**Status:** Proposed (requires the Derek/ChatGPT human gate; touches an Edge fallback policy, a host proxy setting and the acquisition completeness proof)
+**Date:** 2026-09-24
+**Author:** Claude (builder), from Finding 23 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`, on Codex's host diagnosis of the same day
+**Implementation ticket:** `docs/04-execution/exec-063-hpms-deadline-ladder-implementation-ticket.md`
+**Numbering note:** sequential successor to ADR-062.
+
+## Context
+
+One HPMS state-year request crosses four deadlines, and today they are in the wrong order:
+
+| Layer | Deadline | Where |
+| --- | --- | --- |
+| Browser, per state-year request | 4,000 ms | `CURRENT_ROUTE_HPMS_STATE_YEAR_FETCH_TIMEOUT_MS` (engine); the server compiler uses 30,000 ms |
+| Nginx, `location /v1/p7/hpms/sections` | 4 s | host only; maps upstream 502/504 to `503 hpms_service_unavailable / origin_not_ready` |
+| Edge `hpms-read-proxy`, hosted upstream | 4,500 ms on `main`, 10,000 ms deployed (v13, draft PR #55) | `NUREMBERG_HPMS_UPSTREAM_TIMEOUT_MS` |
+| Nürnberg, Postgres statement | 8,000 ms since the 2026-09-24 release (was 1,800) | `HPMS_SECTIONS_BOUNDS.statementTimeoutMilliseconds` |
+
+The innermost bound is larger than two outer ones, so every query that needs between 4 and 8 s is
+killed by Nginx at 4 s and by the browser at 4 s while the database is still working. The
+statement-timeout release therefore fixed the boxes under 4 s (thirteen of the fifteen that failed
+on 2026-09-24) and none above it. Codex measured the two survivors on the host: the DC Mall box
+answers in 5.04–5.07 s with 4,971 complete rows directly, and 503 at 4.09 s through Nginx; the
+Madison box answers in 4.63 s directly with 5,000 rows, `truncated: true`, and 503 at 4.1–4.2 s
+through Nginx. `origin_not_ready` is Nginx's wording for the cut-off, not a readiness state.
+
+A second, independent limit: the hosted read returns at most `HPMS_SECTIONS_MAX_LIMIT = 5,000`
+rows and marks `truncated: true` beyond it. The Edge validator rejects any truncated or
+incomplete hosted answer (`response_truncated`), which is right, and then falls back to the public
+ArcGIS feed, which is not: that path has no bounded deadline, the Supabase gateway ends it at 150 s
+(`IDLE_TIMEOUT`, observed as HTTP 504), and its pages are themselves unproven. Madison downtown is
+denser than one 5,000-row window. Derek's direction (2026-09-24): if a section is too dense to fit
+inside one answer, take a subsection approach.
+
+## Decision (proposed)
+
+1. **A strict deadline ladder, outer greater than inner by at least 2 s of transport margin,
+   with every value a named constant.** Postgres statement 8,000 ms (as released) < Nginx
+   `proxy_read_timeout` 10 s on the HPMS location < Edge hosted upstream 12,000 ms < browser
+   per-state-year 15,000 ms. The compiler keeps 30,000 ms. A Lanterne architecture test asserts
+   browser > Edge > 8,000 ms; the Nginx value is recorded with the site configuration's SHA-256 in
+   the release receipt, since it lives only on the host.
+2. **Truncation becomes a typed split signal, never a fallback.** When the hosted answer is
+   `truncated: true`, the Edge returns a typed, non-data control response (HTTP 422,
+   `hpms_window_split_required`, echoing state, year, bounding box and the row limit) instead of
+   consulting ArcGIS. The engine splits that route window into **four** sub-windows by route
+   distance and requests all four, for every year, **in parallel** inside the existing concurrency
+   and attempt budget, so a dense window costs one further wait rather than a chain of them. A
+   sub-window that is itself truncated is split the same way once more (two levels, at most 16
+   sub-windows). The window's official traffic is complete only when three proofs hold, and a bare
+   union is not one of them: (a) the sub-windows tile the parent's route-point interval exactly, no
+   gap and no overlap; (b) for every state and year the parent required, every sub-window whose
+   corridor touches that state answered `complete: true, truncated: false`, and the union of the
+   sub-windows' state sets covers the parent's; (c) rows shared across sub-window seams are
+   de-duplicated by section identity before any per-window retention cap is applied, so the cap
+   sees the parent's true row set. A sub-window still truncated at the second level is
+   `hpms_window_truncated_irreducible`, and the window fails exactly as a failed window fails today
+   (canonical blocked, interactive baseline continuation), with the sub-window receipts.
+   *Optional refinement, a separate additive backend change:* the hosted service may include the
+   total row count in a truncated answer (`truncatedTotalCount`, computed only when truncating,
+   under the same statement bound, `null` if it cannot be computed in time), and the engine then
+   chooses the fan-out width as `ceil(count / 3,500)`, capped at 8. The count is a planning hint;
+   it is never evidence of completeness. Counting before every window was considered and rejected:
+   it adds a round trip to every window of every route to help the few dense ones.
+3. **The ArcGIS fallback is bounded.** Where it still applies (hosted network or configuration
+   failure, not truncation), the Edge gives the whole fallback path one deadline (proposed 45 s)
+   and answers a typed failure before the gateway's 150 s limit.
+4. **The typed controls must survive the transport.** The browser worker and the compiler fetch
+   wrappers pass a validated 422 split control and a validated 429 control through to the engine,
+   as they already do for the materialize control, and apply no hidden retries to
+   `hpms-read-proxy`; the shared scheduler is the only retrier, so attempts are counted once and
+   stop on cancellation.
+5. **Nothing else moves.** Retention caps, the year policy (2024 primary, 2020 companion), scoring,
+   the compiler's `hpms_acquisition_complete=true` gate and the 5,000-row hosted limit are
+   unchanged.
+
+## Alternatives considered
+
+- Raise the 5,000-row limit: bytes and query time grow with it and collide with the 8 s bound;
+  subdivision keeps every answer small and proven.
+- Treat a failed 2020 companion as non-fatal when 2024 succeeded: a year-policy change Derek
+  declined ("get 2020 not to fail").
+- Keep ArcGIS as the answer for dense boxes: slow, paged, completeness unproven; it turned a 5 s
+  query into a 136 s or 504 answer.
+- Recursive halving on truncation: correct but serial in depth (each level is another wait);
+  superseded by the one-shot four-way fan-out above, which has the same proof and one wait.
+
+## Consequences
+
+- Boxes that need 4–8 s answer from Nürnberg through every layer. On 2026-09-24 that is the DC Mall
+  box, which unblocks the compiler's HPMS gate for Capitol to Capitol.
+- Dense boxes above 5,000 rows cost extra requests only where they occur; Madison becomes four
+  proven sub-windows after one further parallel wait. The first attempt on a dense window still
+  costs its full query (4.6 s on Madison); no variant avoids that without counting first.
+- **Nürnberg's HPMS read path has four connections and answers HTTP 429 to any request beyond
+  them; excess requests are rejected, not queued** (Codex, verified on the host 2026-09-24). The
+  fan-out therefore runs under one shared scheduler of at most four requests in flight across all
+  parent windows and their children, with bounded, counted handling of 429 (retry after the
+  server's hint or a short backoff, a small maximum, then the request fails as a failed request
+  fails today). Four children times two years is already two waves under that scheduler. This
+  bound also applies to the browser's existing fan-out, which today allows up to 16 in flight
+  (four windows times four state-years); whether that burst produces 429s and fallbacks in
+  Production is unmeasured and is measured by the ticket.
+- Live loads of dense routes spend longer in the HPMS phase, bounded by 15 s per request over the
+  existing concurrency; the compiler path is unaffected.
+- Rollout order matters: Edge 12 s first (harmless while Nginx is 4 s), then Nginx 10 s, then the
+  browser and engine change through the frontend gate.
+
+## Gate items
+
+1. The browser deadline of 15,000 ms (a UX and load-time decision).
+2. The Nginx change on the host, under the host's own change governance and receipt.
+3. The Edge change: 12,000 ms, truncation passthrough instead of fallback, bounded fallback.
+4. The subdivision semantics and the three-part completeness proof.
+
