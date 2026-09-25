@@ -62564,6 +62564,23 @@ Production carries nothing to roll back from this ticket.
   the sealed 128-leaf cap, so the leaf-cap rule (ADR-062, Decision 6) is required for this route
   too.
 
+## 13. Implementation findings requiring final-gate reconciliation
+
+See ADR-062's dated proposed gate addendum. The initial exact-head Capitol run failed the existing
+524,288 aggregate nearby-association bound after valid gap acquisition. The candidate now carries a
+compiler-only bound of 1,000,000 in accounting, checks it before response and bundle memo reuse,
+and preserves every browser/per-window/source constraint. Tests cover narrowed-bound memo reuse,
+the ceiling and refusal to apply the override to a service leaf. This additional bound is proposed,
+not silently substituted for the original ticket.
+
+Every v2 gap withholds whole-owner completeness, including duplicate-point refusals. A zero-measure
+only gap with otherwise complete ownership cannot fit the unchanged positive-grey partial contract;
+it remains blocked, retaining the receipt. This conservative exception to section 5.5 needs an
+explicit architecture decision. No backend contract extension is included.
+
+The measured frozen-projection rehash bottleneck is removed by validating before issuing the
+private capability. Immutability, clone rejection and digest-preserving comparisons remain required.
+
 
 ---
 
