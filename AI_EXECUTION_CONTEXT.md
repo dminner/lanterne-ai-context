@@ -62564,6 +62564,23 @@ Production carries nothing to roll back from this ticket.
   the sealed 128-leaf cap, so the leaf-cap rule (ADR-062, Decision 6) is required for this route
   too.
 
+## 13. Implementation findings requiring final-gate reconciliation
+
+See ADR-062's dated proposed gate addendum. The initial exact-head Capitol run failed the existing
+524,288 aggregate nearby-association bound after valid gap acquisition. The candidate now carries a
+compiler-only bound of 1,000,000 in accounting, checks it before response and bundle memo reuse,
+and preserves every browser/per-window/source constraint. Tests cover narrowed-bound memo reuse,
+the ceiling and refusal to apply the override to a service leaf. This additional bound is proposed,
+not silently substituted for the original ticket.
+
+Every v2 gap withholds whole-owner completeness, including duplicate-point refusals. A zero-measure
+only gap with otherwise complete ownership cannot fit the unchanged positive-grey partial contract;
+it remains blocked, retaining the receipt. This conservative exception to section 5.5 needs an
+explicit architecture decision. No backend contract extension is included.
+
+The measured frozen-projection rehash bottleneck is removed by validating before issuing the
+private capability. Immutability, clone rejection and digest-preserving comparisons remain required.
+
 
 ---
 
@@ -62785,6 +62802,10 @@ stated order.
    64 MiB → 512 MiB. `proxyUpstreamTimeoutMs` (4,500), `backendSqlTimeoutMs` (1,800) and the 4,096
    ceiling are unchanged. The server-compiler override in the engine becomes equal to the defaults;
    keep the override mechanism, drop nothing.
+   Apply the later EXEC-062 compiler alignment too: material concurrency 4 → 2 and whole-route
+   nearby associations 524,288 → 1,000,000 (the existing absolute ceiling). Preserve all independent
+   object/incidence/gap limits. Enclose the 480 s acquisition wall in a 510 s worker and 525 s
+   caller budget, retaining the existing 30 s / 15 s margins. See ADR-064's alignment addendum.
 2. Validator leaf cap follows the caller's bound (ADR-062 Decision 6) if EXEC-062 has not landed
    first; otherwise no change there.
 3. Architecture test: browser window deadline > proxy upstream timeout + 2,000 ms > backend SQL
@@ -62814,6 +62835,8 @@ base (identical multiset ignoring positions). ESLint on changed files: no new di
   diagnostic engine (`P7_DIAG_INTERACTIVE_BOUNDS`) or a staged frontend: material acquisition
   ready; report leaves, attempts, bytes, wall, and the end-to-end load time on the immutable
   frontend URL with the rider account, before promotion.
+  Repeat the Tims load after Derek's subsequent report of a purple failure; distinguish a measured
+  pass from a claim of general reliability.
 - Capitol to Capitol (`26cde7f7-6c43-4341-95f9-32c7f05d4b1a`): with EXEC-062 landed, live load
   completes with the receipted gaps; without it, the acquisition reaches the irreducible windows
   and fails there and nowhere else. Report the same numbers.
