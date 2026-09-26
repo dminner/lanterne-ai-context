@@ -53534,3 +53534,111 @@ inside one answer, take a subsection approach.
 3. The Edge change: 12,000 ms, truncation passthrough instead of fallback, bounded fallback.
 4. The subdivision semantics and the three-part completeness proof.
 
+
+---
+
+## Source File: docs/03-adrs/adr-064-browser-acquisition-bounds-ladder.md
+
+# ADR-064 — Browser Acquisition Bounds Follow the Compiler's, and Every Window Deadline Sits Above the Proxy's Typed Timeout
+
+**Status:** Accepted by Derek (owner gate, 2026-09-25, in session); implementation ticket EXEC-064; skeptical review and ChatGPT final gate on the implementing PR
+**Date:** 2026-09-25
+**Author:** Claude (builder), from Findings 22–24 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
+**Implementation ticket:** `docs/04-execution/exec-064-browser-acquisition-bounds-implementation-ticket.md`
+**Related:** ADR-062 (bounded receipted material gaps, including the validator leaf cap following the caller's bound), ADR-063 / EXEC-063 (HPMS ladder), ADR-065 (direction for 3,000-mile live loads)
+**Numbering note:** sequential successor to ADR-063.
+
+## Context
+
+Dense routes that acquire under the server compiler fail in the browser for two reasons that have
+nothing to do with route truth.
+
+1. **The material window deadline is inside the proxy's typed timeout.** The materialize proxy
+   aborts a slow hosted read at 4,500 ms and answers a typed 503 that the client bisects; the
+   browser's own per-window deadline is 6,000 ms. Add Edge transport and a slow window's typed
+   control arrives after the browser has already aborted it as a terminal `request_timeout`, which
+   fails the whole route closed. The compiler waits 20,000 ms and receives the control. Tims Fresh
+   100 fails live exactly this way (Finding 24): nine leaves in 2.0–3.7 s, the tenth aborted at
+   6,000 ms; the same route acquires under the compiler in 62 s within every browser budget.
+2. **The sealed aggregate budgets are the compiler's divided by four or more.** Browser: 128 leaf
+   windows, 255 requests, 64 MiB of requests, 64 MiB of responses, 120 s wall. Compiler: 512,
+   1,023, 1 GiB, 512 MiB, 480 s. Capitol to Capitol needs 174 leaves, 279 requests, 101.6 MB and
+   142 MB over 221 s (Finding 22), so it exceeds every browser budget even after ADR-062 makes its
+   gaps admissible.
+
+Derek's direction (2026-09-25): a densely populated 126-mile route failing to load live is
+unacceptable for the product; 3,000-mile routes should load live eventually. This ADR is the part
+of that direction that constants can deliver; ADR-065 is the part they cannot.
+
+## Decision
+
+1. **Material deadline ladder.** Postgres statement 1,800 ms (unchanged) < materialize proxy
+   upstream 4,500 ms (unchanged, answered as the typed control) < browser window deadline
+   **20,000 ms** (from 6,000; equal to the compiler's). An architecture test asserts the ordering
+   with at least 2 s of transport margin, as ADR-063 does for HPMS.
+2. **Browser aggregate budgets follow the compiler's.** `P7_MATERIAL_CLIENT_BOUNDS` for the
+   interactive engine becomes 512 leaves, 1,023 requests, 1 GiB request bytes, 512 MiB response
+   bytes, 480 s wall, the values the compiler has run since 2026-09-24 without incident. The
+   validator's leaf cap follows the caller's bound as ADR-062 Decision 6 already requires; the
+   4,096-leaf ceiling stays.
+3. **Same laws, same proofs.** Nothing changes in what counts as material, a gap (ADR-062), a
+   split (ADR-063) or completeness; only how long and how much the browser is allowed to wait and
+   carry. A route that exhausts the wider budgets fails closed exactly as today.
+4. **The user sees progress, not a blank purple.** While the wider budgets are in use the load
+   shell's existing phase label continues to update per completed window (window count and
+   elapsed), so a four-minute acquisition is visible as work, not a hang. No new rider-facing
+   safety language; this is a progress label.
+
+## Expected effect, from measurements
+
+| Route | Live today | After ADR-064 (and ADR-062 for Capitol) |
+| --- | --- | --- |
+| Tims Fresh 100 (100 km, 3,690 points) | fails at one 6 s window | about 1–2 min: 62 s material plus HPMS and engine time |
+| Capitol to Capitol (200 km, 11,084 points) | fails: gaps, then every budget | about 4–5 min: 221 s material plus engine time, 53.5 m of grey gap |
+| Batsto, MACTRI, rural routes | unchanged | unchanged; they never touched the old bounds |
+
+The costs are real and are the gate items: a dense 200 km route uploads about 100 MB of repeated
+geometry and downloads about 140 MB of material in one live load, holds it in browser memory, and
+takes minutes. That is acceptable as a floor for the product Derek describes and unacceptable as a
+ceiling, which is why ADR-065 exists.
+
+## Alternatives considered
+
+- Widen only the window deadline (Decision 1) and keep the aggregate budgets: fixes Tims and every
+  route whose frontier already fits; leaves Capitol and all dense 200 km routes to the compiler.
+  This is the minimal step and is acceptable as phase one if the gate prefers it.
+- Budgets scaling with route length instead of fixed values: better long-term, but the request
+  bytes are dominated by geometry repetition, so scaling the byte budget only postpones the wall;
+  deferred to ADR-065.
+
+## Consequences
+
+- Dense 100–200 km routes load live, slowly, with honest partial paint where material or HPMS is
+  unproven; repeat loads come from published artifacts and are fast.
+- Live loads of dense routes cost minutes and hundreds of megabytes on the current transport.
+- The compiler remains the authority path; nothing here changes what it publishes.
+
+## Gate items
+
+1. Decision 1, the 20,000 ms browser window deadline (latency).
+2. Decision 2, the wider aggregate budgets (browser memory, mobile data, latency); or phase one,
+   Decision 1 alone.
+3. Decision 4, the progress label wording (a product label, not safety language).
+
+## Implementation alignment — 2026-09-25
+
+EXEC-062 subsequently established a two-request material concurrency limit and a 1,000,000
+whole-route nearby-association limit for the compiler. Capitol measured 543,245 associations,
+above the old browser limit of 524,288. Applying Decision 2 to the implemented compiler therefore
+also makes those two browser bounds equal to the compiler's. The existing association ceiling
+remains 1,000,000; per-window, object, node, incidence, gap and proof limits are unchanged.
+
+The 480-second acquisition wall must sit inside the canonical worker and caller budgets. They
+become 510 and 525 seconds, preserving the existing 30-second construction margin and 15-second
+caller margin. The material contract and policy versions stay unchanged.
+
+The route table above records the observations and estimates used to propose this ADR; it is not
+release acceptance. A later production Tims load passed once with 95.0% scored coverage, and Derek
+subsequently reported a purple failure. EXEC-064 therefore requires fresh measured acceptance,
+including repeated Tims loads, rather than treating that one earlier success as reliability proof.
+
