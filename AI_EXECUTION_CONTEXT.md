@@ -62836,41 +62836,51 @@ Tims with both.
 **ADR:** ADR-066 (`docs/03-adrs/adr-066-cyclist-presentation-lane-over-sterile-truth.md`), including its Addendum (Decision 4a).
 **Evidence:** record `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`, Findings 27 and 28; PR #66's diagnosis report (`exec-066-occurrence-scope-stop-20260927.md`).
 **Implementer:** Codex. **Verifier:** Claude (against §4 below). **Gate:** Derek, then ChatGPT final gate on the PR.
-**Revision 2 (2026-09-27):** scope A rewritten after PR #66's verified diagnosis; B, C and D are independent of A and proceed now; the sliver epsilon item is withdrawn.
+**Revision 3 (2026-09-27):** A is the root fix, ADR-066 Decision 4b (projection continuity in all seven modules); the owner-anchored recovery (4a) is withdrawn; B, C and D are independent of A and proceed now; the sliver epsilon item is withdrawn.
 
 ## 1. Scope
 
 **0. Order and independence.** A, B, C and D are four separate commits on the PR #66 branch. B, C and
-D do not depend on A; do not hold them for A. A requires Derek's acceptance of ADR-066 Decision 4a,
-which the ticket owner confirms on the PR before A is implemented; until then, deliver A's first
-step (the reason breakdown) only.
+D do not depend on A; do not hold them for A. Decision 4b is accepted; A proceeds without a further
+gate, step 1 first.
 
-**A. Owner-anchored identity recovery in whole-route mode (truth lane, ADR-066 Decision 4a).**
-Verified cause (PR #66, confirmed in code): `solveWholeRouteRoadIdentitiesWithPrehydratedP7`
-(`src/lib/traffic-spine/runtime-canonical-evidence/p7/prehydrated-p7-road-identity.ts`, the
-whole-route solve, `recoveries: []` at its `buildOwnershipSelection` and `freezeRefinementResult`
-calls) never builds recovery projections, so a way whose P5 projection is unresolved with
-`ambiguous_route_binding` or `no_sustained_aligned_overlap` keeps that failure through
-`mergePrehydratedP7RoadIdentityProjection`, is held in the ledger as unresolved road identity with
-no admitted span, and gets no occurrence from `buildRouteOccurrences`. Tims: 110 resolved-owner
-partitions, 3,501 m; Capitol: 294 partitions, 30,058 m.
+**A. Resolve projection ambiguity by continuity in all seven projection modules (truth lane,
+ADR-066 Decision 4b).**
+Verified cause (PR #66, confirmed in code): each module under `src/lib/source-projection/`
+(`road-identity/project-normalized-road-identity-source-record.ts`,
+`path-domain/project-normalized-path-domain-source-record.ts`,
+`bike-infra/project-normalized-bike-infra-source-record.ts`,
+`speed-limit/project-normalized-speed-limit-source-record.ts`,
+`shoulder/project-normalized-shoulder-source-record.ts`,
+`road-context/project-normalized-road-context-source-record.ts`,
+`traffic/traffic-geometry-projection.ts`) marks a route sample ambiguous when the way's qualifying
+segments form two disjoint ordinal runs (`hasMultipleDisjointOrdinalRuns`) and then vetoes the whole
+way on one such sample (`if (sawAmbiguous) return unresolved`). A winding way trips it on itself.
 
-- Step 1, report before code: from the ledger's `unresolvedEvidence.road_identity`, the P5 reason
-  for every resolved-owner partition without an occurrence, on Tims and on Capitol, as a table
-  (reason, partition count, distance). This is the after-column baseline for §4 and it says how much
-  of the class Decision 4a can reach.
-- Step 2, on acceptance: in the whole-route solve, after `buildOwnershipSelection`, build a recovery
-  for each eligible P5 failure (the two reasons above, the same eligibility as `eligibleP5Failure`
-  minus the expected-window requirement) whose way has at least one resolved partition in
-  `ownershipSelection.partitions`. Intervals: exactly those partitions, in axis order, nothing wider.
-  Receipt: the existing `prehydrated_p7_failure_recovery` shape from `buildRecovery` plus
-  `recoveryBasis: 'whole_route_owner_partition'` and `ownershipSelectionReceiptId`; bump
-  `PREHYDRATED_P7_ROAD_IDENTITY_POLICY_VERSION` and its digest. Report `eligibleFailureCount` and
-  `recoveredCount` truthfully in the stage evidence. Do not touch the windowed refinement, the
-  cross-candidate solve, the ownership selection, the ledger merge law, the ledger or the occurrence
-  builder; if admission needs anything beyond the recovery, stop and report the exact reason.
-- Not in scope: any epsilon or widening in the coverage loop of `p7-partial-route-terminal-core.ts`;
-  the sub-metre slivers stay unknown.
+- Step 1, report before code: from the ledger's `unresolvedEvidence.road_identity`, the P5 reason for
+  every resolved-owner partition without an occurrence, on Tims and on Capitol: reason, partition
+  count, distance. This sizes what continuity can reach and what remains.
+- Step 2, the rule, identical in the seven modules (a shared helper is preferred if the seven
+  sampling loops are close enough to call one; otherwise the same helper called from each):
+  1. Evaluate samples as today, recording every sample's qualifying ordinal runs.
+  2. Forward pass: an ambiguous sample takes the run containing the ordinal nearest to the ordinal
+     chosen at the nearest resolved aligned sample within `maximumContiguousGapM` behind it; the
+     winner must be unique; within that run the segment is the best lateral offset.
+  3. Backward pass: leading ambiguous samples of a run anchor to the nearest resolved sample ahead,
+     same rule.
+  4. A sample still ambiguous breaks the run at that point and is counted in
+     `ambiguousUnresolvedSampleCount`; resolved ones in `ambiguousResolvedSampleCount`.
+  5. A run whose chosen ordinals are not monotonic is rejected and counted as rejected for
+     ambiguity; the existing minimum-samples and minimum-length rules apply to survivors unchanged.
+  6. Verdict: `ambiguous_route_binding` only when no run survives and at least one sample stayed
+     ambiguous; `no_sustained_aligned_overlap` when none survives otherwise; else `projected`.
+- Step 3, versioning: bump the seven policy versions to `.v2` in lockstep, no new tunables; keep v1
+  snapshots readable; update every receipt or digest that embeds a policy version.
+- Step 4, the hidden dependency: run the P7 gate suites; compare owner partitions and owner gaps on
+  Tims and Capitol before and after; explain every change in the report. `ambiguousCompetitor` and
+  `eligibleP5Failure` in `prehydrated-p7-road-identity.ts` are read, not edited.
+- Not in scope: any epsilon or widening in the coverage loop; the owner solve; the ledger; the
+  occurrence builder; any owner-anchored recovery (withdrawn).
 
 **B. Receipted road facts on partial cards (presentation lane).**
 - Compiler: for each resolved owner partition in `p7-persisted-partial-route-paint`, write
@@ -62910,13 +62920,16 @@ Golden Harness rides plus Tims) so production carries v3 artifacts.
 
 ## 3. Tests
 
-- Recovery test on a whole-route fixture: an owner-selected way with an `ambiguous_route_binding` P5
-  failure gets a recovery whose intervals equal its partitions and whose receipt carries
-  `recoveryBasis: 'whole_route_owner_partition'`; a way with any other P5 reason gets none; a way
-  with no resolved partition gets none; the merge law admits the recovery; the occurrence builder
-  certifies it. Way 39053551 on the Tims fixture has an occurrence after the change.
-- Policy version test: the bumped `PREHYDRATED_P7_ROAD_IDENTITY_POLICY_VERSION` is what the receipt
-  and the merge law compare, and the previous version's recoveries are refused.
+- Projection continuity tests, one fixture set shared by the seven modules: a synthetic meander way
+  whose two legs come within 50 m of one route point projects as one interval with
+  `ambiguousResolvedSampleCount > 0`; a route that rides one leg then the other of a U-shaped way is
+  rejected for non-monotonic ordinals; an isolated ambiguous sample with no resolved neighbour breaks
+  the run and is counted; a way with no surviving run and one ambiguous sample returns
+  `ambiguous_route_binding`; the three existing tests that pin the old veto are updated with the
+  reason for each change stated in the report.
+- Policy version tests: each of the seven `.v2` policies is what the receipts embed; a v1 snapshot
+  still validates as v1.
+- Occurrence test on the Tims fixture: way 39053551 projects, is admitted, and has an occurrence.
 - v3 artifact round-trip: build, serialize, validate, rehydrate; a v3 payload missing `displayFacts`
   on a resolved partition or `provenance` on an interval is rejected; a v2 payload still validates.
 - Seam bridging table test: each of the five conditions toggled alone refuses the bridge; a bridged
@@ -62935,10 +62948,11 @@ report from the artifacts, with the before column taken from PR #66's baseline t
 | Measure | Tims before | Capitol before | After (required) |
 |---|---|---|---|
 | resolved-owner partitions with `route_occurrence_unavailable` | 110 / 3,501.389 m | 294 / 30,057.738 m | count and distance after A, with the P5-reason table for whatever remains |
-| way 39053551 (Tims) | no occurrence | n/a | occurrence certified; interval painted by the normal layers or its remaining missing codes listed |
+| way 39053551 (Tims) | no occurrence, riskToken `unknown` | n/a | projected in all seven modules, occurrence certified, riskToken reported (expected `safepath`) |
 | unresolved paint distance | 5,067.960 m | 34,659.814 m | reported after A; unchanged by B and C |
 | painted distance | 96,066.271 m | 165,786.409 m | raised only by A; unchanged by B and C |
-| owner gaps | 67 / 3,059.653 m | 284 / 14,559.535 m | unchanged |
+| owner partitions and owner gaps | 384 partitions; 67 gaps / 3,059.653 m | 1,245 partitions; 284 gaps / 14,559.535 m | reported after A; every change explained (Decision 4b.5) |
+| `ambiguousResolvedSampleCount` / `ambiguousUnresolvedSampleCount` | none | none | reported per module, both routes |
 | `seam_bridged` distance and count | 0 / 0 | 0 / 0 | reported after C; at most the 299 m / 22 gaps measured for Tims at 50 m unless A changes the gap set, then re-measured |
 | resolved owner partitions with `displayFacts` | 0 of 384 | 0 of 1,245 | all, after B |
 | partial card, way 39053551 | "Unnamed Road · segment" | n/a | "Delaware & Raritan Canal Towpath · cycleway · gravel" |
@@ -62952,35 +62966,40 @@ report from the artifacts, with the before column taken from PR #66's baseline t
 3. Re-publish under the manifest; verify the read proxies serve v3 for Tims and Capitol; refresh
    check in production.
 
-## 6. Codex hand-off prompt (revision 2)
+## 6. Codex hand-off prompt (revision 3)
 
 The text below is what Derek pastes to Codex to continue on the PR #66 branch.
 
 ---
 
 Continue EXEC-066 on your existing branch `codex/exec-066-cyclist-presentation` (draft PR #66).
-Read the revised ticket `docs/04-execution/exec-066-cyclist-presentation-lane-implementation-ticket.md`
-(revision 2) and ADR-066's Addendum (Decision 4a) from branch `claude/elegant-knuth-stk2ga` at its
-head. Your diagnosis in PR #66 was verified and is accepted as the cause; the ticket's earlier
-sliver-epsilon item is withdrawn and the scope of A is rewritten.
+Read the ticket `docs/04-execution/exec-066-cyclist-presentation-lane-implementation-ticket.md`
+(revision 3) and ADR-066's Addendum (Decision 4b, accepted) from branch `claude/elegant-knuth-stk2ga`
+at its head. Your PR #66 diagnosis was verified and is the accepted cause. Derek's direction is to
+fix the defect, not paper over it: the owner-anchored recovery is withdrawn; the fix is in the
+projections themselves.
 
 Do these as separate commits, and do not hold any of them for another:
 
-(A, step 1 now) From the ledger's unresolved road-identity evidence, produce the table of P5 reasons
-for every resolved-owner partition without an occurrence, on Tims and on Capitol: reason, partition
-count, distance. Put it in the builder report. Do not implement A step 2 until the ticket owner
-confirms on the PR that Derek accepted Decision 4a.
+(A step 1, first) From the ledger's unresolved road-identity evidence, produce the table of P5
+reasons for every resolved-owner partition without an occurrence, on Tims and on Capitol: reason,
+partition count, distance. Put it in the builder report.
 
-(A, step 2, on that confirmation) In `solveWholeRouteRoadIdentitiesWithPrehydratedP7`, after
-`buildOwnershipSelection`, build a recovery projection for each eligible P5 failure
-(`ambiguous_route_binding` or `no_sustained_aligned_overlap`) whose way has at least one resolved
-partition in the ownership selection: intervals exactly those partitions, nothing wider; the
-existing `prehydrated_p7_failure_recovery` receipt plus `recoveryBasis: 'whole_route_owner_partition'`
-and `ownershipSelectionReceiptId`; bump the road-identity policy version and digest; report
-`eligibleFailureCount` and `recoveredCount` truthfully. Do not touch the windowed refinement, the
-cross-candidate solve, the ownership selection, the merge law, the ledger, the occurrence builder or
-the coverage loop; if admission needs anything beyond the recovery, stop and report the exact
-reason.
+(A step 2) In all seven projection modules under `src/lib/source-projection/` (road identity, path
+domain, bike infra, speed limit, shoulder, road context, traffic), replace the whole-way ambiguity
+veto with the continuity rule of ticket §1.A: an ambiguous sample takes the run containing the
+ordinal nearest to the ordinal chosen at the nearest resolved aligned sample within
+`maximumContiguousGapM`, looking back then forward, unique winner required; a sample still ambiguous
+breaks the run and is counted; a run with non-monotonic chosen ordinals is rejected as ambiguous;
+`ambiguous_route_binding` is returned only when no run survives and at least one sample stayed
+ambiguous. Add `ambiguousResolvedSampleCount` and `ambiguousUnresolvedSampleCount` to the stats. Use
+one shared helper if the seven loops can call one; otherwise the same helper from each. Bump the
+seven policy versions to `.v2` in lockstep with no new tunables; keep v1 snapshots readable; update
+every receipt or digest that embeds a policy version. Add the shared meander fixture tests in §3.
+
+(A step 3) Run the P7 gate suites. Compare owner partitions and owner gaps on Tims and Capitol before
+and after; explain every change in the report. Read, do not edit, `ambiguousCompetitor` and
+`eligibleP5Failure` in `prehydrated-p7-road-identity.ts`.
 
 (B now) `displayFacts` (name, ref, highway, surface from the sealed material set) for every resolved
 owner partition in `p7-persisted-partial-route-paint.v3`, v2 kept readable, shown on the partial
@@ -62993,13 +63012,14 @@ drawn distinctly and named on the card and legend.
 
 (D after each) Compile Tims and Capitol without publishing and fill the §4 table from the artifacts.
 
-Non-negotiable: the owner solve, the ledger, route surface truth, ActiveTruth and every score are
-untouched except by A step 2 exactly as scoped; only `certified` intervals count as painted; unknown
-stays unknown wherever a condition fails; every new field is versioned and validated fail-closed; no
-live-worker changes; no production publication. Do not claim a number you did not read from an
-artifact. Update the builder report with phase id EXEC-066, changed files, tests with counts, the §4
-table, every unknown left explicit, and instructions for the skeptical reviewer and the final gate;
-then re-request Codex skeptical review and hand the PR back to Derek for Claude's verification.
+Non-negotiable: the owner solve, the ledger, the occurrence builder, route surface truth,
+ActiveTruth and every score are untouched; no epsilon in the coverage loop; no owner-anchored
+recovery; only `certified` intervals count as painted; unknown stays unknown wherever a condition
+fails; every changed policy is versioned and validated fail-closed; no live-worker changes; no
+production publication. Do not claim a number you did not read from an artifact. Update the builder
+report with phase id EXEC-066, changed files, tests with counts, the §4 table, every unknown left
+explicit, and instructions for the skeptical reviewer and the final gate; then re-request Codex
+skeptical review and hand the PR back to Derek for Claude's verification.
 
 ---
 

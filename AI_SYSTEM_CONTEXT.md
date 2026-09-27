@@ -53799,46 +53799,75 @@ therefore has to be a compiler-side, receipted, versioned rule, never a consumer
 - Accept the rider-facing wording for card facts and the bridged treatment.
 - Confirm that Decision 5 stays out of scope until re-measured.
 
-## Addendum, 2026-09-27, after PR #66's diagnosis: Decision 4a, owner-anchored identity recovery in whole-route mode (proposed, needs Derek's acceptance)
+## Addendum, 2026-09-27, after PR #66's diagnosis: Decision 4b, resolve projection ambiguity by continuity instead of vetoing the way (accepted by Derek, in session: "fix the problem, not paper over it")
 
-Codex's EXEC-066 report (draft PR #66) established, and this session verified in the code on `main`
-at `95a62540`, why a resolved owner way can have no route occurrence:
+### What PR #66 established, verified in the code on `main` at `95a62540`
 
-- The geometric projection of a source way onto the route axis
-  (`project-normalized-road-identity-source-record.ts`) returns `unresolved` with
-  `ambiguous_route_binding` when the qualifying source segments at a route sample form more than one
-  disjoint run along the way, which a long winding way that comes near itself produces (way 39053551
-  is 50 nodes of river-bank towpath); `no_sustained_aligned_overlap` is the other recoverable reason.
-- The windowed P7 refinement recovers exactly those two failures with a receipted recovery
-  projection (`buildRecovery`, receipt kind `prehydrated_p7_failure_recovery`). The whole-route solve
-  (`solveWholeRouteRoadIdentitiesWithPrehydratedP7`) seals ownership through the cross-candidate
-  solve and the ownership selection but returns `recoveries: []`, and reports
-  `eligibleFailureCount: 0, recoveredCount: 0` by construction.
-- The ledger merge (`mergePrehydratedP7RoadIdentityProjection`) admits a recovery only when one
-  exists for the way; otherwise the P5 failure stands, the owner binding can only clip a projected
-  row, the way is held as unresolved road identity with no admitted span, and the occurrence builder
-  (`buildRouteOccurrences` over the physical selection ledger) has nothing to certify.
+- The geometric projection of a source way onto the route axis samples the route every 15 m and,
+  at each sample, collects the way's segments within 50 m laterally and 35 degrees of undirected
+  heading (`ROAD_IDENTITY_ROUTE_PROJECTION_POLICY_V1`). When those segments form two or more
+  disjoint runs along the way (`hasMultipleDisjointOrdinalRuns`), the sample is marked ambiguous,
+  and **one ambiguous aligned sample anywhere vetoes the whole way** (`if (sawAmbiguous) return
+  unresolved 'ambiguous_route_binding'`), discarding every accepted run. A towpath following a river
+  meander puts two of its own legs, anti-parallel, within 50 m of one route point; direction is
+  ignored, so it trips this on itself and loses all 1,979 m (way 39053551).
+- The whole-route P7 solve seals ownership for that way anyway (partition, confidence high) but
+  builds no recovery projections, so the way stays unresolved road identity with no admitted span and
+  no route occurrence (PR #66's code path, verified).
+- The veto is not one function. It is copied into seven projection modules under
+  `src/lib/source-projection/`: road identity, path domain, bike infra, speed limit, shoulder, road
+  context and traffic, each with its own policy version and its own `sawAmbiguous` veto. The same
+  meander therefore also removes the way's path-domain proof, which is what makes the neighbouring
+  towpath ways safe-path blue.
+- Size of the class: resolved-owner partitions without an occurrence are 110 / 3,501 m on Tims and
+  294 / 30,058 m on Capitol (PR #66's baseline tables); the share carrying `ambiguous_route_binding`
+  against `no_sustained_aligned_overlap` is reported by EXEC-066 A step 1.
 
-Size of the class, read from the published artifacts (PR #66's baseline tables): Tims Fresh 100 has
-110 resolved-owner partitions, 3,501 m, with no occurrence; Capitol to Capitol has 294 partitions,
-30,058 m, of its 34,660 m of unresolved paint. This is the largest single source of honest grey
-measured so far, and it is a truth-lane defect, not a presentation problem.
+### Why the owner-anchored recovery (the earlier Decision 4a) is withdrawn
 
-**Decision 4a (proposed).** In whole-route mode, for each eligible P5 failure
-(`ambiguous_route_binding` or `no_sustained_aligned_overlap`) whose way holds at least one resolved
-partition in the ownership selection, the solve builds a recovery projection whose intervals are
-exactly those partitions, nothing wider, receipted as `prehydrated_p7_failure_recovery` with a new
-`recoveryBasis: 'whole_route_owner_partition'` field carrying the ownership selection receipt id, under
-a bumped `PREHYDRATED_P7_ROAD_IDENTITY_POLICY_VERSION`. The certified owner atom is the binding
-authority for that way; no geometry is re-projected. The existing merge law then admits the way, the
-occurrence builder certifies it, and the speed, traffic and facility layers select for it through
-their unchanged rules. Ways whose P5 reason is anything else stay unresolved.
+It would restore identity and an occurrence from the owner receipt, but the other six projections
+of the same way would still be vetoed, so the towpath would most likely paint as a road on baselines
+instead of as a safe path. That papers over the defect. 4a is **not accepted**; it stays on file only
+as a possible later measure for the `no_sustained_aligned_overlap` residue, which continuity cannot
+help, and would need its own gate then.
 
-**Out of scope, stated.** Where a geometric projection is admitted but narrower than its owner atom,
-the difference stays an honest unknown (79 sub-metre slivers, 28 m, on Tims; 132, 50 m, on Capitol).
-The coverage loop is not widened by any epsilon; PR #66 showed the mismatches exceed the 1 mm
-measure law (13 mm and 841 mm in its two examples).
+### Decision 4b (accepted)
 
-**Gate item.** Decision 4a changes road-identity admission, a truth-lane rule; Derek's explicit
-acceptance is required before Codex implements it.
+1. **Continuity, not veto.** In all seven projection modules, an ambiguous sample is resolved by
+   continuity: among its disjoint runs, take the run containing the segment ordinal nearest to the
+   ordinal chosen at the nearest resolved aligned sample within `maximumContiguousGapM` (30 m) along
+   the route, first looking back, then, for the leading samples of a run, looking forward; the
+   winner must be unique. Within the chosen run the segment is the best lateral offset, as today.
+2. **What stays unresolved.** A sample with no resolved neighbour to anchor to, or with two runs
+   equally near, stays ambiguous and breaks the run at that point; a run whose chosen ordinals are
+   not monotonic (the route jumping between parts of the way) is rejected as ambiguous. Existing
+   minimum-samples and minimum-length rules then apply to the surviving runs unchanged.
+3. **Verdict per way.** `ambiguous_route_binding` is returned only when no run survives and at least
+   one sample stayed ambiguous; `no_sustained_aligned_overlap` when no run survives without any;
+   otherwise `projected`, with two new stats, `ambiguousResolvedSampleCount` and
+   `ambiguousUnresolvedSampleCount`, and the rejected-run count including runs rejected for
+   ambiguity.
+4. **Versioning.** Each of the seven policies moves to `.v2` in lockstep with no new tunables; the
+   receipts and digests that embed the policy version change, so every artifact is recompiled. v1
+   snapshots stay readable by the existing version check.
+5. **The hidden dependency is verified, not assumed.** The windowed P7 refinement reads a nearby
+   way's `ambiguous_route_binding` as a competition signal (`ambiguousCompetitor` in
+   `prehydrated-p7-road-identity.ts`) and as recovery eligibility (`eligibleP5Failure`). Fewer
+   ambiguous ways can change its owner recoveries. The P7 gate suites must pass, and the owner
+   partitions and owner gaps on Tims and Capitol are compared before and after; any change is
+   explained in the builder report, not waved through.
+
+### Expected effect
+
+On Tims the towpath way (26.953–28.932 km) should project in all seven modules, gain an occurrence,
+and paint safe-path blue like its neighbours; the resolved-owner-without-occurrence class should
+fall by whatever share step 1 attributes to ambiguity, on both routes. Numbers are read from the
+after artifacts, never predicted in the report.
+
+### Gate items
+
+- Accepted: the continuity rule and its unresolved cases (Decision 4b.1 to 4b.3).
+- Accepted: the lockstep policy bump and fleet recompile (4b.4).
+- To confirm on the implementing PR: the before-and-after owner comparison (4b.5) shows no
+  unexplained change.
 
