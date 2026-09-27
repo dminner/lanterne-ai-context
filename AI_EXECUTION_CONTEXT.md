@@ -62564,6 +62564,23 @@ Production carries nothing to roll back from this ticket.
   the sealed 128-leaf cap, so the leaf-cap rule (ADR-062, Decision 6) is required for this route
   too.
 
+## 13. Implementation findings requiring final-gate reconciliation
+
+See ADR-062's dated proposed gate addendum. The initial exact-head Capitol run failed the existing
+524,288 aggregate nearby-association bound after valid gap acquisition. The candidate now carries a
+compiler-only bound of 1,000,000 in accounting, checks it before response and bundle memo reuse,
+and preserves every browser/per-window/source constraint. Tests cover narrowed-bound memo reuse,
+the ceiling and refusal to apply the override to a service leaf. This additional bound is proposed,
+not silently substituted for the original ticket.
+
+Every v2 gap withholds whole-owner completeness, including duplicate-point refusals. A zero-measure
+only gap with otherwise complete ownership cannot fit the unchanged positive-grey partial contract;
+it remains blocked, retaining the receipt. This conservative exception to section 5.5 needs an
+explicit architecture decision. No backend contract extension is included.
+
+The measured frozen-projection rehash bottleneck is removed by validating before issuing the
+private capability. Immutability, clone rejection and digest-preserving comparisons remain required.
+
 
 ---
 
@@ -62785,6 +62802,10 @@ stated order.
    64 MiB → 512 MiB. `proxyUpstreamTimeoutMs` (4,500), `backendSqlTimeoutMs` (1,800) and the 4,096
    ceiling are unchanged. The server-compiler override in the engine becomes equal to the defaults;
    keep the override mechanism, drop nothing.
+   Apply the later EXEC-062 compiler alignment too: material concurrency 4 → 2 and whole-route
+   nearby associations 524,288 → 1,000,000 (the existing absolute ceiling). Preserve all independent
+   object/incidence/gap limits. Enclose the 480 s acquisition wall in a 510 s worker and 525 s
+   caller budget, retaining the existing 30 s / 15 s margins. See ADR-064's alignment addendum.
 2. Validator leaf cap follows the caller's bound (ADR-062 Decision 6) if EXEC-062 has not landed
    first; otherwise no change there.
 3. Architecture test: browser window deadline > proxy upstream timeout + 2,000 ms > backend SQL
@@ -62814,6 +62835,8 @@ base (identical multiset ignoring positions). ESLint on changed files: no new di
   diagnostic engine (`P7_DIAG_INTERACTIVE_BOUNDS`) or a staged frontend: material acquisition
   ready; report leaves, attempts, bytes, wall, and the end-to-end load time on the immutable
   frontend URL with the rider account, before promotion.
+  Repeat the Tims load after Derek's subsequent report of a purple failure; distinguish a measured
+  pass from a claim of general reliability.
 - Capitol to Capitol (`26cde7f7-6c43-4341-95f9-32c7f05d4b1a`): with EXEC-062 landed, live load
   completes with the receipted gaps; without it, the acquisition reaches the irreducible windows
   and fails there and nowhere else. Report the same numbers.
@@ -62825,150 +62848,6 @@ base (identical multiset ignoring positions). ESLint on changed files: no new di
 Frontend only: staged immutable deployment, acceptance above, then promotion by Derek. Rollback is
 the previous deployment. Order relative to EXEC-063: independent; if both stage together, measure
 Tims with both.
-
-
----
-
-## Source File: docs/04-execution/exec-066-cyclist-presentation-lane-implementation-ticket.md
-
-# EXEC-066 — Cyclist presentation lane: occurrence completeness, receipted road facts, bounded seam bridging
-
-**ADR:** ADR-066 (`docs/03-adrs/adr-066-cyclist-presentation-lane-over-sterile-truth.md`).
-**Evidence:** record `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`, Findings 27 and 28.
-**Implementer:** Codex. **Verifier:** Claude (against §4 below). **Gate:** Derek, then ChatGPT final gate on the PR.
-
-## 1. Scope
-
-**A. Occurrence completeness (truth lane, bug fix).**
-On Tims Fresh 100 (`50c803c5-b758-44a7-b47c-3714e25d0038`) the resolved owner partition
-26,952.591–28,931.9 m (OSM way 39053551) has no record in the route-occurrence set
-(`route-occurrence-set:v4`): neither an occurrence nor an unresolved entry, so the durable-evidence
-partition reads `route_occurrence_unavailable` and the interval is never scored. A further 106
-partitions (1,514 m, median 0.4 m, max 810 m) read the same code alone.
-
-- Trace `buildRouteOccurrences` / `buildConnectedRouteOccurrences`
-  (`src/lib/route-evidence/route-occurrence/`) and the closure that feeds `occurrenceSetForClosure`
-  in `v2ss-current-route-production-engine.ts` for the Tims axis, and find why way 39053551's span
-  yields nothing. Fix the cause. Every resolved owner partition must end with an occurrence or an
-  unresolved record carrying a reason code; add that invariant as a test over the Tims fixture.
-- Find the boundary-epsilon cause of the sub-metre slivers (partition edges versus occurrence
-  interval edges in the coverage loop of `p7-partial-route-terminal-core.ts`, or in the set builder)
-  and fix it without widening any interval by more than the axis precision.
-
-**B. Receipted road facts on partial cards (presentation lane).**
-- Compiler: for each resolved owner partition in `p7-persisted-partial-route-paint`, write
-  `displayFacts` `{ name?, ref?, highway?, surface? }` copied from the owner way's tags in the sealed
-  material set of the same compile; no lookup outside the material set. Bump the artifact to
-  `p7-persisted-partial-route-paint.v3`; extend the fail-closed validators (`exactKeys`, token sets)
-  so v3 is validated and v2 remains readable.
-- App: when a tap lands on a resolved partial interval, the road card shows the facts under the
-  existing "Partial evidence · canonical pending" footer, with provenance `receipted_fact` named on
-  the card (`RoadInfoOverlay.tsx`, `riderFacingAnonymousRoadName` and `displayRoadType`). Unresolved
-  intervals keep "Unresolved". No change to canonical cards.
-
-**C. Bounded seam bridging (paint lane, compiler side).**
-- In the partial paint core, after the paint intervals are built and before the artifact is sealed,
-  add a policy `p7-partial-paint-seam-bridging.v1` with `maxGapM = 50`: an owner gap is bridged when
-  its length is at most `maxGapM`, both neighbouring partitions are resolved at confidence `high`,
-  both neighbouring paint intervals carry the same token and that token is not `unknown`, and the
-  gap's reason codes do not include `material_context_topology_veto`. Emit one paint interval over
-  the gap with that token and `provenance: 'seam_bridged'`; all other intervals get
-  `provenance: 'certified'`. Coverage numbers (`paintedDistanceM`, `unresolvedPaintDistanceM`,
-  owner gaps, provisional risk per mile, durable-evidence coverage) are computed as if the gap were
-  still unknown. The existing rule that a coloured interval never overlaps an owner gap is kept for
-  `certified` intervals and relaxed only for `seam_bridged`.
-- App: draw `seam_bridged` intervals with a visibly distinct treatment (proposed: the token colour at
-  reduced opacity with a hatched overlay; final treatment is a gate item) and name it in the legend
-  and on the card ("bridged across a 32 m seam between two certified intervals").
-
-**D. Republish.** Re-compile and re-publish the routes on the owner-approved manifest (the fourteen
-Golden Harness rides plus Tims) so production carries v3 artifacts.
-
-## 2. Non-goals
-
-- No change to the owner solve, the evidence ledger, route surface truth, ActiveTruth or any score.
-- No provisional fill of unresolved ownership (ADR-066 Decision 5, deferred).
-- No consumer-side reconstruction of missing intervals.
-- No change to the live worker lane (record, Finding 27, separate ticket).
-
-## 3. Tests
-
-- Occurrence invariant test on the Tims fixture: every resolved owner partition has an occurrence or
-  an unresolved record with a reason; way 39053551 has an occurrence.
-- Sliver test: no `route_occurrence_unavailable` partition shorter than the axis precision.
-- v3 artifact round-trip: build, serialize, validate, rehydrate; a v3 payload missing `displayFacts`
-  on a resolved partition or `provenance` on an interval is rejected; a v2 payload still validates.
-- Seam bridging table test: each of the five conditions toggled alone refuses the bridge; a bridged
-  interval never changes `paintedDistanceM`, `unresolvedPaintDistanceM`, owner gaps or the
-  provisional assessment digest inputs.
-- Card test: a partial hit with `displayFacts` renders name, type and surface with the
-  `receipted_fact` provenance; without facts it renders "Unnamed Road" as today; unresolved renders
-  "Unresolved".
-- Existing suites green; `tsc -p tsconfig.app.json --noEmit` parity; ESLint clean on changed files.
-
-## 4. Acceptance evidence (numbers, in the builder report)
-
-Compile Tims (`compile-one --bundle-out`, no publish) before and after, and report from the artifact:
-
-| Measure | Before (2026-09-27 artifact) | After (required) |
-|---|---|---|
-| `route_occurrence_unavailable` distance | 1,987 m + 1,514 m | way 39053551 resolved; slivers below the axis precision gone; remaining distance listed with reasons |
-| unresolved paint distance | 5,068 m | reported, expected about 3.4 km |
-| `seam_bridged` distance and count | none | reported; must be at most the 299 m / 22 gaps measured for 50 m unless the builder fix changes the gap set, then re-measured |
-| painted distance | 96,066 m | unchanged by C (bridging never counts), raised only by A |
-| owner gaps | 67 / 3,060 m | unchanged by B and C |
-| partial cards on Tims | "Unnamed Road · segment" | way 39053551 shows "Delaware & Raritan Canal Towpath · cycleway · gravel" |
-
-Also report Capitol to Capitol (`26cde7f7…`) before and after with the same table, as the second
-partial route in production.
-
-## 5. Rollout
-
-1. PR with the builder report under `docs/04-execution/reports/`, tests, and the two compile tables.
-2. Codex skeptical review; Claude verification against §4; Derek gate on the rider-facing items;
-   ChatGPT final gate.
-3. Re-publish under the manifest; verify the read proxies serve v3 for Tims and Capitol; refresh
-   check in production.
-
-## 6. Codex hand-off prompt
-
-The text below is what Derek pastes to Codex.
-
----
-
-You are implementing EXEC-066 on the Lanterne repository (`dminner/lanterne`). Read, in this order:
-`AGENTS.md`; `docs/03-adrs/adr-066-cyclist-presentation-lane-over-sterile-truth.md`;
-`docs/04-execution/exec-066-cyclist-presentation-lane-implementation-ticket.md`; Findings 27 and 28
-in `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`. Work on a branch from `main`
-and open a draft PR; never push to `main`; do not enable auto-merge; do not publish artifacts to
-production, that is a separate owner-approved step.
-
-Deliver the four scope items of the ticket in this order, as separate commits: (A) occurrence
-completeness: find why OSM way 39053551 on Tims Fresh 100 (route
-`50c803c5-b758-44a7-b47c-3714e25d0038`) has neither an occurrence nor an unresolved record in the
-route-occurrence set, fix the cause in the truth lane, and remove the sub-metre
-`route_occurrence_unavailable` slivers at partition boundaries; (B) receipted road facts: write
-`displayFacts` (name, ref, highway, surface from the sealed material set) for every resolved owner
-partition into `p7-persisted-partial-route-paint.v3`, keep v2 readable, and show them on the partial
-road card under the existing "Partial evidence · canonical pending" footer with the provenance
-`receipted_fact`; (C) bounded seam bridging: the compiler-side policy
-`p7-partial-paint-seam-bridging.v1`, `maxGapM = 50`, with the five conditions in ticket §1.C, emitting
-`provenance: 'seam_bridged'` intervals that never change any coverage number; (D) a compile of Tims
-and of Capitol to Capitol before and after, with the §4 table filled in from the artifacts.
-
-Rules that are not negotiable: the owner solve, evidence ledger, route surface truth, ActiveTruth and
-every score are untouched; no consumer reconstructs a missing interval by proximity; only
-`certified` intervals count as painted; unknown stays unknown wherever a condition fails; every new
-field is versioned and validated fail-closed; no live-worker changes. Do not claim a number you did
-not read from an artifact. If you find that the occurrence hole has a cause outside this ticket's
-files, stop at a diagnosis with the exact code path and report it rather than widening the change.
-
-Write the builder report under `docs/04-execution/reports/` with: phase id EXEC-066, changed files,
-tests run with counts, the two §4 tables, every unknown left explicit, and instructions for the
-skeptical reviewer and the final gate. Then request review from Codex skeptical review, and hand
-the PR link back to Derek for Claude's verification against ticket §4.
-
----
 
 
 ---
