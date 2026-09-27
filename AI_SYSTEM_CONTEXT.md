@@ -53690,7 +53690,7 @@ rider-facing safety language.
 
 # ADR-066 — A Cyclist Presentation Lane Above the Sterile Truth Lane, With One Provenance Rule, Receipted Road Facts and Bounded Seam Bridging
 
-**Status:** Proposed (Derek asked for it in session, 2026-09-27); acceptance is Derek's gate; implementation ticket EXEC-066; skeptical review and ChatGPT final gate on the implementing PR.
+**Status:** Accepted by Derek (owner gate, 2026-09-27, in session: the four provenances, the 50 m seam bound with the topology-veto exclusion, the rider-facing wording to be confirmed on the implementing PR, and Decision 5 kept out of scope); implementation ticket EXEC-066; skeptical review and ChatGPT final gate on the implementing PR.
 
 **Owner questions this answers:** "Is this where we say: leave this as the acceptable sterile truth, then massage the cyclist-centric layer above it, and identify roads, full coloration and scoring off that layer?"
 
