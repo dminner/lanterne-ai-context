@@ -62564,6 +62564,23 @@ Production carries nothing to roll back from this ticket.
   the sealed 128-leaf cap, so the leaf-cap rule (ADR-062, Decision 6) is required for this route
   too.
 
+## 13. Implementation findings requiring final-gate reconciliation
+
+See ADR-062's dated proposed gate addendum. The initial exact-head Capitol run failed the existing
+524,288 aggregate nearby-association bound after valid gap acquisition. The candidate now carries a
+compiler-only bound of 1,000,000 in accounting, checks it before response and bundle memo reuse,
+and preserves every browser/per-window/source constraint. Tests cover narrowed-bound memo reuse,
+the ceiling and refusal to apply the override to a service leaf. This additional bound is proposed,
+not silently substituted for the original ticket.
+
+Every v2 gap withholds whole-owner completeness, including duplicate-point refusals. A zero-measure
+only gap with otherwise complete ownership cannot fit the unchanged positive-grey partial contract;
+it remains blocked, retaining the receipt. This conservative exception to section 5.5 needs an
+explicit architecture decision. No backend contract extension is included.
+
+The measured frozen-projection rehash bottleneck is removed by validating before issuing the
+private capability. Immutability, clone rejection and digest-preserving comparisons remain required.
+
 
 ---
 
@@ -62785,6 +62802,10 @@ stated order.
    64 MiB → 512 MiB. `proxyUpstreamTimeoutMs` (4,500), `backendSqlTimeoutMs` (1,800) and the 4,096
    ceiling are unchanged. The server-compiler override in the engine becomes equal to the defaults;
    keep the override mechanism, drop nothing.
+   Apply the later EXEC-062 compiler alignment too: material concurrency 4 → 2 and whole-route
+   nearby associations 524,288 → 1,000,000 (the existing absolute ceiling). Preserve all independent
+   object/incidence/gap limits. Enclose the 480 s acquisition wall in a 510 s worker and 525 s
+   caller budget, retaining the existing 30 s / 15 s margins. See ADR-064's alignment addendum.
 2. Validator leaf cap follows the caller's bound (ADR-062 Decision 6) if EXEC-062 has not landed
    first; otherwise no change there.
 3. Architecture test: browser window deadline > proxy upstream timeout + 2,000 ms > backend SQL
@@ -62814,6 +62835,8 @@ base (identical multiset ignoring positions). ESLint on changed files: no new di
   diagnostic engine (`P7_DIAG_INTERACTIVE_BOUNDS`) or a staged frontend: material acquisition
   ready; report leaves, attempts, bytes, wall, and the end-to-end load time on the immutable
   frontend URL with the rider account, before promotion.
+  Repeat the Tims load after Derek's subsequent report of a purple failure; distinguish a measured
+  pass from a claim of general reliability.
 - Capitol to Capitol (`26cde7f7-6c43-4341-95f9-32c7f05d4b1a`): with EXEC-062 landed, live load
   completes with the receipted gaps; without it, the acquisition reaches the irreducible windows
   and fails there and nowhere else. Report the same numbers.
@@ -62825,203 +62848,6 @@ base (identical multiset ignoring positions). ESLint on changed files: no new di
 Frontend only: staged immutable deployment, acceptance above, then promotion by Derek. Rollback is
 the previous deployment. Order relative to EXEC-063: independent; if both stage together, measure
 Tims with both.
-
-
----
-
-## Source File: docs/04-execution/exec-066-cyclist-presentation-lane-implementation-ticket.md
-
-# EXEC-066 — Cyclist presentation lane: occurrence completeness, receipted road facts, bounded seam bridging
-
-**ADR:** ADR-066 (`docs/03-adrs/adr-066-cyclist-presentation-lane-over-sterile-truth.md`), including its Addendum (Decision 4a).
-**Evidence:** record `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`, Findings 27 and 28; PR #66's diagnosis report (`exec-066-occurrence-scope-stop-20260927.md`).
-**Implementer:** Codex. **Verifier:** Claude (against §4 below). **Gate:** Derek, then ChatGPT final gate on the PR.
-**Revision 3 (2026-09-27):** A is the root fix, ADR-066 Decision 4b (projection continuity in all seven modules); the owner-anchored recovery (4a) is withdrawn; B, C and D are independent of A and proceed now; the sliver epsilon item is withdrawn.
-
-## 1. Scope
-
-**0. Order and independence.** A, B, C and D are four separate commits on the PR #66 branch. B, C and
-D do not depend on A; do not hold them for A. Decision 4b is accepted; A proceeds without a further
-gate, step 1 first.
-
-**A. Resolve projection ambiguity by continuity in all seven projection modules (truth lane,
-ADR-066 Decision 4b).**
-Verified cause (PR #66, confirmed in code): each module under `src/lib/source-projection/`
-(`road-identity/project-normalized-road-identity-source-record.ts`,
-`path-domain/project-normalized-path-domain-source-record.ts`,
-`bike-infra/project-normalized-bike-infra-source-record.ts`,
-`speed-limit/project-normalized-speed-limit-source-record.ts`,
-`shoulder/project-normalized-shoulder-source-record.ts`,
-`road-context/project-normalized-road-context-source-record.ts`,
-`traffic/traffic-geometry-projection.ts`) marks a route sample ambiguous when the way's qualifying
-segments form two disjoint ordinal runs (`hasMultipleDisjointOrdinalRuns`) and then vetoes the whole
-way on one such sample (`if (sawAmbiguous) return unresolved`). A winding way trips it on itself.
-
-- Step 1, report before code: from the ledger's `unresolvedEvidence.road_identity`, the P5 reason for
-  every resolved-owner partition without an occurrence, on Tims and on Capitol: reason, partition
-  count, distance. This sizes what continuity can reach and what remains.
-- Step 2, the rule, identical in the seven modules (a shared helper is preferred if the seven
-  sampling loops are close enough to call one; otherwise the same helper called from each):
-  1. Evaluate samples as today, recording every sample's qualifying ordinal runs.
-  2. Forward pass: an ambiguous sample takes the run containing the ordinal nearest to the ordinal
-     chosen at the nearest resolved aligned sample within `maximumContiguousGapM` behind it; the
-     winner must be unique; within that run the segment is the best lateral offset.
-  3. Backward pass: leading ambiguous samples of a run anchor to the nearest resolved sample ahead,
-     same rule.
-  4. A sample still ambiguous breaks the run at that point and is counted in
-     `ambiguousUnresolvedSampleCount`; resolved ones in `ambiguousResolvedSampleCount`.
-  5. A run whose chosen ordinals are not monotonic is rejected and counted as rejected for
-     ambiguity; the existing minimum-samples and minimum-length rules apply to survivors unchanged.
-  6. Verdict: `ambiguous_route_binding` only when no run survives and at least one sample stayed
-     ambiguous; `no_sustained_aligned_overlap` when none survives otherwise; else `projected`.
-- Step 3, versioning: bump the seven policy versions to `.v2` in lockstep, no new tunables; keep v1
-  snapshots readable; update every receipt or digest that embeds a policy version.
-- Step 4, the hidden dependency: run the P7 gate suites; compare owner partitions and owner gaps on
-  Tims and Capitol before and after; explain every change in the report. `ambiguousCompetitor` and
-  `eligibleP5Failure` in `prehydrated-p7-road-identity.ts` are read, not edited.
-- Not in scope: any epsilon or widening in the coverage loop; the owner solve; the ledger; the
-  occurrence builder; any owner-anchored recovery (withdrawn).
-
-**B. Receipted road facts on partial cards (presentation lane).**
-- Compiler: for each resolved owner partition in `p7-persisted-partial-route-paint`, write
-  `displayFacts` `{ name?, ref?, highway?, surface? }` copied from the owner way's tags in the sealed
-  material set of the same compile; no lookup outside the material set. Bump the artifact to
-  `p7-persisted-partial-route-paint.v3`; extend the fail-closed validators (`exactKeys`, token sets)
-  so v3 is validated and v2 remains readable.
-- App: when a tap lands on a resolved partial interval, the road card shows the facts under the
-  existing "Partial evidence · canonical pending" footer, with provenance `receipted_fact` named on
-  the card (`RoadInfoOverlay.tsx`, `riderFacingAnonymousRoadName` and `displayRoadType`). Unresolved
-  intervals keep "Unresolved". No change to canonical cards.
-
-**C. Bounded seam bridging (paint lane, compiler side).**
-- In the partial paint core, after the paint intervals are built and before the artifact is sealed,
-  add a policy `p7-partial-paint-seam-bridging.v1` with `maxGapM = 50`: an owner gap is bridged when
-  its length is at most `maxGapM`, both neighbouring partitions are resolved at confidence `high`,
-  both neighbouring paint intervals carry the same token and that token is not `unknown`, and the
-  gap's reason codes do not include `material_context_topology_veto`. Emit one paint interval over
-  the gap with that token and `provenance: 'seam_bridged'`; all other intervals get
-  `provenance: 'certified'`. Coverage numbers (`paintedDistanceM`, `unresolvedPaintDistanceM`,
-  owner gaps, provisional risk per mile, durable-evidence coverage) are computed as if the gap were
-  still unknown. The existing rule that a coloured interval never overlaps an owner gap is kept for
-  `certified` intervals and relaxed only for `seam_bridged`.
-- App: draw `seam_bridged` intervals with a visibly distinct treatment (proposed: the token colour at
-  reduced opacity with a hatched overlay; final treatment is a gate item) and name it in the legend
-  and on the card ("bridged across a 32 m seam between two certified intervals").
-
-**D. Republish.** Re-compile and re-publish the routes on the owner-approved manifest (the fourteen
-Golden Harness rides plus Tims) so production carries v3 artifacts.
-
-## 2. Non-goals
-
-- No change to the owner solve, the evidence ledger, route surface truth, ActiveTruth or any score.
-- No provisional fill of unresolved ownership (ADR-066 Decision 5, deferred).
-- No consumer-side reconstruction of missing intervals.
-- No change to the live worker lane (record, Finding 27, separate ticket).
-
-## 3. Tests
-
-- Projection continuity tests, one fixture set shared by the seven modules: a synthetic meander way
-  whose two legs come within 50 m of one route point projects as one interval with
-  `ambiguousResolvedSampleCount > 0`; a route that rides one leg then the other of a U-shaped way is
-  rejected for non-monotonic ordinals; an isolated ambiguous sample with no resolved neighbour breaks
-  the run and is counted; a way with no surviving run and one ambiguous sample returns
-  `ambiguous_route_binding`; the three existing tests that pin the old veto are updated with the
-  reason for each change stated in the report.
-- Policy version tests: each of the seven `.v2` policies is what the receipts embed; a v1 snapshot
-  still validates as v1.
-- Occurrence test on the Tims fixture: way 39053551 projects, is admitted, and has an occurrence.
-- v3 artifact round-trip: build, serialize, validate, rehydrate; a v3 payload missing `displayFacts`
-  on a resolved partition or `provenance` on an interval is rejected; a v2 payload still validates.
-- Seam bridging table test: each of the five conditions toggled alone refuses the bridge; a bridged
-  interval never changes `paintedDistanceM`, `unresolvedPaintDistanceM`, owner gaps or the
-  provisional assessment digest inputs.
-- Card test: a partial hit with `displayFacts` renders name, type and surface with the
-  `receipted_fact` provenance; without facts it renders "Unnamed Road" as today; unresolved renders
-  "Unresolved".
-- Existing suites green; `tsc -p tsconfig.app.json --noEmit` parity; ESLint clean on changed files.
-
-## 4. Acceptance evidence (numbers, in the builder report)
-
-Compile Tims and Capitol (`compile-one --bundle-out`, no publish) after each of A, B and C, and
-report from the artifacts, with the before column taken from PR #66's baseline tables:
-
-| Measure | Tims before | Capitol before | After (required) |
-|---|---|---|---|
-| resolved-owner partitions with `route_occurrence_unavailable` | 110 / 3,501.389 m | 294 / 30,057.738 m | count and distance after A, with the P5-reason table for whatever remains |
-| way 39053551 (Tims) | no occurrence, riskToken `unknown` | n/a | projected in all seven modules, occurrence certified, riskToken reported (expected `safepath`) |
-| unresolved paint distance | 5,067.960 m | 34,659.814 m | reported after A; unchanged by B and C |
-| painted distance | 96,066.271 m | 165,786.409 m | raised only by A; unchanged by B and C |
-| owner partitions and owner gaps | 384 partitions; 67 gaps / 3,059.653 m | 1,245 partitions; 284 gaps / 14,559.535 m | reported after A; every change explained (Decision 4b.5) |
-| `ambiguousResolvedSampleCount` / `ambiguousUnresolvedSampleCount` | none | none | reported per module, both routes |
-| `seam_bridged` distance and count | 0 / 0 | 0 / 0 | reported after C; at most the 299 m / 22 gaps measured for Tims at 50 m unless A changes the gap set, then re-measured |
-| resolved owner partitions with `displayFacts` | 0 of 384 | 0 of 1,245 | all, after B |
-| partial card, way 39053551 | "Unnamed Road · segment" | n/a | "Delaware & Raritan Canal Towpath · cycleway · gravel" |
-| sub-metre occurrence-only slivers | 79 / 28.358 m | 132 / 50.285 m | reported, not required to change |
-
-## 5. Rollout
-
-1. PR with the builder report under `docs/04-execution/reports/`, tests, and the two compile tables.
-2. Codex skeptical review; Claude verification against §4; Derek gate on the rider-facing items;
-   ChatGPT final gate.
-3. Re-publish under the manifest; verify the read proxies serve v3 for Tims and Capitol; refresh
-   check in production.
-
-## 6. Codex hand-off prompt (revision 3)
-
-The text below is what Derek pastes to Codex to continue on the PR #66 branch.
-
----
-
-Continue EXEC-066 on your existing branch `codex/exec-066-cyclist-presentation` (draft PR #66).
-Read the ticket `docs/04-execution/exec-066-cyclist-presentation-lane-implementation-ticket.md`
-(revision 3) and ADR-066's Addendum (Decision 4b, accepted) from branch `claude/elegant-knuth-stk2ga`
-at its head. Your PR #66 diagnosis was verified and is the accepted cause. Derek's direction is to
-fix the defect, not paper over it: the owner-anchored recovery is withdrawn; the fix is in the
-projections themselves.
-
-Do these as separate commits, and do not hold any of them for another:
-
-(A step 1, first) From the ledger's unresolved road-identity evidence, produce the table of P5
-reasons for every resolved-owner partition without an occurrence, on Tims and on Capitol: reason,
-partition count, distance. Put it in the builder report.
-
-(A step 2) In all seven projection modules under `src/lib/source-projection/` (road identity, path
-domain, bike infra, speed limit, shoulder, road context, traffic), replace the whole-way ambiguity
-veto with the continuity rule of ticket §1.A: an ambiguous sample takes the run containing the
-ordinal nearest to the ordinal chosen at the nearest resolved aligned sample within
-`maximumContiguousGapM`, looking back then forward, unique winner required; a sample still ambiguous
-breaks the run and is counted; a run with non-monotonic chosen ordinals is rejected as ambiguous;
-`ambiguous_route_binding` is returned only when no run survives and at least one sample stayed
-ambiguous. Add `ambiguousResolvedSampleCount` and `ambiguousUnresolvedSampleCount` to the stats. Use
-one shared helper if the seven loops can call one; otherwise the same helper from each. Bump the
-seven policy versions to `.v2` in lockstep with no new tunables; keep v1 snapshots readable; update
-every receipt or digest that embeds a policy version. Add the shared meander fixture tests in §3.
-
-(A step 3) Run the P7 gate suites. Compare owner partitions and owner gaps on Tims and Capitol before
-and after; explain every change in the report. Read, do not edit, `ambiguousCompetitor` and
-`eligibleP5Failure` in `prehydrated-p7-road-identity.ts`.
-
-(B now) `displayFacts` (name, ref, highway, surface from the sealed material set) for every resolved
-owner partition in `p7-persisted-partial-route-paint.v3`, v2 kept readable, shown on the partial
-road card under the existing "Partial evidence · canonical pending" footer with provenance
-`receipted_fact`.
-
-(C now) Compiler-side `p7-partial-paint-seam-bridging.v1`, `maxGapM = 50`, the five conditions in
-ticket §1.C, emitting `provenance: 'seam_bridged'` intervals that never change any coverage number,
-drawn distinctly and named on the card and legend.
-
-(D after each) Compile Tims and Capitol without publishing and fill the §4 table from the artifacts.
-
-Non-negotiable: the owner solve, the ledger, the occurrence builder, route surface truth,
-ActiveTruth and every score are untouched; no epsilon in the coverage loop; no owner-anchored
-recovery; only `certified` intervals count as painted; unknown stays unknown wherever a condition
-fails; every changed policy is versioned and validated fail-closed; no live-worker changes; no
-production publication. Do not claim a number you did not read from an artifact. Update the builder
-report with phase id EXEC-066, changed files, tests with counts, the §4 table, every unknown left
-explicit, and instructions for the skeptical reviewer and the final gate; then re-request Codex
-skeptical review and hand the PR back to Derek for Claude's verification.
-
----
 
 
 ---
