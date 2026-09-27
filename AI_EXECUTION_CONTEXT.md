@@ -62838,6 +62838,7 @@ Tims with both.
 **Implementer:** Codex. **Verifier:** Claude (against §4 below). **Gate:** Derek, then ChatGPT final gate on the PR.
 **Revision 3 (2026-09-27):** A is the root fix, ADR-066 Decision 4b (projection continuity in all seven modules); the owner-anchored recovery (4a) is withdrawn; B, C and D are independent of A and proceed now; the sliver epsilon item is withdrawn.
 **Revision 4 (2026-09-27, after verifying PR #66's implementation):** rule 5 of §1.A replaced (regression tolerance of one ordinal, split not reject); traffic activation permitted through the bounded policy-reference exception; A re-measured with the acceptance floors in §4; B and C verified.
+**Revision 5 (2026-09-27):** the full test suite is required, compared against `main`; the seven PR-only failing files measured by the verifier are listed in §3 with their fixes.
 
 ## 1. Scope
 
@@ -62954,7 +62955,27 @@ Golden Harness rides plus Tims) so production carries v3 artifacts.
 - Card test: a partial hit with `displayFacts` renders name, type and surface with the
   `receipted_fact` provenance; without facts it renders "Unnamed Road" as today; unresolved renders
   "Unresolved".
-- Existing suites green; `tsc -p tsconfig.app.json --noEmit` parity; ESLint clean on changed files.
+- **The full suite, not a subset.** Run `npx vitest run` on the PR head and on `main` and report both
+  totals and the file-level difference; every PR-only failure is fixed or explained by name. Measured
+  by the verifier on 2026-09-27 (this container, both trees): `main` 28 failed files / 48 failed
+  tests, pre-existing (network-bound backends, fixture drift, one architecture test on a file this PR
+  does not touch); PR head 34 / 56. The seven PR-only files and what each needs:
+  - `src/test/architecture/traffic-spine/p02-traffic-projection-imports.test.ts`,
+    `p02b-road-context-imports.test.ts`, `p02c-a-road-identity-imports.test.ts`: the shared helper
+    is a disallowed import; add `'../projection-continuity'` to each allowlist beside the existing
+    `'../route-sample-spatial-index'`, which is the same kind of shared sibling.
+  - `src/lib/route-evidence/traffic/admit-route-indexed-traffic-candidate.test.ts` (cases 40, 41):
+    expect the activated traffic policy version, not `v1`.
+  - `src/lib/traffic-spine/runtime-active-truth-threading/launch-recovery-1-traffic-retention.test.ts`:
+    the pinned bundle and ActiveTruth view ids move with the policy bump; re-pin them and state the
+    reason in the report.
+  - `src/lib/traffic-spine/runtime-route-surface-truth/p7-producer-snapshot-selector.integration.test.ts`:
+    passes alone in 9 s; the 5 s timeouts were load during the full run; raise its timeout or
+    leave it and say so.
+  - `src/lib/route-line-v2/substrate-candidate-hints.test.ts`: asserts a millisecond lookup time;
+    flaky under load, not this PR; re-run and say so.
+- `tsc -p tsconfig.app.json --noEmit` parity (verifier: 552 / 552); ESLint clean on changed files
+  (verifier: 0 errors, the one pre-existing warning).
 
 ## 4. Acceptance evidence (numbers, in the builder report)
 
@@ -63010,8 +63031,17 @@ only the traffic policy reference lines in `build-runtime-canonical-evidence-led
 and `truth-selection/traffic/owner-route-reference-association.ts` (your two). The diff of each
 file must show only those lines. Everything else in those files stays byte-identical.
 
-Then re-run the P7 gate suites and the full suite, recompile Tims and Capitol without publishing,
-and fill the §4 table again. Acceptance floors: painted distance on each route at or above its
+(3) Run the full suite, `npx vitest run`, on your head and on `main`, and report both totals and the
+file-level difference. The verifier measured seven PR-only failing files (ticket §3): add
+`'../projection-continuity'` to the three P02 architecture allowlists beside
+`'../route-sample-spatial-index'`; update the traffic admission expectations (cases 40 and 41) to
+the activated traffic version; re-pin the launch-recovery-1 bundle and ActiveTruth ids with the
+reason stated; raise or justify the producer-snapshot integration timeout; re-run the
+substrate-candidate-hints timing test and say what you saw. Every other failure must appear in the
+`main` list too, or be explained.
+
+Then re-run the P7 gate suites, recompile Tims and Capitol without publishing, and fill the §4
+table again. Acceptance floors: painted distance on each route at or above its
 baseline (96,066.271 m and 165,786.409 m) unless every loss is listed by way with its measured
 ordinal sequence showing a genuine reversal or jump; resolved-owner partitions without an
 occurrence below baseline on both routes (110 / 3,501 m and 294 / 30,058 m); ways 27388777,
