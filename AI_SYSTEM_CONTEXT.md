@@ -53683,3 +53683,119 @@ rider-facing safety language.
 2. Authorize the first ticket, geometry-once transport (material contract v3, both repositories).
 3. Confirm the provisional display tier of ADR-061 is the right home for progressive paint.
 
+
+---
+
+## Source File: docs/03-adrs/adr-066-cyclist-presentation-lane-over-sterile-truth.md
+
+# ADR-066 — A Cyclist Presentation Lane Above the Sterile Truth Lane, With One Provenance Rule, Receipted Road Facts and Bounded Seam Bridging
+
+**Status:** Proposed (Derek asked for it in session, 2026-09-27); acceptance is Derek's gate; implementation ticket EXEC-066; skeptical review and ChatGPT final gate on the implementing PR.
+
+**Owner questions this answers:** "Is this where we say: leave this as the acceptable sterile truth, then massage the cyclist-centric layer above it, and identify roads, full coloration and scoring off that layer?"
+
+## Context
+
+The canonical P7 truth lane is fail-closed by design: a route is canonical only with a gap-free
+whole-route owner solve, and the compiler census has produced no canonical route except Batsto.
+The product's paint today is the published partial artifact (`p7-persisted-partial-route-paint.v2`),
+which paints certified intervals and leaves everything else grey. Tims Fresh 100, published on
+2026-09-27, paints 96,066 m of 101,134 m (95.0 %). Its 5,068 m of grey, read from the artifact
+(record, Finding 28), is not one thing:
+
+| Grey on Tims | Distance | Intervals | What it is |
+|---|---|---|---|
+| One towpath way (OSM 39053551) with a resolved owner but no route occurrence | 1,979 m | 1 | a truth defect in the occurrence builder |
+| Occurrence-only slivers (owner resolved, occurrence missing) | 1,514 m | 106 | median 0.4 m, max 810 m: mostly boundary epsilon, a few real holes |
+| Owner gaps (`road_identity_missing`) | 3,060 m | 67 | median 15 m, p75 60 m, max 420 m; codes `family_owner_unresolved` 1,716 m, `material_context_topology_veto` 790 m, `exact_topology_owner_unavailable` 461 m, other 93 m |
+| Speed or traffic only | 21 m | 6 | noise |
+
+Of the 67 owner gaps, a bounded seam rule closes little: gaps of at most 50 m whose two neighbours
+carry the same non-unknown token total 299 m (22 gaps); at most 100 m, 673 m (27 gaps). The
+remaining 2.4 km are genuinely unresolved ownership between different ways, which no presentation
+rule can honestly colour.
+
+Every tapped road on a partial route says "Unnamed Road" and "segment": the partial lane exposes
+hitboxes but withholds identity by design, although the owner partitions carry the OSM way id with
+a receipt, and OSM carries the name and the highway type.
+
+The projection contract is explicit that consumers "must never infer across an unresolved atom or
+reconstruct a missing interval by proximity" (`runtime-p7-partial-owner-display-projection.v1`),
+and the partial paint core refuses a coloured interval that overlaps an owner gap. Any bridging
+therefore has to be a compiler-side, receipted, versioned rule, never a consumer heuristic.
+
+## Decision (proposed)
+
+1. **Two lanes, one provenance rule.** The truth lane (owner solve, evidence ledger, route surface
+   truth, ActiveTruth, canonical score) stays exactly as it is: sterile, fail-closed, unchanged by
+   this ADR. Above it, the presentation lane owns what a rider sees on a partial route. Every value
+   the presentation lane shows carries exactly one provenance: `certified` (from the truth lane),
+   `receipted_fact` (a fact about a receipted owner way, such as its OSM name), `seam_bridged`
+   (Decision 3) or `provisional_estimate` (Decision 5, deferred). The four are visually distinct on
+   the map and named on the card. Nothing with a provenance other than `certified` ever enters a
+   canonical score, a route truth artifact, or a persisted receipt that claims truth.
+2. **Receipted road facts on partial cards.** The compiler writes, for every resolved owner
+   partition of a partial artifact, the display facts of its owner way taken from the same sealed
+   material set: OSM `name`, `highway`, and `surface` when present, plus `ref`. The card on a partial
+   route shows them under its existing footer ("Partial evidence · canonical pending"), replacing
+   "Unnamed Road" and "segment" with, for example, "Delaware & Raritan Canal Towpath · cycleway ·
+   gravel". Unresolved intervals keep "Unresolved". This is a fact about the receipted way, not an
+   inference, so it is `receipted_fact`.
+3. **Bounded seam bridging, in the paint lane only.** The compiler may colour an owner gap when all
+   of the following hold: the gap is at most **50 m**; both neighbouring partitions are resolved at
+   confidence `high`; both neighbouring paint intervals carry the same token and that token is not
+   `unknown`; and the gap's own reason codes do not include `material_context_topology_veto`. The
+   bridged interval carries the shared token with provenance `seam_bridged`, is drawn distinctly
+   (the ticket names the treatment), and is **not** counted as painted in coverage: painted distance,
+   unresolved distance, the owner gap list and the provisional risk per mile are unchanged. The
+   50 m bound is a policy value with its own version; raising it is a gate decision with the numbers
+   above in hand (100 m would add 374 m on Tims).
+4. **Occurrence completeness is a truth defect, not a presentation problem.** The occurrence builder
+   must produce, for every resolved owner partition, either an occurrence or an unresolved record with
+   a reason. The Tims towpath way and the boundary slivers are fixed in the truth lane, which raises
+   the certified paint itself. No presentation rule substitutes for this.
+5. **Provisional fill is deferred.** Colouring the remaining genuinely unresolved ownership (2.4 km
+   on Tims) with neighbours' tokens or road-class baselines is not decided here. It is re-proposed,
+   if at all, after Decisions 2 to 4 have landed and the grey has been re-measured, with the
+   `provisional_estimate` provenance already reserved for it.
+6. **Scoring stays truth-only.** The canonical score, the rigid score ledger and the provisional
+   risk per mile keep their current inputs. A score computed from bridged or estimated intervals
+   would be a fabricated number, which is what the fail-closed design exists to prevent. Coverage
+   is reported next to every score.
+
+## Expected effect, from measurements
+
+- Tims Fresh 100 (101.1 km): grey 5,068 m today. After Decision 4 (the towpath way and the sub-metre
+  slivers, if the builder fix covers them): about 1,600 m less. After Decision 3 at 50 m: 299 m
+  drawn as bridged. Remaining honest grey: about 3.1 km, of which 2.4 km is unresolved ownership
+  between different ways, the target of separate owner-solve work (family resolution, topology
+  veto), not of this ADR.
+- Every partial card names its way.
+
+## Alternatives considered
+
+- **Massage in the consumer**: reconstruct missing intervals by proximity in the app. Rejected: the
+  projection contract forbids it, it cannot be receipted, and the live lane is not where partial
+  paint is produced today (record, Finding 27).
+- **Colour every gap from neighbours**: rejected for now (Decision 5), because on Tims it would
+  paint 2.4 km of ownership the truth lane could not resolve between different ways, with no way for
+  the rider to tell.
+- **Score off the presentation lane**: rejected (Decision 6).
+
+## Consequences
+
+- The partial artifact grows an additive `displayFacts` field per owner partition and an additive
+  `provenance` field per paint interval; both are versioned (`p7-persisted-partial-route-paint.v3`)
+  and validated by the existing fail-closed validators; v2 artifacts stay readable.
+- Published artifacts are re-compiled and re-published under the owner-approved manifest to pick up
+  Decisions 2 to 4.
+- Rider-facing wording changes (card facts, the bridged treatment and its legend) are human-gate
+  items and are listed in the ticket.
+
+## Gate items
+
+- Accept the four provenances and the rule that only `certified` reaches a score.
+- Accept the 50 m seam bound and the exclusion of topology-vetoed gaps.
+- Accept the rider-facing wording for card facts and the bridged treatment.
+- Confirm that Decision 5 stays out of scope until re-measured.
+
