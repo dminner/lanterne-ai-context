@@ -53947,6 +53947,8 @@ after artifacts, never predicted in the report.
    day; the app and the read proxy deploy together, since v3 needs both.
 7. **Run direction from sustained movement:** a separate ticket immediately after PR #66
    (EXEC-066 §7).
-8. **The next truth work** (owner-solve rules, the live lane of ADR-065, or the fleet publication):
-   open, pending the fleet re-run analysis in the record of 2026-09-28.
+8. **The next truth work:** decided 2026-09-28, in session: every truth rule first, then one fleet
+   compile of the 2,801 source-cached routes, then the live lane of ADR-065 ("it makes no sense to
+   rerun 3000 routes several times"). The measured truth-rule backlog is in the record's section of
+   the same date.
 

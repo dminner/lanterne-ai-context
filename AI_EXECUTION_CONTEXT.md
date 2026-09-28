@@ -63040,8 +63040,9 @@ report from the artifacts, with the before column taken from PR #66's baseline t
    both.
 3. Re-publish Tims and Capitol under the manifest as v3; look at both in production (seam treatment,
    cards, scores 16 and 6); then the remaining manifest routes the same day.
-4. Immediately after: the run-direction ticket (§7). The fleet re-run question is answered in the
-   record of 2026-09-28 and is Derek's call.
+4. Immediately after: the run-direction ticket (§7). Fleet publication waits for the truth rules
+   (Derek, 2026-09-28: every truth rule first, then one fleet compile); the measured truth-rule
+   backlog is in the record.
 
 ## 6. Codex hand-off prompt (revision 4)
 
