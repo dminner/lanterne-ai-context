@@ -53387,6 +53387,32 @@ bounds: 3 refused segments in two runs at points 15121–15122 and 15143–15145
 4. The hazard-lane rule in Decision 5.
 5. Confirmation that no rider-facing language changes (Decision 7).
 
+## Implementation findings — proposed gate addendum, 2026-09-25
+
+The first sealed implementation acquired Capitol's nine refusals in the same two runs, but the
+untruncated union contains **543,245 nearby-way associations**, exceeding the existing aggregate
+524,288 bound. Gap support and the leaf-bound fix alone therefore do not open this route. The
+candidate adds an explicit compiler aggregate association bound of **1,000,000**, capped by the
+owner validator's existing total-context-reference ceiling. The browser stays at 524,288; per-window
+SQL-equivalent counts, complete-union validation, byte caps and all source policy rules remain.
+The actual bound travels in acquisition accounting and is checked before either validation memo
+can return. This is an additional operational-bound decision for the final gate, not an accepted
+amendment or a reason to discard associations.
+
+Independent review also identified a zero-measure case: a refused duplicate-point segment can
+vanish from distance intervals. Every declared receipt now withholds complete owner status even
+when its length is zero. When *all* refusals have zero measure and no other owner gap exists, the
+existing partial display/backend contract cannot express the result: it requires positive grey
+coverage. Such a route remains blocked with its v2 receipt; no phantom grey distance is invented.
+Capitol contains positive-measure gaps as well, so this limitation does not describe its two runs.
+The final gate must explicitly accept this conservative limitation or commission the separate
+partial-contract extension; changing Nürnberg's contract remains outside EXEC-062.
+
+A retained-response CPU profile found the same deeply frozen partial projection being rehashed
+for every donor row. The builder now validates its full content once before issuing the private
+object-identity capability. Serialized content validation remains intact and clones cannot acquire
+that capability. This changes validation cost, not the projection, ownership law or digest.
+
 
 ---
 
@@ -53544,7 +53570,7 @@ Derek's direction (2026-09-25): a densely populated 126-mile route failing to lo
 unacceptable for the product; 3,000-mile routes should load live eventually. This ADR is the part
 of that direction that constants can deliver; ADR-065 is the part they cannot.
 
-## Decision (proposed)
+## Decision
 
 1. **Material deadline ladder.** Postgres statement 1,800 ms (unchanged) < materialize proxy
    upstream 4,500 ms (unchanged, answered as the typed control) < browser window deadline
@@ -53598,6 +53624,23 @@ ceiling, which is why ADR-065 exists.
 2. Decision 2, the wider aggregate budgets (browser memory, mobile data, latency); or phase one,
    Decision 1 alone.
 3. Decision 4, the progress label wording (a product label, not safety language).
+
+## Implementation alignment — 2026-09-25
+
+EXEC-062 subsequently established a two-request material concurrency limit and a 1,000,000
+whole-route nearby-association limit for the compiler. Capitol measured 543,245 associations,
+above the old browser limit of 524,288. Applying Decision 2 to the implemented compiler therefore
+also makes those two browser bounds equal to the compiler's. The existing association ceiling
+remains 1,000,000; per-window, object, node, incidence, gap and proof limits are unchanged.
+
+The 480-second acquisition wall must sit inside the canonical worker and caller budgets. They
+become 510 and 525 seconds, preserving the existing 30-second construction margin and 15-second
+caller margin. The material contract and policy versions stay unchanged.
+
+The route table above records the observations and estimates used to propose this ADR; it is not
+release acceptance. A later production Tims load passed once with 95.0% scored coverage, and Derek
+subsequently reported a purple failure. EXEC-064 therefore requires fresh measured acceptance,
+including repeated Tims loads, rather than treating that one earlier success as reliability proof.
 
 
 ---
@@ -53887,4 +53930,23 @@ after artifacts, never predicted in the report.
   for the two traffic policy references.
 - To confirm on the implementing PR: the before-and-after owner comparison (4b.5) shows no
   unexplained change.
+
+## Gate decisions (Derek, 2026-09-28, in session)
+
+1. **Seam treatment on the map:** accepted as built, the token colour at 55 % opacity with `4 3`
+   dashes.
+2. **Seam wording:** rider wording, and only in the inspect panel; no seam sentence on the road card
+   and no legend row. A seam is tens of metres; the card is not the place. Provenance tokens
+   (`seam_bridged`, `receipted_fact`) stay off rider surfaces by the same rule.
+3. **Receipted facts on partial cards:** accepted as built (name · type · surface); a known surface
+   is always shown.
+4. **Provisional scores moving with certified paint** (Tims 14 → 16, Capitol 3 → 6): acknowledged
+   as a consequence of Decision 6, not a change to scoring; scores are not frozen.
+5. **Landing order:** this ADR, EXEC-066 and the record land on `main` before PR #66.
+6. **Republication after merge:** Tims and Capitol first, the remaining manifest routes the same
+   day; the app and the read proxy deploy together, since v3 needs both.
+7. **Run direction from sustained movement:** a separate ticket immediately after PR #66
+   (EXEC-066 §7).
+8. **The next truth work** (owner-solve rules, the live lane of ADR-065, or the fleet publication):
+   open, pending the fleet re-run analysis in the record of 2026-09-28.
 

@@ -62564,6 +62564,23 @@ Production carries nothing to roll back from this ticket.
   the sealed 128-leaf cap, so the leaf-cap rule (ADR-062, Decision 6) is required for this route
   too.
 
+## 13. Implementation findings requiring final-gate reconciliation
+
+See ADR-062's dated proposed gate addendum. The initial exact-head Capitol run failed the existing
+524,288 aggregate nearby-association bound after valid gap acquisition. The candidate now carries a
+compiler-only bound of 1,000,000 in accounting, checks it before response and bundle memo reuse,
+and preserves every browser/per-window/source constraint. Tests cover narrowed-bound memo reuse,
+the ceiling and refusal to apply the override to a service leaf. This additional bound is proposed,
+not silently substituted for the original ticket.
+
+Every v2 gap withholds whole-owner completeness, including duplicate-point refusals. A zero-measure
+only gap with otherwise complete ownership cannot fit the unchanged positive-grey partial contract;
+it remains blocked, retaining the receipt. This conservative exception to section 5.5 needs an
+explicit architecture decision. No backend contract extension is included.
+
+The measured frozen-projection rehash bottleneck is removed by validating before issuing the
+private capability. Immutability, clone rejection and digest-preserving comparisons remain required.
+
 
 ---
 
@@ -62785,6 +62802,10 @@ stated order.
    64 MiB → 512 MiB. `proxyUpstreamTimeoutMs` (4,500), `backendSqlTimeoutMs` (1,800) and the 4,096
    ceiling are unchanged. The server-compiler override in the engine becomes equal to the defaults;
    keep the override mechanism, drop nothing.
+   Apply the later EXEC-062 compiler alignment too: material concurrency 4 → 2 and whole-route
+   nearby associations 524,288 → 1,000,000 (the existing absolute ceiling). Preserve all independent
+   object/incidence/gap limits. Enclose the 480 s acquisition wall in a 510 s worker and 525 s
+   caller budget, retaining the existing 30 s / 15 s margins. See ADR-064's alignment addendum.
 2. Validator leaf cap follows the caller's bound (ADR-062 Decision 6) if EXEC-062 has not landed
    first; otherwise no change there.
 3. Architecture test: browser window deadline > proxy upstream timeout + 2,000 ms > backend SQL
@@ -62814,6 +62835,8 @@ base (identical multiset ignoring positions). ESLint on changed files: no new di
   diagnostic engine (`P7_DIAG_INTERACTIVE_BOUNDS`) or a staged frontend: material acquisition
   ready; report leaves, attempts, bytes, wall, and the end-to-end load time on the immutable
   frontend URL with the rider account, before promotion.
+  Repeat the Tims load after Derek's subsequent report of a purple failure; distinguish a measured
+  pass from a claim of general reliability.
 - Capitol to Capitol (`26cde7f7-6c43-4341-95f9-32c7f05d4b1a`): with EXEC-062 landed, live load
   completes with the receipted gaps; without it, the acquisition reaches the irreducible windows
   and fails there and nowhere else. Report the same numbers.
@@ -62839,6 +62862,7 @@ Tims with both.
 **Revision 3 (2026-09-27):** A is the root fix, ADR-066 Decision 4b (projection continuity in all seven modules); the owner-anchored recovery (4a) is withdrawn; B, C and D are independent of A and proceed now; the sliver epsilon item is withdrawn.
 **Revision 4 (2026-09-27, after verifying PR #66's implementation):** rule 5 of §1.A replaced (regression tolerance of one ordinal, split not reject); traffic activation permitted through the bounded policy-reference exception; A re-measured with the acceptance floors in §4; B and C verified.
 **Revision 5 (2026-09-27):** the full test suite is required, compared against `main`; the seven PR-only failing files measured by the verifier are listed in §3 with their fixes.
+**Revision 6 (2026-09-28, Derek's gate decisions):** the map treatment of seams is accepted as built; the seam sentence leaves the road card and the legend row is removed; a seam is explained in rider wording in the inspect panel only; provenance tokens leave rider surfaces by the same rule; the facts line is accepted as built; the raised provisional scores are acknowledged as a consequence of more certified paint; rollout order fixed in §5; the run-direction refinement is the follow-up ticket immediately after this PR (§7).
 
 ## 1. Scope
 
@@ -62921,9 +62945,15 @@ way on one such sample (`if (sawAmbiguous) return unresolved`). A winding way tr
   owner gaps, provisional risk per mile, durable-evidence coverage) are computed as if the gap were
   still unknown. The existing rule that a coloured interval never overlaps an owner gap is kept for
   `certified` intervals and relaxed only for `seam_bridged`.
-- App: draw `seam_bridged` intervals with a visibly distinct treatment (proposed: the token colour at
-  reduced opacity with a hatched overlay; final treatment is a gate item) and name it in the legend
-  and on the card ("bridged across a 32 m seam between two certified intervals").
+- App (revision 6, decided): draw `seam_bridged` intervals with the token colour at 55 % opacity and
+  `4 3` dashes, as built. No seam sentence on the road card and no legend row: a tap on a seam shows
+  the partial-evidence card with name and type `Unresolved`, as for any owner gap. The one place a
+  seam is explained is the inspect panel (`InspectionPanel.tsx`, for a segment whose
+  `partialPaintProvenance` is `seam_bridged`), in rider wording: "Short gap of 32 m between two
+  mapped stretches. The colour is carried across from both sides. This stretch is not counted as
+  covered." (distance from `partialSeamDistanceM`, whole metres). No provenance token in that
+  sentence, and by the same rule the trailing ` · receipted_fact` leaves the facts line on the card;
+  the facts themselves (name · type · surface) stay exactly as built.
 
 **D. Republish.** Re-compile and re-publish the routes on the owner-approved manifest (the fourteen
 Golden Harness rides plus Tims) so production carries v3 artifacts.
@@ -62952,9 +62982,12 @@ Golden Harness rides plus Tims) so production carries v3 artifacts.
 - Seam bridging table test: each of the five conditions toggled alone refuses the bridge; a bridged
   interval never changes `paintedDistanceM`, `unresolvedPaintDistanceM`, owner gaps or the
   provisional assessment digest inputs.
-- Card test: a partial hit with `displayFacts` renders name, type and surface with the
-  `receipted_fact` provenance; without facts it renders "Unnamed Road" as today; unresolved renders
-  "Unresolved".
+- Card test (revision 6): a partial hit with `displayFacts` renders name, type and surface and no
+  provenance token; without facts it renders "Unnamed Road" as today; unresolved renders
+  "Unresolved"; a seam-bridged hit renders `Unresolved` and no seam sentence.
+- Inspect panel test (revision 6): a seam-bridged partial segment renders the one rider sentence
+  with its whole-metre distance; a certified partial segment and a canonical segment render no such
+  sentence. Legend test: `seam-bridged-legend` no longer renders.
 - **The full suite, not a subset.** Run `npx vitest run` on the PR head and on `main` and report both
   totals and the file-level difference; every PR-only failure is fixed or explained by name. Measured
   by the verifier on 2026-09-27 (this container, both trees): `main` 28 failed files / 48 failed
@@ -62993,15 +63026,22 @@ report from the artifacts, with the before column taken from PR #66's baseline t
 | `seam_bridged` distance and count | 0 / 0 | 0 / 0 | reported after C; at most the 299 m / 22 gaps measured for Tims at 50 m unless A changes the gap set, then re-measured |
 | resolved owner partitions with `displayFacts` | 0 of 384 | 0 of 1,245 | all, after B |
 | partial card, way 39053551 | "Unnamed Road · segment" | n/a | "Delaware & Raritan Canal Towpath · cycleway · gravel" |
+| partial card, tap on a seam (revision 6) | n/a | n/a | `Unresolved`, no seam sentence, no token; the sentence appears in the inspect panel only |
+| legend (revision 6) | no seam row | n/a | no seam row |
 | sub-metre occurrence-only slivers | 79 / 28.358 m | 132 / 50.285 m | reported, not required to change |
 
-## 5. Rollout
+## 5. Rollout (order decided by Derek, 2026-09-28)
 
-1. PR with the builder report under `docs/04-execution/reports/`, tests, and the two compile tables.
-2. Codex skeptical review; Claude verification against §4; Derek gate on the rider-facing items;
-   ChatGPT final gate.
-3. Re-publish under the manifest; verify the read proxies serve v3 for Tims and Capitol; refresh
-   check in production.
+1. The documents first: ADR-066, this ticket and the record land on `main` from
+   `claude/elegant-knuth-stk2ga` (Codex skeptical review, ChatGPT final gate), so PR #66 cites
+   documents that exist on `main`.
+2. PR #66 revision 6 (seam wording, §6); Codex skeptical review; Claude verification against §4;
+   ChatGPT final gate; merge. The app and `p7-route-compile-read-proxy` deploy together: v3 needs
+   both.
+3. Re-publish Tims and Capitol under the manifest as v3; look at both in production (seam treatment,
+   cards, scores 16 and 6); then the remaining manifest routes the same day.
+4. Immediately after: the run-direction ticket (§7). The fleet re-run question is answered in the
+   record of 2026-09-28 and is Derek's call.
 
 ## 6. Codex hand-off prompt (revision 4)
 
@@ -63058,6 +63098,52 @@ artifact. Update the builder report, then re-request Codex skeptical review and 
 Derek for Claude's verification.
 
 ---
+
+### Revision 6 prompt (seam wording; Derek's gate decisions of 2026-09-28)
+
+---
+
+Continue EXEC-066 on branch `codex/exec-066-cyclist-presentation` (draft PR #66) from `03b751f5` or
+later. Read ticket revision 6 (`docs/04-execution/exec-066-cyclist-presentation-lane-implementation-ticket.md`)
+and the "Gate decisions" section of ADR-066 on branch `claude/elegant-knuth-stk2ga` at its head. Your
+revision 5 was verified acceptable against §4 on independent recompiles of Tims and Capitol; A, C
+and D stay exactly as they are. This revision is presentation only: no compiler change, no artifact
+change, no policy change.
+
+(1) Seams. Remove the seam sentence from the road card (`RoadInfoOverlay.tsx`, the
+`road-card-seam-bridged` block) and the seam row from the legend (`MapLegend.tsx`,
+`seam-bridged-legend`). A tap on a seam-bridged interval shows the partial-evidence card with name
+and type `Unresolved`, as for any owner gap. The map treatment stays as built (token colour at 55 %
+opacity, `4 3` dashes). The one place a seam is explained is the inspect panel: in
+`InspectionPanel.tsx`, for a segment whose `partialPaintProvenance` is `seam_bridged`, render one
+sentence in rider wording, "Short gap of 32 m between two mapped stretches. The colour is carried
+across from both sides. This stretch is not counted as covered.", with the distance from
+`partialSeamDistanceM` in whole metres. No provenance token in that sentence.
+
+(2) Tokens. By the same rule, drop the trailing ` · receipted_fact` from the facts line on the card;
+the facts themselves stay exactly as built (name · type · surface).
+
+Tests: change the card test that pins the seam sentence to assert its absence and `Unresolved`; add
+an inspect-panel test for the sentence on a seam-bridged partial segment and its absence on a
+certified one; assert `seam-bridged-legend` no longer renders. Full suite against `main` as §3
+requires; `tsc` parity; ESLint on changed files. No compile tables for this revision: nothing in the
+compiler or the artifact changes, and the report says so. Update the builder report, re-request
+Codex skeptical review, and hand the PR back for Claude's verification.
+
+---
+
+## 7. Follow-up queued: run direction from sustained movement (ticket immediately after PR #66)
+
+Stated limit of revision 5, verified: `buildProjectionContinuityRuns` takes a run's direction from
+its first movement, so a one-ordinal jitter at a run's start (`1,0,1,2,3,…`) can split off a short
+leading run that the minimum-samples and minimum-length rules then discard. The refinement: take the
+direction from the first movement of two or more ordinals (or from the majority of the first three
+movements when no two-ordinal movement occurs); everything after that is `splitOrdinalReversals` as
+built. Policy bump in lockstep (six to `.v3`, traffic to `.v4`), the same bounded exception for the
+two traffic policy references, the same §3 fixtures plus a leading-jitter fixture that expects one
+interval, and the same §4 tables on Tims and Capitol: painted distance must not fall on either
+route, and every partition or gap change is explained. Sized from revision 5's totals: metres at run
+starts, not kilometres; it is queued because it is cheap and certain, not because it is large.
 
 
 ---
