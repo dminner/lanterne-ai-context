@@ -53775,8 +53775,13 @@ therefore has to be a compiler-side, receipted, versioned rule, never a consumer
    the presentation lane shows carries exactly one provenance: `certified` (from the truth lane),
    `receipted_fact` (a fact about a receipted owner way, such as its OSM name), `seam_bridged`
    (Decision 3) or `provisional_estimate` (Decision 5, deferred). The four are visually distinct on
-   the map and named on the card. Nothing with a provenance other than `certified` ever enters a
-   canonical score, a route truth artifact, or a persisted receipt that claims truth.
+   the map ~~and named on the card~~. *Amended by Gate decision 2 (Derek, 2026-09-28):* the
+   provenance travels in the artifact (`provenance` per paint interval) and its token is never shown
+   on a rider surface (card, legend or inspect panel). Receipted facts appear as the facts
+   themselves (Decision 2), and the only rider wording that explains a provenance is the seam
+   sentence in the inspect panel, in rider words. Nothing with a provenance other than
+   `certified` ever enters a canonical score, a route truth artifact, or a persisted receipt that
+   claims truth.
 2. **Receipted road facts on partial cards.** The compiler writes, for every resolved owner
    partition of a partial artifact, the display facts of its owner way taken from the same sealed
    material set: OSM `name`, `highway`, and `surface` when present, plus `ref`. The card on a partial
@@ -53819,7 +53824,8 @@ therefore has to be a compiler-side, receipted, versioned rule, never a consumer
 
 - **Massage in the consumer**: reconstruct missing intervals by proximity in the app. Rejected: the
   projection contract forbids it, it cannot be receipted, and the live lane is not where partial
-  paint is produced today (record, Finding 27).
+  paint is produced today (record, Finding 27: the observed fresh browser loads did not paint; the
+  cause is not established, see the record's correction to that finding).
 - **Colour every gap from neighbours**: rejected for now (Decision 5), because on Tims it would
   paint 2.4 km of ownership the truth lane could not resolve between different ways, with no way for
   the rider to tell.
@@ -53833,7 +53839,8 @@ therefore has to be a compiler-side, receipted, versioned rule, never a consumer
 - Published artifacts are re-compiled and re-published under the owner-approved manifest to pick up
   Decisions 2 to 4.
 - Rider-facing wording changes (card facts, the bridged treatment and its legend) are human-gate
-  items and are listed in the ticket.
+  items and are listed in the ticket. Gate decision 2 later declined the legend row and moved the
+  seam wording to the inspect panel.
 
 ## Gate items
 

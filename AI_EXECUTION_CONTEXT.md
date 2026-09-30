@@ -62856,7 +62856,7 @@ Tims with both.
 
 # EXEC-066 — Cyclist presentation lane: occurrence completeness, receipted road facts, bounded seam bridging
 
-**ADR:** ADR-066 (`docs/03-adrs/adr-066-cyclist-presentation-lane-over-sterile-truth.md`), including its Addendum (Decision 4a).
+**ADR:** ADR-066 (`docs/03-adrs/adr-066-cyclist-presentation-lane-over-sterile-truth.md`), including its Addendum (Decision 4b; the earlier Decision 4a is withdrawn).
 **Evidence:** record `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`, Findings 27 and 28; PR #66's diagnosis report (`exec-066-occurrence-scope-stop-20260927.md`).
 **Implementer:** Codex. **Verifier:** Claude (against §4 below). **Gate:** Derek, then ChatGPT final gate on the PR.
 **Revision 3 (2026-09-27):** A is the root fix, ADR-066 Decision 4b (projection continuity in all seven modules); the owner-anchored recovery (4a) is withdrawn; B, C and D are independent of A and proceed now; the sliver epsilon item is withdrawn.
@@ -62864,6 +62864,7 @@ Tims with both.
 **Revision 5 (2026-09-27):** the full test suite is required, compared against `main`; the seven PR-only failing files measured by the verifier are listed in §3 with their fixes.
 **Revision 6 (2026-09-28, Derek's gate decisions):** the map treatment of seams is accepted as built; the seam sentence leaves the road card and the legend row is removed; a seam is explained in rider wording in the inspect panel only; provenance tokens leave rider surfaces by the same rule; the facts line is accepted as built; the raised provisional scores are acknowledged as a consequence of more certified paint; rollout order fixed in §5; the run-direction refinement is the follow-up ticket immediately after this PR (§7).
 **Revision 6a (2026-09-30, Derek, on the verifier's finding):** the seam distance reads "less than 1 m" below one metre; whole metres otherwise. The whole-metre rule alone printed "0 m" for the seams under half a metre that exist on Tims and Capitol.
+**Revision 6b (2026-09-30, documents only, on Codex's review of PR #67):** §3's U-shaped-way fixture brought in line with revision 4 (two intervals, not a rejection) and the jitter fixture listed; the header names Decision 4b. No rule changes.
 
 ## 1. Scope
 
@@ -62971,8 +62972,11 @@ Golden Harness rides plus Tims) so production carries v3 artifacts.
 
 - Projection continuity tests, one fixture set shared by the seven modules: a synthetic meander way
   whose two legs come within 50 m of one route point projects as one interval with
-  `ambiguousResolvedSampleCount > 0`; a route that rides one leg then the other of a U-shaped way is
-  rejected for non-monotonic ordinals; an isolated ambiguous sample with no resolved neighbour breaks
+  `ambiguousResolvedSampleCount > 0`; a route that rides one leg then the other of a U-shaped way
+  (a cumulative regression of two or more ordinals) projects as **two** intervals, one per traversal,
+  split where the regression began (§1.A step 5; revision 4 withdrew the earlier rejection for
+  non-monotonic ordinals); a junction-jitter sequence (`0,0,1,1,0,0,1,…`) projects as one interval;
+  an isolated ambiguous sample with no resolved neighbour breaks
   the run and is counted; a way with no surviving run and one ambiguous sample returns
   `ambiguous_route_binding`; the three existing tests that pin the old veto are updated with the
   reason for each change stated in the report.
