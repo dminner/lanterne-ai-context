@@ -62864,7 +62864,7 @@ Tims with both.
 **Revision 5 (2026-09-27):** the full test suite is required, compared against `main`; the seven PR-only failing files measured by the verifier are listed in §3 with their fixes.
 **Revision 6 (2026-09-28, Derek's gate decisions):** the map treatment of seams is accepted as built; the seam sentence leaves the road card and the legend row is removed; a seam is explained in rider wording in the inspect panel only; provenance tokens leave rider surfaces by the same rule; the facts line is accepted as built; the raised provisional scores are acknowledged as a consequence of more certified paint; rollout order fixed in §5; the run-direction refinement is the follow-up ticket immediately after this PR (§7).
 **Revision 6a (2026-09-30, Derek, on the verifier's finding):** the seam distance reads "less than 1 m" below one metre; whole metres otherwise. The whole-metre rule alone printed "0 m" for the seams under half a metre that exist on Tims and Capitol.
-**Revision 6b (2026-09-30, documents only, on Codex's review of PR #67):** §3's U-shaped-way fixture brought in line with revision 4 (two intervals, not a rejection) and the jitter fixture listed; the header names Decision 4b. No rule changes.
+**Revision 6b (2026-09-30, documents only, on Codex's review of PR #67):** §3's U-shaped-way fixture brought in line with revision 4 (two intervals, not a rejection) and the jitter fixture listed; §3's policy-version test states the six-`.v2` / traffic-`.v3` split of step 3; §1.B no longer names the `receipted_fact` token on the card (revision 6 had removed it in §1.C only); the header names Decision 4b. No rule changes.
 
 ## 1. Scope
 
@@ -62932,9 +62932,10 @@ way on one such sample (`if (sawAmbiguous) return unresolved`). A winding way tr
   `p7-persisted-partial-route-paint.v3`; extend the fail-closed validators (`exactKeys`, token sets)
   so v3 is validated and v2 remains readable.
 - App: when a tap lands on a resolved partial interval, the road card shows the facts under the
-  existing "Partial evidence · canonical pending" footer, with provenance `receipted_fact` named on
-  the card (`RoadInfoOverlay.tsx`, `riderFacingAnonymousRoadName` and `displayRoadType`). Unresolved
-  intervals keep "Unresolved". No change to canonical cards.
+  existing "Partial evidence · canonical pending" footer (`RoadInfoOverlay.tsx`,
+  `riderFacingAnonymousRoadName` and `displayRoadType`). ~~with provenance `receipted_fact` named on
+  the card~~: revision 6 removed the token from the card (§1.C, last paragraph); the provenance stays
+  in the artifact. Unresolved intervals keep "Unresolved". No change to canonical cards.
 
 **C. Bounded seam bridging (paint lane, compiler side).**
 - In the partial paint core, after the paint intervals are built and before the artifact is sealed,
@@ -62980,8 +62981,9 @@ Golden Harness rides plus Tims) so production carries v3 artifacts.
   the run and is counted; a way with no surviving run and one ambiguous sample returns
   `ambiguous_route_binding`; the three existing tests that pin the old veto are updated with the
   reason for each change stated in the report.
-- Policy version tests: each of the seven `.v2` policies is what the receipts embed; a v1 snapshot
-  still validates as v1.
+- Policy version tests: each of the seven bumped policies is what the receipts embed (six at `.v2`,
+  traffic at `.v3`, per step 3 and ADR-066 4b.4); a snapshot at the earlier version still validates
+  at that version.
 - Occurrence test on the Tims fixture: way 39053551 projects, is admitted, and has an occurrence.
 - v3 artifact round-trip: build, serialize, validate, rehydrate; a v3 payload missing `displayFacts`
   on a resolved partition or `provenance` on an interval is rejected; a v2 payload still validates.
