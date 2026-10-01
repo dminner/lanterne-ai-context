@@ -63155,6 +63155,25 @@ interval, and the same §4 tables on Tims and Capitol: painted distance must not
 route, and every partition or gap change is explained. Sized from revision 5's totals: metres at run
 starts, not kilometres; it is queued because it is cheap and certain, not because it is large.
 
+**Gate clarification (2026-10-01).** PR #68 implements this section. The final gate of 2026-10-01
+([recorded on PR #67](https://github.com/dminner/lanterne/pull/67#issuecomment-5932404190)) approved
+it with this governing reading of "first movement of two or more ordinals":
+
+> Initialize direction from the first displacement of at least two ordinals **from the run's
+> starting ordinal**, or the majority of the first three nonzero movements, whichever occurs first.
+> Repeated ordinals do not vote. If the run ends earlier, use the available votes; a tie or
+> stationary run has direction zero. After initialization, retain the existing reversal-splitting
+> rule.
+
+Under this reading:
+
+- `0,1,2,0` initializes forward and splits at the return.
+- `5,6,4` stays unsplit: its votes tie, and it never gets two ordinals from its start. The gate
+  accepted this consequence.
+
+[Claude's verification of PR #68](https://github.com/dminner/lanterne/pull/68#issuecomment-5931880751)
+records the floors measured on Tims and Capitol.
+
 
 ---
 
