@@ -16207,6 +16207,14 @@ Hazards should follow the same two-level control model as POIs / Stops:
 - expanding a category reveals the exact hazard toggles inside it
 - category gate state and child hazard-kind state are stored separately; effective visibility is derived from both
 
+### Current control presentation — 2026-10-07
+
+Derek's compact-drawer direction replaces the seven-category UI with four presentation groups: Road surface, Conflict points, Pinch points, Surroundings. Road surface collects the existing live metal-surface and wheel-catching controls; the two railroad-track aliases share one visible switch. The underlying category gates and stable toggle IDs below remain the persisted authority. Grouping does not change hazard evidence, route qualification, severity, scoring or source meaning.
+
+Only registry entries marked live appear as controls. Planned entries are removed from both compact and compatibility UI and recorded in [PROD-015 — Future hazard controls](../../05-product/prod-015-future-hazard-controls.md). Their stored preferences remain intact. The older launch-category table below describes the canonical gates, rather than the current layout. The category-accent palette is a local preview experiment; marker severity colors are unchanged.
+
+Hazard viewing is intended to support the viewport without a loaded route as well as route context. Until the viewport producer is connected, the no-route state remains explicitly unavailable, using area-context wording. The compact drawer supplies settings and does not manufacture viewport evidence.
+
 Launch category gates:
 
 | Category ID | Rider label | Purpose | Implemented child toggles | Planned / reportable child toggles |
@@ -16301,7 +16309,7 @@ Hazard existence and route applicability are separate decisions.
 | Accepted matched-way escape hatch | Way-anchored hazards are accepted when their `osmWayId` or `sourceRoadWayId` belongs to an accepted matched route way, even if the GPX polyline is offset beyond the normal snap threshold. This is required for source-backed bridge parity on imperfect GPX traces. Railroad crossings do not use this as a standalone acceptance rule. |
 | Railroad crossing topology gate | Railroad crossings must prove the route actually traverses the same-level rail crossing before becoming rider-facing hazards. Accepted proof is either a shared crossing node on a matched route way that is locally traversed by the route, or a route-axis/rail segment intersection within the crossing-node tolerance when topology is unavailable. Bridge/tunnel/layer separation rejects the candidate. Nearby rail nodes, nearby road nodes, or route projection distance alone must not produce map markers, cue rows, or rider-facing angle values. Rejected candidates may keep diagnostic angle/projection fields in admin debug only. |
 | Report-backed planned hazards | A planned toggle becomes rider-facing only after a user report, feed row, or detector candidate attaches to a route point or interval and passes the toggle-specific freshness / confidence policy. |
-| Empty planned toggles | Planned toggles with no data may appear as reportable controls, but they must not create map markers, cue rows, analysis counts, or false "0 hazards found" claims. |
+| Empty planned toggles | Planned controls stay in the future product catalog and do not appear as current switches. They must not create map markers, cue rows, analysis counts, or false "0 hazards found" claims. |
 | Central evidence registry | V2 publishes rider-facing hazards as route-indexed `hazard_events` with `distM`, `routeMile`, `startDistM`, `endDistM`, source IDs, provenance, semantic presentation token, and `scoreBearing=false`. |
 | Subscriber rule | Map, cue sheet, analysis drawer, overlays, and review surfaces subscribe to `hazard_events` and shared presentation helpers. They may filter or group hazards for visibility, but they may not reinterpret hazard category, toggle, kind, label, route distance, or source meaning. |
 
