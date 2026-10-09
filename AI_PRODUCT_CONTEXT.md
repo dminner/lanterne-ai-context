@@ -4993,3 +4993,61 @@ Because the question isn’t just:
 It’s:
 
 > “What happens if I keep going like this?”
+
+---
+
+## Source File: docs/05-product/prod-015-future-hazard-controls.md
+
+# PROD-015 — Future hazard controls
+
+**Status:** Future product/design catalog, 2026-10-07. These controls are not available in the current settings UI.
+**Owner:** Derek Minner
+**Decision:** Keep the current drawer compact and expose live controls only. Move planned controls into this catalog.
+**Related:** [PROD-011 Hazards System](prod-011-hazard_severity_model.md), [DS-028 Hazard Ingestion, Normalization, and Presentation](../02-architecture/design/ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [compact drawer phase](../04-execution/compact-hazard-settings-phase-ticket.md).
+
+## Current versus future
+
+The current interface has four presentation groups: Road surface, Conflict points, Pinch points, Surroundings. Road surface collects the existing live metal-surface and wheel-catching filters. Railroad tracks is one visible control governing both existing rail aliases. These presentation groups do not recategorize canonical hazard evidence or change severity, route qualification, scoring, marker paint, persisted IDs or preferences.
+
+The 21 entries below were marked `planned` in `src/lib/presentation/hazard-registry.ts` on 2026-10-07. Their stable IDs remain in the registry for stored preferences and future work, but neither the compact drawer nor the compatibility subtype sheet exposes them as switches. No planned toggle produces data or guarantees coverage. The old category is retained here as source context; the eventual grouping of moving hazards needs a separate product decision.
+
+## Deferred catalog
+
+| Existing category | Stable toggle ID | Rider label | Qualification to preserve | Intended source path |
+|---|---|---|---|---|
+| road_surface | `loose_sand_gravel` | Loose sand/gravel | Recurring loose aggregate on pavement or shoulder. | Future user reports and surface-condition layers |
+| road_surface | `shoulder_debris` | Shoulder debris | Debris that forces riders out of the shoulder or bikeable edge. | Future user reports |
+| road_surface | `asphalt_cracks` | Asphalt cracks | Recurring cracks, seams, or broken asphalt surface. | Future user reports and pavement-condition layers |
+| road_surface | `cobbles` | Cobbles | Cobbled or set-stone road surface. | Future OSM surface tags and user reports |
+| road_surface | `potholes` | Potholes | Common or recurring pothole zones. | Future user reports |
+| road_surface | `concrete_gaps` | Concrete gaps | Surface-level seams or slab gaps that affect ride quality. | Future user reports |
+| wheel_grabbers | `gapped_storm_grate` | Gapped storm grate | Storm drain or grate gap aligned with the riding line. | Future user reports |
+| wheel_grabbers | `deep_pothole` | Deep pothole | Individual severe pothole likely to trap or deflect a wheel. | Future user reports |
+| wheel_grabbers | `deep_concrete_gap` | Deep concrete gap | Individual severe slab gap likely to trap or deflect a wheel. | Future user reports |
+| dynamic_hazards | `wildlife_crossing` | Wildlife crossing | Known animal crossing or frequent wildlife conflict point. | Future user reports and advisory layers |
+| dynamic_hazards | `loose_dog` | Loose dog | Known loose-dog location reported by riders. | Future user reports |
+| dynamic_hazards | `pedestrians` | Pedestrians | Known pedestrian-heavy riding conflict point. | Future user reports and local activity layers |
+| dynamic_hazards | `parked_door_swing` | Parked door swing | Door-zone exposure where parked cars conflict with the riding line. | Future user reports and parking-context layers |
+| pinch_points | `tight_guardrail` | Tight guardrail | Guardrail or barrier that removes recovery room. | Future user reports and barrier layers |
+| pinch_points | `shoulder_ends` | Shoulder ends | Abrupt loss of shoulder or bikeable edge. | Future user reports and road-edge layers |
+| surroundings | `cliff_edge` | Cliff edge | Exposed edge or steep drop near the riding line. | Future user reports and terrain-edge layers |
+| surroundings | `falling_rocks` | Falling rocks | Known rockfall exposure near the riding line. | Future user reports and advisory layers |
+| surroundings | `blind_turn` | Blind turn | Sight-line limited curve or turn reported as rider-relevant. | Future user reports and geometry layers |
+| surroundings | `large_wildlife_advisory` | Large wildlife advisory | Static advisory area for recurring large-wildlife exposure. | Future advisory layers |
+| surroundings | `weather_exposure_zone` | Weather exposure zone | Static exposure area; live weather remains a separate future layer. | Future exposure layers |
+| surroundings | `flood_prone_low_road` | Flood-prone low road | Low road or crossing with recurring flood exposure. | Future advisory layers and user reports |
+
+## Admission into the UI
+
+### Route and viewport context
+
+Derek clarified that hazard viewing must work against the current viewport when no route is loaded, and against the route when one is loaded. The compact settings remain available in both contexts. The unavailable-data explanation uses “this area” without a route and “this route” with one. The current map host has no viewport-only hazard retrieval wired to this drawer, so no-route availability remains explicitly unavailable. Adding viewport evidence, its spatial query ownership, coverage and freshness is separate future work; an empty viewport result must never be treated as verified absence without coverage evidence.
+
+A future implementation must establish an actual producer or report intake, route attachment, provenance, qualification, coverage and explicit unavailable states before a switch becomes current. Temporary reports need defined freshness and expiry. The existing DS-028 topology and route-qualification rules still apply. Planned source paths in this table are ideas, not implemented integrations.
+
+Preserve prior child choices independently of parent visibility gates. Product review must resolve the eventual presentation group and rider-facing wording; independent implementation review and ChatGPT/Derek final gate must check the receipts before cutover. This catalog does not schedule or authorize any future implementation.
+
+## Color exploration
+
+The compact settings drawer uses neutral controls. A local preview compares small orange/red/blue/green icon accents across Hazards, Stops and Layers with white icons. Labels stay white on the common charcoal surface. Category accents identify controls, not assign severity or mark a route safe. The final category palette is undecided. Existing warning/acute hazard marker colors and scoring colors remain governed by their current contracts.
+
