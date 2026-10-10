@@ -53974,7 +53974,7 @@ after artifacts, never predicted in the report.
 
 # ADR-067 — Owner-Gap Truth Rules for the Sealed Exact-Topology Overlay: Medium Family Corroboration, Direction-Legal Carriers, and Divided-Road Disambiguation
 
-**Status:** Proposed (2026-10-01). This is a truth-lane change to route ownership, so it needs the
+**Status:** R1, R2 and direction-only R3 approved for implementation and isolated validation by the amended architecture gate (2026-10-09); R4–R6 remain proposed. Original proposal: 2026-10-01. This is a truth-lane change to route ownership, so it needs the
 human gate (Derek) and the architecture gate (ChatGPT) before any implementation. Nothing here
 changes code, artifacts, policies or published routes.
 
@@ -54176,4 +54176,16 @@ interval. Without R3: Tims 1,850.8 m (60 %), Capitol 6,449.5 m (44 %).
 - Which unnamed micro-kink competitors are the same road (R6 leaves them vetoing).
 - How each medium family splits between a medium boundary and stray edge geometry.
 - Whether the effects on two routes generalise to the fleet: the sample is two NJ/MD routes.
+
+## Amended architecture gate — 2026-10-09
+
+Derek relayed the architecture gate approving **R1, R2 and direction-only R3 for implementation and isolated validation**. This addendum controls over the original proposed wording and simulated figures above. It authorizes no merge or production activation.
+
+- **R1:** Preserve medium corroboration in receipts. Require a unique sealed exact owner, full containment in one eligible high/medium family atom, owner membership and no veto. Low/unresolved are ineligible. Do not broaden unrelated high-confidence gates. Report actual confidence causes, distinguishing initial 18 m / 45°, later-edge 30 m / 65°, boundary effects, combinations and explicit unknowns.
+- **R2:** Use one source-bound direction evaluator shared with R3. Honor `oneway:bicycle=no` and legacy `cycleway=opposite*`, `cycleway:left=opposite*`, `cycleway:right=opposite*`. Exclude only proven-forbidden traversals of explicit `oneway=yes` / `oneway=-1`; uncertainty retains competitors. Do not remove whole ways or stop after excluding the first witness.
+- **R3:** Count distinct directed sequences without losing surviving path realizations. Zero or multiple survivors refuse. One survivor still requires sealed-owner membership and every applicable subsequent proof. Incomplete searches cannot establish uniqueness. The original repeated-way/revisit exclusion is withdrawn; no blanket revisit exclusion is authorized.
+- Version policies and receipts; distinguish eligible sets, exclusions and performed work, and preserve historical identities. Validate Dam plus the 17 working routes with matched inputs and complete ownership, coverage and risk deltas. Keep native 1,024-record and experimental Dam 2,048-record package identities separate.
+- #90 finding A is satisfied **as disclosed evidence**, not a renamed historical receipt. M remains unresolved; B/C/D and capacity remain separate gate matters. No R4–R6, raised shipping limits, proximity ownership, merge, publication, deployment, pin changes or production activation.
+
+The explicit one-way source dependency is a bounded safety risk: a wrong sealed OSM restriction can exclude a real competitor. This gate does not certify reverse-route legality, contraflow completeness or real-world bicycle access. Implementation and independent review must report the measured fleet outcomes; the old simulated gains are not acceptance claims.
 
