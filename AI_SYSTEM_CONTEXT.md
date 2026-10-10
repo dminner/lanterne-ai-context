@@ -54199,3 +54199,11 @@ The gate resolves the prior interpretation questions: **B1** is approved as a sc
 
 No merge, production, publication, pin change, raised shipping limits, R3 revisit filtering, R4–R6 or proximity ownership is authorized. #90 M, B/C/D and shipping capacity remain separate gate matters.
 
+### Correction scope and retained evidence limitations
+
+The conditional rule covers `oneway:conditional`, `oneway:bicycle:conditional`, `oneway:vehicle:conditional` and `cycleway[:left|right|both][:oneway]:conditional`. A vehicle-wide condition is relevant to bicycles in the [OSM transport-mode hierarchy](https://wiki.openstreetmap.org/wiki/Key:access#Transport_mode_restrictions). It is retained without evaluating its time or syntax, including an empty value. Unrelated speed, access and motor-vehicle-only conditions are not evaluated as bicycle direction conditions. Conditional evidence takes receipt-reason precedence over a simultaneous static bicycle exception; the tags preserve both and the traversal remains eligible.
+
+This correction does not extend the original static exception set. Modern static `cycleway:left/right/both:oneway` permissions and static `oneway:vehicle` are not interpreted or disclosed by this evaluator's `directionTags`. Static motor-vehicle hierarchy tags are also not interpreted. Those classes were already outside the enumerated implementation at runtime `62a5991fc`; their effect on bicycle permission is an explicit separate gate item, not a repaired or certified capability. Missing/odd-value retention claims apply only to the enumerated keys, not to every OSM direction tag.
+
+The source digest checks bind evidence to the trusted owner-published material representation. The existing predicate accepts nullable per-object version/timestamp metadata when producer digests match; this correction does not change that boundary or certify external OSM authenticity. Claude's review raised stricter metadata checks as optional separate work. Preserve that finding and the earlier trusted-publisher limitations; do not describe them as repaired vulnerabilities.
+
