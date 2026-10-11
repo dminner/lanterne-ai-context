@@ -53974,7 +53974,7 @@ after artifacts, never predicted in the report.
 
 # ADR-067 — Owner-Gap Truth Rules for the Sealed Exact-Topology Overlay: Medium Family Corroboration, Direction-Legal Carriers, and Divided-Road Disambiguation
 
-**Status:** R1, R2 and direction-only R3 approved for implementation and isolated validation by the amended architecture gate (2026-10-09); R4–R6 remain proposed. Original proposal: 2026-10-01. This is a truth-lane change to route ownership, so it needs the
+**Status:** Proposed (2026-10-01). This is a truth-lane change to route ownership, so it needs the
 human gate (Derek) and the architecture gate (ChatGPT) before any implementation. Nothing here
 changes code, artifacts, policies or published routes.
 
@@ -54176,42 +54176,4 @@ interval. Without R3: Tims 1,850.8 m (60 %), Capitol 6,449.5 m (44 %).
 - Which unnamed micro-kink competitors are the same road (R6 leaves them vetoing).
 - How each medium family splits between a medium boundary and stray edge geometry.
 - Whether the effects on two routes generalise to the fleet: the sample is two NJ/MD routes.
-
-## Amended architecture gate — 2026-10-09
-
-Derek relayed the architecture gate approving **R1, R2 and direction-only R3 for implementation and isolated validation**. This addendum controls over the original proposed wording and simulated figures above. It authorizes no merge or production activation.
-
-- **R1:** Preserve medium corroboration in receipts. Require a unique sealed exact owner, full containment in one eligible high/medium family atom, owner membership and no veto. Low/unresolved are ineligible. Do not broaden unrelated high-confidence gates. Report actual confidence causes, distinguishing initial 18 m / 45°, later-edge 30 m / 65°, boundary effects, combinations and explicit unknowns.
-- **R2:** Use one source-bound direction evaluator shared with R3. Honor `oneway:bicycle=no` and legacy `cycleway=opposite*`, `cycleway:left=opposite*`, `cycleway:right=opposite*`. Exclude only proven-forbidden traversals of explicit `oneway=yes` / `oneway=-1`; uncertainty retains competitors. Do not remove whole ways or stop after excluding the first witness.
-- **R3:** Count distinct directed sequences without losing surviving path realizations. Zero or multiple survivors refuse. One survivor still requires sealed-owner membership and every applicable subsequent proof. Incomplete searches cannot establish uniqueness. The original repeated-way/revisit exclusion is withdrawn; no blanket revisit exclusion is authorized.
-- Version policies and receipts; distinguish eligible sets, exclusions and performed work, and preserve historical identities. Validate Dam plus the 17 working routes with matched inputs and complete ownership, coverage and risk deltas. Keep native 1,024-record and experimental Dam 2,048-record package identities separate.
-- #90 finding A is satisfied **as disclosed evidence**, not a renamed historical receipt. M remains unresolved; B/C/D and capacity remain separate gate matters. No R4–R6, raised shipping limits, proximity ownership, merge, publication, deployment, pin changes or production activation.
-
-The explicit one-way source dependency is a bounded safety risk: a wrong sealed OSM restriction can exclude a real competitor. This gate does not certify reverse-route legality, contraflow completeness or real-world bicycle access. Implementation and independent review must report the measured fleet outcomes; the old simulated gains are not acceptance claims.
-
-## Bounded PR #93 gate correction FG-93-01 — 2026-10-10
-
-The architecture gate returned **REQUEST CHANGES** on documentary head `2974b3ee8fc9e14af4a951b73ec6ad4f4474aaec`, runtime `62a5991fc2a983d657bfeac2da804673569c8ea0`. Static direction exclusions ignored conditional direction evidence. The authorized correction retains a traversal whenever relevant conditional direction evidence cannot be evaluated, including malformed-but-present evidence; preserves its tags and explicit uncertainty reason in versioned receipts; and adds shared-evaluator and R2/R3 integration tests, including a later conditional competitor after an earlier forbidden witness. No time-dependent routing engine is authorized. Static controls remain.
-
-The gate requires the combined raw-trim proof → positional overlay cases, including right-trim/apex and supported rounded-endpoint adjustment, without relaxing any downstream proof, tolerance or limit. Rebuild exact packages and repeat all 18 attempts on matched inputs; preserve the previous measurements and report conditional exclusions/ownership/paint/risk deltas. Native 1024 and experimental Dam 2048 remain separate. Crush/One Tributary material repair is outside this correction; unavailable stays unavailable. Return exact-head tests, scope, paired deltas and independent Claude review for re-gate.
-
-The gate resolves the prior interpretation questions: **B1** is approved as a scoped hard zero-survivor refusal after complete search and valid exclusions; **N2** is approved for the existing finite complete supporting path, including certification flanks, with distinct exclusion/counting domains retained. **R1** is accepted within its narrow scope. Raw partition count is defensive bookkeeping, not independent geometry proof. These resolutions are not merge authorization.
-
-No merge, production, publication, pin change, raised shipping limits, R3 revisit filtering, R4–R6 or proximity ownership is authorized. #90 M, B/C/D and shipping capacity remain separate gate matters.
-
-### Correction scope and retained evidence limitations
-
-The conditional rule covers `oneway:conditional`, `oneway:bicycle:conditional`, `oneway:vehicle:conditional` and `cycleway[:left|right|both][:oneway]:conditional`. A vehicle-wide condition is relevant to bicycles in the [OSM transport-mode hierarchy](https://wiki.openstreetmap.org/wiki/Key:access#Transport_mode_restrictions). It is retained without evaluating its time or syntax, including an empty value. Speed and motor-vehicle-only conditions are not evaluated as bicycle direction conditions. Conditional evidence takes receipt-reason precedence over a simultaneous static bicycle exception; the tags preserve both and the traversal remains eligible.
-
-The FG-93-01 runtime `5d837d8b` did not extend the original static exception set. Its omission of modern static cycleway direction evidence is addressed by C-1 below, not retroactively repaired in that identity. Static `oneway:vehicle`, static motor-vehicle hierarchy tags and directional bicycle access conditions (`bicycle:forward/backward:conditional`) remain uninterpreted. Directional bicycle access conditions can carry relevant permission and are not claimed irrelevant. Their effect on bicycle permission remains a separate gate item, not a repaired or certified capability. Missing/odd-value retention claims apply only to the enumerated keys, not to every OSM direction tag.
-
-Value-blind retention also covers a conditional value that merely repeats a restriction. As a competitor this can preserve a veto; as a sole owner traversal it can permit admission under the unchanged ordinary complete-path proofs. This is matching eligibility, not certification of bicycle legality or permission at a particular time. The paired sole-owner regression and the fleet's branch/exclusion deltas must disclose this consequence.
-
-The source digest checks bind evidence to the trusted owner-published material representation. The existing predicate accepts nullable per-object version/timestamp metadata when producer digests match; this correction does not change that boundary or certify external OSM authenticity. Claude's review raised stricter metadata checks as optional separate work. Preserve that finding and the earlier trusted-publisher limitations; do not describe them as repaired vulnerabilities.
-
-### Bounded reviewer correction C-1 — modern static contraflow evidence
-
-Claude's [independent review](https://github.com/dminner/lanterne/pull/93#issuecomment-6101252232) found modern contraflow evidence omitted from the shared evaluator. The bounded correction adds `cycleway:oneway` and `cycleway:left/right/both:oneway` to its exact receipted tag set. A value of `-1` or `no` retains the traversal as a bicycle exception; these permissions must not let car-only `oneway` evidence remove a competitor. Modern [contraflow tagging](https://wiki.openstreetmap.org/wiki/Tag:cycleway:left:oneway%3D-1) replaces deprecated `opposite*` tags. Unsupported or malformed present values, and `yes` conflicting with general `oneway=-1`, retain the traversal as uncertain. Explicit matching `yes` still permits the existing wrong-way exclusion. Unevaluated conditional evidence and failed source authentication keep their existing precedence.
-
-Version the evaluator/evaluation identities to v6, the closure to v19 and its audit to v6. Audit rows preserve the actual retained bicycle-exception evaluations and tags as well as the existing counts and conditional rows. This is matching eligibility, not time-specific permission or a legality certification. All subsequent geometry, completeness, bound, sealed-owner and positional-overlay proofs remain unchanged. Repeat the 18 matched attempts and preserve the prior packages, observations and historical review. This correction supplies implementation evidence for re-gate; it does not authorize merge or activation.
 
