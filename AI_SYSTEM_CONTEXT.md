@@ -40826,6 +40826,219 @@ inputs exist.
 
 ---
 
+## Source File: docs/02-architecture/design/p7-viewport-cache-reader-v1-proposal-20261011.md
+
+# P7 viewport road cache reader — contract proposal
+
+Recorded: 2026-10-11. Status: **proposed; no implementation or activation**.
+Phase: `MAP-VIEWPORT-SOURCING-20261011`, follow-up to issue #97.
+
+The viewport's deployed road proxy still calls the stopped legacy service on port
+3000. The P7 cache has a separate material-object store, but neither its grid
+coverage API nor its route materialization API is a viewport road reader. This
+proposal defines that missing read boundary. It does not restart the old service,
+change providers, admit a new subscriber, or authorize a production operation.
+
+## Existing authority and scope
+
+Frontend source inspected: `c271ffdd1652d6a10660ba3557567701e08b5d5f`.
+Backend source inspected: `5bc7ab3175767816be1fdb3c44a253bd40b052ce` in
+`dminner/nuremberg-owned-spatial`. Repository source is not deployed authority.
+An implementation base must be reconciled with the currently installed P7
+release and composite cache authority before a backend implementation ticket.
+
+Follow ADR-047/DS-035 for cache authority, ADR-058/DS-061 for viewport owners,
+ADR-060/DS-065 for selection, and the backend's AGENTS.md for all operations.
+ADR-058 and ADR-060 remain marked Proposed; this proposal does not promote them.
+
+The reader exposes cached OSM highway-way material, including paths when present
+under the grid's source enumeration law. It does not return route artifacts,
+route axes, route risk scores, HPMS joins, arbitrary POIs, or complete hazard-node
+coverage. P7 cell terminality cannot establish all of those facts. Full hazard
+and POI acquisition continue to need their own readers.
+
+## Request and service boundary
+
+Proposed backend path: `POST /v1/p7/viewport/roads`.
+
+```json
+{
+  "schemaVersion": "p7-viewport-roads-request.v1",
+  "bounds": { "south": 39.8, "west": -74.6, "north": 39.85, "east": -74.55 }
+}
+```
+
+These are the only request fields. Require finite JSON numbers, world bounds,
+and strictly positive width/height. Reject unknown keys, wrapped/crossing boxes,
+caller-selected source revisions, manifests, SQL, tables, paths, limits, or
+profile authorities. Dateline callers use two ordinary regions, preserving each
+request and observation separately. Reuse the existing grid API's exact decimal
+positive-intersection law; do not add epsilon snapping or change grid resolution.
+
+A separately installed cache-only process has the existing cache-reader and
+cancellation pools, exact cache database identity, pinned source/manifest/policy
+authority and a loopback listener. It has no OSM source pool, writer credential,
+hydrator/controller import, materialization endpoint, or route compiler. Reject
+forbidden environment names by presence, as the artifact-reader seam already
+does. Reuse existing fixed read-only identity/ACL/digest guards; do not weaken
+them or assume current role access is sufficient without checking it.
+
+The upstream read bearer stays in a server-side Edge proxy. A browser never
+receives that bearer or selects the upstream. Existing admin-only grid coverage
+access is not rider authorization for this new API. A separate gate must choose
+the rider access policy, rate limits and exact provider configuration before an
+Edge implementation or activation; this proposal does not make that choice.
+
+## Response and completeness
+
+Success schema: `p7-viewport-roads-response.v1`. Return the exact normalized
+request, deterministic query digest, repeatable-read observation time, source
+revision, grid version, manifest/policy authority, actual/effective cell receipts,
+validated material objects, and a compact acquisition summary. For composite
+coverage retain parent/supplement and per-cell origin authority. A monolithic
+manifest label must not hide a composite read.
+
+Use separate fields for three different claims:
+
+| Field | Meaning |
+| --- | --- |
+| `responseComplete` | The bounded response is whole and untruncated. |
+| `coverage.state` | `complete`, `partial`, `verified_empty`, or `unavailable` for the selected cached highway-way target law and authority. |
+| Per-object source tags/missing fields | Which source facts exist; coverage does not fill absent speed, traffic, lane, shoulder, or timestamp facts. |
+
+Every positively intersecting expected grid cell must have a receipt, including
+cells outside the configured manifest footprint. An absent cell is `missing`,
+not empty. Retain each physical execution state independently of effective
+inherited coverage. Cell receipts bind source/manifest/policy and contain
+expected target count, membership count, validated target-geometry count,
+incomplete target count, and typed refusal/missing reasons. Distinct object
+counts and per-cell occurrence counts remain separate.
+
+`complete` requires all selected cells to be valid native `live` or
+`verified_empty`, or equivalent inherited cells whose existing compatibility
+receipts and retained predecessor evidence validate. Reconcile target counts,
+unique target/incomplete memberships, policy-bound object bindings and every
+returned blob before asserting completeness. Merely receiving a coverage run,
+seeing a nonzero row, or reading a healthy service is insufficient. Inherited
+objects retain their actual predecessor policy/manifest binding; do not relabel
+v1 material as native v2. Current native destination state wins under the
+existing effective-state law. Missing or invalid predecessor receipts refuse
+inherited completeness.
+
+`processed_incomplete`, `pending`, `leased`, `failed`, missing cells, unavailable
+bindings and incomplete target geometry keep the rectangle partial/unavailable.
+Valid cached objects may still be returned under a partial receipt. Material
+from a typed incomplete target may be shown only if its object independently
+passes the existing geometry/tag/digest validator; its presence does not repair
+the cell's completeness claim.
+
+When any selected cell is unresolved, use `partial` if at least one current,
+authority-valid object is returned, and `unavailable` otherwise. All resolved
+cells with at least one valid target use `complete`; all resolved zero-target
+cells use `verified_empty`. An invalid authority, conflicting body, malformed
+response or cap failure refuses the entire new response rather than publishing
+its remaining objects as a new complete generation. Previously accepted stale
+rendering is a separate client retention decision.
+
+`verified_empty` requires every selected cell to prove zero targets under the
+exact cached enumeration law, with zero memberships and no invalid inheritance.
+It never means no roads, hazards or cyclists exist in the real world. An empty
+object array without those receipts is unavailable, not verified empty.
+
+Preserve complete canonical object payloads: source way ID, ordered geometry and
+node IDs, terminal nodes, source name/ref/tags, missing-field list, and existing
+geometry/tag/node/body digests. Full object geometry may extend outside the
+requested cell window; the viewport owner filters and retains it under existing
+budgets. Do not clip or simplify a payload while retaining its original digest.
+Deduplicate by source/policy/object/body identity; conflicting bodies fail closed.
+
+`observedAt` is the cache snapshot time, not source freshness. Existing objects
+have null source version/timestamp with explicit missing-field reasons. Preserve
+those facts. Absent cycleway/shoulder tags do not mean confirmed absence, and
+missing traffic is not zero. Keep any existing client display estimates separate
+from source facts and preserve their present provenance and classification law.
+
+## Bounded cache read
+
+One repeatable-read, read-only transaction re-proves cache identity, role ACL,
+eligible source epoch, native/composite launch bindings, and inheritance before
+reading membership/object blobs. Fixed parameterized reads use only existing
+approved cache tables/views. No source database scan, on-demand hydration,
+materialization, writer fallback, unbounded JSON/table scan or broad object-store
+enumeration is permitted. Payload budgets are checked before fetching blobs.
+
+Initial proposed limits, subject to synthetic and read-only plan evidence:
+
+| Resource | Proposed hard maximum |
+| --- | --- |
+| Request | 1 KiB |
+| Expected intersecting cells | 64 |
+| Distinct target IDs | 2,000 |
+| Geometry vertices | 100,000 |
+| Encoded response | 2 MiB |
+| SQL statement / transaction wall time | 1.8 s / 3 s |
+| Lock wait | 250 ms |
+| In-flight backend reads | 2 |
+
+These are design bounds, not measured capacity or latency claims. Use cap+1
+probes and fixed ordering to detect overflow; never return a truncated success.
+An exceeded limit returns a typed 422 with no geometry/complete coverage claim.
+The future client may subdivide into at most four regions, with at most two
+outstanding reads and explicit non-atomic observation bounds. Exhaustion remains
+partial and waits for a new view or deliberate retry; no automatic retry storm.
+
+Cancellation retires the HTTP read, cancels its SQL through the existing
+separately authenticated read-only cancellation seam, rolls back and releases
+both pools. Superseded browser generations cannot commit even when a transport
+ignores abort. Responses use `no-store`, including failures. Invalid input,
+authentication, bounded capacity and service failures retain distinct typed
+errors without database details or credentials.
+
+## Future frontend integration and visual language
+
+Implement an adapter at the existing viewport acquisition owner, outside the
+renderers and road strip. Keep legacy acquisition unchanged until separately
+gated activation; do not silently combine P7 and legacy objects as one complete
+answer. Compare normalized public fixtures and a read-only shadow before cutover.
+
+Feed speed and bike selectors from the same accepted generation. Retain stable
+object keys, moving-window eviction, off-screen layer removal, cancellation and
+the repaired stale/partial disclosure. A stale retained object can remain visible
+but cannot certify current coverage. A later current complete result clears the
+failure. Nonempty DS035 readiness cannot override a complete source set merely
+because it has one joined candidate; its replacement/completeness law needs a
+separate, explicit subscriber decision.
+
+Reuse the existing route/viewport paint primitives: the present speed-based core,
+blue paths, and facility sidecars, including one blue buffered sidecar with white
+dots. Preserve facility-side evidence, unknown states and selection length model.
+No scoring or bidirectional risk assumption is introduced here. No renderer,
+drawer or A-controller redesign is part of this sourcing phase.
+
+## Implementation and activation gates
+
+Next backend ticket must pin its exact base and permitted new reader/contract/
+service/test files, identify reused immutable validators, and preserve existing
+service behavior. Use synthetic database rows and credentials. Required fixtures
+include valid native/inherited cells, actual destination state precedence,
+incomplete/missing cells, metadata-only coverage, missing/corrupt object blobs,
+unknown source facts, count/body conflicts, world-edge slivers, caps, timeout,
+disconnect and bounded concurrency. Matching wire goldens come only after the
+contract's precise response projection is independently reviewed; the companion
+behavior vectors are not executable reader tests or wire goldens.
+
+Before activation require separately reviewed exact backend, Edge and frontend
+candidates, bounded query-plan/material-availability evidence, explicit rider
+authorization, owner-approved operational manifest and rollback, current backend
+deployment prerequisites, subscriber/human gate and post-deployment read receipt.
+Then repeat matched route-optional and loaded-route pan/toggle/return sequences
+with the same basemap, camera, switches and timings, tracing requested cells,
+received objects, coverage and renderer retention independently. Complete cache
+hydration does not certify map responsiveness, Safari recovery or battery life.
+
+
+---
+
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
@@ -53974,7 +54187,7 @@ after artifacts, never predicted in the report.
 
 # ADR-067 — Owner-Gap Truth Rules for the Sealed Exact-Topology Overlay: Medium Family Corroboration, Direction-Legal Carriers, and Divided-Road Disambiguation
 
-**Status:** R1, R2 and direction-only R3 approved for implementation and isolated validation by the amended architecture gate (2026-10-09); R4–R6 remain proposed. Original proposal: 2026-10-01. This is a truth-lane change to route ownership, so it needs the
+**Status:** Proposed (2026-10-01). This is a truth-lane change to route ownership, so it needs the
 human gate (Derek) and the architecture gate (ChatGPT) before any implementation. Nothing here
 changes code, artifacts, policies or published routes.
 
@@ -54176,42 +54389,4 @@ interval. Without R3: Tims 1,850.8 m (60 %), Capitol 6,449.5 m (44 %).
 - Which unnamed micro-kink competitors are the same road (R6 leaves them vetoing).
 - How each medium family splits between a medium boundary and stray edge geometry.
 - Whether the effects on two routes generalise to the fleet: the sample is two NJ/MD routes.
-
-## Amended architecture gate — 2026-10-09
-
-Derek relayed the architecture gate approving **R1, R2 and direction-only R3 for implementation and isolated validation**. This addendum controls over the original proposed wording and simulated figures above. It authorizes no merge or production activation.
-
-- **R1:** Preserve medium corroboration in receipts. Require a unique sealed exact owner, full containment in one eligible high/medium family atom, owner membership and no veto. Low/unresolved are ineligible. Do not broaden unrelated high-confidence gates. Report actual confidence causes, distinguishing initial 18 m / 45°, later-edge 30 m / 65°, boundary effects, combinations and explicit unknowns.
-- **R2:** Use one source-bound direction evaluator shared with R3. Honor `oneway:bicycle=no` and legacy `cycleway=opposite*`, `cycleway:left=opposite*`, `cycleway:right=opposite*`. Exclude only proven-forbidden traversals of explicit `oneway=yes` / `oneway=-1`; uncertainty retains competitors. Do not remove whole ways or stop after excluding the first witness.
-- **R3:** Count distinct directed sequences without losing surviving path realizations. Zero or multiple survivors refuse. One survivor still requires sealed-owner membership and every applicable subsequent proof. Incomplete searches cannot establish uniqueness. The original repeated-way/revisit exclusion is withdrawn; no blanket revisit exclusion is authorized.
-- Version policies and receipts; distinguish eligible sets, exclusions and performed work, and preserve historical identities. Validate Dam plus the 17 working routes with matched inputs and complete ownership, coverage and risk deltas. Keep native 1,024-record and experimental Dam 2,048-record package identities separate.
-- #90 finding A is satisfied **as disclosed evidence**, not a renamed historical receipt. M remains unresolved; B/C/D and capacity remain separate gate matters. No R4–R6, raised shipping limits, proximity ownership, merge, publication, deployment, pin changes or production activation.
-
-The explicit one-way source dependency is a bounded safety risk: a wrong sealed OSM restriction can exclude a real competitor. This gate does not certify reverse-route legality, contraflow completeness or real-world bicycle access. Implementation and independent review must report the measured fleet outcomes; the old simulated gains are not acceptance claims.
-
-## Bounded PR #93 gate correction FG-93-01 — 2026-10-10
-
-The architecture gate returned **REQUEST CHANGES** on documentary head `2974b3ee8fc9e14af4a951b73ec6ad4f4474aaec`, runtime `62a5991fc2a983d657bfeac2da804673569c8ea0`. Static direction exclusions ignored conditional direction evidence. The authorized correction retains a traversal whenever relevant conditional direction evidence cannot be evaluated, including malformed-but-present evidence; preserves its tags and explicit uncertainty reason in versioned receipts; and adds shared-evaluator and R2/R3 integration tests, including a later conditional competitor after an earlier forbidden witness. No time-dependent routing engine is authorized. Static controls remain.
-
-The gate requires the combined raw-trim proof → positional overlay cases, including right-trim/apex and supported rounded-endpoint adjustment, without relaxing any downstream proof, tolerance or limit. Rebuild exact packages and repeat all 18 attempts on matched inputs; preserve the previous measurements and report conditional exclusions/ownership/paint/risk deltas. Native 1024 and experimental Dam 2048 remain separate. Crush/One Tributary material repair is outside this correction; unavailable stays unavailable. Return exact-head tests, scope, paired deltas and independent Claude review for re-gate.
-
-The gate resolves the prior interpretation questions: **B1** is approved as a scoped hard zero-survivor refusal after complete search and valid exclusions; **N2** is approved for the existing finite complete supporting path, including certification flanks, with distinct exclusion/counting domains retained. **R1** is accepted within its narrow scope. Raw partition count is defensive bookkeeping, not independent geometry proof. These resolutions are not merge authorization.
-
-No merge, production, publication, pin change, raised shipping limits, R3 revisit filtering, R4–R6 or proximity ownership is authorized. #90 M, B/C/D and shipping capacity remain separate gate matters.
-
-### Correction scope and retained evidence limitations
-
-The conditional rule covers `oneway:conditional`, `oneway:bicycle:conditional`, `oneway:vehicle:conditional` and `cycleway[:left|right|both][:oneway]:conditional`. A vehicle-wide condition is relevant to bicycles in the [OSM transport-mode hierarchy](https://wiki.openstreetmap.org/wiki/Key:access#Transport_mode_restrictions). It is retained without evaluating its time or syntax, including an empty value. Speed and motor-vehicle-only conditions are not evaluated as bicycle direction conditions. Conditional evidence takes receipt-reason precedence over a simultaneous static bicycle exception; the tags preserve both and the traversal remains eligible.
-
-The FG-93-01 runtime `5d837d8b` did not extend the original static exception set. Its omission of modern static cycleway direction evidence is addressed by C-1 below, not retroactively repaired in that identity. Static `oneway:vehicle`, static motor-vehicle hierarchy tags and directional bicycle access conditions (`bicycle:forward/backward:conditional`) remain uninterpreted. Directional bicycle access conditions can carry relevant permission and are not claimed irrelevant. Their effect on bicycle permission remains a separate gate item, not a repaired or certified capability. Missing/odd-value retention claims apply only to the enumerated keys, not to every OSM direction tag.
-
-Value-blind retention also covers a conditional value that merely repeats a restriction. As a competitor this can preserve a veto; as a sole owner traversal it can permit admission under the unchanged ordinary complete-path proofs. This is matching eligibility, not certification of bicycle legality or permission at a particular time. The paired sole-owner regression and the fleet's branch/exclusion deltas must disclose this consequence.
-
-The source digest checks bind evidence to the trusted owner-published material representation. The existing predicate accepts nullable per-object version/timestamp metadata when producer digests match; this correction does not change that boundary or certify external OSM authenticity. Claude's review raised stricter metadata checks as optional separate work. Preserve that finding and the earlier trusted-publisher limitations; do not describe them as repaired vulnerabilities.
-
-### Bounded reviewer correction C-1 — modern static contraflow evidence
-
-Claude's [independent review](https://github.com/dminner/lanterne/pull/93#issuecomment-6101252232) found modern contraflow evidence omitted from the shared evaluator. The bounded correction adds `cycleway:oneway` and `cycleway:left/right/both:oneway` to its exact receipted tag set. A value of `-1` or `no` retains the traversal as a bicycle exception; these permissions must not let car-only `oneway` evidence remove a competitor. Modern [contraflow tagging](https://wiki.openstreetmap.org/wiki/Tag:cycleway:left:oneway%3D-1) replaces deprecated `opposite*` tags. Unsupported or malformed present values, and `yes` conflicting with general `oneway=-1`, retain the traversal as uncertain. Explicit matching `yes` still permits the existing wrong-way exclusion. Unevaluated conditional evidence and failed source authentication keep their existing precedence.
-
-Version the evaluator/evaluation identities to v6, the closure to v19 and its audit to v6. Audit rows preserve the actual retained bicycle-exception evaluations and tags as well as the existing counts and conditional rows. This is matching eligibility, not time-specific permission or a legality certification. All subsequent geometry, completeness, bound, sealed-owner and positional-overlay proofs remain unchanged. Repeat the 18 matched attempts and preserve the prior packages, observations and historical review. This correction supplies implementation evidence for re-gate; it does not authorize merge or activation.
 
