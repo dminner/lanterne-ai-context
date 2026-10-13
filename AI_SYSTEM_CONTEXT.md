@@ -40826,219 +40826,6 @@ inputs exist.
 
 ---
 
-## Source File: docs/02-architecture/design/p7-viewport-cache-reader-v1-proposal-20261011.md
-
-# P7 viewport road cache reader — contract proposal
-
-Recorded: 2026-10-11. Status: **proposed; no implementation or activation**.
-Phase: `MAP-VIEWPORT-SOURCING-20261011`, follow-up to issue #97.
-
-The viewport's deployed road proxy still calls the stopped legacy service on port
-3000. The P7 cache has a separate material-object store, but neither its grid
-coverage API nor its route materialization API is a viewport road reader. This
-proposal defines that missing read boundary. It does not restart the old service,
-change providers, admit a new subscriber, or authorize a production operation.
-
-## Existing authority and scope
-
-Frontend source inspected: `c271ffdd1652d6a10660ba3557567701e08b5d5f`.
-Backend source inspected: `5bc7ab3175767816be1fdb3c44a253bd40b052ce` in
-`dminner/nuremberg-owned-spatial`. Repository source is not deployed authority.
-An implementation base must be reconciled with the currently installed P7
-release and composite cache authority before a backend implementation ticket.
-
-Follow ADR-047/DS-035 for cache authority, ADR-058/DS-061 for viewport owners,
-ADR-060/DS-065 for selection, and the backend's AGENTS.md for all operations.
-ADR-058 and ADR-060 remain marked Proposed; this proposal does not promote them.
-
-The reader exposes cached OSM highway-way material, including paths when present
-under the grid's source enumeration law. It does not return route artifacts,
-route axes, route risk scores, HPMS joins, arbitrary POIs, or complete hazard-node
-coverage. P7 cell terminality cannot establish all of those facts. Full hazard
-and POI acquisition continue to need their own readers.
-
-## Request and service boundary
-
-Proposed backend path: `POST /v1/p7/viewport/roads`.
-
-```json
-{
-  "schemaVersion": "p7-viewport-roads-request.v1",
-  "bounds": { "south": 39.8, "west": -74.6, "north": 39.85, "east": -74.55 }
-}
-```
-
-These are the only request fields. Require finite JSON numbers, world bounds,
-and strictly positive width/height. Reject unknown keys, wrapped/crossing boxes,
-caller-selected source revisions, manifests, SQL, tables, paths, limits, or
-profile authorities. Dateline callers use two ordinary regions, preserving each
-request and observation separately. Reuse the existing grid API's exact decimal
-positive-intersection law; do not add epsilon snapping or change grid resolution.
-
-A separately installed cache-only process has the existing cache-reader and
-cancellation pools, exact cache database identity, pinned source/manifest/policy
-authority and a loopback listener. It has no OSM source pool, writer credential,
-hydrator/controller import, materialization endpoint, or route compiler. Reject
-forbidden environment names by presence, as the artifact-reader seam already
-does. Reuse existing fixed read-only identity/ACL/digest guards; do not weaken
-them or assume current role access is sufficient without checking it.
-
-The upstream read bearer stays in a server-side Edge proxy. A browser never
-receives that bearer or selects the upstream. Existing admin-only grid coverage
-access is not rider authorization for this new API. A separate gate must choose
-the rider access policy, rate limits and exact provider configuration before an
-Edge implementation or activation; this proposal does not make that choice.
-
-## Response and completeness
-
-Success schema: `p7-viewport-roads-response.v1`. Return the exact normalized
-request, deterministic query digest, repeatable-read observation time, source
-revision, grid version, manifest/policy authority, actual/effective cell receipts,
-validated material objects, and a compact acquisition summary. For composite
-coverage retain parent/supplement and per-cell origin authority. A monolithic
-manifest label must not hide a composite read.
-
-Use separate fields for three different claims:
-
-| Field | Meaning |
-| --- | --- |
-| `responseComplete` | The bounded response is whole and untruncated. |
-| `coverage.state` | `complete`, `partial`, `verified_empty`, or `unavailable` for the selected cached highway-way target law and authority. |
-| Per-object source tags/missing fields | Which source facts exist; coverage does not fill absent speed, traffic, lane, shoulder, or timestamp facts. |
-
-Every positively intersecting expected grid cell must have a receipt, including
-cells outside the configured manifest footprint. An absent cell is `missing`,
-not empty. Retain each physical execution state independently of effective
-inherited coverage. Cell receipts bind source/manifest/policy and contain
-expected target count, membership count, validated target-geometry count,
-incomplete target count, and typed refusal/missing reasons. Distinct object
-counts and per-cell occurrence counts remain separate.
-
-`complete` requires all selected cells to be valid native `live` or
-`verified_empty`, or equivalent inherited cells whose existing compatibility
-receipts and retained predecessor evidence validate. Reconcile target counts,
-unique target/incomplete memberships, policy-bound object bindings and every
-returned blob before asserting completeness. Merely receiving a coverage run,
-seeing a nonzero row, or reading a healthy service is insufficient. Inherited
-objects retain their actual predecessor policy/manifest binding; do not relabel
-v1 material as native v2. Current native destination state wins under the
-existing effective-state law. Missing or invalid predecessor receipts refuse
-inherited completeness.
-
-`processed_incomplete`, `pending`, `leased`, `failed`, missing cells, unavailable
-bindings and incomplete target geometry keep the rectangle partial/unavailable.
-Valid cached objects may still be returned under a partial receipt. Material
-from a typed incomplete target may be shown only if its object independently
-passes the existing geometry/tag/digest validator; its presence does not repair
-the cell's completeness claim.
-
-When any selected cell is unresolved, use `partial` if at least one current,
-authority-valid object is returned, and `unavailable` otherwise. All resolved
-cells with at least one valid target use `complete`; all resolved zero-target
-cells use `verified_empty`. An invalid authority, conflicting body, malformed
-response or cap failure refuses the entire new response rather than publishing
-its remaining objects as a new complete generation. Previously accepted stale
-rendering is a separate client retention decision.
-
-`verified_empty` requires every selected cell to prove zero targets under the
-exact cached enumeration law, with zero memberships and no invalid inheritance.
-It never means no roads, hazards or cyclists exist in the real world. An empty
-object array without those receipts is unavailable, not verified empty.
-
-Preserve complete canonical object payloads: source way ID, ordered geometry and
-node IDs, terminal nodes, source name/ref/tags, missing-field list, and existing
-geometry/tag/node/body digests. Full object geometry may extend outside the
-requested cell window; the viewport owner filters and retains it under existing
-budgets. Do not clip or simplify a payload while retaining its original digest.
-Deduplicate by source/policy/object/body identity; conflicting bodies fail closed.
-
-`observedAt` is the cache snapshot time, not source freshness. Existing objects
-have null source version/timestamp with explicit missing-field reasons. Preserve
-those facts. Absent cycleway/shoulder tags do not mean confirmed absence, and
-missing traffic is not zero. Keep any existing client display estimates separate
-from source facts and preserve their present provenance and classification law.
-
-## Bounded cache read
-
-One repeatable-read, read-only transaction re-proves cache identity, role ACL,
-eligible source epoch, native/composite launch bindings, and inheritance before
-reading membership/object blobs. Fixed parameterized reads use only existing
-approved cache tables/views. No source database scan, on-demand hydration,
-materialization, writer fallback, unbounded JSON/table scan or broad object-store
-enumeration is permitted. Payload budgets are checked before fetching blobs.
-
-Initial proposed limits, subject to synthetic and read-only plan evidence:
-
-| Resource | Proposed hard maximum |
-| --- | --- |
-| Request | 1 KiB |
-| Expected intersecting cells | 64 |
-| Distinct target IDs | 2,000 |
-| Geometry vertices | 100,000 |
-| Encoded response | 2 MiB |
-| SQL statement / transaction wall time | 1.8 s / 3 s |
-| Lock wait | 250 ms |
-| In-flight backend reads | 2 |
-
-These are design bounds, not measured capacity or latency claims. Use cap+1
-probes and fixed ordering to detect overflow; never return a truncated success.
-An exceeded limit returns a typed 422 with no geometry/complete coverage claim.
-The future client may subdivide into at most four regions, with at most two
-outstanding reads and explicit non-atomic observation bounds. Exhaustion remains
-partial and waits for a new view or deliberate retry; no automatic retry storm.
-
-Cancellation retires the HTTP read, cancels its SQL through the existing
-separately authenticated read-only cancellation seam, rolls back and releases
-both pools. Superseded browser generations cannot commit even when a transport
-ignores abort. Responses use `no-store`, including failures. Invalid input,
-authentication, bounded capacity and service failures retain distinct typed
-errors without database details or credentials.
-
-## Future frontend integration and visual language
-
-Implement an adapter at the existing viewport acquisition owner, outside the
-renderers and road strip. Keep legacy acquisition unchanged until separately
-gated activation; do not silently combine P7 and legacy objects as one complete
-answer. Compare normalized public fixtures and a read-only shadow before cutover.
-
-Feed speed and bike selectors from the same accepted generation. Retain stable
-object keys, moving-window eviction, off-screen layer removal, cancellation and
-the repaired stale/partial disclosure. A stale retained object can remain visible
-but cannot certify current coverage. A later current complete result clears the
-failure. Nonempty DS035 readiness cannot override a complete source set merely
-because it has one joined candidate; its replacement/completeness law needs a
-separate, explicit subscriber decision.
-
-Reuse the existing route/viewport paint primitives: the present speed-based core,
-blue paths, and facility sidecars, including one blue buffered sidecar with white
-dots. Preserve facility-side evidence, unknown states and selection length model.
-No scoring or bidirectional risk assumption is introduced here. No renderer,
-drawer or A-controller redesign is part of this sourcing phase.
-
-## Implementation and activation gates
-
-Next backend ticket must pin its exact base and permitted new reader/contract/
-service/test files, identify reused immutable validators, and preserve existing
-service behavior. Use synthetic database rows and credentials. Required fixtures
-include valid native/inherited cells, actual destination state precedence,
-incomplete/missing cells, metadata-only coverage, missing/corrupt object blobs,
-unknown source facts, count/body conflicts, world-edge slivers, caps, timeout,
-disconnect and bounded concurrency. Matching wire goldens come only after the
-contract's precise response projection is independently reviewed; the companion
-behavior vectors are not executable reader tests or wire goldens.
-
-Before activation require separately reviewed exact backend, Edge and frontend
-candidates, bounded query-plan/material-availability evidence, explicit rider
-authorization, owner-approved operational manifest and rollback, current backend
-deployment prerequisites, subscriber/human gate and post-deployment read receipt.
-Then repeat matched route-optional and loaded-route pan/toggle/return sequences
-with the same basemap, camera, switches and timings, tracing requested cells,
-received objects, coverage and renderer retention independently. Complete cache
-hydration does not certify map responsiveness, Safari recovery or battery life.
-
-
----
-
 ## Source File: docs/03-adrs/adr-000-README.md
 
 # Architecture Decision Records
@@ -54389,4 +54176,65 @@ interval. Without R3: Tims 1,850.8 m (60 %), Capitol 6,449.5 m (44 %).
 - Which unnamed micro-kink competitors are the same road (R6 leaves them vetoing).
 - How each medium family splits between a medium boundary and stray edge geometry.
 - Whether the effects on two routes generalise to the fleet: the sample is two NJ/MD routes.
+
+
+---
+
+## Source File: docs/03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md
+
+# ADR-068 — Safety First: Lanterne Is a Bike Safety Brand, the Everyday Rider Is the Default, and Lanterne Is the Check Between Planning and Riding
+
+**Status:** Proposed. Decided in principle by Derek in session on 2026-10-13; acceptance, and any rider-facing or public wording that follows from it, at the owner gate on this PR (AGENTS.md: rider-facing safety language, safety semantics and public claims are human-gated).
+
+**Owner statement this records:** "Protect the magic." Don't strip riders of the night ride, the long day, the thing they love. Shave the risk off inside it.
+
+**Related:** PROD-001 (Positioning), PROD-003 (Rider Archetypes), PROD-006 (Anti-Features), ADR-003 (Mode-Aware Vault Filtering), ADR-006 (Safety Definition), ADR-031 (Multi-Day Events, Proposed), ADR-034 (Master Route Expeditions, Draft), ADR-044 (Profile-Based Routing), `src/config/modes.ts`
+
+---
+
+## Context
+
+The product documents position Lanterne for long-distance riders. PROD-001 says the factors Lanterne reveals "matter deeply for long-distance cyclists" and lists the rider as one who travels far, rides alone, rides through the night and plans multi-day routes. PROD-003 names four archetypes (randonneur, bikepacker, endurance soloist, nocturne rider) and says Lanterne is not optimized for casual riders or short recreational loops. Earlier strategy sessions pushed the positioning further in the same direction, toward "long ride intelligence".
+
+Three things changed that framing.
+
+1. **"Long ride intelligence" is the narrow frame, not the broad one.** It speaks to the endurance minority. Route risk speaks to anyone who has had a car come up too fast behind them, which is everyone on a bike. The safety question PROD-001 already names — "What kind of road am I committing to?" — has no distance in it.
+2. **Build effort has followed the owner's own riding.** A disproportionate share of recent work serves randonneuring (brevet tooling, support-gap emphasis, American Randonneur surfaces, long-route windowing). That work is good and stays. It is not where the next hours should go.
+3. **The distribution path is physical and local.** Lanterne is going to reach riders through local bike shops and races (a countertop display of reflective ankle bands; red lanterns for the last finisher at local events), with the free safety check as what those riders download. That audience is everyday riders and commuters first.
+
+The code already has the mechanism this needs. `src/config/modes.ts` defines `normal`, `randonneuring` and `bikepacking` as a pure interpretation layer, with `DEFAULT_MODE = 'normal'`, and the `normal` lens already emphasises traffic exposure, speed environment, bike infrastructure and hazards.
+
+## Decision (proposed)
+
+1. **Lanterne is a bike safety brand.** Safety is the identity. The app is one expression of it, not an app category. Route intelligence, routing, pacing and long-ride planning are capabilities inside a safety product, never the headline. Physical products (reflective gear, formerly the separate Eye Catcher brand) are a Lanterne product line; they live outside this repository and are named here only so the positioning documents stay consistent with them.
+
+2. **The everyday rider is the default user.** The default experience assumes no knowledge of brevets, controls or randonneuring vocabulary. `normal` stays the default mode and becomes the mode every new rider-facing feature is designed for first.
+
+3. **Randonneuring and bikepacking are advanced lenses, and their build-out pauses.** Existing work in those modes is kept, not removed. New work in them is limited to defects and to keeping them working as the shared pipeline changes. A new mode-specific feature needs a fresh owner decision. The mode selector stays; whether it is visible by default or tucked behind a setting is a UX decision for the implementing ticket.
+
+4. **Lanterne is the safety check between planning and riding, not an end-to-end planner.** Riders plan in the tools they already use (Ride with GPS, Komoot, Strava, Garmin), bring the route to Lanterne to see how risky it is and where, adjust, then navigate wherever they navigate. Lanterne does not compete on route drawing, turn-by-turn navigation or ride recording. This restates PROD-001's "intelligence layer above the map" and makes it a scope rule.
+
+5. **Multi-day excursion tracking is deprioritized, not withdrawn.** ADR-031 and ADR-034 remain as they are (Proposed and Draft) and are not advanced now. The near-term requirement is only that the single-route safety check works on a route that happens to be long or span days; owning a multi-day planning and tracking experience waits for a later owner decision.
+
+6. **Proposed product tiers.** The route safety check is free for everyone. Paid capabilities sit on top: loading one's own GPX at scale, on-the-fly routing, pacing and timing, and support/resupply (food, water, shelter) intelligence. This is a product intent, not a pricing decision, and the word "free" is a public claim that must be gated before it appears anywhere a rider can read it.
+
+## Consequences
+
+- PROD-001 is to be revised: the rider Lanterne serves is any cyclist choosing a road, with long-distance riders as a served advanced audience rather than the definition.
+- PROD-003 is to be revised: add an everyday/commuter archetype first; remove or rewrite "Who Lanterne Is Not Designed For", which currently excludes short recreational loops.
+- PROD-006 gains a rule: Lanterne does not build route-drawing, turn-by-turn or ride-recording features to compete with the planning tools it sits beside.
+- Phase planning uses one test: does this serve the everyday safety default? Work that only serves an advanced lens needs an explicit reason.
+- Nothing in the truth lane, scoring or evidence pipeline changes. Mode remains an interpretation layer (`modes.ts` architectural rule).
+
+## Alternatives considered
+
+- **"Long ride intelligence" as the headline.** Rejected: it narrows the market to the endurance minority and frames Lanterne as a feature set that can be out-featured.
+- **End-to-end planner and navigator.** Rejected: it competes with mature tools on their strengths and spreads effort away from the one question they don't answer.
+- **Removing the randonneuring and bikepacking modes.** Rejected: the work is sound and serves real riders; the decision is about priority and defaults, not deletion.
+
+## Open questions for the owner gate
+
+- Mode selector visibility for new riders (visible, or behind a setting).
+- Exact rider-facing wording for the free tier and for "Protect the magic" as a public line.
+- Whether "Normal" is the right rider-facing label for the default lens.
 
