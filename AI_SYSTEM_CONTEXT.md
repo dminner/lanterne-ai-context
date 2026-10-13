@@ -54216,7 +54216,12 @@ The code already has the mechanism this needs. `src/config/modes.ts` defines `no
 
 5. **Multi-day excursion tracking is deprioritized, not withdrawn.** ADR-031 and ADR-034 remain as they are (Proposed and Draft) and are not advanced now. The near-term requirement is only that the single-route safety check works on a route that happens to be long or span days; owning a multi-day planning and tracking experience waits for a later owner decision.
 
-6. **Proposed product tiers.** The route safety check is free for everyone. Paid capabilities sit on top: loading one's own GPX at scale, on-the-fly routing, pacing and timing, and support/resupply (food, water, shelter) intelligence. This is a product intent, not a pricing decision, and the word "free" is a public claim that must be gated before it appears anywhere a rider can read it.
+6. **Proposed product tiers: the line is pre-computed versus on-demand, and safety is never paid.** (Refined by Derek later on 2026-10-13.)
+   - **Free:** the full safety analysis (hazards, scoring, everything the paid tier shows about risk) on library routes: predefined routes such as RUSA's, and community-submitted local routes. A submitted route is computed once and stored as an artifact, so the free library grows at near-zero marginal cost. **Water is free** on every route: on a long ride it is a safety need, not a comfort.
+   - **Paid:** anything computed on demand: importing one's own GPX, custom and on-the-fly routing, pacing and timing; plus the live comfort-and-logistics POI layer (food, lodging, bathrooms), which is a live OpenStreetMap fetch with a real per-request cost.
+   - **Guardrail:** the free tier must feel complete, never like safety is being held hostage. The paywall is "I've outgrown the free tier", not "they're hiding the danger".
+
+   This is product intent, not a pricing decision. "Free" and any price are public claims that must be gated before they appear anywhere a rider can read them.
 
 ## Consequences
 
