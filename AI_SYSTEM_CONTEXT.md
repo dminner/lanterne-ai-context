@@ -20918,6 +20918,65 @@ Current policy:
 - z-level controls density and visual familiarity
 - cyclist salience controls styling, loading order, and prioritization
 
+## 9.5 Viewport Display Bands (Active Main Viewport Gate, 2026-10-13)
+
+This section is the policy the two viewport overlays (speed "lightbulb" and bike-facility "eye") apply before painting. It restores the original road-type/zoom assignment as the main viewport gate. Sections 9.1–9.4 above are kept as the historical record of what they described; they are not rewritten.
+
+Authority:
+
+- The table below is the §9.4 substrate z-band table, identical to ADR-047 §10.3, in both the June snapshot `56906c9e27f19a9677cd6f0cffada8d6d7b418ce` and the July snapshot `510fb2889f70feb60bdd0d2493e317eca5afdb00`.
+- Derek clarified on 2026-10-13: the hydration-stage table is not the display policy. Far zoom shows paths, primaries and tracks, then secondaries, then tertiaries.
+- Signed preflight: `docs/04-execution/reports/map-viewport-display-bands-preflight-20261013.md`.
+- The original rules are the `wayZ10Eligible` / `wayZ11Eligible` / `wayZ12Eligible` predicates in `src/lib/substrate/cache-candidate-preview.ts`. They are used as evidence; the full graph and preview are not rebuilt per road.
+
+Active display table. Floors are cumulative, and a floor is the lowest actual map zoom at which a road of that class may paint:
+
+| Floor | Display class | Qualification |
+| ---: | --- | --- |
+| 10 | safe path | existing raw-tag candidate classifier (`classifyCyclistSubstrateCandidateWay`) returns `safe_path` |
+| 10 | gravel track | candidate classifier returns `gravel_track` (including its named path–track bridge case) |
+| 10 | primary connector | candidate classifier returns `primary_connector` (its qualified trunk/primary/link cases) |
+| 10 | protected cycle corridor | candidate classifier returns `protected_cycle_corridor` **and** a cycleway facet is exactly `track` or `opposite_track` |
+| 11 | secondary | secondary (and links) accepted by the existing viewport road rules |
+| 12 | tertiary | tertiary (and links) accepted by the existing viewport road rules |
+| 12 | long residential continuity | only with genuine `residential_continuity_over_2mi` provenance — **currently no producer; nothing is promoted** (see below) |
+| 13 | local | accepted residential, unclassified, living_street |
+| 14 | unclassified accepted detail | any other accepted viewport road, labelled `z14_unclassified_accepted_detail` (for example an expressway trunk the candidate classifier does not qualify as a connector) |
+| never | excluded | not an accepted viewport road (`isViewportSpeedProfileRoad`): no road type, motorway, construction/proposed, private or bike-prohibited access, service/driveway/parking aisle/alley, sidewalk-only footway, crossing connector, hazard/traffic-control node, missing or unusable geometry; also any way the candidate classifier explicitly rejects for access (`private_or_bicycle_prohibited_access`, `trunk_rejected_bicycle_prohibited`), which no class fallback overrides |
+
+Distinction from §9.1 and §9.2:
+
+- §9.1 hydration priority groups and §9.2 acquisition continuity decide what is fetched, in what order, and what is kept warm. They are unchanged, and they still drive acquisition and render-budget ranking.
+- Their group, stage and effective-length tags (`_substrate_viewport_priority_group`, `_viewport_speed_priority_group`, stage keys, `_*_effective_length_*`) are **never read** by the display gate. An acquisition fact cannot give a tertiary z11 or a short named residential z12, and the hydration 0.25 mi / 0.5 mi local groups promote nothing.
+- This **supersedes the viewport visual application of §9.2's one-level hysteresis**. §9.2 hysteresis remains the hydration/acquisition rule.
+
+Current-zoom strict removal and fractional zoom:
+
+- Eligibility is strict `zoom >= floor` at the map's actual fractional zoom. There is no epsilon and no previously-painted allowance. A tertiary shows from exactly 12, not at 11.999. Local fabric shows from exactly 13.
+- Zooming in and zooming out give the same set at the same zoom.
+- A non-finite zoom supplies no entitlement: nothing paints.
+- Retained rows (painted V2 rows re-offered while a refresh or a lower band no longer supplies them) may bridge a refresh/loading gap only while their class floor is met at the current zoom. A newer same-ID observation replaces an older retained one before classification. Retained-row composition itself is unchanged.
+- The gate applies to cache, bbox, retained and peer-handoff rows in both overlays, before render budget, fragment merge, render keys, sidecars and transparent hit paths. The speed overlay's legacy (bbox) branch meets the same floor before its legacy display filter. No null-metadata, search or peer fallback reintroduces an excluded or below-floor row. A dropped row creates no layer and earns no painted standing.
+
+Evidence rules:
+
+- The class comes from the row's own raw road-type facts through the existing candidate, inclusion, access and sidewalk predicates, which are unchanged.
+- None of these promote a road: a hydration group, a speed or colour, a name, the `isSafePath` flag alone, or a generic facility lane.
+- **Protected** means an exact `track` / `opposite_track` cycleway value. The candidate classifier also counts `buffered_lane` (and `protected` / `separate` substrings) as protected; those are not promoted here. A buffered lane on a tertiary stays at 12.
+
+Long residential continuity — missing producer:
+
+- The original preview admits a residential way at 12 only with `residential_continuity_over_2mi` provenance, computed from graph continuity.
+- The current SpeedRoad conversion does not carry preview `includedReasons` or band flags. The viewport candidate builder replaces preview band flags with hydration-derived flags, so those are not interchangeable display authority.
+- These are **not** that provenance: own geometry length, the logical corridor total (`_substrate_corridor_total_length_m`), the hydration effective length (whatever its recorded source), and the name-family length hint.
+- With no producer on current inputs, accepted residential rows stay at 13. Restoring the z12 tier needs that provenance carried to viewport rows. That is a separately reviewed producer/adapter change, outside this scope.
+
+Limits of this frontend display-floor guard vs the full offline substrate simplification:
+
+- The guard does not reproduce historic corridor salience/importance scores, junction-connector promotion, selected/critical primary-connector rules, exceptional-track promotion at 11, or graph-connected residential continuity. Unavailable historical salience stays unavailable rather than being guessed.
+- z14 was a cache-candidate preview and sizing layer, not a central serving contract. Using 14 as a display floor here does not activate a z14 serving contract.
+- Eligibility is not acquisition completeness. Full-cell acquisition, the cache, profiles, render budgets and ranking, palettes, widths and hit tolerances are unchanged by this gate.
+
 ---
 
 # 10. Server-Authorized Write Model
@@ -49643,6 +49702,8 @@ Current implementation snapshot:
 - z14: preview-only broad traversable street universe, excluding service/driveway/sidewalk/private/construction junk
 
 The simplified central substrate currently emits z10-z13. z14 exists as cache-candidate preview and sizing evidence, not as the central substrate serving contract.
+
+Cross-reference (2026-10-13): this table, unchanged in the June (`56906c9e`) and July (`510fb288`) snapshots, is now applied as the main viewport DISPLAY gate for both viewport overlays, strictly at the actual map zoom. That gate is specified in DS-035 §9.5 (signed preflight `map-viewport-display-bands-preflight-20261013.md`), which also supersedes the viewport visual application of the one-level hysteresis in §10.2. The text above is kept as written: it is the historical substrate/cache-preview description, and §10.1/§10.2 remain the hydration and acquisition policy. Long residential continuity at 12 needs `residential_continuity_over_2mi` provenance that viewport rows do not currently carry, so it is not promoted. Using z14 as a display floor does not make z14 a central serving contract.
 
 ---
 
