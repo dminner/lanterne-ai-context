@@ -5009,7 +5009,7 @@ It’s:
 
 # Event notes
 
-Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`. Editable starter pages also live at `/about`, `/reflectors`, and `/app`; their initial copy is “More soon.” The homepage continues to open the map application.
+Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`. Editable starter pages also live at `/about`, `/reflectors`, and `/app`; their initial copy is “More soon.” The homepage continues to open the map application. Older links `/eyecatcher` and `/eyecatchers` redirect to `/reflectors`; `/lanterne` redirects to `/app`.
 
 ## Add a note
 
