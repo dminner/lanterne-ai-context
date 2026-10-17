@@ -5009,7 +5009,7 @@ It’s:
 
 # Event notes
 
-Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`. Editable starter pages also live at `/about`, `/reflectors`, and `/app`; their initial copy is “More soon.” The homepage continues to open the map application. Older links `/eyecatcher` and `/eyecatchers` redirect to `/reflectors`; `/lanterne` redirects to `/app`.
+Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`. Editable pages also live at `/about`, `/reflectors`, and `/app`. Reflectors and App contain Derek’s approved introductory articles; About remains a “More soon.” starter page. The homepage continues to open the map application. Older links `/eyecatcher` and `/eyecatchers` redirect to `/reflectors`; `/lanterne` redirects to `/app`.
 
 ## Add a note
 
@@ -5048,7 +5048,7 @@ Typing saves a private draft in this browser's local storage, scoped to the sign
 
 Published overrides use the existing `app_config` table, key `event-note:published:/crcx`, value `{ version: 1, note }`. Existing public SELECT and administrator INSERT/UPDATE RLS policies remain the authorization boundary. No private drafts enter this publicly readable table. Writes require a verified session and use conditional updates on `updated_at` (or an initial insert) to detect competing publishes. No schema, policy, Supabase client, or backend changes are required. Only bounded plain content is accepted; published links require HTTPS and video embeds accept YouTube IDs from supported hosts. Invalid content cannot preview or publish.
 
-On load, a valid published override takes precedence over the checked-in default. If public content cannot load, reading falls back to the bundled note; the editor blocks publishing until it can load the live version successfully. Removing an override intentionally requires an administrator/operator action outside this editor. New event paths still require a code release.
+On load, a valid published override takes precedence over the checked-in default. Repository-authored copy may also be published through the normal frontend release process when no override exists; verify that boundary before releasing content. If public content cannot load, reading falls back to the bundled note; the editor blocks publishing until it can load the live version successfully. Removing an override intentionally requires an administrator/operator action outside this editor. New event paths still require a code release.
 
 The intro video has no overlaid Lanterne logo. The letter has no visible “A note from Derek” label; its event name remains an accessible heading.
 
