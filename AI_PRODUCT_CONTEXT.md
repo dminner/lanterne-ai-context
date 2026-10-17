@@ -1252,6 +1252,14 @@ If a feature encourages riders to ride **faster instead of smarter**, it likely 
 
 # **Nocturne Survey**
 
+## Canonical logo
+
+Use Derek's supplied white wordmark with the colored flame A, stored unchanged at `public/assets/lanterne-logo.svg`. Render branding through `src/components/BrandLogo.tsx` so event pages, the intro, authentication, onboarding, plan selection, the route drawer, and the map watermark share the same artwork.
+
+The compact `mark` variant uses the original flame A, extracted from that SVG with a charcoal backing. It supplies the install prompt, browser favicon, and Apple home-screen icon. The white wordmark needs a dark backing when displayed over a bright map. Preserve its colors and aspect ratio; use width-based sizing.
+
+The app's interactive lantern instrument and gesture tutorial retain their functional artwork. Old logo files are retained as unused assets; active branding references use the supplied identity. The intro film itself is reused unchanged, with the new wordmark displayed over it.
+
 ## Design Philosophy
 
 **Nocturne Survey** defines the visual identity of Lanterne as a field instrument for riders who travel long distances through changing light.
@@ -1646,6 +1654,7 @@ Lanterne is not an outdoor lifestyle brand.
 It is a **route intelligence instrument** for riders who travel far and often through darkness.
 
 The interface should reflect **discipline, focus, and quiet exploration**.
+
 
 ---
 
@@ -4993,6 +5002,46 @@ Because the question isn’t just:
 It’s:
 
 > “What happens if I keep going like this?”
+
+---
+
+## Source File: docs/05-product/prod-015-event-notes.md
+
+# Event notes
+
+Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`.
+
+## Add or edit a note
+
+Edit `src/content/event-notes.ts`. Each entry defines its URL path, event label, browser title, description, paragraphs, signature, optional links, and optional media. Entries register their own routes through `src/App.tsx`; no separate page component is needed. Choose a unique path that does not collide with an existing application route.
+
+The first note preserves Derek's supplied wording and Instagram destination. Its photo is stored at `public/assets/events/crcx-ride.jpeg`, so deployment does not depend on access to his Photos library.
+
+Set `intro: true` to open with the existing Lanterne intro film. CRCX enables this. Visitors tap play to hear the film, then the screen fades into the letter when it ends. A “Read the note” shortcut and Escape reveal the letter immediately. The letter remains accessible if the video fails to load. This mode omits the app's map-gesture tutorial and does not read or change `lanterneIntroSeen`; a fresh visit to the note starts with the film even for an existing app visitor. Omit `intro` for a note that opens directly on the writing.
+
+An image entry needs `src`, descriptive `alt`, and intrinsic `width` and `height`. An optional `caption` appears below the image. Images retain their full proportions.
+
+Add a YouTube video to the `media` array using its eleven-character video ID:
+
+```ts
+{
+  type: "youtube",
+  videoId: "VIDEO_ID_11",
+  title: "A descriptive video title",
+  caption: "An optional caption",
+}
+```
+
+Replace the placeholder ID before publishing. Embeds use YouTube's privacy-enhanced host, lazy loading, a responsive 16:9 frame, and no autoplay. Multiple images, videos, and links are supported. Omit `media` or `links` for a plain letter. No additional YouTube video has been selected for CRCX.
+
+## Scope and release
+
+This is a repository-authored publishing format, without a browser editor or CMS. Content updates follow the normal reviewed release process. The page reads without authentication, map controls, or loading the main route-analysis application. Reading pages restore browser scrolling and zoom without changing the map application's viewport contract.
+
+The shared layout is in `src/pages/EventNote.tsx` and `src/pages/EventNote.css`. Existing app routes and providers live in `src/MainApplication.tsx` and load when needed.
+
+Public wording and claims remain subject to the human gate in `AGENTS.md`. Implementation validation does not certify a phase or authorize merging or production deployment.
+
 
 ---
 
