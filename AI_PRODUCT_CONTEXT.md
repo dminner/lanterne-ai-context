@@ -1252,6 +1252,14 @@ If a feature encourages riders to ride **faster instead of smarter**, it likely 
 
 # **Nocturne Survey**
 
+## Canonical logo
+
+Use Derek's supplied white wordmark with the colored flame A, stored unchanged at `public/assets/lanterne-logo.svg`. Render branding through `src/components/BrandLogo.tsx` so event pages, the intro, authentication, onboarding, plan selection, the route drawer, and the map watermark share the same artwork.
+
+The compact `mark` variant uses the original flame A, extracted from that SVG with a charcoal backing. It supplies the install prompt, browser favicon, and Apple home-screen icon. The white wordmark needs a dark backing when displayed over a bright map. Preserve its colors and aspect ratio; use width-based sizing.
+
+The app's interactive lantern instrument and gesture tutorial retain their functional artwork. Old logo files are retained as unused assets; active branding references use the supplied identity. The intro film itself is reused unchanged, with the new wordmark displayed over it.
+
 ## Design Philosophy
 
 **Nocturne Survey** defines the visual identity of Lanterne as a field instrument for riders who travel long distances through changing light.
@@ -1646,6 +1654,7 @@ Lanterne is not an outdoor lifestyle brand.
 It is a **route intelligence instrument** for riders who travel far and often through darkness.
 
 The interface should reflect **discipline, focus, and quiet exploration**.
+
 
 ---
 
@@ -4993,6 +5002,60 @@ Because the question isn’t just:
 It’s:
 
 > “What happens if I keep going like this?”
+
+---
+
+## Source File: docs/05-product/prod-015-event-notes.md
+
+# Event notes
+
+Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`.
+
+## Add a note
+
+Add new pages in `src/content/event-notes.ts`. Each entry defines its URL path, event label, browser title, description, paragraphs, signature, optional links, and optional media. Entries register their own routes through `src/App.tsx`; no separate page component is needed. Choose a unique path that does not collide with an existing application route.
+
+The first note preserves Derek's supplied wording and Instagram destination. Its photo is stored at `public/assets/events/crcx-ride.jpeg`, so deployment does not depend on access to his Photos library.
+
+Printable direct QR assets are in `docs/05-product/assets/crcx-direct-qr.svg` and `.png`. They encode `https://lanterne.io/crcx` itself. The previously supplied sticker's QR uses a short-link provider and currently opens the homepage; replace that QR with the direct asset before printing.
+
+Set `intro: true` to open with the existing Lanterne intro film. CRCX enables this. Visitors tap play to hear the film, then the screen fades into the letter when it ends. A “Read the note” shortcut and Escape reveal the letter immediately. The letter remains accessible if the video fails to load. This mode omits the app's map-gesture tutorial and does not read or change `lanterneIntroSeen`; a fresh visit to the note starts with the film even for an existing app visitor. Omit `intro` for a note that opens directly on the writing.
+
+An image entry needs `src`, descriptive `alt`, and intrinsic `width` and `height`. An optional `caption` appears below the image. Images retain their full proportions.
+
+Add a YouTube video to the `media` array using its eleven-character video ID:
+
+```ts
+{
+  type: "youtube",
+  videoId: "VIDEO_ID_11",
+  title: "A descriptive video title",
+  caption: "An optional caption",
+}
+```
+
+Replace the placeholder ID before publishing. Embeds use YouTube's privacy-enhanced host, lazy loading, a responsive 16:9 frame, and no autoplay. Multiple images, videos, and links are supported. Omit `media` or `links` for a plain letter. No additional YouTube video has been selected for CRCX.
+
+## Edit inline: draft, then publish
+
+Open `/crcx?edit=1` (or choose “Edit note” in the footer) and sign in with a Lanterne administrator account. Click the writing to edit it directly. Paragraphs, signature, event name, links, image URLs/descriptions/captions, and YouTube videos can be changed in the page. Page details contains the browser title, description, and intro toggle. The registered URL stays fixed so printed QR codes keep working.
+
+Typing saves a private draft in this browser's local storage, scoped to the signed-in user and page. Drafts do not sync between devices and are lost if browser storage is cleared. Preview shows the draft without publishing. **Publish changes** explicitly publishes for everyone. Discard restores the loaded live version. Failed publishing keeps the local draft. A newer live version blocks stale publication; inspect it before explicitly keeping the draft for a subsequent publish.
+
+Published overrides use the existing `app_config` table, key `event-note:published:/crcx`, value `{ version: 1, note }`. Existing public SELECT and administrator INSERT/UPDATE RLS policies remain the authorization boundary. No private drafts enter this publicly readable table. Writes require a verified session and use conditional updates on `updated_at` (or an initial insert) to detect competing publishes. No schema, policy, Supabase client, or backend changes are required. Only bounded plain content is accepted; published links require HTTPS and video embeds accept YouTube IDs from supported hosts. Invalid content cannot preview or publish.
+
+On load, a valid published override takes precedence over the checked-in default. If public content cannot load, reading falls back to the bundled note; the editor blocks publishing until it can load the live version successfully. Removing an override intentionally requires an administrator/operator action outside this editor. New event paths still require a code release.
+
+The intro video has no overlaid Lanterne logo. The letter has no visible “A note from Derek” label; its event name remains an accessible heading.
+
+## Scope and release
+
+Content overrides publish without a frontend redeployment. The page reads without authentication, map controls, or loading the main route-analysis application. Reading pages restore browser scrolling and zoom without changing the map application's viewport contract.
+
+The loader is `src/pages/EventNote.tsx`, the shared reading layout is `src/pages/EventNoteView.tsx`, and styles are in `src/pages/EventNote.css`. The editor is lazy-loaded only when requested. Existing app routes and providers live in `src/MainApplication.tsx` and load when needed.
+
+Public wording and claims remain subject to the human gate in `AGENTS.md`. Implementation validation does not certify a phase or authorize merging or production deployment.
+
 
 ---
 
