@@ -5017,6 +5017,8 @@ Edit `src/content/event-notes.ts`. Each entry defines its URL path, event label,
 
 The first note preserves Derek's supplied wording and Instagram destination. Its photo is stored at `public/assets/events/crcx-ride.jpeg`, so deployment does not depend on access to his Photos library.
 
+Printable direct QR assets are in `docs/05-product/assets/crcx-direct-qr.svg` and `.png`. They encode `https://lanterne.io/crcx` itself. The previously supplied sticker's QR uses a short-link provider and currently opens the homepage; replace that QR with the direct asset before printing.
+
 Set `intro: true` to open with the existing Lanterne intro film. CRCX enables this. Visitors tap play to hear the film, then the screen fades into the letter when it ends. A “Read the note” shortcut and Escape reveal the letter immediately. The letter remains accessible if the video fails to load. This mode omits the app's map-gesture tutorial and does not read or change `lanterneIntroSeen`; a fresh visit to the note starts with the film even for an existing app visitor. Omit `intro` for a note that opens directly on the writing.
 
 An image entry needs `src`, descriptive `alt`, and intrinsic `width` and `height`. An optional `caption` appears below the image. Images retain their full proportions.
