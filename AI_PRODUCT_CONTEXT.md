@@ -2640,7 +2640,7 @@ That gives Lanterne a stop system that is simple on the surface, truthful in the
 
 ## Supersession Notice
 
-This v3.1 methodology is historical. The active canonical model is [DS-015 - Safety Scoring Model](../02-architecture/design/ds-015-safety_scoring_model.md) (5.7 as of 2026-10-18).
+This v3.1 methodology is historical. The active canonical model is [DS-015 - Safety Scoring Model 5.5](../02-architecture/design/ds-015-safety_scoring_model.md).
 
 Current doctrine:
 
@@ -2728,8 +2728,6 @@ Sharrows receive no credit at launch.
 ### ShoulderFactor
 
 Shoulder credit applies **only** when there is no dedicated bike facility **and** speed ≥ 30 mph.
-
-> **Historical v3.1 rule — not current.** DS-015 5.7 (2026-10-18) applies shoulder credit at every speed, never over a dedicated bike facility and never for an unknown width. The legacy V3.1 preview pipeline follows the same application rule with its own V3.1 multipliers.
 
 | Shoulder Class | Width           | ShoulderFactor |
 |---------------|-----------------|----------------|
