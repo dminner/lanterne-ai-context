@@ -891,7 +891,7 @@ It reveals things that are otherwise invisible:
 
 These factors matter to anyone choosing a road, and they compound on long rides. They are rarely modeled.
 
-Lanterne is the **safety check between planning and riding**. Riders plan in the tools they already use, bring the route to Lanterne to see how risky it is and where, adjust, then navigate wherever they navigate. Lanterne does not compete on route drawing, turn-by-turn navigation or ride recording ([PROD-006](prod-006-anti_features.md)).
+Lanterne is the **safety check between planning and riding**. Riders plan in the tools they already use, bring the route to Lanterne to see how risky it is and where, adjust, then navigate wherever they navigate.
 
 ------
 
@@ -1013,13 +1013,13 @@ Needs from Lanterne:
 • the crossings that matter on a familiar route
 • how the same road changes by the hour
 
-Served by the default `normal` mode.
+Served by the default **Road** profile.
 
 ------
 
 ## Advanced lenses
 
-The archetypes below are served through the randonneuring and bikepacking modes. Existing work for them stays; new mode-specific build-out is paused (ADR-068).
+The archetypes below are served through the other ride profiles: Rando, Ultra, Gravel, and Touring/Bikepacking. A rider's profile comes from the type of riding they give at registration, and they can change it. Existing work for these profiles stays; new profile-specific build-out is paused (ADR-068).
 
 ------
 
@@ -1103,7 +1103,6 @@ Lanterne does not try to serve these needs:
 • group ride coordination
 • social activity tracking
 • performance training
-• route drawing, turn-by-turn navigation or ride recording
 
 Existing apps serve those well. Lanterne sits beside them.
 
@@ -1235,8 +1234,6 @@ The goal is to help them make **better route decisions**.
 
 # Anti-Features
 
-> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
-
 These are features Lanterne intentionally avoids.
 
 This document protects the product from feature creep.
@@ -1275,15 +1272,9 @@ Training metrics belong in specialized training platforms.
 
 ## No Gamification
 
-Riding on roads is already serious.
+Long-distance cycling is already challenging.
 
 The product should not turn it into a game.
-
-------
-
-## No Route Drawing, Turn-by-Turn or Ride Recording
-
-Riders plan and navigate in the tools they already use. Lanterne is the safety check between planning and riding, and does not build route-drawing, turn-by-turn or ride-recording features to compete with the tools it sits beside.
 
 ------
 

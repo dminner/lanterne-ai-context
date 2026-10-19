@@ -54259,28 +54259,33 @@ The code already has the mechanism this needs. `src/config/modes.ts` defines `no
 
 1. **Lanterne is a bike safety brand.** Safety is the identity. The app is one expression of it, not an app category. Route intelligence, routing, pacing and long-ride planning are capabilities inside a safety product, never the headline. Physical products (reflective gear, formerly the separate Eye Catcher brand) are a Lanterne product line; they live outside this repository and are named here only so the positioning documents stay consistent with them.
 
-2. **The everyday rider is the default user.** The default experience assumes no knowledge of brevets, controls or randonneuring vocabulary. `normal` stays the default mode and becomes the mode every new rider-facing feature is designed for first.
+2. **The everyday rider is the default user.** The default experience assumes no knowledge of brevets, controls or randonneuring vocabulary. **Road** is the default ride profile and the one every new rider-facing feature is designed for first. (Owner, 2026-10-19: "Road not normal." The code's `normal` mode is renamed by the implementing ticket.)
 
-3. **Randonneuring and bikepacking are advanced lenses, and their build-out pauses.** Existing work in those modes is kept, not removed. New work in them is limited to defects and to keeping them working as the shared pipeline changes. A new mode-specific feature needs a fresh owner decision. The mode selector stays; whether it is visible by default or tucked behind a setting is a UX decision for the implementing ticket.
+   **This is the beginning of the profile-aware ride experience.** The profile set is **Road, Rando, Ultra, Gravel, and Touring/Bikepacking**. Today `src/config/modes.ts` has three of them (`normal`, `randonneuring`, `bikepacking`); Ultra and Gravel are to be added. Profiles remain a pure interpretation layer.
+
+3. **Randonneuring and bikepacking are advanced lenses, and their build-out pauses.** Existing work in those modes is kept, not removed. New work in them is limited to defects and to keeping them working as the shared pipeline changes. A new mode-specific feature needs a fresh owner decision. The profile selector stays **visible**. The rider's profile is set from the type of riding they give at registration (page 2 of the registration form), and they can change it.
 
 4. **Lanterne is the safety check between planning and riding, not an end-to-end planner.** Riders plan in the tools they already use (Ride with GPS, Komoot, Strava, Garmin), bring the route to Lanterne to see how risky it is and where, adjust, then navigate wherever they navigate. Lanterne does not compete on route drawing, turn-by-turn navigation or ride recording. This restates PROD-001's "intelligence layer above the map" and makes it a scope rule.
 
 5. **Multi-day excursion tracking is deprioritized, not withdrawn.** ADR-031 and ADR-034 remain as they are (Proposed and Draft) and are not advanced now. The near-term requirement is only that the single-route safety check works on a route that happens to be long or span days; owning a multi-day planning and tracking experience waits for a later owner decision.
 
-6. **Proposed product tiers: the line is pre-computed versus on-demand, and safety is never paid.** (Refined by Derek later on 2026-10-13.)
-   - **Free:** the full safety analysis (hazards, scoring, everything the paid tier shows about risk) on library routes: predefined routes such as RUSA's, and community-submitted local routes. A submitted route is computed once and stored as an artifact, so the free library grows at near-zero marginal cost. **Water is free** on every route: on a long ride it is a safety need, not a comfort.
-   - **Paid:** anything computed on demand: importing one's own GPX, custom and on-the-fly routing, pacing and timing; plus the live comfort-and-logistics POI layer (food, lodging, bathrooms), which is a live OpenStreetMap fetch with a real per-request cost.
+6. **Proposed product tiers: the line is pre-computed versus calculated on the fly, and safety is never paid.** (Refined by Derek on 2026-10-13; restated by him on 2026-10-19.)
+   - **Free:** the **safety map for exploring local roads** (street, traffic and hazard data), and the **full safety route analysis on pre-computed routes**: library routes such as RUSA's, and community-submitted local routes. A submitted route is computed once and stored as an artifact, so the free library grows at near-zero marginal cost.
+   - **Paid:** features **calculated on the fly**: bringing one's own route (GPX, Ride with GPS and similar imports), custom routing; plus **convenience, pacing and ride-time features**.
    - **Guardrail:** the free tier must feel complete, never like safety is being held hostage. The paywall is "I've outgrown the free tier", not "they're hiding the danger".
+   - **Open:** on 2026-10-13 water was set as free on every route, as a safety need rather than a comfort. The 2026-10-19 restatement does not mention it; confirm before the tiers are built.
 
    This is product intent, not a pricing decision. "Free" and any price are public claims that must be gated before they appear anywhere a rider can read them.
 
 ## Consequences
 
-The three document revisions below are drafted in the same PR as this ADR (2026-10-19), so the owner gate reviews the decision and its wording together.
+The PROD-001 and PROD-003 revisions are drafted in the same PR as this ADR (2026-10-19), so the owner gate reviews the decision and its wording together. The PROD-006 rule is held back (owner, 2026-10-19: "not yet").
 
 - PROD-001 is to be revised: the rider Lanterne serves is any cyclist choosing a road, with long-distance riders as a served advanced audience rather than the definition.
 - PROD-003 is to be revised: add an everyday/commuter archetype first; remove or rewrite "Who Lanterne Is Not Designed For", which currently excludes short recreational loops.
-- PROD-006 gains a rule: Lanterne does not build route-drawing, turn-by-turn or ride-recording features to compete with the planning tools it sits beside.
+- PROD-006 is to gain a rule that Lanterne does not build route-drawing, turn-by-turn or ride-recording features to compete with the planning tools it sits beside. Not yet: held by the owner on 2026-10-19.
+- The implementing ticket renames `normal` to Road, adds the Ultra and Gravel profiles, and sets the profile from the registration answer.
+- Rider-facing copy written for the old frame (the onboarding page's "Intelligence for riders who go the distance", "Distance exposes what short rides don't") is out of step with this decision. Changing it is rider-facing language and goes through the human gate.
 - Phase planning uses one test: does this serve the everyday safety default? Work that only serves an advanced lens needs an explicit reason.
 - Nothing in the truth lane, scoring or evidence pipeline changes. Mode remains an interpretation layer (`modes.ts` architectural rule).
 
@@ -54290,9 +54295,15 @@ The three document revisions below are drafted in the same PR as this ADR (2026-
 - **End-to-end planner and navigator.** Rejected: it competes with mature tools on their strengths and spreads effort away from the one question they don't answer.
 - **Removing the randonneuring and bikepacking modes.** Rejected: the work is sound and serves real riders; the decision is about priority and defaults, not deletion.
 
-## Open questions for the owner gate
+## Owner answers, 2026-10-19
 
-- Mode selector visibility for new riders (visible, or behind a setting).
-- Exact rider-facing wording for the free tier and for "Protect the magic" as a public line.
-- Whether "Normal" is the right rider-facing label for the default lens.
+- **Selector visibility:** visible. The type of riding asked at registration (form page 2) drives the selection.
+- **Free versus paid:** free is the safety map for exploring local roads plus full safety analysis on pre-computed routes; paid is anything calculated on the fly (GPX, Ride with GPS, etc.) plus convenience, pacing and ride-time features. Recorded in Decision 6.
+- **Default label:** Road, not Normal. The profiles are Road, Rando, Ultra, Gravel, and Touring/Bikepacking.
+
+## Still open
+
+- Whether water stays free (Decision 6).
+- Rider-facing wording for the free tier and for "Protect the magic" as a public line.
+- The registration form's riding-type options are not in this repository; the implementing ticket must map each answer onto a profile.
 
