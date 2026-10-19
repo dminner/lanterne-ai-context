@@ -829,7 +829,7 @@ The core risk for each continuous segment is:
 SliceRisk = SliceMiles × (0.60 × SpeedFactor + 0.40 × TrafficFactor) × InfraFactor × ShoulderFactor
 ```
 
-Where SpeedFactor uses a piecewise-linear breakpoint table (≤20→0.50 through 55+→6.20), TrafficFactor uses a 6-step AADT-per-lane ladder with a fallback evidence chain, InfraFactor is multiplicative (protected 0.50, buffered 0.68, painted 0.82, none 1.00), and ShoulderFactor applies only when speed ≥ 30 and no bike facility exists (historical v3.1 rule; DS-015 5.7 and the V3.1 preview pipeline now apply shoulder credit at every speed, never over a dedicated facility or for an unknown width).
+Where SpeedFactor uses a piecewise-linear breakpoint table (≤20→0.50 through 55+→6.20), TrafficFactor uses a 6-step AADT-per-lane ladder with a fallback evidence chain, InfraFactor is multiplicative (protected 0.50, buffered 0.68, painted 0.82, none 1.00), and ShoulderFactor applies only when speed ≥ 30 and no bike facility exists.
 
 **Crossing risk contribution** replaces the former left-turn penalty: `min(0.75, 0.05 × √(SpeedFactor × TrafficFactor) × Width × Control × Movement)`. Crossing share is diagnostic; it does not cap additive route risk.
 
@@ -6694,7 +6694,7 @@ Persist the journey. Bound the working set. Do not confuse session recovery with
 
 **Status:** Community-facing methodology manifesto  
 **Companion to:** `ds-015-safety_scoring_model.md`  
-**Updated:** 2026-10-18
+**Updated:** 2026-04-25
 
 This is the plain-English version of Lanterne's safety scoring methodology.
 
@@ -6921,8 +6921,6 @@ And shoulder:
 | none / narrow shoulder | 1.00 |
 | normal shoulder | 0.85 |
 | wide shoulder | 0.80 |
-
-Since DS-015 5.7, that shoulder credit counts at every speed. A real shoulder on a 25 mph road gets the same credit as the same shoulder on a 45 mph road, so going faster can never make a road look safer just because it crossed a speed line. Two things still hold it back: if a bike lane is already getting credit for that operating space, the shoulder does not get counted twice, and if we do not actually know how wide the shoulder is, it gets no credit at all.
 
 This is not saying every painted lane is good or every shoulder is clean. Anyone who rides knows a shoulder can be full of glass, rumble strips, gravel, dead animals, storm grates, or whatever came loose from the last landscaping trailer.
 
@@ -7155,19 +7153,10 @@ Those stories are not the model. The model still has to stand on defensible meth
 
 ## Source File: docs/02-architecture/design/ds-015-safety_scoring_model.md
 
-# DS-015 - Safety Scoring Model 5.7
+# DS-015 - Safety Scoring Model 5.6
 
 **Status:** Canonical
 **Date:** 2026-06-22
-**Amended:** 2026-10-18 — 5.7 (SHOULDER-CREDIT-CONSISTENCY-20261018, [issue #152](https://github.com/dminner/lanterne/issues/152))
-
-**5.7 change (owner decision).** Shoulder credit (§8.5) applies at every speed on roads with positive
-pre-shoulder risk; the 5.6 launch gate that withheld shoulder credit below 30 mph is removed. The
-shoulder width breakpoints and factors, the dedicated-bike-facility double-credit suppression, the
-unknown-width no-credit rule, path / MUP zero road risk, and every other factor, threshold and gate
-(including the distinct crossing eligibility thresholds) are unchanged. Model identities advanced:
-`ds-015-5.6.0` → `ds-015-5.7.0` (`DS015_SCORE_MODEL_VERSION`) and `ds-015-5.6` → `ds-015-5.7`
-(rigid-ledger `modelVersion`). Scores produced under 5.6 are not current 5.7 scores.
 **Filename:** `ds-015-safety_scoring_model.md`
 
 ## Purpose
@@ -7297,7 +7286,7 @@ Minimum required fields:
 
 | Field | Meaning | Required use |
 | --- | --- | --- |
-| `modelVersion` | Safety model version, e.g. `ds-015-5.7` | cache key, trace, rank eligibility |
+| `modelVersion` | Safety model version, e.g. `ds-015-5.6` | cache key, trace, rank eligibility |
 | `routeMiles` | Route length in miles | denominator for risk per mile |
 | `totalRouteRisk` | Policy-calibrated sum of road and crossing risk points | combined route score |
 | `routeRiskPerMile` | `totalRouteRisk / routeMiles` | combined comparison basis |
@@ -7948,9 +7937,7 @@ confidence (§6.4).
 Application rules:
 
 - Shoulder credit applies only when no dedicated bike facility is already providing operating-space credit.
-- Shoulder credit applies at every speed (Amendment 2026-10-18 — DS-015 5.7). The 5.6 launch rule ("most meaningful at 30 mph and above; below that, launch scoring may use 1.00 unless the model version explicitly changes") is retired by this explicit model-version change. Speed is not a shoulder-eligibility input, so a higher speed with all other inputs fixed can never lower Road Risk through shoulder eligibility.
-- Unknown / unavailable / unparseable shoulder width receives no credit (1.00) at every speed; it is never assumed to be a `normal` shoulder.
-- Shoulder credit is multiplicative, so a zero-risk interval (including path / MUP) stays zero.
+- Shoulder credit is most meaningful at 30 mph and above; below that, launch scoring may use 1.00 unless the model version explicitly changes.
 - A path / MUP is not a protected on-road facility. It is handled by the path / MUP rule below.
 - Do not stack facility and shoulder credit in a way that double-counts the same operating space.
 
@@ -8553,7 +8540,7 @@ Source keys:
 | Facility values `0.50 / 0.75 / 0.80 / 1.00` | Protected / buffered / painted / none | `S-CMF-FACILITY`, `P-LANTERNE` | Calibrated launch constants | Values reflect stronger separation for protected, meaningful benefit for buffered, and modest benefit for painted. |
 | Shoulder likelihood concept | Operating-space reduction where no facility exists | `S-CMF-FACILITY`, `S-HSM-NCHRP` | Benchmark-informed / adapted | Shoulder matters as operating space, but should remain secondary to true facility separation. |
 | Shoulder values `1.00 / 0.85 / 0.80` | None or narrow / normal / wide | `S-CMF-FACILITY`, `P-LANTERNE` | Calibrated launch constants | A normal shoulder deserves real credit, while still remaining weaker than true dedicated facility separation. |
-| Shoulder application gate | Applies whenever no dedicated facility already provides operating-space credit, at every speed (5.7; the 5.6 30 mph gate is retired) | `P-LANTERNE` | Owner policy decision 2026-10-18 | A known usable shoulder changes passing space at any speed; withholding it below 30 mph made a faster road able to score lower than a slower one with the same shoulder. |
+| Shoulder application gate | Applies only when no facility and speed is at least 30 mph | `P-LANTERNE` | Calibration policy | Shoulder matters most where it actually changes passing-space conditions. |
 | Path / MUP zero continuous-road risk | Prevents fake road risk on separated paths | `P-LANTERNE` | Canonical rule | A true path should not accumulate road risk while still carrying crossing risk. |
 | 15 mph path-like threshold | Operational proxy for path treatment | `P-LANTERNE` | Measurement policy | Launch needs a workable proxy while staying conservative about safe-path certainty. |
 | Non-intersection crossing inclusion | Includes path-road and similar motor-vehicle conflict points | `S-LOCATION`, `S-PBCAT`, `P-LANTERNE` | Supporting evidence plus policy | Real motor-vehicle conflict points are not limited to formal intersections. |
