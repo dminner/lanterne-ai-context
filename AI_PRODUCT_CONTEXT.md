@@ -838,6 +838,10 @@ These constants came from the audited legacy implementation. They are retained h
 
 # Product Positioning
 
+> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
+
+Lanterne is a bike safety brand. The app is one expression of it.
+
 Lanterne occupies a unique position within the cycling ecosystem.
 
 It does **not compete directly** with most existing cycling platforms.
@@ -854,7 +858,7 @@ Instead, it sits **alongside them**.
 | RideWithGPS  | route planning and sharing             |
 | Garmin       | device ecosystem and ride recording    |
 | Komoot       | recreational route discovery           |
-| **Lanterne** | route intelligence and safety analysis |
+| **Lanterne** | route safety: the check between planning and riding |
 
 ------
 
@@ -885,13 +889,19 @@ It reveals things that are otherwise invisible:
 • fatigue accumulation
 • descent risk
 
-These factors matter deeply for long-distance cyclists but are rarely modeled.
+These factors matter to anyone choosing a road, and they compound on long rides. They are rarely modeled.
+
+Lanterne is the **safety check between planning and riding**. Riders plan in the tools they already use, bring the route to Lanterne to see how risky it is and where, adjust, then navigate wherever they navigate. Lanterne does not compete on route drawing, turn-by-turn navigation or ride recording ([PROD-006](prod-006-anti_features.md)).
 
 ------
 
 ## The Rider Lanterne Serves
 
-Lanterne is designed for riders who:
+Lanterne serves any cyclist choosing a road.
+
+The default rider is the everyday rider: commuting, riding errands, doing a weekly loop, and not necessarily knowing what a brevet is. Every new rider-facing feature is designed for this rider first.
+
+Long-distance riders are a served advanced audience, not the definition. Lanterne also serves riders who:
 
 • travel far from home
 • ride alone frequently
@@ -899,7 +909,7 @@ Lanterne is designed for riders who:
 • explore unfamiliar terrain
 • plan multi-day routes
 
-For these riders, route choice is not trivial.
+For every one of these riders, route choice is not trivial.
 
 It can be the difference between a great ride and a dangerous one.
 
@@ -978,13 +988,42 @@ Cyclists deserve to understand these differences before committing to hundreds o
 
 # Rider Archetypes
 
-Lanterne is optimized for a specific set of cyclists.
+> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
+
+Lanterne serves any cyclist choosing a road. The everyday rider is the default; the other archetypes are advanced lenses on the same safety check.
 
 Understanding these riders helps guide product decisions.
 
 ------
 
-## 1. The Randonneur
+## 1. The Everyday Rider
+
+The default rider. Commutes, runs errands, does the same local loop, rides with family. Assumes no knowledge of brevets, controls or randonneuring vocabulary.
+
+Typical characteristics:
+
+• short and medium rides, often from home
+• routes repeated week after week
+• riding at whatever hour the day allows
+
+Needs from Lanterne:
+
+• which roads are fast and busy, and where
+• where bike infrastructure and shoulder actually are
+• the crossings that matter on a familiar route
+• how the same road changes by the hour
+
+Served by the default `normal` mode.
+
+------
+
+## Advanced lenses
+
+The archetypes below are served through the randonneuring and bikepacking modes. Existing work for them stays; new mode-specific build-out is paused (ADR-068).
+
+------
+
+## 2. The Randonneur
 
 The randonneur rides extremely long distances under time limits.
 
@@ -1003,7 +1042,7 @@ Needs from Lanterne:
 
 ------
 
-## 2. The Bikepacker
+## 3. The Bikepacker
 
 The bikepacker travels for days or weeks across varied terrain.
 
@@ -1021,7 +1060,7 @@ Needs from Lanterne:
 
 ------
 
-## 3. The Endurance Soloist
+## 4. The Endurance Soloist
 
 This rider pushes extreme personal challenges.
 
@@ -1039,7 +1078,7 @@ Needs from Lanterne:
 
 ------
 
-## 4. The Nocturne Rider
+## 5. The Nocturne Rider
 
 Many endurance cyclists ride heavily at night.
 
@@ -1059,14 +1098,14 @@ Needs from Lanterne:
 
 ## Who Lanterne Is Not Designed For
 
-Lanterne is not optimized for:
+Lanterne does not try to serve these needs:
 
-• casual fitness riders
-• short recreational loops
 • group ride coordination
 • social activity tracking
+• performance training
+• route drawing, turn-by-turn navigation or ride recording
 
-Those riders are well served by existing apps.
+Existing apps serve those well. Lanterne sits beside them.
 
 ---
 
@@ -1196,6 +1235,8 @@ The goal is to help them make **better route decisions**.
 
 # Anti-Features
 
+> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
+
 These are features Lanterne intentionally avoids.
 
 This document protects the product from feature creep.
@@ -1234,9 +1275,15 @@ Training metrics belong in specialized training platforms.
 
 ## No Gamification
 
-Long-distance cycling is already challenging.
+Riding on roads is already serious.
 
 The product should not turn it into a game.
+
+------
+
+## No Route Drawing, Turn-by-Turn or Ride Recording
+
+Riders plan and navigate in the tools they already use. Lanterne is the safety check between planning and riding, and does not build route-drawing, turn-by-turn or ride-recording features to compete with the tools it sits beside.
 
 ------
 
@@ -1251,14 +1298,6 @@ If a feature encourages riders to ride **faster instead of smarter**, it likely 
 # Lanterne In-App Branding Refresh
 
 # **Nocturne Survey**
-
-## Canonical logo
-
-Use Derek's supplied white wordmark with the colored flame A, stored unchanged at `public/assets/lanterne-logo.svg`. Render branding through `src/components/BrandLogo.tsx` so event pages, the intro, authentication, onboarding, plan selection, the route drawer, and the map watermark share the same artwork.
-
-The compact `mark` variant uses the original flame A, extracted from that SVG with a charcoal backing. It supplies the install prompt, browser favicon, and Apple home-screen icon. The white wordmark needs a dark backing when displayed over a bright map. Preserve its colors and aspect ratio; use width-based sizing.
-
-The app's interactive lantern instrument and gesture tutorial retain their functional artwork. Old logo files are retained as unused assets; active branding references use the supplied identity. The intro film itself is reused unchanged, with the new wordmark displayed over it.
 
 ## Design Philosophy
 
@@ -1654,7 +1693,6 @@ Lanterne is not an outdoor lifestyle brand.
 It is a **route intelligence instrument** for riders who travel far and often through darkness.
 
 The interface should reflect **discipline, focus, and quiet exploration**.
-
 
 ---
 
@@ -2649,7 +2687,7 @@ That gives Lanterne a stop system that is simple on the surface, truthful in the
 
 ## Supersession Notice
 
-This v3.1 methodology is historical. The active canonical model is [DS-015 - Safety Scoring Model 5.5](../02-architecture/design/ds-015-safety_scoring_model.md).
+This v3.1 methodology is historical. The active canonical model is [DS-015 - Safety Scoring Model](../02-architecture/design/ds-015-safety_scoring_model.md) (5.7 as of 2026-10-18).
 
 Current doctrine:
 
@@ -2737,6 +2775,8 @@ Sharrows receive no credit at launch.
 ### ShoulderFactor
 
 Shoulder credit applies **only** when there is no dedicated bike facility **and** speed ≥ 30 mph.
+
+> **Historical v3.1 rule — not current.** DS-015 5.7 (2026-10-18) applies shoulder credit at every speed, never over a dedicated bike facility and never for an unknown width. The legacy V3.1 preview pipeline follows the same application rule with its own V3.1 multipliers.
 
 | Shoulder Class | Width           | ShoulderFactor |
 |---------------|-----------------|----------------|
@@ -5002,64 +5042,6 @@ Because the question isn’t just:
 It’s:
 
 > “What happens if I keep going like this?”
-
----
-
-## Source File: docs/05-product/prod-015-event-notes.md
-
-# Event notes
-
-Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`. Editable pages also live at `/about`, `/reflectors`, and `/app`. Reflectors and App contain Derek’s approved introductory articles; About remains a “More soon.” starter page. The homepage continues to open the map application. Older links `/eyecatcher` and `/eyecatchers` redirect to `/reflectors`; `/lanterne` redirects to `/app`.
-
-## Add a note
-
-Add new pages in `src/content/event-notes.ts`. Each entry defines its URL path, event label, browser title, description, paragraphs, signature, optional links, and optional media. Entries register their own routes through `src/App.tsx`; no separate page component is needed. Choose a unique path that does not collide with an existing application route.
-
-The first note preserves Derek's supplied wording and Instagram destination. Its photo is stored at `public/assets/events/crcx-ride.jpeg`, so deployment does not depend on access to his Photos library.
-
-Printable direct QR assets are in `docs/05-product/assets/crcx-direct-qr.svg` and `.png`. They encode `https://lanterne.io/crcx` itself. The previously supplied sticker's QR uses a short-link provider and currently opens the homepage; replace that QR with the direct asset before printing.
-
-Set `intro: true` to open with the existing Lanterne intro film. CRCX enables this. Visitors tap play to hear the film, then the screen fades into the letter when it ends. A “Read the note” shortcut and Escape reveal the letter immediately. The letter remains accessible if the video fails to load. This mode omits the app's map-gesture tutorial and does not read or change `lanterneIntroSeen`; a fresh visit to the note starts with the film even for an existing app visitor. Omit `intro` for a note that opens directly on the writing.
-
-An image entry needs `src`, descriptive `alt`, and intrinsic `width` and `height`. An optional `caption` appears below the image. Images retain their full proportions. Optional `afterParagraph` places media before the writing (`0`) or after a numbered paragraph (`1` through the paragraph count). Omit it to keep the existing end-of-page placement. Optional image `align` is `full`, `left`, or `right`; left/right images wrap alongside the writing at widths of 700 px and above and become full width on smaller screens. Videos may be positioned in the writing and retain a full-width frame.
-
-Add a YouTube video to the `media` array using its eleven-character video ID:
-
-```ts
-{
-  type: "youtube",
-  videoId: "VIDEO_ID_11",
-  title: "A descriptive video title",
-  caption: "An optional caption",
-}
-```
-
-Replace the placeholder ID before publishing. Embeds use YouTube's privacy-enhanced host, lazy loading, a responsive 16:9 frame, and no autoplay. Multiple images, videos, and links are supported. Omit `media` or `links` for a plain letter. No additional YouTube video has been selected for CRCX.
-
-## Edit inline: draft, then publish
-
-Open `/crcx?edit=1` (or choose “Edit note” in the footer) and sign in. Signed-in users can edit and preview a private draft on their own device; only Lanterne administrators can publish. Click the writing to edit it directly. Paragraphs, signature, event name, links, image URLs/descriptions/captions, and YouTube videos can be changed in the page. Page details contains the browser title, description, and intro toggle. The registered URL stays fixed so printed QR codes keep working.
-
-Paragraphs support simple text formatting in Preview and the reader: start a paragraph with `#`, `##`, or `###` followed by a space for a heading; surround words with `**` for bold. Other text and HTML stay literal. The editor retains these markers in the source text.
-
-Choose **+ Insert photo** before the writing or after any paragraph, paste a photo URL, and supply its description. Every image has **Placement** and **Image layout** controls. Choose full width, left with text wrapping, or right with text wrapping. Existing photos can be moved from the end into the writing; removing a paragraph retains its images at the nearest preceding position. Preview uses the same ordering and wrapping as the published view. Images are added by URL; file uploads are not part of this editor.
-
-Typing saves a private draft in this browser's local storage, scoped to the signed-in user and page. Drafts do not sync between devices and are lost if browser storage is cleared. Preview shows the draft without publishing. For administrators, **Publish changes** explicitly publishes for everyone. Other signed-in users see a private-draft notice and a disabled Publish button. Discard restores the loaded live version. Failed publishing keeps the local draft. A newer live version blocks stale publication; inspect it before explicitly keeping the draft for a subsequent publish.
-
-Published overrides use the existing `app_config` table, key `event-note:published:/crcx`, value `{ version: 1, note }`. Existing public SELECT and administrator INSERT/UPDATE RLS policies remain the authorization boundary. No private drafts enter this publicly readable table. Writes require a verified session and use conditional updates on `updated_at` (or an initial insert) to detect competing publishes. No schema, policy, Supabase client, or backend changes are required. Only bounded plain content is accepted; published links require HTTPS and video embeds accept YouTube IDs from supported hosts. Invalid content cannot preview or publish.
-
-On load, a valid published override takes precedence over the checked-in default. Repository-authored copy may also be published through the normal frontend release process when no override exists; verify that boundary before releasing content. If public content cannot load, reading falls back to the bundled note; the editor blocks publishing until it can load the live version successfully. Removing an override intentionally requires an administrator/operator action outside this editor. New event paths still require a code release.
-
-The intro video has no overlaid Lanterne logo. The letter has no visible “A note from Derek” label; its event name remains an accessible heading.
-
-## Scope and release
-
-Content overrides publish without a frontend redeployment. The page reads without authentication, map controls, or loading the main route-analysis application. Reading pages restore browser scrolling and zoom without changing the map application's viewport contract.
-
-The loader is `src/pages/EventNote.tsx`, the shared reading layout is `src/pages/EventNoteView.tsx`, and styles are in `src/pages/EventNote.css`. The editor is lazy-loaded only when requested. Existing app routes and providers live in `src/MainApplication.tsx` and load when needed.
-
-Public wording and claims remain subject to the human gate in `AGENTS.md`. Implementation validation does not certify a phase or authorize merging or production deployment.
-
 
 ---
 
