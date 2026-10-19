@@ -54235,7 +54235,7 @@ Version the evaluator/evaluation identities to v6, the closure to v19 and its au
 
 # ADR-068 — Safety First: Lanterne Is a Bike Safety Brand, the Everyday Rider Is the Default, and Lanterne Is the Check Between Planning and Riding
 
-**Status:** Proposed. Decided in principle by Derek in session on 2026-10-13; acceptance, and any rider-facing or public wording that follows from it, at the owner gate on this PR (AGENTS.md: rider-facing safety language, safety semantics and public claims are human-gated).
+**Status:** Accepted, 2026-10-19, by Derek at the owner gate (PR #182 merged; accepted in words the same day). Rider-facing and public wording that follows from it still goes through the human gate (AGENTS.md).
 
 **Owner statement this records:** "Protect the magic." Don't strip riders of the night ride, the long day, the thing they love. Shave the risk off inside it.
 
@@ -54255,7 +54255,7 @@ Three things changed that framing.
 
 The code already has the mechanism this needs. `src/config/modes.ts` defines `normal`, `randonneuring` and `bikepacking` as a pure interpretation layer, with `DEFAULT_MODE = 'normal'`, and the `normal` lens already emphasises traffic exposure, speed environment, bike infrastructure and hazards.
 
-## Decision (proposed)
+## Decision
 
 1. **Lanterne is a bike safety brand.** Safety is the identity. The app is one expression of it, not an app category. Route intelligence, routing, pacing and long-ride planning are capabilities inside a safety product, never the headline. Physical products (reflective gear, formerly the separate Eye Catcher brand) are a Lanterne product line; they live outside this repository and are named here only so the positioning documents stay consistent with them.
 
@@ -54269,11 +54269,11 @@ The code already has the mechanism this needs. `src/config/modes.ts` defines `no
 
 5. **Multi-day excursion tracking is deprioritized, not withdrawn.** ADR-031 and ADR-034 remain as they are (Proposed and Draft) and are not advanced now. The near-term requirement is only that the single-route safety check works on a route that happens to be long or span days; owning a multi-day planning and tracking experience waits for a later owner decision.
 
-6. **Proposed product tiers: the line is pre-computed versus calculated on the fly, and safety is never paid.** (Refined by Derek on 2026-10-13; restated by him on 2026-10-19.)
+6. **Product tiers: the line is pre-computed versus calculated on the fly, and safety is never paid.** (Refined by Derek on 2026-10-13; restated by him on 2026-10-19.)
    - **Free:** the **safety map for exploring local roads** (street, traffic and hazard data), and the **full safety route analysis on pre-computed routes**: library routes such as RUSA's, and community-submitted local routes. A submitted route is computed once and stored as an artifact, so the free library grows at near-zero marginal cost.
    - **Paid:** features **calculated on the fly**: bringing one's own route (GPX, Ride with GPS and similar imports), custom routing; plus **convenience, pacing and ride-time features**.
    - **Guardrail:** the free tier must feel complete, never like safety is being held hostage. The paywall is "I've outgrown the free tier", not "they're hiding the danger".
-   - **Open:** on 2026-10-13 water was set as free on every route, as a safety need rather than a comfort. The 2026-10-19 restatement does not mention it; confirm before the tiers are built.
+   - **Water is free** on every route: on a long ride it is a safety need, not a comfort. (Set 2026-10-13; confirmed by Derek 2026-10-19.)
 
    This is product intent, not a pricing decision. "Free" and any price are public claims that must be gated before they appear anywhere a rider can read them.
 
@@ -54300,10 +54300,29 @@ The PROD-001 and PROD-003 revisions are drafted in the same PR as this ADR (2026
 - **Selector visibility:** visible. The type of riding asked at registration (form page 2) drives the selection.
 - **Free versus paid:** free is the safety map for exploring local roads plus full safety analysis on pre-computed routes; paid is anything calculated on the fly (GPX, Ride with GPS, etc.) plus convenience, pacing and ride-time features. Recorded in Decision 6.
 - **Default label:** Road, not Normal. The profiles are Road, Rando, Ultra, Gravel, and Touring/Bikepacking.
+- **Water:** stays free.
+- **Status:** accepted.
+
+## The registration question that drives the profile
+
+The form is the account registration flow at `/auth?mode=signup`, Step 2 (`src/components/auth/RiderPreferencesStep.tsx`, options in `src/lib/account/rider-profile-options.json`, saved to `user_metadata.rider_profile.ridingStyles`). As of 2026-10-19 it is on the release line (`codex/rollback-map-identity-release` and the Golden18 branches), not yet on `main`. "Riding styles" is multi-select. Proposed mapping, for the implementing ticket to confirm:
+
+| Registration answer | Profile |
+| --- | --- |
+| Commuting | Road |
+| Local cruising | Road |
+| Local fitness | Road |
+| Racing | Road (open, see below) |
+| Ultra-distance | Ultra |
+| Gravel | Gravel |
+| Touring / bikepacking | Touring/Bikepacking |
+| Other | Road |
+| No answer (legacy accounts, skipped step) | Road |
 
 ## Still open
 
-- Whether water stays free (Decision 6).
+- **The form has no randonneuring answer.** Rando is a profile, but no riding style maps to it. Add a "Randonneuring / brevets" option, or decide that Ultra-distance covers it.
+- **More than one answer.** Riding styles is multi-select. Which profile wins when a rider picks several (for example Commuting and Gravel)?
+- **Racing.** Road is the nearest profile, but racing is not what the safety default is built around.
 - Rider-facing wording for the free tier and for "Protect the magic" as a public line.
-- The registration form's riding-type options are not in this repository; the implementing ticket must map each answer onto a profile.
 
