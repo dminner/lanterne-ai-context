@@ -40867,8 +40867,8 @@ This spec defines shapes and rules. It implements nothing and authorizes no runt
 ### 2.1 Vocabulary
 
 ```ts
-type LanternMode = 'account' | 'route' | 'analyze' | 'plan' | 'ride' | 'cues' | 'inspect' | 'dev' | 'test';
-type LanternView = 'safety' | 'weather' | 'hazards' | 'stops' | 'controls' | 'map_layers' | 'ride_computer' | 'field_note';
+type LanternMode = 'account' | 'route' | 'analyze' | 'plan' | 'ride' | 'inspect' | 'dev' | 'test';
+type LanternView = 'safety' | 'weather' | 'traffic' | 'speeds' | 'hazards' | 'stops' | 'controls' | 'cues' | 'map_layers' | 'ride_computer' | 'field_note';
 type ViewTreatment = 'fullscreen' | 'bottom_surface' | 'map_overlay';
 ```
 
@@ -40881,10 +40881,20 @@ interface LanternViewDef {
   id: LanternView;
   label: string;                                    // glanceable centre text
   direction: 'up' | 'down';                         // which side of home it sits on
+  /** Rider profiles this view is offered to by default; undefined = every profile. */
+  profiles?: RideProfileId[];
   cells: Partial<Record<LanternMode, {
     treatment: ViewTreatment;
     isAvailable: (ctx: LanternScreenContext) => boolean;
   }>>;
+}
+
+interface LanternScreenContext {
+  gpsActive: boolean;
+  routeEngaged: boolean;
+  /** From account preferences (§2.6): views and functions the rider has on. */
+  enabledViews: ReadonlySet<LanternView>;
+  enabledModes: ReadonlySet<LanternMode>;
 }
 ```
 
@@ -40892,8 +40902,10 @@ Rules:
 
 - A view appears in a mode's stack only when it has a cell for that mode and the cell's predicate is true. Thresholds are computed from the filtered stack, as `buildDownStack` does today; no manual threshold math.
 - `safety` is the home cell of `analyze`, `plan` and `ride`, always available, and is what the lantern lands on when the mode is entered. It has no threshold; it is the rest position.
-- `ride_computer` and `field_note` have cells only in `ride`. `ride_computer` keeps its GPS predicate.
-- `account`, `route`, `cues`, `inspect`, `dev`, `test` have no view cells in this spec. Their stacks are empty and the vertical gesture does nothing there. (ADR-069 open question 2 asks whether Cues becomes a Ride view.)
+- A view is filtered out of every stack when it is not in `ctx.enabledViews`; a mode is filtered out of the horizontal order when it is not in `ctx.enabledModes`. `controls` carries `profiles: ['rando']` and so is off by default for every other profile (ADR-069 §6).
+- `ride_computer`, `field_note` and `cues` have cells only in `ride`. `ride_computer` keeps its GPS predicate. `cues` replaces the former horizontal `cues` function (ADR-069 §7).
+- `route` has overlay cells for `weather`, `traffic`, `speeds`, `hazards`, `stops` and `controls`, and no `safety` cell: its rest position is the clean map. `traffic` and `speeds` are the existing route paint lanes, registered as views so the vertical gesture can swap them; elevation is a later addition.
+- `account`, `inspect`, `dev`, `test` have no view cells. Their stacks are empty and the vertical gesture does nothing there.
 
 ### 2.3 Cell resolver
 
@@ -40910,23 +40922,49 @@ function resolveLanternCell(mode: LanternMode, view: LanternView | null, ctx: La
 
 | Mode | Treatment | Rule |
 |---|---|---|
+| route | `map_overlay` | Paint along the whole route plus overlay typography. No cards, no drawers, no modals. |
 | analyze | `fullscreen` | The cell may take the screen. The map is not required to stay visible. |
 | plan | `bottom_surface` | Map stays visible; the surface may ask for a decision (direction, time, dial). |
-| ride | `map_overlay` | Typography only, no cards, no drawers, no modals (`ride-overlays/`). Never covers the position indicator (ADR-029). |
+| ride | `map_overlay` | As `route`, and never covers the position indicator (ADR-029). `cues` is the one Ride cell that may expand to a full sheet. |
+
+### 2.4a Weather anchor by mode (ADR-069 §1)
+
+| Mode | Anchor | Inputs |
+|---|---|---|
+| analyze | The route's actual start point, at the forecast's nearest hour to now | route axis point 0 |
+| plan | The scenario: moves with start time, direction, start offset, and the search window (a day, the next week) | sealed `RidePlanScenarioContext` + sweep window |
+| route, ride | Along the whole route on route-time checkpoints; never one point | forecast adapter checkpoints; in Ride, bound to actual progress |
 
 ### 2.5 What each view shows, by subject
 
 The subject is the same in every mode; the treatment and the inputs differ.
 
-| View | Analyze (stable artifact) | Plan (sealed scenario) | Ride (now) |
-|---|---|---|---|
-| safety | Summary, Method, Receipts, Review, Audit, unchanged | Planned Ride Risk, scenario-labelled, Baseline Risk Per Mile beside it; start, direction, time, pace; optimal-X sweeps | Risk of the stretch ahead |
-| weather | Forecast report at the route anchor (see ADR-069 open question 1) | Forecast on route-time checkpoints for this plan; the conditions dials | Existing `WeatherOverlay` |
-| hazards | Every hazard on the route with mile; "few hazards" is an honest state | Same, with the plan's arrival clock time | Existing `HazardOverlay` |
-| stops | Stops the route passes, with mile and distance-off-route | Assigned stops, dwell, push transitions (EXEC-058 rules) | Existing `StopsOverlay` |
-| controls | Controls with distance (routes that have them) | Controls with arrival time and window | Next control |
+| View | Route (overlay) | Analyze (stable artifact) | Plan (sealed scenario) | Ride (overlay, now) |
+|---|---|---|---|---|
+| safety | — | Summary, Method, Receipts, Review, Audit, unchanged | Planned Ride Risk, scenario-labelled, Baseline Risk Per Mile beside it; start, direction, time, pace; optimal-X sweeps | Risk of the stretch ahead |
+| weather | Forecast paint along the route (P14 grammar) | Forecast report at the route start | Forecast for this scenario; the conditions dials | Paint along the route plus `WeatherOverlay` |
+| traffic, speeds | Existing route paint lanes | — | — | Existing paint lanes |
+| hazards | Hazard markers | Every hazard on the route with mile; "few hazards" is an honest state | Same, with the plan's arrival clock time | Existing `HazardOverlay` |
+| stops | Stop markers | Stops the route passes, with mile and distance-off-route | Assigned stops, dwell, push transitions (EXEC-058 rules) | Existing `StopsOverlay` |
+| controls (rando) | Control markers | Controls with distance | Controls with arrival time and window | Next control |
+| cues | — | — | — | Current cue; expands to the full cue sheet (§2.7) |
 
 The bottom controls drawer keeps its hazards and stops **settings** tabs. They decide what paints on the map; they are not cells and are not opened by the vertical gesture any more.
+
+### 2.6 Account preferences: views and functions
+
+Account preferences gain a section listing every registered view and mode with an on/off switch. Defaults come from the rider's profile (ADR-068: Road, Rando, Ultra, Gravel, Touring/Bikepacking) through each view's `profiles` field; a rider may turn anything on or off afterwards. The registry filter reads the result through `LanternScreenContext`. The `randonneurEnabled` argument threaded through `useRideModeStore` is removed once this lands; no second switch stays beside it.
+
+### 2.7 The cue sheet reads the registry
+
+Every overlay view exposes its per-checkpoint rows through one function:
+
+```ts
+rowsForView(view: LanternView, route: RouteTimeBinding, scenario?: RidePlanScenarioContext): ViewRow[]
+// ViewRow = { atDistM: number; atTimeIso?: string; label: string; value?: string; severity?: ... }
+```
+
+The map paints these rows; the cue sheet offers each view as a column the rider can switch on, merged into the cue list by `atDistM`. Stops, hazards and weather first; sun and moon when those views exist. One source, two renderings, so the sheet never disagrees with the map.
 
 ---
 
@@ -41007,7 +41045,7 @@ type PlanDerivation =
 - **Impact is computed, not stored as truth.** Distance, elevation gain, Planned Ride Risk and Baseline Risk Per Mile are shown as `artifact → plan` pairs, each with the receipt of what produced the plan-side value. A stored copy may exist as a cache and must say it is one.
 - **Road facts are overlay evidence** under ADR-040. They sit on the plan, are shown to the rider who recorded them, and never promote to canonical truth.
 - **Identifiers only.** No forecast values, no scores and no analysis output are stored in the record. Everything derivable is re-derived from the artifact plus the record.
-- **Saved routes list.** A plan is listed beside its route, named for the plan, and loading it loads the route then applies the record. Which plan loads by default when several exist is ADR-069 open question 3.
+- **Saved routes list.** A plan is listed beside its route, named for the plan, and loading it loads the route then applies the record. When a route has more than one plan, loading it opens a menu and the rider picks; nothing is applied until they do (ADR-069 §8). A route with no plan loads as the bare artifact.
 
 ### 4.3 Storage
 
@@ -41019,14 +41057,16 @@ Deferred to the implementing phase. The record is small (stops and derivations a
 
 Each phase is one cell or one contract, with a builder report and an independent review (AGENTS.md).
 
-1. Registry, cell resolver, `plan` in the function order with an empty shell. Analyze·safety unchanged. Tests: resolver fallbacks, threshold computation, carried view across modes, `map_layers` rename.
-2. Analyze·weather on the forecast adapter, read-only.
-3. Plan·safety on one sealed scenario (DS-063 projection), Planned Ride Risk labelled, Baseline beside it.
-4. Ride plan record v1: save, list, load, stale detection. No derivations yet.
-5. Plan·weather with `conditions.standard.v1` and the dials; single-scenario evaluation, no sweep.
-6. Plan·stops and Plan·controls.
-7. Sweeps: start time, direction, start offset.
-8. Derivations: detours and road facts.
+1. Registry, cell resolver, `plan` in the function order with an empty shell, `cues` moved to a Ride view. Analyze·safety unchanged. Tests: resolver fallbacks, threshold computation, carried view across modes, `map_layers` rename, profile and preference filtering.
+2. Account preferences for views and functions, seeded from profile; retire `randonneurEnabled`.
+3. Route and Ride overlay views on the existing paint lanes (traffic, speeds), then weather paint along the route.
+4. Analyze·weather at the route start, read-only.
+5. Plan·safety on one sealed scenario (DS-063 projection), Planned Ride Risk labelled, Baseline beside it.
+6. Ride plan record v1: save, list, load, stale detection. No derivations yet.
+7. Plan·weather with `conditions.standard.v1` and the dials; single-scenario evaluation, no sweep.
+8. Plan·stops and Plan·controls.
+9. Sweeps: start time, direction, start offset.
+10. Derivations: detours and road facts.
 
 ---
 
@@ -54582,22 +54622,28 @@ ADR-027 anticipated this. It said screens are content and the lantern is the sel
 A **mode** is what the rider is doing with the route. A **view** is what the rider is looking at. The surface the lantern opens is the **cell** at their intersection, and both the menu and the content of that surface come from the cell, never from the mode alone.
 
 ```text
-                  Safety     Weather    Hazards    Stops      Controls   Ride computer  Field note
-  Analyze         A·safety   A·weather  A·hazards  A·stops    A·controls   —              —
-  Plan            P·safety   P·weather  P·hazards  P·stops    P·controls   —              —
-  Ride            R·safety   R·weather  R·hazards  R·stops    R·controls   R·computer     R·note
+                  Safety     Weather    Hazards    Stops      Controls*  Cues       Ride computer  Field note
+  Route           —          Ro·weather Ro·hazards Ro·stops   Ro·controls —          —              —
+  Analyze         A·safety   A·weather  A·hazards  A·stops    A·controls  —          —              —
+  Plan            P·safety   P·weather  P·hazards  P·stops    P·controls  —          —              —
+  Ride            R·safety   R·weather  R·hazards  R·stops    R·controls  R·cues     R·computer     R·note
+
+  * Controls cells exist only for riders whose profile includes randonneuring (§6).
 ```
+
+Route and Ride share one treatment: the view is a **map overlay**, painted along the whole route the way road colours are painted today. Weather, traffic and speeds first; elevation later. Owner, 2026-10-22: *"you can swipe up and down and actually see the overlays of things like weather and traffic and speeds."* 
 
 - **Safety is the home view of every mode.** Entering a mode lands on its safety cell. For Analyze that is today's Summary / Method / Receipts strip, unchanged. This is the owner's "the first thing it has always is safety" and it is also ADR-068's rule that safety is the identity.
 - **The view carries across modes.** Moving left or right keeps the current view where the target mode has that cell. A rider looking at weather in Analyze who moves to Plan is looking at weather in Plan. Moving to a mode that lacks the cell lands on that mode's safety view.
-- **A cell declares its own treatment.** Analyze cells fill the screen. Ride cells are typography overlays on the map, per ADR-029 and the existing `ride-overlays/` rule of "no cards, no drawers, no modals". Plan cells are a bottom surface with the map still visible, because the rider is reading the route while choosing. The content for a view is the same subject in all three; what changes is how much of the screen it may take and whether it can ask for a decision.
+- **A cell declares its own treatment.** Analyze cells fill the screen. Route and Ride cells are overlays on the map: paint along the route plus the typography of `ride-overlays/`, with its rule of "no cards, no drawers, no modals" (ADR-029). Plan cells are a bottom surface with the map still visible, because the rider is reading the route while choosing. The content for a view is the same subject everywhere; what changes is how much of the screen it may take and whether it can ask for a decision.
+- **Weather is anchored by mode.** Owner, 2026-10-22: *"the default for analyze on weather location is the start of the route. Whenever you get into planning, then that changes. The ride, the route view, are all kind of throughout."* So: Analyze anchors on the route's actual start. Plan anchors on the scenario, and moves as the rider changes start time, direction or the window being searched (a day, the next week). Route and Ride paint the forecast along the whole route on its route-time checkpoints, never pinned to one point.
 - **Views are a registry, not constants.** `LANTERN_LEVELS` becomes the view registry that ADR-027 asked for: a list of view ids, each with the modes it is available in, an availability predicate (today's `isAvailable(ctx)`), and the treatment per mode. Thresholds stay computed from the filtered list, as `buildDownStack` already does. The up stack and the down stack become one list, with `ride_computer` and `field_note` available only in Ride (today they are gated on GPS alone).
 
 What this replaces: `selectLanternScreen` mapping a screen to a bottom controls tab regardless of function, and the Analyze surface ignoring the screen. The bottom controls drawer's hazards and stops tabs remain the *settings* owners for those views (what to show on the map); they are not the cells.
 
 ### 2. Plan is a mode, between Analyze and Ride
 
-The order becomes `account`, `route`, `analyze`, `plan`, `ride`, `cues`, `inspect`, `dev`, `test`. Plan is where the rider decides, in advance, how to ride a route they have already analyzed. It is the room ADR-055's scenario engine was built for.
+The order becomes `account`, `route`, `analyze`, `plan`, `ride`, `inspect`, `dev`, `test`. Cues leaves the horizontal order and becomes a Ride view (§7). Plan is where the rider decides, in advance, how to ride a route they have already analyzed. It is the room ADR-055's scenario engine was built for.
 
 Plan's cells, by view:
 
@@ -54649,9 +54695,11 @@ The route artifact is not rewritten. A saved plan appears in the rider's saved r
 ## Consequences
 
 - `src/lib/lantern-functions.ts` gains `plan`. `src/lib/lantern-interaction.ts` and `src/lib/lantern-screen-stack.ts` merge into one view registry keyed by mode. `selectLanternScreen` in `Index.tsx` is replaced by a cell resolver that takes `(mode, view)` and returns the surface to mount. The Analyze, Plan and Ride surfaces take the view as a prop.
-- The **Weather view gets content for the first time**: in Analyze, the forecast report for the route's start (the owner's "current weather for where you are in the GPS, or maybe the starting point"; which anchor is the home state is an open question below); in Plan, the forecast along the planned ride; in Ride, the existing overlay.
+- The **Weather view gets content for the first time**: in Analyze, the forecast report at the route's start; in Plan, the forecast for the scenario as the rider moves it; in Route and Ride, paint along the whole route with the existing typography overlay.
+- **Cues** leaves `LANTERN_FUNCTION_ORDER` and the right drawer; its surface becomes the Ride·cues cell. The cue-sheet owner gains optional columns fed by the view registry.
+- **Account preferences** gain a views-and-functions section seeded from the rider's profile. `randonneurEnabled` in `useRideModeStore` is retired into it.
 - **Plan is a paid-tier capability** under ADR-068 §6: it is calculated on the fly. Analyze on a pre-computed route stays free. This is product intent, not a public claim.
-- **Naming collision to resolve.** The existing `controls` view is labelled "layers" and opens map layer settings. The owner's "controls" means brevet controls. Both are needed; the map-layers destination needs a different id.
+- **Naming collision resolved.** The existing `controls` view is labelled "layers" and opens map layer settings; it is renamed `map_layers` so `controls` means brevet controls (owner confirmed 2026-10-22).
 - Implementation is phased, one cell at a time, each with a builder report and an independent review per AGENTS.md. Suggested order: the registry and cell resolver with Analyze·safety unchanged; Analyze·weather; the Plan mode shell with Plan·safety on a sealed single scenario; the plan record; Plan·weather with the standard objective; Plan·stops; sweeps.
 
 ## Alternatives considered
@@ -54660,10 +54708,35 @@ The route artifact is not rewritten. A saved plan appears in the rider's saved r
 - **Make Plan a tab inside Analyze.** Rejected: planning changes the inputs (time, direction, pace) and Analyze must keep showing the stable artifact so riders can compare routes. ADR-055 draws the same line between Baseline Route Risk and Planned Ride Risk.
 - **Save the plan by re-saving the route.** Rejected by the owner: it duplicates the artifact, breaks the route's identity, and loses the ability to say what the plan changed.
 
-## Open questions for the owner
+### 6. Controls follow the rider's profile, and the profile decides which views and functions exist
 
-1. **Analyze·weather anchor.** Current conditions at the rider's GPS position, or the forecast at the route's start? Both were floated. Proposal: start point by default, with GPS when the rider is within a short distance of the route.
-2. **Cues.** Today Cues is a function to the right of Ride. Under the grid it reads more like a Ride view. Does it stay a mode?
-3. **Which plan wins at load.** A route can have several saved plans. Load the most recent, or ask?
-4. **Dial vocabulary.** "Wind at your back" and "closest to 70°F" are rider-facing wording and go through the human gate.
+Controls (the brevet kind) appear only for a rider whose profile includes randonneuring, as set at registration and changeable afterwards (ADR-068 §2). Owner, 2026-10-22: *"we should only be showing controls if somebody has self-identified as a randonneur."*
+
+This generalises: **account preferences carry which rider-type views and functions a rider wants to see.** The profile sets the default; the rider can turn individual views and functions on or off. The registry (DS-068 §2) reads that preference when it filters a mode's stack, so an everyday Road rider never meets a brevet control and a randonneur never has to hunt for one.
+
+The existing `randonneurEnabled` switch in `src/hooks/useRideModeStore.ts` is what this replaces. Owner: *"it's super janky. It was built for the old system. It hasn't been ported over and cleaned up for the new UI."* It is ported into the preference, not kept beside it.
+
+### 7. Cues is a Ride view, and the cue sheet shows what the map shows
+
+Cues stops being a horizontal function. In Ride it is a view in the bottom stack: tap it and it shows the cue the rider is on; expand it and it is the full cue sheet. Owner: *"it really is a ride mode thing."*
+
+The cue sheet is also where everything a view can paint on the map becomes a column the rider can turn on: stops, hazards, weather, and later sun and moon conditions. Owner: *"anything that would be visible theoretically on the map in terms of swiping up and down … should be visible in, and customizable in, the cue sheet."* One registry feeds both: a view's per-checkpoint rows are what the map paints and what the cue sheet lists.
+
+### 8. Several plans on one route: ask, never choose
+
+When a rider loads a route that has more than one saved plan, a menu asks which plan to apply. Nothing is selected on their behalf. Owner: *"We don't just automatically tell them which one's going to get selected."*
+
+## Owner answers, 2026-10-22
+
+Recorded the same day the ADR was drafted, in reply to its four open questions.
+
+- **Weather anchor:** by mode. Analyze at the route start; Plan moves with the scenario; Route and Ride along the whole route. Decision §1.
+- **Cues:** a Ride view, with the cue sheet as the place to customise what the map paints. Decision §7.
+- **Several plans:** a menu; never automatic. Decision §8.
+- **Controls:** rider-profile dependent, through account preferences for views and functions; port and retire the old toggle. Decision §6.
+
+## Still open
+
+- Rider-facing wording for the dials, for "optimal", and for the preferences screen (human gate).
+- Whether the map-overlay views in Route mode are free or paid under ADR-068 §6. Weather and traffic on the free safety map read as free; along a rider's own imported route they are calculated on the fly.
 
