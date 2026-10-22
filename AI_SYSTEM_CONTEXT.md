@@ -54726,6 +54726,12 @@ The cue sheet is also where everything a view can paint on the map becomes a col
 
 When a rider loads a route that has more than one saved plan, a menu asks which plan to apply. Nothing is selected on their behalf. Owner: *"We don't just automatically tell them which one's going to get selected."*
 
+## Owner revision, 2026-10-22 (after phase 1b)
+
+*"I do think field notes should be visible in all modes. In fact I think all the current layers should; they should just show stuff for that mode. Change layers to settings, and drop the speed icon, because that really should be in a new vertical category called safety, which then has buttons … that show all road speeds as overlay, traffic as overlay, risk/mi as overlay."*
+
+This amends §1. Route, Analyze, Plan and Ride carry the same views: safety, hazards, stops, weather and settings above, field note below, with cues and ride computer added below in Ride. **Safety is a view, not a pre-selected home**: it is a bottom strip of overlay switches for road speeds, traffic and risk/mi, and every mode rests on its own surface until a view is chosen. "Layers" is renamed **Settings** and loses its Speed switch to Safety. See the [phase 1c report](../04-execution/reports/modes-views-phase1c-safety-settings-20261022.md).
+
 ## Owner answers, 2026-10-22
 
 Recorded the same day the ADR was drafted, in reply to its four open questions.
