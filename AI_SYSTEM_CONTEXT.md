@@ -40955,16 +40955,25 @@ The bottom controls drawer keeps its hazards and stops **settings** tabs. They d
 
 Account preferences gain a section listing every registered view and mode with an on/off switch. Defaults come from the rider's profile (ADR-068: Road, Rando, Ultra, Gravel, Touring/Bikepacking) through each view's `profiles` field; a rider may turn anything on or off afterwards. The registry filter reads the result through `LanternScreenContext`. The `randonneurEnabled` argument threaded through `useRideModeStore` is removed once this lands; no second switch stays beside it.
 
-### 2.7 The cue sheet reads the registry
+### 2.7 One set of rows per view, read three ways (owner, 2026-10-22)
 
-Every overlay view exposes its per-checkpoint rows through one function:
+> "When you're in Analyze and you have field notes selected, it should have a running list of all the people's field notes with mile markers tied to the start of the route. If you're in Plan … it should show basically the same field notes rearranged to the mile markers based on that starting point. And then if you go to Ride … it should be an overlay on the map, and markers that you can click, and then you see the field note down at the bottom. Same thing for safety, weather, stops and hazards."
 
-```ts
-rowsForView(view: LanternView, route: RouteTimeBinding, scenario?: RidePlanScenarioContext): ViewRow[]
-// ViewRow = { atDistM: number; atTimeIso?: string; label: string; value?: string; severity?: ... }
-```
+Every view's content is one list of rows on the route artifact's axis, each carrying `artifactDistM` measured from the artifact's own start. The mode decides how the list is read:
 
-The map paints these rows; the cue sheet offers each view as a column the rider can switch on, merged into the cue list by `atDistM`. Stops, hazards and weather first; sun and moon when those views exist. One source, two renderings, so the sheet never disagrees with the map.
+| Mode | Reading | Frame |
+|---|---|---|
+| Analyze | A running list, mile markers from the route's start | `artifactFrame(totalDistM)` |
+| Plan | The same rows, re-measured from the plan's start point and direction, in riding order | the plan's `direction`, `startOffsetDistM`, closed-loop flag |
+| Ride (and Route) | Markers on the map; tapping one shows that row at the bottom | the plan frame if a plan is loaded, else the artifact frame |
+
+`projectViewRows(rows, frame)` in `src/lib/lantern-view-rows.ts` owns the re-measuring. A closed loop wraps past its end; an open route started part-way returns the rows behind the start as `notRidden`, which the Plan list shows separately and never silently drops. The rule applies to field notes, safety, weather, stops and hazards alike.
+
+### 2.8 The cue sheet shows what the map shows, and the rider picks which
+
+The cue sheet carries a row of toggles at its top: **Hazards, Stops, Weather, Field notes**. Everything is on by default; the rider switches kinds off, and the choice is remembered per viewer (`src/lib/cue-sheet-views.ts`). Each kind's rows merge into the cue list by distance, read in the same frame as the Plan list. A kind that has no rows on the cue sheet yet is shown disabled, never as a switch that does nothing. As of 2026-10-22 only Hazards merges; the others join as their rows exist.
+
+**Field notes have no rows yet.** ADR-004 defers them and DS-016 (schema and confirmation) is unwritten. The reading rule above is ready for them; the data is not.
 
 ---
 
