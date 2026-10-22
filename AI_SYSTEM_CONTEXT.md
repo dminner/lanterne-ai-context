@@ -54736,8 +54736,36 @@ Recorded the same day the ADR was drafted, in reply to its four open questions.
 - **Controls:** rider-profile dependent, through account preferences for views and functions; port and retire the old toggle. Decision §6.
 - **Tier:** all planning is paid, free during early access. Consequences.
 
+## Rider-facing wording, approved at the human gate
+
+Derek, 2026-10-22: *"I approve all."* This is the wording a rider reads; any change to it goes back through the gate (AGENTS.md).
+
+**The dials** (Plan · weather). Four rows, each a slider with an off switch. Slider ends read *Nice to have* and *Matters a lot*; no numbers are shown (the 0 to 2 weights stay underneath).
+
+| Dial | Label | Sub-label | Off state reads |
+|---|---|---|---|
+| `no_rain` | **Dry** | Avoid rain | Rain doesn't matter |
+| `no_snow` | **No snow or ice** | Avoid snow and freezing precip | Snow doesn't matter |
+| `tailwind` | **Wind at your back** | Favor tailwind over the ride | Wind doesn't matter |
+| `temperature_near_70f` | **Comfortable temperature** | Closest to 70°F, adjust the target | Temperature doesn't matter |
+
+**"Optimal" is not used in the interface.** It promises a verdict; DS-059 says these are ranked results under stated assumptions.
+
+- Section title **Best windows**, with the line: *Ranked for your dials from the forecast. Conditions change; check again before you roll.*
+- Buttons: **Best start time**, **Best direction**, **Best start point** (closed loops only).
+- Each result card: the plan's values first (start, direction, arrival), then one short reason in words (*dry, tailwind most of the way, 64 to 72°F*), then Planned Ride Risk labelled *for this plan* beside *route baseline*. A plan ADR-055's gates have not cleared reads **Not ready** with its receipt line; it is never shown as a lower rank.
+
+**Preferences screen.** Under Account, a section titled **What you see**.
+
+- Lead line: *Lanterne shows the views and tools that fit how you ride. Turn any of them on or off.*
+- **Riding**: the profile chips (Road, Rando, Ultra, Gravel, Touring/Bikepacking), with the note *Changing this resets the switches below to that profile's defaults.*
+- **Views**: Safety (always on, no switch), Weather, Traffic, Speeds, Hazards, Stops, Controls, Cues, Ride computer, Field note. Controls carries the note *Brevet checkpoints. On by default for Rando.*
+- **Tools**: Route, Analyze, Plan, Ride, Inspect. Plan carries a **Paid** tag with *Free during early access.*
+
+Two alternatives were offered and not taken, recorded so they are not re-derived: **Checkpoints** in place of Controls as the view label (removes the settings ambiguity, loses the brevet term), and **No rain** in place of Dry (Dry is calmer; the variable underneath is precipitation probability).
+
 ## Still open
 
-- Rider-facing wording for the dials, for "optimal", and for the preferences screen (human gate).
+- Nothing from the owner. Implementation phases per DS-068 §5, each with a builder report and independent review.
 - Whether the map-overlay views in Route mode are free or paid under ADR-068 §6. Weather and traffic on the free safety map read as free; along a rider's own imported route they are calculated on the fly.
 
