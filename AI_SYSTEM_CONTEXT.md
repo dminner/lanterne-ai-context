@@ -54698,7 +54698,7 @@ The route artifact is not rewritten. A saved plan appears in the rider's saved r
 - The **Weather view gets content for the first time**: in Analyze, the forecast report at the route's start; in Plan, the forecast for the scenario as the rider moves it; in Route and Ride, paint along the whole route with the existing typography overlay.
 - **Cues** leaves `LANTERN_FUNCTION_ORDER` and the right drawer; its surface becomes the Ride·cues cell. The cue-sheet owner gains optional columns fed by the view registry.
 - **Account preferences** gain a views-and-functions section seeded from the rider's profile. `randonneurEnabled` in `useRideModeStore` is retired into it.
-- **Plan is a paid-tier capability** under ADR-068 §6: it is calculated on the fly. Analyze on a pre-computed route stays free. This is product intent, not a public claim.
+- **All planning is paid.** Owner, 2026-10-22: *"All planning should be paid."* Every Plan cell, the dials, the sweeps and saved plans sit on the paid side of ADR-068 §6. During early access, planning is included for free; that is a launch-period allowance, not a tier line. Analyze on a pre-computed route stays free. This is product intent, not a public claim.
 - **Naming collision resolved.** The existing `controls` view is labelled "layers" and opens map layer settings; it is renamed `map_layers` so `controls` means brevet controls (owner confirmed 2026-10-22).
 - Implementation is phased, one cell at a time, each with a builder report and an independent review per AGENTS.md. Suggested order: the registry and cell resolver with Analyze·safety unchanged; Analyze·weather; the Plan mode shell with Plan·safety on a sealed single scenario; the plan record; Plan·weather with the standard objective; Plan·stops; sweeps.
 
@@ -54734,6 +54734,7 @@ Recorded the same day the ADR was drafted, in reply to its four open questions.
 - **Cues:** a Ride view, with the cue sheet as the place to customise what the map paints. Decision §7.
 - **Several plans:** a menu; never automatic. Decision §8.
 - **Controls:** rider-profile dependent, through account preferences for views and functions; port and retire the old toggle. Decision §6.
+- **Tier:** all planning is paid, free during early access. Consequences.
 
 ## Still open
 
