@@ -41116,7 +41116,8 @@ interface FieldNote {
   noteId: string;                         // substrate_signals.signal_id, 'fn_' + uuid
   kind: FieldNoteKind;                    // §3
   severity?: 'info' | 'inconvenience' | 'unsafe';   // subset of the ledger enum
-  text?: string;                          // optional, ≤ 140 characters, plain text
+  text?: string;                          // optional, plain text, ≤ 2,000 characters (abuse ceiling only, not a product limit)
+  voice?: { storagePath: string; durationSec: number; transcriptStatus: 'pending' | 'done' | 'failed' };
   point: { lat: number; lon: number };    // the anchor
   bearingDeg?: number;                    // optional: the note applies to one direction of travel
   wayRef?: { osmWayId: number; confidence: 'high' | 'medium' | 'low' };   // snapped road, when known
@@ -41131,24 +41132,28 @@ interface FieldNote {
 
 ## 3. Kinds
 
-Twelve, grouped so the Hazards and Stops views can pick up their own:
+Revised 2026-10-23 on the owner's direction to start open and police later. Fourteen, grouped so the Hazards and Stops views pick up their own. Labels are drafts for the human gate.
 
-| Kind | Group | Default freshness | Rider label (draft, human gate) |
+| Kind | Group | Default freshness | Rider label (draft) |
 |---|---|---|---|
+| `general` | — | 60 days | General |
+| `hazard` | hazard | 60 days | Hazard (anything: a metal-grate bridge, a blind bend) |
+| `busy_road` | hazard | 365 days | Busy road |
+| `intersection` | hazard | 365 days | Dangerous intersection |
 | `dog` | hazard | 90 days | Dogs |
-| `construction` | hazard | 30 days | Construction |
 | `surface` | hazard | 60 days | Rough surface |
-| `debris` | hazard | 7 days | Debris |
+| `construction` | hazard | 30 days | Construction |
 | `closure` | hazard | 14 days | Road closed |
-| `traffic_behavior` | hazard | 60 days | Driver behaviour |
+| `debris` | hazard | 7 days | Debris |
 | `water` | stop | 365 days | Water |
 | `food` | stop | 180 days | Food |
 | `restroom` | stop | 180 days | Restroom |
 | `shelter` | stop | 365 days | Shelter |
 | `bike_service` | stop | 365 days | Bike help |
-| `other` | — | 30 days | Note |
 
-Group decides which view shows the note besides Field notes: hazard kinds also appear in Hazards as *rider-reported*; stop kinds also appear in Stops as *rider-reported*. A kind's freshness is how long a note shows after its last report or confirmation (§4.3).
+`driver_behaviour` from the first draft folds into `busy_road`; `other` becomes `general`. **Direction matters for intersections and busy roads**: a note made on the bike carries the rider's bearing, so *"watch the left turn"* shows only to riders approaching the same way (§6 step 4). A note placed by hand can set an approach direction or leave it for all approaches.
+
+Open categories mean language will be rough. Swearing is allowed; what is removed is in §8.
 
 ## 4. Confirmation and lifecycle (ADR-028)
 
@@ -41232,13 +41237,26 @@ For a route not yet saved (an unsaved import being analysed), the same function 
 - **Analyze, Plan, Route:** long-press on the map, or *Add note* in the Field note view, places the point; no bearing unless the rider sets one.
 - **A note is saved locally first** and synced when signed in and online, so a rider with no signal at a dog does not lose it.
 
+### 7.1 Voice (owner, 2026-10-23: "typing is basically worthless on the bike")
+
+Voice is the primary capture on the bike. **Record and submit**, not live dictation:
+
+1. One tap on *Add note here* starts recording. **Position and bearing are taken at that tap**, not at the end, because the rider keeps moving while talking.
+2. Tap again (or 45 seconds) stops it. The note is saved at once as `kind: general`, `transcriptStatus: pending`, with the audio queued for upload. Nothing to read, nothing to confirm.
+3. In the background the audio is transcribed, and the transcript is used to suggest a kind (*"dogs at the farm on the left"* → `dog`). The suggestion is applied and marked *suggested*; the author can change it later.
+4. The note is public once transcribed (subject to visibility and the privacy distance). Until then it shows to its author only.
+5. Audio is kept with the note for 30 days so the author can re-listen or correct the text, then deleted; the transcript stays. The author can delete the audio sooner.
+
+Live dictation (the phone's own keyboard) stays available in the form for riders off the bike.
+
 ## 8. Boundaries
 
 - Never an input to truth resolution, Route Safety Score, Planned Ride Risk, the score ledger, or heatmap colour (ADR-040).
 - Never a thread: no replies, no comments, no author profile.
+- **Removed on report or by review:** another person's identity (names, plates, addresses), threats, slurs aimed at people, spam and advertising. A note reported by three riders is hidden pending review. Swearing about a road is not removed.
 - A note never promotes itself to a POI or a hazard detection. Promotion, if ever, is a reviewed act under ADR-040's `admin_approved` path.
 
-## 9. Phases
+## 9. Phases (see also §10)
 
 1. **Schema and write path.** Reaction table, field-note policies on `substrate_signals`, insert/update/delete functions with rate limit and start-point privacy. Tests on policies.
 2. **Read path.** `field_notes_along_route` and the client row adapter; the Field note view in Analyze lists notes from the route start; the cue sheet's Field notes toggle enables.
@@ -41246,6 +41264,15 @@ For a route not yet saved (an unsaved import being analysed), the same function 
 4. **Reactions.** Still there / gone, counts, status rules, *may be gone* marking.
 5. **Hazards and Stops pick up their groups** as *rider-reported* rows.
 6. **Plan.** Notes re-measured through the plan's frame (needs DS-070 phase 1).
+
+## 10. Free or paid: recommendation (owner decision pending)
+
+**Recommendation: making, reading and reacting to field notes, voice included, is free. What is paid is having notes work for you while you ride.**
+
+- **The cost that scales is not transcription.** At published 2026 rates of roughly $0.003–0.008 per minute for batch speech-to-text, a 20-second note costs about a tenth to a quarter of a cent. Ten thousand voice notes a month is on the order of $10–30, before the kind-suggestion step, which is cheaper still. A per-rider daily cap (30 notes, 45 seconds each) bounds any one account at well under $0.20 a day.
+- **The cost that scales is moderation**, and that is driven by volume and openness, not by price. Reports, auto-hide and a review queue are needed whether or not notes are paid.
+- **Charging to contribute starves the layer.** A note's value is to the next rider, not the author; a paywall on writing removes the riders whose notes would make the free tier worth having, and ADR-068 holds that safety is never paid.
+- **The paid line that fits ADR-068:** spoken or buzzed warnings ahead of a note during Ride (*"dogs reported, half a mile"*, ADR-036 push intelligence), notes in Plan rows and arrival times, and offline packs of notes for a whole route. Those are ride-time and planning features, which ADR-068 already puts on the paid side.
 
 
 ---
@@ -55159,4 +55186,12 @@ Planning is paid and free during early access (ADR-069). Field notes are safety 
 2. **Start-point privacy.** A public note near where a rider's rides usually start can reveal their home. Proposal: a public note within 300 m of the start of any of the author's saved routes is held private until the author confirms it.
 3. **Field notes free to read and write.** Proposal: yes, both.
 4. **Kinds list.** DS-069 §3 proposes twelve kinds. Add, cut or rename before they become rider-facing wording.
+
+## Owner answers, 2026-10-23
+
+1. **Visibility: public by default, and a rider can make any note private.** Decision §2 stands.
+2. **Privacy distance is a global account setting, not a field-note rule.** The rider gives their home address and chooses the distance; it applies to everything Lanterne would otherwise show near home: public field notes, recorded rides, shared routes and plans. A public note inside the distance is written private until the author confirms it. Asking for the address carries a **separate, optional** consent to occasional mailed goodies (for example reflectors from the Lanterne product line, ADR-068 §1); the privacy use never depends on that consent. Wording goes through the human gate.
+3. **Free or paid: open.** The owner's tension, in his words: field notes are *"probably one of the stickiest features of the app … something that you need to nurture in every way possible,"* and voice capture is *"not really super scalable at a free charge."* Recommendation recorded in DS-069 §10; decision pending.
+4. **Kinds: start open, police later.** *"We can always police it and shut it down if it gets out of hand … I'd like to start open."* The list gains a General kind, a general Hazard kind, Busy road and Dangerous intersection, and the 140-character text limit is lifted. DS-069 §3 is revised.
+5. **Voice is the primary way to make a note on the bike.** *"Typing is basically worthless on the bike."* Record-and-submit with transcription in the background is preferred over live dictation, so the rider never looks down to check the words. DS-069 §7 is revised.
 
