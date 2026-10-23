@@ -41249,6 +41249,15 @@ Voice is the primary capture on the bike. **Record and submit**, not live dictat
 
 Live dictation (the phone's own keyboard) stays available in the form for riders off the bike.
 
+### 7.2 Transcription provider (owner, 2026-10-23)
+
+Lanterne has no speech-to-text yet. The owner already runs OpenAI transcription in Of Me (`web/lib/contributor/stt.ts` in dminner/ofme-app), so Lanterne **ports that pattern rather than building one**:
+
+- **Port, don't share.** Copy the client, its automatic retry (`transcribe-with-retry.ts`) and its transcript health check (`transcript-health.ts`) into a Lanterne Supabase edge function, with Lanterne's own API key, env names and billing. Rider audio never passes through Of Me's service or storage; the two products' data do not cross.
+- **Keep the three behaviours that matter here:** audio is never blocked on transcription (no key or a failure leaves the note saved with `transcriptStatus: pending` or `failed`); a failed call retries on its own; and a transcript that is not real words is rejected rather than published. Wind noise on a moving bike is exactly the input that makes speech-to-text models invent filler like *"thank you"*, which is the failure Of Me's health check already catches.
+- **Model by env**, as in Of Me (`OFME_STT_MODEL`, default `whisper-1`). For Lanterne, start with the cheapest OpenAI transcribe model and switch only if wind-noise accuracy is poor; the choice is a config value, not code.
+- **No language model in the capture path.** The transcript lands as said. The kind suggestion (§7.1 step 3) is a separate step after it and only ever *suggests*.
+
 ## 8. Boundaries
 
 - Never an input to truth resolution, Route Safety Score, Planned Ride Risk, the score ledger, or heatmap colour (ADR-040).
