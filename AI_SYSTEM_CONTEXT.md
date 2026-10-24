@@ -41255,6 +41255,7 @@ Live dictation (the phone's own keyboard) stays available in the form for riders
 
 - **Pulling the lantern down at rest records a field note, in every mode.** Nothing sits below the rest position any more; the Field notes *view*, Cues and Ride computer move into the up stack (ADR-069 amended).
 - **Pulling down with something open still closes it**, as before. Recording happens only when there is nothing to dismiss, so the two never compete.
+- **Rest is the floor of the column, and steps stay relative** (owner, 2026-10-24). From any view, up and down step from where you are. Pulling down from the lowest view (Safety) returns to rest; a long pull from higher up also stops at rest. Only a fresh pull that starts at rest records. The column reads: settings · field notes · weather · stops · hazards · safety · **rest** · record.
 - **The recorder** is a band at the bottom of the map with Of Me's record button in its middle, ported exactly (`src/components/field-notes/RecordButton`). Red while recording, ink otherwise.
 - **Setting: Pull to record** (in Settings). Off by default: the band opens with the button ready, one tap to start. On: recording starts the moment the lantern is pulled down.
 - **One press while recording stops and saves.** Of Me's press pauses; on a bike a single press to finish is the shorter path. The button keeps Of Me's drawing, including the two bars while recording.
