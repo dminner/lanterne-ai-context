@@ -47536,37 +47536,6 @@ Current behavior:
 - observations render only as display overlays in `TruthSection`
 - overlays are explicitly marked as `user_observation`
 
-## Amendment — 2026-10-24 (ROAD-FACT-02, issue #243): private personal paint and signed-in submission
-
-Direct product authorization from Derek, October 24, 2026. This amendment is narrow; everything
-above still holds except exactly the two points below.
-
-1. **Private, current-account map paint is allowed for speed and bike-lane corrections.** A signed-in
-   rider's own speed correction may colour that exact road with the shared speed colours, and their
-   own bike-lane correction may draw (or, for None, hide) the shared bike-facility patterns, on that
-   rider's map only. Conditions, all required:
-   - only the current account's own corrections; never a guest's, never another rider's, and retired
-     immediately on sign-out or account change;
-   - only on the exact OSM way the correction targets, on geometry the viewport overlays already
-     admitted under their own toggles, zoom bands and render budgets — no corridor, name or
-     nearest-road inference and no extra acquisition to paint a missing road; artifact-scoped route
-     segments do not paint;
-   - every personal stroke is non-interactive and visibly marked as the rider's own (card: "Yours",
-     unverified), so it can never be read as verified or shared truth;
-   - removing the correction (or Undo) restores the original paint;
-   - traffic and shoulder corrections never paint.
-   This paint is presentation only. It is not a heatmap input, and it does not change the canonical
-   or shared heatmap, scores, resolvers, caches, route artifacts or receipts.
-2. **Submissions require sign-in.** Corrections are sent to Lanterne only by an authenticated
-   account (following OpenStreetMap's account requirement); the server derives the actor from the
-   session. There are no guest submissions and no automatic upload of earlier browser-only reports:
-   those stay explicitly unsent until the rider sends one. A submitted correction is persisted
-   evidence awaiting review (`applied_to_canonical: false`); review metadata does not by itself
-   change canonical truth, scoring or shared paint.
-
-The prohibition on user input reaching the canonical resolver, scoring engine, shared heatmap,
-caches, artifacts and canonical receipts is unchanged.
-
 ## Design Principle
 
 **User observations are evidence overlays, not canonical truth inputs.**
