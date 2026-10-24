@@ -3382,7 +3382,7 @@ Route Safety Score must remain:
 | ADR-001 | Route Acquisition Model | Accepted | Self-contained |
 | ADR-002 | Vault Concept | Accepted | Self-contained |
 | ADR-003 | Mode-Aware Vault Filtering | Accepted | Self-contained |
-| ADR-004 | Rider Field Notes (Deferred) | Deferred — post-alpha | DS-016 (not yet written) |
+| ADR-004 | Rider Field Notes (Deferred) | Deferred — post-alpha; lifted by ADR-070 (proposed) | DS-069 |
 | ADR-005 | Route Analysis Model | Accepted | See DS-001, DS-007 |
 | ADR-006 | Safety Definition | Accepted | Self-contained |
 | ADR-007 | Index Families | Accepted | Self-contained |
@@ -3406,7 +3406,7 @@ Route Safety Score must remain:
 | ADR-025 | Fatigue Index as Extensible Model Family | Accepted | Self-contained |
 | ADR-026 | Canonical Route Identity | Accepted | DS-005, DS-006, DS-009 |
 | ADR-027 | Lantern Screen Model | Accepted | DS-011, DS-012 |
-| ADR-028 | Field Note Confirmation Model | Accepted | DS-016 (not yet written) |
+| ADR-028 | Field Note Confirmation Model | Accepted | DS-069 (was DS-016, never written; number claimed elsewhere) |
 | ADR-029 | Ride-Time Situational Awareness Mode | Proposed | DS-011, DS-012 |
 | ADR-030 | Ride Mode Display, Power, and Sensor Architecture | Proposed | DS-012 (partial); power/sensor specs not yet written |
 | ADR-031 | Multi-Day Events as Ordered References onto Canonical Geometry | Proposed | DS-014 (not yet written) |
@@ -3421,6 +3421,7 @@ Route Safety Score must remain:
 | ADR-058 | Viewport Road Data Plane and Overlay Ownership | Proposed | DS-061 |
 | ADR-059 | Single Route Truth And Score Ledger Pipeline | Accepted | DS-067 |
 | ADR-069 | Modes by Views Grid and Plan Mode | Proposed, recorded from owner direction 2026-10-22 | DS-068 |
+| ADR-070 | Ride Plans and Field Notes as Rider-Authored Layers | Proposed 2026-10-23 | DS-069, DS-070 |
 
 ---
 
@@ -3481,6 +3482,8 @@ Route Safety Score must remain:
 | DS-064 | Motor-Vehicle Temporal Component Adaptation And Coverage Contract | ADR-055, ADR-057, DS-015, DS-031, DS-056, DS-058, DS-062, DS-063, EXEC-055, EXEC-056 | Accepted for temporal component-adaptation contract only; runtime not implemented; preview, score, presentation, storage, and production deferred |
 | DS-067 | Single Route Truth And Score Ledger Pipeline Spec | ADR-059, ADR-045, ADR-054, DS-015, DS-029, DS-031, DS-032, DS-055 | Accepted for authority closure |
 | DS-068 | Ride Plan Record and Mode/View Registry Spec | ADR-069, ADR-027, ADR-029, ADR-055, ADR-068, DS-059, DS-060, DS-063 | Draft for planning |
+| DS-069 | Field Notes: Schema, Confirmation, Lifecycle and Route Projection | ADR-070, ADR-028, ADR-004, ADR-040, ADR-046, DS-068 | Draft for planning |
+| DS-070 | Ride Plan Persistence, Load and Application | ADR-070, ADR-069, ADR-055, DS-056, DS-068, DS-069 | Draft for planning |
 
 ---
 
@@ -40955,16 +40958,25 @@ The bottom controls drawer keeps its hazards and stops **settings** tabs. They d
 
 Account preferences gain a section listing every registered view and mode with an on/off switch. Defaults come from the rider's profile (ADR-068: Road, Rando, Ultra, Gravel, Touring/Bikepacking) through each view's `profiles` field; a rider may turn anything on or off afterwards. The registry filter reads the result through `LanternScreenContext`. The `randonneurEnabled` argument threaded through `useRideModeStore` is removed once this lands; no second switch stays beside it.
 
-### 2.7 The cue sheet reads the registry
+### 2.7 One set of rows per view, read three ways (owner, 2026-10-22)
 
-Every overlay view exposes its per-checkpoint rows through one function:
+> "When you're in Analyze and you have field notes selected, it should have a running list of all the people's field notes with mile markers tied to the start of the route. If you're in Plan … it should show basically the same field notes rearranged to the mile markers based on that starting point. And then if you go to Ride … it should be an overlay on the map, and markers that you can click, and then you see the field note down at the bottom. Same thing for safety, weather, stops and hazards."
 
-```ts
-rowsForView(view: LanternView, route: RouteTimeBinding, scenario?: RidePlanScenarioContext): ViewRow[]
-// ViewRow = { atDistM: number; atTimeIso?: string; label: string; value?: string; severity?: ... }
-```
+Every view's content is one list of rows on the route artifact's axis, each carrying `artifactDistM` measured from the artifact's own start. The mode decides how the list is read:
 
-The map paints these rows; the cue sheet offers each view as a column the rider can switch on, merged into the cue list by `atDistM`. Stops, hazards and weather first; sun and moon when those views exist. One source, two renderings, so the sheet never disagrees with the map.
+| Mode | Reading | Frame |
+|---|---|---|
+| Analyze | A running list, mile markers from the route's start | `artifactFrame(totalDistM)` |
+| Plan | The same rows, re-measured from the plan's start point and direction, in riding order | the plan's `direction`, `startOffsetDistM`, closed-loop flag |
+| Ride (and Route) | Markers on the map; tapping one shows that row at the bottom | the plan frame if a plan is loaded, else the artifact frame |
+
+`projectViewRows(rows, frame)` in `src/lib/lantern-view-rows.ts` owns the re-measuring. A closed loop wraps past its end; an open route started part-way returns the rows behind the start as `notRidden`, which the Plan list shows separately and never silently drops. The rule applies to field notes, safety, weather, stops and hazards alike.
+
+### 2.8 The cue sheet shows what the map shows, and the rider picks which
+
+The cue sheet carries a row of toggles at its top: **Hazards, Stops, Weather, Field notes**. Everything is on by default; the rider switches kinds off, and the choice is remembered per viewer (`src/lib/cue-sheet-views.ts`). Each kind's rows merge into the cue list by distance, read in the same frame as the Plan list. A kind that has no rows on the cue sheet yet is shown disabled, never as a switch that does nothing. As of 2026-10-22 only Hazards merges; the others join as their rows exist.
+
+**Field notes have no rows yet.** ADR-004 defers them and DS-016 (schema and confirmation) is unwritten. The reading rule above is ready for them; the data is not.
 
 ---
 
@@ -41049,7 +41061,7 @@ type PlanDerivation =
 
 ### 4.3 Storage
 
-Deferred to the implementing phase. The record is small (stops and derivations aside) and belongs beside the saved route it references, with the same ownership and the same resume rules as `saved-route-resume-store.ts` (server record is the authority; any local copy is a non-authoritative accelerator).
+Specified in [DS-070](ds-070-ride_plan_persistence_and_application_spec.md) under ADR-070. A `road_fact` derivation is a reference to a private field note ([DS-069](ds-069-field_notes_schema_confirmation_and_route_projection_spec.md)). Originally: deferred to the implementing phase. The record is small (stops and derivations aside) and belongs beside the saved route it references, with the same ownership and the same resume rules as `saved-route-resume-store.ts` (server record is the authority; any local copy is a non-authoritative accelerator).
 
 ---
 
@@ -41076,6 +41088,346 @@ Each phase is one cell or one contract, with a builder report and an independent
 - Any change to scoring, truth selection, evidence acquisition or the score ledger.
 - Rider-facing wording for the dials and for "optimal" (human gate).
 - Multi-day plans beyond the push-transition rule already in EXEC-058 (ADR-068 §5).
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-069-field_notes_schema_confirmation_and_route_projection_spec.md
+
+# DS-069 - Field Notes: Schema, Confirmation, Lifecycle and Route Projection
+
+**Status:** Draft for planning, 2026-10-23
+**ADR Parent:** [ADR-070](../../03-adrs/adr-070-ride_plans_and_field_notes_as_rider_authored_layers.md); implements [ADR-028](../../03-adrs/adr-028-field_note_confirmation_model.md) and lifts [ADR-004](../../03-adrs/adr-004-rider_field_notes_deferred.md)
+**Related:** ADR-040, ADR-046, ADR-069, DS-068 §2.7–2.8, substrate signal registry (`20260601000100_substrate_signal_registry.sql`)
+**Replaces:** the "DS-016 (Field Note Schema)" pointer in ADR-004 and ADR-028. DS-016 keeps its other uses.
+
+---
+
+## 1. Purpose
+
+Define what a field note is, where it is stored, who can see and change it, how confirmations work, when it stops showing, and how a note on the map becomes a row with a mile marker on any route. Nothing here is applied; migrations land in the phases in §9.
+
+## 2. What a field note is
+
+A short structured observation about **a place**, made by a rider, that other riders can confirm or clear.
+
+```ts
+interface FieldNote {
+  noteId: string;                         // substrate_signals.signal_id, 'fn_' + uuid
+  kind: FieldNoteKind;                    // §3
+  severity?: 'info' | 'inconvenience' | 'unsafe';   // subset of the ledger enum
+  text?: string;                          // optional, plain text, ≤ 2,000 characters (abuse ceiling only, not a product limit)
+  voice?: { storagePath: string; durationSec: number; transcriptStatus: 'pending' | 'done' | 'failed' };
+  point: { lat: number; lon: number };    // the anchor
+  bearingDeg?: number;                    // optional: the note applies to one direction of travel
+  wayRef?: { osmWayId: number; confidence: 'high' | 'medium' | 'low' };   // snapped road, when known
+  observedAt: string;                     // when the rider saw it
+  visibility: 'private' | 'public';
+  provenance?: { routeId: string; routeAxisDigest: string; distM: number; mode: 'ride' | 'analyze' | 'plan' };
+  media?: { kind: 'photo'; storagePath: string }[];   // at most one in v1
+}
+```
+
+**Not stored on a note:** mile markers on any route (computed, §6), author identity in any public read (§5), scores or truth (ADR-040).
+
+## 3. Kinds
+
+Revised 2026-10-23 on the owner's direction to start open and police later. Fourteen, grouped so the Hazards and Stops views pick up their own. Labels are drafts for the human gate.
+
+| Kind | Group | Default freshness | Rider label (draft) |
+|---|---|---|---|
+| `general` | — | 60 days | General |
+| `hazard` | hazard | 60 days | Hazard (anything: a metal-grate bridge, a blind bend) |
+| `busy_road` | hazard | 365 days | Busy road |
+| `intersection` | hazard | 365 days | Dangerous intersection |
+| `dog` | hazard | 90 days | Dogs |
+| `surface` | hazard | 60 days | Rough surface |
+| `construction` | hazard | 30 days | Construction |
+| `closure` | hazard | 14 days | Road closed |
+| `debris` | hazard | 7 days | Debris |
+| `water` | stop | 365 days | Water |
+| `food` | stop | 180 days | Food |
+| `restroom` | stop | 180 days | Restroom |
+| `shelter` | stop | 365 days | Shelter |
+| `bike_service` | stop | 365 days | Bike help |
+
+`driver_behaviour` from the first draft folds into `busy_road`; `other` becomes `general`. **Direction matters for intersections and busy roads**: a note made on the bike carries the rider's bearing, so *"watch the left turn"* shows only to riders approaching the same way (§6 step 4). A note placed by hand can set an approach direction or leave it for all approaches.
+
+Open categories mean language will be rough. Swearing is allowed; what is removed is in §8.
+
+## 4. Confirmation and lifecycle (ADR-028)
+
+### 4.1 Reactions
+
+```sql
+create table public.field_note_reactions (
+  id uuid primary key default gen_random_uuid(),
+  signal_id uuid not null references public.substrate_signals(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reaction text not null check (reaction in ('still_there', 'gone')),
+  created_at timestamptz not null default now(),
+  unique (signal_id, user_id)            -- one standing reaction per rider; a change is an update
+);
+```
+
+- The author cannot react to their own note (enforced by policy, §5). The report is not a confirmation.
+- A rider's later reaction replaces their earlier one (`gone` after `still_there` counts as `gone`).
+
+### 4.2 Derived counts
+
+Read model per note: `confirmations` = riders whose standing reaction is `still_there`; `clears` = riders whose standing reaction is `gone`; `lastSeenAt` = the latest of `observedAt` and any `still_there`. Displayed as ADR-028 specifies: *reported · +3*.
+
+### 4.3 Status
+
+| Status | Rule | Shown |
+|---|---|---|
+| `active` | within freshness of `lastSeenAt`, and `clears ≤ confirmations` | yes |
+| `disputed` | `clears > 0` and `clears = confirmations + 1` (one more gone than still-there, counting the report) | yes, marked *may be gone* |
+| `cleared` | `clears ≥ confirmations + 2` | no (author still sees it) |
+| `stale` | past freshness of `lastSeenAt` | no in lists and markers; reachable through *show older notes* |
+| `hidden` | author deleted, or admin hid it | no |
+
+Status is computed at read time from counts and dates. It is never stored as truth and never feeds scoring.
+
+## 5. Access
+
+On `substrate_signals`, for `family = 'field_note'` only:
+
+| Who | Read | Write |
+|---|---|---|
+| Anyone signed in | public notes with status `active` or `disputed`, through the read function in §6 (never the raw row: `source_record_id`, author and raw payload are not returned) | — |
+| The author | all their own notes | insert with `source_actor_type = 'rider'` and their own `user_id`; update text, kind, severity, visibility; delete (sets `hidden`) |
+| Admin | everything | hide, unhide |
+
+On `field_note_reactions`: a signed-in rider may insert or update their own reaction on a public note they did not author; nobody reads another rider's reaction rows directly, only the counts.
+
+**Author identity is never returned for a public note.** The author's own reads mark their notes as theirs.
+
+**Start-point privacy** (ADR-070 owner question 2): on insert of a public note, if it lies within 300 m of the first point of any `route_history` row owned by the author, it is written `private` and the client asks the author to confirm making it public.
+
+**Rate limit:** at most 30 notes and 200 reactions per rider per day, enforced in the write function.
+
+## 6. Route projection: how a note gets a mile marker
+
+```sql
+-- Returns the field notes visible to the caller along a saved route, with distances on that route's axis.
+create function public.field_notes_along_route(p_route_id uuid, p_corridor_m numeric default 30)
+returns table (
+  note_id text, kind text, severity text, text text, status text,
+  confirmations int, clears int, last_seen_at timestamptz, observed_at timestamptz,
+  is_mine boolean, artifact_dist_m numeric, offset_m numeric, has_photo boolean
+) ...
+```
+
+1. Build the route line from the saved axis (`route_history.points_json`, the `route_axis_digest` the caller holds).
+2. Candidate notes: `ST_DWithin(point, line, p_corridor_m)` on geography, visible to the caller per §5.
+3. `artifact_dist_m = ST_LineLocatePoint(line, point) × length`. For a route that passes the same place twice (an out-and-back, a figure eight), the note is returned once per pass within the corridor, each with its own distance.
+4. A note with `bearingDeg` is returned for a pass only if the route's bearing at that distance is within 60° of it.
+5. Results ordered by `artifact_dist_m`.
+
+The client turns each row into a `ViewRow` (`view: 'field_note'`, `artifactDistM`) and reads it per DS-068 §2.7: Analyze as is, Plan through `projectViewRows` with the plan's frame, Ride as markers. Hazard- and stop-group notes are also emitted as rows for those views.
+
+For a route not yet saved (an unsaved import being analysed), the same function takes the axis as a GeoJSON LineString parameter instead of a route id; nothing is cached.
+
+**Cache:** results are keyed by `(route_axis_digest, notes_watermark)` where the watermark is the latest `updated_at` among field notes inside the route's bounding box. Ride mode fetches once at route load and holds the list for the ride.
+
+## 7. Capture
+
+- **Ride:** the Field note view's bottom sheet offers *Add note here*: kind first (one tap), then optional severity, text and photo. Position and bearing come from GPS; provenance records the route and distance.
+- **Analyze, Plan, Route:** long-press on the map, or *Add note* in the Field note view, places the point; no bearing unless the rider sets one.
+- **A note is saved locally first** and synced when signed in and online, so a rider with no signal at a dog does not lose it.
+
+### 7.1 Voice (owner, 2026-10-23: "typing is basically worthless on the bike")
+
+Voice is the primary capture on the bike. **Record and submit**, not live dictation:
+
+1. One tap on *Add note here* starts recording. **Position and bearing are taken at that tap**, not at the end, because the rider keeps moving while talking.
+2. Tap again (or 45 seconds) stops it. The note is saved at once as `kind: general`, `transcriptStatus: pending`, with the audio queued for upload. Nothing to read, nothing to confirm.
+3. In the background the audio is transcribed, and the transcript is used to suggest a kind (*"dogs at the farm on the left"* → `dog`). The suggestion is applied and marked *suggested*; the author can change it later.
+4. The note is public once transcribed (subject to visibility and the privacy distance). Until then it shows to its author only.
+5. Audio is kept with the note for 30 days so the author can re-listen or correct the text, then deleted; the transcript stays. The author can delete the audio sooner.
+
+Live dictation (the phone's own keyboard) stays available in the form for riders off the bike.
+
+### 7.1a Pull down to record (owner, 2026-10-23)
+
+> "To record them, it should be as easy as hitting the lantern … pull the lantern down and it's record … you can even have a setting. People that know what they're doing, they just pull the lantern down and it starts recording."
+
+- **Pulling the lantern down at rest records a field note, in every mode.** Nothing sits below the rest position any more; the Field notes *view*, Cues and Ride computer move into the up stack (ADR-069 amended).
+- **Pulling down with something open still closes it**, as before. Recording happens only when there is nothing to dismiss, so the two never compete.
+- **Rest is the floor of the column, and steps stay relative** (owner, 2026-10-24). From any view, up and down step from where you are. Pulling down from the lowest view (Safety) returns to rest; a long pull from higher up also stops at rest. Only a fresh pull that starts at rest records. The column reads: settings · field notes · weather · stops · hazards · safety · **rest** · record.
+- **The recorder** is a band at the bottom of the map with Of Me's record button in its middle, ported exactly (`src/components/field-notes/RecordButton`). Red while recording, ink otherwise.
+- **Setting: Pull to record** (in Settings). Off by default: the band opens with the button ready, one tap to start. On: recording starts the moment the lantern is pulled down.
+- **One press while recording stops and saves.** Of Me's press pauses; on a bike a single press to finish is the shorter path. The button keeps Of Me's drawing, including the two bars while recording.
+
+### 7.2 Transcription provider (owner, 2026-10-23)
+
+Lanterne has no speech-to-text yet. The owner already runs OpenAI transcription in Of Me (`web/lib/contributor/stt.ts` in dminner/ofme-app), so Lanterne **ports that pattern rather than building one**:
+
+- **Port, don't share.** Copy the client, its automatic retry (`transcribe-with-retry.ts`) and its transcript health check (`transcript-health.ts`) into a Lanterne Supabase edge function, with Lanterne's own API key, env names and billing. Rider audio never passes through Of Me's service or storage; the two products' data do not cross.
+- **Keep the three behaviours that matter here:** audio is never blocked on transcription (no key or a failure leaves the note saved with `transcriptStatus: pending` or `failed`); a failed call retries on its own; and a transcript that is not real words is rejected rather than published. Wind noise on a moving bike is exactly the input that makes speech-to-text models invent filler like *"thank you"*, which is the failure Of Me's health check already catches.
+- **Model by env**, as in Of Me (`OFME_STT_MODEL`, default `whisper-1`). For Lanterne, start with the cheapest OpenAI transcribe model and switch only if wind-noise accuracy is poor; the choice is a config value, not code.
+- **No language model in the capture path.** The transcript lands as said. The kind suggestion (§7.1 step 3) is a separate step after it and only ever *suggests*.
+
+## 8. Boundaries
+
+- Never an input to truth resolution, Route Safety Score, Planned Ride Risk, the score ledger, or heatmap colour (ADR-040).
+- Never a thread: no replies, no comments, no author profile.
+- **Removed on report or by review:** another person's identity (names, plates, addresses), threats, slurs aimed at people, spam and advertising. A note reported by three riders is hidden pending review. Swearing about a road is not removed.
+- A note never promotes itself to a POI or a hazard detection. Promotion, if ever, is a reviewed act under ADR-040's `admin_approved` path.
+
+## 9. Phases (see also §10)
+
+1. **Schema and write path.** Reaction table, field-note policies on `substrate_signals`, insert/update/delete functions with rate limit and start-point privacy. Tests on policies.
+2. **Read path.** `field_notes_along_route` and the client row adapter; the Field note view in Analyze lists notes from the route start; the cue sheet's Field notes toggle enables.
+3. **Ride.** Markers on the map, tap opens the note in the bottom sheet, *Add note here* with offline queue.
+4. **Reactions.** Still there / gone, counts, status rules, *may be gone* marking.
+5. **Hazards and Stops pick up their groups** as *rider-reported* rows.
+6. **Plan.** Notes re-measured through the plan's frame (needs DS-070 phase 1).
+
+## 10. Free or paid: recommendation (owner decision pending)
+
+**Recommendation: making, reading and reacting to field notes, voice included, is free. What is paid is having notes work for you while you ride.**
+
+- **The cost that scales is not transcription.** At published 2026 rates of roughly $0.003–0.008 per minute for batch speech-to-text, a 20-second note costs about a tenth to a quarter of a cent. Ten thousand voice notes a month is on the order of $10–30, before the kind-suggestion step, which is cheaper still. A per-rider daily cap (30 notes, 45 seconds each) bounds any one account at well under $0.20 a day.
+- **The cost that scales is moderation**, and that is driven by volume and openness, not by price. Reports, auto-hide and a review queue are needed whether or not notes are paid.
+- **Charging to contribute starves the layer.** A note's value is to the next rider, not the author; a paywall on writing removes the riders whose notes would make the free tier worth having, and ADR-068 holds that safety is never paid.
+- **The paid line that fits ADR-068:** spoken or buzzed warnings ahead of a note during Ride (*"dogs reported, half a mile"*, ADR-036 push intelligence), notes in Plan rows and arrival times, and offline packs of notes for a whole route. Those are ride-time and planning features, which ADR-068 already puts on the paid side.
+
+
+---
+
+## Source File: docs/02-architecture/design/ds-070-ride_plan_persistence_and_application_spec.md
+
+# DS-070 - Ride Plan Persistence, Load and Application
+
+**Status:** Draft for planning, 2026-10-23
+**ADR Parent:** [ADR-070](../../03-adrs/adr-070-ride_plans_and_field_notes_as_rider_authored_layers.md), [ADR-069](../../03-adrs/adr-069-modes_by_views_grid_and_plan_mode.md)
+**Related:** ADR-055, DS-056, DS-059, DS-060, DS-063, DS-068 §3–4, DS-069, EXEC-058 (stops and pushes), `saved-route-axis.ts`, `saved-route-resume-store.ts`
+
+---
+
+## 1. Purpose
+
+DS-068 §4 defined the `RidePlanRecordV1` shape. This spec gives it tables, access rules, a save/load/apply flow, the mapping into the scenario engine, and the line between what a plan can show today and what waits for the transform extension.
+
+## 2. Tables
+
+```sql
+create table public.ride_plans (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  route_id uuid not null references public.route_history(id) on delete cascade,
+  route_axis_digest text not null,                  -- the axis the plan was made against
+  schema_version text not null default 'ride_plan_record.v1',
+  revision integer not null default 1,
+  name text not null check (char_length(name) between 1 and 80),
+  direction text not null default 'forward' check (direction in ('forward', 'reverse')),
+  start_offset_dist_m numeric not null default 0 check (start_offset_dist_m >= 0),
+  planned_start_at timestamptz,                     -- null = no time chosen yet
+  time_zone text,                                   -- IANA, required when planned_start_at is set
+  pace jsonb,                                       -- PaceProfile (ADR-055)
+  objective jsonb,                                  -- { objectiveId, dials } (DS-068 §3)
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz,
+  check ((planned_start_at is null) = (time_zone is null))
+);
+create index ride_plans_user_route_idx on public.ride_plans (user_id, route_id) where deleted_at is null;
+
+create table public.ride_plan_stops (
+  id uuid primary key default gen_random_uuid(),
+  plan_id uuid not null references public.ride_plans(id) on delete cascade,
+  axis_dist_m numeric not null check (axis_dist_m >= 0),   -- artifact order, artifact start
+  ref_kind text check (ref_kind in ('poi', 'control', 'field_note')),
+  ref_id text,                                             -- 'osm:node/123', route_controls.id, or a field note id
+  ref_snapshot jsonb,                                      -- name, lat, lon at the time of picking; display only
+  dwell_sec integer not null default 0 check (dwell_sec between 0 and 172800),
+  scope text not null default 'in_push' check (scope in ('in_push', 'push_transition')),
+  note text check (char_length(note) <= 140),
+  sort_key integer not null default 0
+);
+
+create table public.ride_plan_derivations (
+  id uuid primary key default gen_random_uuid(),
+  plan_id uuid not null references public.ride_plans(id) on delete cascade,
+  kind text not null check (kind in ('detour', 'road_fact')),
+  replaces_from_m numeric,                                  -- detour: span on the artifact axis
+  replaces_to_m numeric,
+  detour_axis jsonb,                                        -- detour: SavedRouteAxisV1, ≤ 5,000 points
+  field_note_id text,                                       -- road_fact: a private field note (DS-069)
+  reason text check (char_length(reason) <= 140),
+  created_at timestamptz not null default now(),
+  check ((kind = 'detour' and replaces_from_m is not null and replaces_to_m > replaces_from_m and detour_axis is not null)
+      or (kind = 'road_fact' and field_note_id is not null))
+);
+```
+
+**Access:** row-level security on all three; a rider reads and writes only rows whose plan `user_id` is theirs. No public, shared or admin read in v1. Sharing a plan is a later decision.
+
+**Not stored:** forecasts, Planned Ride Risk, Baseline Risk, impact numbers, cue sheets, or anything else derivable from the artifact plus the record (DS-068 §4.2).
+
+**Rules carried from DS-068 and EXEC-058:**
+- Every distance is on the artifact axis, measured from the artifact's start, whatever the plan's direction or start.
+- A stop with `dwell_sec > 10800` defaults to `push_transition`; the rider's choice wins.
+- A plan referencing a POI keeps a display snapshot, because Overpass ids are not durable; a missing POI shows the snapshot marked *may have changed*.
+
+## 3. Closed loop
+
+A route is a closed loop when its first and last axis points are within 200 m. Computed from the axis on load, never stored. Only a closed loop may carry a non-zero `start_offset_dist_m`; for an open route a start offset is rejected on save in v1 (the rider is starting part-way, which is a different route).
+
+## 4. Save, list, load
+
+**Save.** Plan state lives in the client while the rider works. *Save plan* writes `ride_plans` and replaces its stops and derivations in one transaction (a database function), bumping `revision`. Saving needs a saved route; an unsaved import asks the rider to save the route first. Entitlement check `planning` in the function; during early access it passes for every signed-in rider (ADR-069).
+
+**List.** The saved routes list shows each plan beside its route, by name. A route with plans shows a count.
+
+**Load** (ADR-069 §8):
+
+```
+load route R
+  → fetch plans for (user, R)
+  → 0 plans: load the bare artifact
+  → 1+ plans: show the menu (plans by name, newest first, plus "No plan")
+  → rider picks: apply the plan (§5); nothing is applied before the pick
+```
+
+**Stale.** If the plan's `route_axis_digest` differs from the route's current digest, the menu marks it *route changed* and applying it opens Plan with every stop and derivation flagged for the rider to confirm or move. Distances are never silently remapped.
+
+**Local copy.** The last applied plan is mirrored in the resume store beside the route snapshot as a non-authoritative accelerator; the server row is the authority, as for saved routes.
+
+## 5. Applying a plan
+
+| Plan field | What it drives | Available now |
+|---|---|---|
+| direction, start offset | `PlanFrame` for `projectViewRows`: stops, field notes, hazards, cue sheet in riding order (DS-068 §2.7) | **yes** |
+| stops | Plan·stops list; cue sheet rows; map markers in Ride | **yes** |
+| pace, planned start | `RouteTimeBinding` arrival clock times on rows | yes for `forward` and offset 0; otherwise *Not ready* |
+| objective and dials | Plan·weather ranking (DS-068 §3) | after DS-068 phase 7 |
+| Planned Ride Risk | Plan·safety (ADR-055) | forward and offset 0 only, until §6 |
+| detour derivation | route impact line; analysed detour span | after DS-068 phase 10 |
+| road fact derivation | the private field note shows on this plan's rows | with DS-069 phase 2 |
+
+## 6. The transform extension (gated)
+
+`ScenarioRouteTransform` today authorizes only `direction = forward` and `startOffsetDistM = 0` (`scenario-route-transform.ts`, `forward_start_zero_transform.v1`). A plan that reverses or re-starts a loop can be saved, loaded and displayed, but cannot be evaluated for Planned Ride Risk or planned weather until a new transform model version authorizes both:
+
+- **reverse:** axis points reversed; each slice's per-direction evidence (turn side, crossing side, climb sign, wind relative bearing) must be read for the reversed direction, not reused;
+- **start offset on a closed loop:** axis rotated at the offset point, slices re-cut at the seam.
+
+Because this transform feeds Planned Ride Risk, the change goes through the human gate (AGENTS.md: scoring changes and safety semantics) as its own ticket with replay evidence. Until then, Plan·safety shows **Not ready** with the receipt line for those plans.
+
+## 7. Mapping to the scenario engine
+
+`RidePlanRecordV1 → RidePlanScenarioDraft`: `direction`, `startOffsetDistM`, `plannedStartTimeIso`, `clockContext {kind: 'fixed_time_zone', timeZone}`, `expectedPaceProfile` from `pace`, `stopModel` from stops (`none` when empty; `fixed_elapsed_penalty` summing dwell until EXEC-058's route-positioned stop model lands), `objectiveProfile` from `objective`, `source: 'manual_user_input'`. Validation errors are shown as the receipt line, never hidden.
+
+## 8. Phases
+
+1. Tables, access rules, save/replace function; save, list, menu-on-load, stale marking. Plan·stops list re-measured through `projectViewRows`.
+2. Pace and planned start: arrival times on rows for forward, offset-0 plans.
+3. Transform extension ticket (§6), gated.
+4. Objective and dials stored and applied (with DS-068 phase 7).
+5. Detours (with DS-068 phase 10).
 
 
 ---
@@ -41291,7 +41643,7 @@ The Vault should feel like it understands what kind of riding you are planning. 
 **Date:** 2026
 
 **Related ADRs:** ADR-028 (Field Note Confirmation Model)  
-**No companion DS required** — DS-016 will cover implementation when deferred status is lifted.
+**Companion DS:** DS-069, under ADR-070 (proposed 2026-10-23), which proposes lifting the deferral.
 
 ---
 
@@ -44098,7 +44450,7 @@ ADR-028 — Field Note Confirmation Model
 Status: Accepted
 Date: 2026
 
-Pending spec: DS-016 (Field Note Schema and Confirmation Model) — not yet written
+Pending spec: DS-069 (Field Notes: Schema, Confirmation, Lifecycle and Route Projection), under ADR-070. The earlier DS-016 pointer was never written and that number is used elsewhere.
 Related ADRs: ADR-026 (Canonical Route Identity)
 
 Note: This ADR is self-contained at the decision level.
@@ -54726,6 +55078,12 @@ The cue sheet is also where everything a view can paint on the map becomes a col
 
 When a rider loads a route that has more than one saved plan, a menu asks which plan to apply. Nothing is selected on their behalf. Owner: *"We don't just automatically tell them which one's going to get selected."*
 
+## Owner revision, 2026-10-22 (after phase 1b)
+
+*"I do think field notes should be visible in all modes. In fact I think all the current layers should; they should just show stuff for that mode. Change layers to settings, and drop the speed icon, because that really should be in a new vertical category called safety, which then has buttons … that show all road speeds as overlay, traffic as overlay, risk/mi as overlay."*
+
+This amends §1. Route, Analyze, Plan and Ride carry the same views: safety, hazards, stops, weather and settings above, field note below, with cues and ride computer added below in Ride. **Safety is a view, not a pre-selected home**: it is a bottom strip of overlay switches for road speeds, traffic and risk/mi, and every mode rests on its own surface until a view is chosen. "Layers" is renamed **Settings** and loses its Speed switch to Safety. See the [phase 1c report](../04-execution/reports/modes-views-phase1c-safety-settings-20261022.md).
+
 ## Owner answers, 2026-10-22
 
 Recorded the same day the ADR was drafted, in reply to its four open questions.
@@ -54768,4 +55126,92 @@ Two alternatives were offered and not taken, recorded so they are not re-derived
 
 - Nothing from the owner. Implementation phases per DS-068 §5, each with a builder report and independent review.
 - Whether the map-overlay views in Route mode are free or paid under ADR-068 §6. Weather and traffic on the free safety map read as free; along a rider's own imported route they are calculated on the fly.
+
+
+---
+
+## Source File: docs/03-adrs/adr-070-ride_plans_and_field_notes_as_rider_authored_layers.md
+
+# ADR-070 — Ride Plans and Field Notes: Two Rider-Authored Layers Over the Route, Anchored Differently
+
+**Status:** Proposed, 2026-10-23. Drafted at Derek's request ("we do need to design the architecture of this next phase: especially the planning data and field notes"). Owner questions at the foot; storage, visibility and rider-facing wording go through the human gate (AGENTS.md).
+
+**Companion DS:** [DS-069 Field Notes](../02-architecture/design/ds-069-field_notes_schema_confirmation_and_route_projection_spec.md), [DS-070 Ride Plan Persistence](../02-architecture/design/ds-070-ride_plan_persistence_and_application_spec.md)
+
+**Related:** ADR-004 (Field Notes Deferred), ADR-028 (Field Note Confirmation Model), ADR-040 (User Observations as Overlay Evidence), ADR-046 (Cyclist Mobility Substrate), ADR-055 (Ride Plan Scenario Engine), ADR-068 (Safety First), ADR-069 (Modes by Views), DS-068 (Mode/View Registry and Ride Plan Record)
+
+---
+
+## Context
+
+ADR-069 and DS-068 settled how the rider moves (modes across, views up and down) and how one view's rows read in each mode: Analyze from the route start, Plan from the chosen start and direction, Ride as map markers (DS-068 §2.7). Two kinds of rider-authored data now need homes, and they have nothing in place:
+
+- **Ride plans.** DS-068 §4 sketched the record (route ref, direction, start offset, time, pace, stops, derivations). There is no table, no load flow, and the scenario engine refuses the two things a plan most often changes: `scenario-route-transform.ts` rejects any direction but `forward` and any start offset but `0`.
+- **Field notes.** ADR-004 deferred them post-alpha with three principles (structured, optional mile marker, no threads). ADR-028 accepted report-plus-confirmation and pointed at "DS-016" for the schema. DS-016 never got written, and the number is now claimed three ways: the existing file is the Experience Policy layer, the design index reserves it for Predicted vs Observed Conditions, and ADR-004 and ADR-028 point to it for field notes. The substrate signal registry already carries a `field_note` family with point geometry, way attachments, media and visibility, but nothing writes to it and its access rules admit only admins and route owners.
+
+The owner's example fixes the field note requirement: *"a running list of all the people's field notes with mile markers tied to the start of the route"* in Analyze, *"the same field notes rearranged to the mile markers based on that starting point"* in Plan, and markers that open the note at the bottom in Ride.
+
+## Decision
+
+### 1. A plan belongs to a route; a field note belongs to the world
+
+The two layers look alike (rider-authored, sit over a route, carry a mile marker) and must be anchored differently.
+
+- **A ride plan is anchored to a route artifact.** It is meaningless without one, it is private to its rider, and every distance in it is measured along that artifact's axis (DS-068 §4.2).
+- **A field note is anchored to a place.** A dog at a farm gate is at that gate whichever route passes it, in either direction, from any start. The note stores a point (and, when it can be snapped, the road it is on). **Mile markers are never stored on a field note; they are computed at read time** by projecting the note onto whichever route is being looked at. That is what makes "all the people's field notes" appear on a route none of them rode, and what makes the Plan reordering free: project once onto the artifact, then `projectViewRows` re-measures for the plan.
+
+A note made while riding records the route and distance it was made on as **provenance**, never as its anchor.
+
+### 2. Field notes are overlay evidence in the substrate signal ledger
+
+- **Storage:** each field note is one `substrate_signals` row of family `field_note` (ADR-046's ledger already models point geometry, way attachments, media, visibility and consumers), plus a new `field_note_reactions` table for confirmations. DS-069 carries the schema, kinds, lifecycle and access rules.
+- **Structured, not freeform** (ADR-004): a fixed kind list, an optional severity, an optional short line of text, an optional photo. No threads, no replies.
+- **Report plus confirmation** (ADR-028): the author's report is not a confirmation. Other riders add *still there* (+1) or *gone*. Status is derived from those reactions and from a per-kind freshness window, never voted into truth.
+- **Never truth** (ADR-040): field notes never enter canonical truth resolution, scoring, the score ledger or heatmap colour. A hazard-kind note appears in the Hazards view as *rider-reported*, visually distinct from detected hazards.
+- **Account required to write or react.** ADR-040 allowed guest observations; confirmations are only honest if one rider counts once, which needs an identity.
+- **Public by default, author never shown.** A public note reads "a rider, 12 days ago"; the author can always see and delete their own. (Owner question 1.)
+
+### 3. Ride plans are their own tables, private, delta-only
+
+- **Storage:** `ride_plans`, `ride_plan_stops`, `ride_plan_derivations`, keyed to `route_history.id` and the route's `route_axis_digest`. Owner-only access. DS-070 carries the schema.
+- **Delta only** (DS-068 §4.2): the artifact is never rewritten; no forecast, score or analysis output is stored on a plan.
+- **A rider's own road fact on a plan is a private field note.** DS-068's `road_fact` derivation becomes a reference to a field note with `visibility: private`. One kind of rider observation, one table, and the rider can later make it public without retyping it.
+- **Stale is visible:** if the route's axis digest changes, the plan is shown as needing confirmation, never silently remapped.
+- **Several plans open a menu** (ADR-069 §8); none is applied without the rider's pick.
+
+### 4. Applying a plan needs the scenario transform to grow, and that is gated
+
+A plan can be saved, listed and loaded, and its rows re-measured for display (DS-068 §2.7), without the scenario engine. But Planned Ride Risk and planned weather for a reversed or re-started route need `ScenarioRouteTransform` to authorize `reverse` and non-zero start offsets. That transform feeds Planned Ride Risk, so extending it is a scoring-adjacent change under the human gate (AGENTS.md). Until it lands, a reversed or re-started plan shows its stops, notes and hazards re-measured, and shows Planned Ride Risk as **Not ready** with the receipt line (ADR-069's approved wording).
+
+### 5. Tiers
+
+Planning is paid and free during early access (ADR-069). Field notes are safety information: reading them is free, and writing them is free so the layer can grow (ADR-068 §6's "safety is never paid"). (Owner question 3.)
+
+## Consequences
+
+- DS-069 replaces DS-016 as the field note spec. ADR-004 and ADR-028's pointers and the design index are updated; DS-016 keeps its existing file and its conditions reservation is untouched.
+- New migrations: `field_note_reactions`; rider read/write policies on `substrate_signals` for family `field_note`; a route projection function; `ride_plans` and its two child tables. All drafted in the DS files, none applied by this ADR.
+- The cue sheet's Field notes toggle (DS-068 §2.8) and the Field note view in every mode get their first real rows once DS-069 phase 2 lands.
+- The Plan list in DS-068 §2.7 becomes real once DS-070 phase 1 lands; its risk and weather numbers wait for the transform extension (§4).
+
+## Alternatives considered
+
+- **Anchor field notes to the route they were made on.** Rejected: a note would vanish from every other route through the same place, and reversing a route would need every note re-entered.
+- **A dedicated `field_notes` table outside the substrate ledger.** Viable and simpler to read; rejected because the ledger already has point geometry, way attachment, media, visibility and consumer routing, and a second home would split rider evidence (ADR-046).
+- **Store plans as a JSON blob on `route_history`.** Rejected: plans are per rider, a shared or library route has many riders, and stops need to be queryable.
+
+## Owner questions
+
+1. **Field note visibility default.** Proposal: public, author never shown, author can delete. The alternative is private by default with a per-note *share* step, which keeps the layer thin early.
+2. **Start-point privacy.** A public note near where a rider's rides usually start can reveal their home. Proposal: a public note within 300 m of the start of any of the author's saved routes is held private until the author confirms it.
+3. **Field notes free to read and write.** Proposal: yes, both.
+4. **Kinds list.** DS-069 §3 proposes twelve kinds. Add, cut or rename before they become rider-facing wording.
+
+## Owner answers, 2026-10-23
+
+1. **Visibility: public by default, and a rider can make any note private.** Decision §2 stands.
+2. **Privacy distance is a global account setting, not a field-note rule.** The rider gives their home address and chooses the distance; it applies to everything Lanterne would otherwise show near home: public field notes, recorded rides, shared routes and plans. A public note inside the distance is written private until the author confirms it. Asking for the address carries a **separate, optional** consent to occasional mailed goodies (for example reflectors from the Lanterne product line, ADR-068 §1); the privacy use never depends on that consent. Wording goes through the human gate.
+3. **Free or paid: open.** The owner's tension, in his words: field notes are *"probably one of the stickiest features of the app … something that you need to nurture in every way possible,"* and voice capture is *"not really super scalable at a free charge."* Recommendation recorded in DS-069 §10; decision pending.
+4. **Kinds: start open, police later.** *"We can always police it and shut it down if it gets out of hand … I'd like to start open."* The list gains a General kind, a general Hazard kind, Busy road and Dangerous intersection, and the 140-character text limit is lifted. DS-069 §3 is revised.
+5. **Voice is the primary way to make a note on the bike.** *"Typing is basically worthless on the bike."* Record-and-submit with transcription in the background is preferred over live dictation, so the rider never looks down to check the words. DS-069 §7 is revised.
 
