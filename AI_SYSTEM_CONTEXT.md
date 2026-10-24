@@ -40885,6 +40885,80 @@ inputs exist.
 
 ---
 
+## Source File: docs/02-architecture/design/focus-overlay-ux.md
+
+# Focus Overlay UX
+
+Date: 2026-10-24
+Status: implemented locally; independent review and final merge gate pending.
+First implementation: UX-SEARCH-01, destination and origin search.
+
+## Purpose
+
+A reusable, explicitly opened full-screen surface for one focused entry or selection task. Derek requested a mostly opaque grey backdrop, large bold text, and one central CSS definition so later adopters change together. It follows the simplicity principle in `docs/01-philosophy/phl-002-product_principles.md`.
+
+This is a presentation primitive, not a new runtime mode or authority. DS-016 experience policy continues to govern when an interaction is appropriate. Do not automatically open it for in-motion guidance, warnings, or unsolicited prompts. Existing flows are migrated only when explicitly scoped.
+
+## One shared styling contract
+
+`src/components/FocusOverlay.tsx` owns the modal structure and behavior. The **Shared Focus Overlay UX** block in `src/index.css` owns its visual appearance:
+
+- `.focus-overlay` and `.focus-overlay__backdrop`: viewport surface and grey backdrop.
+- `.focus-overlay__header`, `__navigation`, `__eyebrow`, `__title`, `__description`: common heading structure.
+- `.focus-overlay__body`, `__options`, `__option`, `__detail`, `__icon-button`: scrollable task content, choices, and controls.
+- `--focus-overlay-background`, `--focus-overlay-opacity`, `--focus-overlay-foreground`, `--focus-overlay-muted`, `--focus-overlay-border`, `--focus-overlay-width`, `--focus-overlay-gap`, `--focus-overlay-title-size`: central visual tokens.
+
+Consumers supply text, children, `onClose`, optional `onBack`, and a `returnFocusRef`. They must use the shared classes for options and content rather than copying colors, font sizes, or padding into each flow. Place search uses the shared `.location-search__*` classes in the same stylesheet.
+
+Example:
+
+```tsx
+<FocusOverlay
+  open={open}
+  eyebrow="Choose your origin"
+  title="Start where?"
+  description="Find a place or address."
+  onClose={() => setOpen(false)}
+  onBack={goBack}
+  returnFocusRef={triggerRef}
+>
+  <LocationSearch onLocationSelect={selectOrigin} viewportCenter={center} />
+</FocusOverlay>
+```
+
+Changing the central tokens/classes updates every adopter. Flow-specific business logic remains with the caller.
+
+## Shared behavior
+
+The component portals to the document body at `UI_Z.MODAL`, escaping map/drawer transforms and clipping. Radix Dialog provides the modal focus trap, Escape dismissal, background accessibility isolation, and scroll lock. A supplied trigger ref restores focus on close, including Safari touch clicks that do not naturally focus buttons.
+
+The overlay follows `visualViewport.height`, width and offsets on viewport resize/scroll, with window dimensions as fallback. These geometry properties stay local to the overlay and do not change the map/root viewport sizing. The header compacts when the available visual viewport is below 550px. Search keeps its input above its independently scrolling results.
+
+Back steps through the current task; Close returns to the existing selected destination. Closing never creates a route. GPS failure stays explicit and permits retry/address entry. Late GPS or search responses cannot take ownership after the user changes task or query.
+
+## Bottom workflow actions
+
+`BottomActionStrip.tsx` and `.bottom-action-strip*` define the full-width bottom workflow surface. Search selection actions and existing analysis/drawing/edit cancellation use it. `Index.tsx` suppresses competing bottom map chrome while search selection actions are eligible. It is absent when no owning workflow needs it.
+
+The standalone floating search card no longer renders. `SearchPinCard.tsx` retains its filename as the controller for selection actions and origin/detail phases.
+
+## Route marker presentation
+
+`createRoutePointIcon` is shared by the proposed search destination and committed GPX endpoints. It retains green start, red destination, and blue waypoint role colors. The proposal uses the destination role with a pulse; committed endpoints remain still. Reduced-motion preference disables the pulse. No color conveys a new safety or scoring claim.
+
+## Verification and limits
+
+Run the scoped tests listed in the UX-SEARCH-01 implementation report. Browser tests use a component harness and deterministic search fixtures; keyboard geometry is simulated through VisualViewport events. They do not certify a physical iPhone keyboard or the authenticated end-to-end route resolver.
+
+## Serving integration keyboard contract
+
+FocusOverlay publishes a wildcard through the established `data-consumes-keys` declaration. The shared keyboard-consumption predicate recognizes this entire-task scope even beneath a nested control with its own key list. Index's capture-phase map shortcuts and keyup handling stand down; the overlay stops bubbling without preventing native controls or Radix Tab/Escape handling. This is local to explicitly opened task content and disappears on close.
+
+The current RouteFunctionSurface supplies the search trigger ref to the shared acquisition seam, so closing destination search restores focus to the actual current Route Search button. No old where-to handle or obsolete panel wrapper is reinstated.
+
+
+---
+
 ## Source File: docs/02-architecture/design/p7-viewport-cache-reader-v1-proposal-20261011.md
 
 # P7 viewport road cache reader — contract proposal
