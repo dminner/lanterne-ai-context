@@ -64490,16 +64490,6 @@ Not a default dependency of ride mode.
 - chatty motivational narration
 - custom voice branding before alert usefulness is proven
 
-## Owner amendment, 2026-10-24 — Lanterne confirmation voice
-
-Fixed universal walkie-talkie confirmations use the approved Speechify voice, pre-rendered and cached on the phone for immediate and offline playback. Eligible variable text may use live Speechify when available and falls back to device text-to-speech when Speechify is unavailable. Confirmation playback never blocks action completion. The rider can mute instantly.
-
-This supersedes **device TTS first** only for the source-selection order of walkie-talkie confirmations. Quiet by default, short mechanical language, alert priority, instant mute, and the ban on chatty companion behavior remain.
-
-Speechify access is not evidenced in this repository. Before Phase 1A depends on it, the phase record must identify the API/access mechanism, selected verified voice, billing and terms authority, fixed-asset generation and refresh process, content digests, cache invalidation, and failure behavior without committing credentials. If that evidence is unavailable, only the Derek/ChatGPT final gate may authorize a device-TTS-only canary.
-
-This amendment does not authorize public Field Note audio, rider-voice playback, voice clones, or continuous listening. Those remain separately phased and gated.
-
 ## Definition of done
 
 This system is healthy when:
