@@ -40885,108 +40885,76 @@ inputs exist.
 
 ---
 
-## Source File: docs/02-architecture/design/p7-route-storage-scaling-proposal-20261019.md
+## Source File: docs/02-architecture/design/focus-overlay-ux.md
 
-# Route storage scaling alongside P7 hydration
+# Focus Overlay UX
 
-Status: **Proposed architecture; no storage migration or reader cutover implemented.**
+Date: 2026-10-24
+Status: implemented locally; independent review and final merge gate pending.
+First implementation: UX-SEARCH-01, destination and origin search.
 
-Owner direction, October 19, 2026: the measured footprint is acceptable for the current RUSA batch. Continue hydration while designing a compact representation suitable for a much larger route corpus. Existing compiles should be reusable when the new representation is ready.
+## Purpose
 
-## Current evidence and immediate decision
+A reusable, explicitly opened full-screen surface for one focused entry or selection task. Derek requested a mostly opaque grey backdrop, large bold text, and one central CSS definition so later adopters change together. It follows the simplicity principle in `docs/01-philosophy/phl-002-product_principles.md`.
 
-A read-only measurement of the active partial store found 110 current objects totaling 87,059,899 bytes: mean 791,454, median 619,487, largest 4,010,324 bytes. At that measured mean, 3,300 objects would occupy about 2.6 GB. This is a conditional estimate, not a capacity guarantee or a claim that all 110 publications have current Edge verification.
+This is a presentation primitive, not a new runtime mode or authority. DS-016 experience policy continues to govern when an interaction is appropriate. Do not automatically open it for in-motion guidance, warnings, or unsolicited prompts. Existing flows are migrated only when explicitly scoped.
 
-The objects are already gzip-compressed. Three sampled objects expanded to approximately 0.76, 2.91 and 19.08 MB. In the largest sample, the main expanded fields were:
+## One shared styling contract
 
-| Field | Bytes |
-| --- | ---: |
-| Road details | 7,270,913 |
-| Risk accounting | 4,335,521 |
-| Durable evidence coverage | 4,059,808 |
-| Display handoff, chiefly owner partitions | 1,325,408 |
-| Paint | 724,232 |
-| Certified paint | 528,042 |
-| Hazards | 110,282 |
+`src/components/FocusOverlay.tsx` owns the modal structure and behavior. The **Shared Focus Overlay UX** block in `src/index.css` owns its visual appearance:
 
-These fields include useful, route-bound results and explanations; they are not all raw copies of the source cache. Existing road-fact tables already deduplicate within an artifact. Cross-route sharing and capture retention remain separate issues. The measurement did not establish a cross-route deduplication percentage.
+- `.focus-overlay` and `.focus-overlay__backdrop`: viewport surface and grey backdrop.
+- `.focus-overlay__header`, `__navigation`, `__eyebrow`, `__title`, `__description`: common heading structure.
+- `.focus-overlay__body`, `__options`, `__option`, `__detail`, `__icon-button`: scrollable task content, choices, and controls.
+- `--focus-overlay-background`, `--focus-overlay-opacity`, `--focus-overlay-foreground`, `--focus-overlay-muted`, `--focus-overlay-border`, `--focus-overlay-width`, `--focus-overlay-gap`, `--focus-overlay-title-size`: central visual tokens.
 
-Retained operator attempts and source sessions separately occupied approximately 4.2 GB of allocated storage. Reused compiler/source/capture resources occupied approximately 3.3 GB. Those categories must not be conflated with serving objects or multiplied by route count indiscriminately.
+Consumers supply text, children, `onClose`, optional `onBack`, and a `returnFocusRef`. They must use the shared classes for options and content rather than copying colors, font sizes, or padding into each flow. Place search uses the shared `.location-search__*` classes in the same stylesheet.
 
-**Current batch:** keep the existing compiler, publisher, readers and live artifacts working. Do not pause hydration, delete evidence, start blanket recompilation or add an unused second full artifact to every job as part of this proposal.
+Example:
 
-## Storage boundaries
+```tsx
+<FocusOverlay
+  open={open}
+  eyebrow="Choose your origin"
+  title="Start where?"
+  description="Find a place or address."
+  onClose={() => setOpen(false)}
+  onBack={goBack}
+  returnFocusRef={triggerRef}
+>
+  <LocationSearch onLocationSelect={selectOrigin} viewportCenter={center} />
+</FocusOverlay>
+```
 
-### Shared road facts
+Changing the central tokens/classes updates every adopter. Flow-specific business logic remains with the caller.
 
-Reuse P7's existing speed, traffic, bike-facility and shoulder facts and their source identities wherever the cache can supply the exact version used by the compile. This proposal does not add a new P8 fact inventory.
+## Shared behavior
 
-References must resolve to immutable, content-bound snapshots, not merely an OSM way ID plus the current cache contents. A snapshot needs source revision/namespace, source object or fragment identity, applicable direction/side and the policy version that selected or derived the fact. A later cache update must not change what an already-published route claims to explain.
+The component portals to the document body at `UI_Z.MODAL`, escaping map/drawer transforms and clipping. Radix Dialog provides the modal focus trap, Escape dismissal, background accessibility isolation, and scroll lock. A supplied trigger ref restores focus on close, including Safari touch clicks that do not naturally focus buttons.
 
-First map each serialized field to one of: existing immutable P7 fact, reusable selected/derived road profile, route-dependent selection, or diagnostic evidence. Do not assume P7 currently exposes every selected result serialized in `roadDetails`. Store a reusable derived profile once only where its inputs and meaning are independent of the route. Keep route-dependent choices with the route.
+The overlay follows `visualViewport.height`, width and offsets on viewport resize/scroll, with window dimensions as fallback. These geometry properties stay local to the overlay and do not change the map/root viewport sizing. The header compacts when the available visual viewport is below 550px. Search keeps its input above its independently scrolling results.
 
-The physical implementation must pack/index shared records; it must not create a filesystem object for every primitive fact. Object storage versus a packed local database is an implementation choice to benchmark.
+Back steps through the current task; Close returns to the existing selected destination. Closing never creates a route. GPS failure stays explicit and permits retry/address entry. Late GPS or search responses cannot take ownership after the user changes task or query.
 
-### Compact route record
+## Bottom workflow actions
 
-Retain the data needed to show the completed route and its explicit limitations:
+`BottomActionStrip.tsx` and `.bottom-action-strip*` define the full-width bottom workflow surface. Search selection actions and existing analysis/drawing/edit cancellation use it. `Index.tsx` suppresses competing bottom map chrome while search selection actions are eligible. It is absent when no owning workflow needs it.
 
-- Original ordered geometry identity and a compact geometry representation.
-- Ordered traversal references with direction, occurrence and route-distance offsets. Repeated visits to the same road remain distinct occurrences.
-- Computed colored intervals, unresolved/grey intervals and applicable presentation semantics.
-- Route-specific hazard/cue events and their distance offsets.
-- Aggregate facts, provisional/canonical status and uncertainty, with policy/version bindings.
-- Versioned shared-detail references and the publication/semantic digests needed to bind them.
+The standalone floating search card no longer renders. `SearchPinCard.tsx` retains its filename as the controller for selection actions and origin/detail phases.
 
-Do not solve ownership, recompute scoring or reacquire candidate roads merely to open an already-compiled route. Do not replace a route-dependent turn hazard or selection with a generic road attribute. Missing detail remains explicitly unavailable; it must not acquire a guessed value from the newest cache.
+## Route marker presentation
 
-### Inspection details and cold evidence
+`createRoutePointIcon` is shared by the proposed search destination and committed GPX endpoints. It retains green start, red destination, and blue waypoint role colors. The proposal uses the destination role with a pulse; committed endpoints remain still. Reduced-motion preference disables the pulse. No color conveys a new safety or scoring claim.
 
-Road inspection resolves only the selected versioned detail. It can load on click or after first paint, within bounded requests. First paint must not wait for every detail page or the complete audit payload.
+## Verification and limits
 
-Keep evidence required to substantiate retained rider-facing claims reachable. Separate it from request/response captures, redundant representations and debugging output. Some proof is route-specific and cannot be deduplicated into road facts; compact or retain it according to its actual use, rather than promising that all proof disappears.
+Run the scoped tests listed in the UX-SEARCH-01 implementation report. Browser tests use a component harness and deterministic search fixtures; keyboard geometry is simulated through VisualViewport events. They do not certify a physical iPhone keyboard or the authenticated end-to-end route resolver.
 
-Capture retention needs an explicit policy per class: successful attempts, failed attempts, reusable source captures, authoritative evidence and superseded artifact versions. Define time/byte budgets and reference-aware garbage collection before enabling deletion. This document neither selects retention durations nor authorizes pruning existing records. A cold tier alone does not eliminate duplicated bytes.
+## Serving integration keyboard contract
 
-## Producer and migration path
+FocusOverlay publishes a wildcard through the established `data-consumes-keys` declaration. The shared keyboard-consumption predicate recognizes this entire-task scope even beneath a nested control with its own key list. Index's capture-phase map shortcuts and keyup handling stand down; the overlay stops bubbling without preventing native controls or Radix Tab/Escape handling. This is local to explicitly opened task content and disappears on close.
 
-1. **Map and measure.** Measure physical bytes, expansion, shared versus route-specific fields, source-profile reuse, captures and retained versions independently. Check immutable resolution support in P7 before defining references.
-2. **Add a converter and producer.** Derive the compact record from a completed validated result. Existing artifacts containing all required values can be converted without material acquisition or a new owner solve. Recompile only when required inputs are missing, semantically incompatible, or deliberately refreshed. Record original semantic artifact, converter/tool identity and new storage identity separately.
-3. **Support both reader formats.** Add compact read/inspection endpoints and browser admission alongside the legacy path. Preserve scoring, ownership, grey intervals, hazards and authority rules. Test genuine missing/incorrect shared versions. A schema conversion does not grant canonical readiness to partial paint.
-4. **Verify before switching.** Compare complete interval geometry/paint, hazards, cue placement, summaries, uncertainty and inspection values against the original. Obtain actual library/Edge/application-path verification for the new representation. Existing full-body hashes cannot be relabeled as verification of a different wire format; retain old receipts and issue distinct new ones.
-5. **Use the new format for the balance.** Once producer and reader compatibility are ready, enable the compact output in the existing hydration worker. Keep its durable queue, route/state controls, concurrency and authority holds. The reader rollout must precede switching production publication.
-6. **Convert completed routes in bounded batches.** Enumerate exact candidates, retain the previous serving pointer for rollback, publish complete dependencies before activating the new pointer, verify each route and keep old versions until their retention decision permits removal. Unknown/incomplete state must not replace a working route.
-
-During development, validate representative conversions rather than permanently writing both formats for the entire corpus. A compiler entry point may remain unchanged if a deterministic post-compile storage adapter suffices; rebuilding every route is not a prerequisite to changing its physical representation.
-
-## Next phase: failed user-saved route compiles
-
-Owner requirement, October 19, 2026: when saving a user's own route triggers artifact compilation and that compilation fails, automatically add the failed attempt to an admin console list. This must cover drawn routes and imported GPXs, not just the curated RUSA hydration queue. These failures are an ongoing source of compiler optimization and product improvement and must remain discoverable without the user reporting them.
-
-Each entry should identify the route and attempt, failure time and stage, wall time, error/blocker codes, compiler/configuration versions, and retained diagnostic logs or receipts. Include relevant material/HPMS read counts and statuses so admins can distinguish source gaps, transport failures, resource limits and compiler defects. Exclude credentials and restrict private route details to authorized admins. Preserve prior failures when a retry succeeds, link the retry outcome, and support filtering/grouping by failure reason to reveal recurring problems. A failed attempt must never be labeled ready.
-
-Acceptance: a failed user-save compile appears automatically, an admin can inspect its retained diagnostics, and a later successful retry does not erase the original failure. This is a next-phase requirement, not an implemented capability or a change to current publication rules.
-
-## Readiness criteria for the future format
-
-- No loss of painted or explicitly unresolved intervals, hazards, cues, route occurrences, scores or uncertainty semantics.
-- Detail reads return the same selected facts/version that produced the saved paint; source refresh cannot silently rewrite history.
-- No material acquisition/owner solve on a saved-route open or a detail click.
-- Measure actual storage savings including shared indexes, retention, backups and versions. Keeping every legacy artifact forever is not completion of the storage change.
-- Report cold/warm first paint, bytes fetched before paint, detail latency, request fanout and memory; set size budgets from the measured route distribution, not an arbitrary universal cap.
-- Exercise long/dense/repeated-road routes and a large synthetic catalog with realistic overlap. A million mostly non-overlapping routes cannot have constant storage cost.
-- Compact and legacy publications coexist through a tested rollback period; a missing/corrupt reference refuses or exposes unavailable details according to the approved contract.
-
-A useful growth model is unique versioned fact snapshots plus per-route geometry/traversals/results, rather than a full independent road/evidence copy per route. Historical versions and route-specific evidence still have real costs. Imported/drawn routes must also remain usable without a prebuilt artifact; this storage proposal does not solve their separate material-acquisition latency.
-
-## Existing architecture to reuse
-
-- [Durable route relations and progressive enrichment, revision rules](ds-036-durable_lanterne_route_relations_and_progressive_route_enrichment_spec.md#63-revision-rules).
-- [Canonical core/detail/audit partition](../../../src/lib/admin/p7-route-artifact-semantic-split.ts): already separates presentation from detail/audit, but does not itself establish cross-route shared storage or a compact partial lane.
-- [Partial detail fields and bindings](../../../src/lib/admin/p7-partial-road-details.ts): selected values, provenance, route intervals and current per-artifact fact interning.
-- [Current partial artifact contract](../../../src/lib/admin/p7-persisted-partial-route-paint.ts): the complete schema and admission invariants remain the baseline for parity tests.
-
-Approval of this design and evidence from an independently reviewed implementation are required before format cutover. This proposed document does not certify an implementation, change authority or alter current production behavior.
+The current RouteFunctionSurface supplies the search trigger ref to the shared acquisition seam, so closing destination search restores focus to the actual current Route Search button. No old where-to handle or obsolete panel wrapper is reinstated.
 
 
 ---
@@ -47641,6 +47609,37 @@ Current behavior:
 - scoring, heatmap colors, and risk calculations are unaffected by user input
 - observations render only as display overlays in `TruthSection`
 - overlays are explicitly marked as `user_observation`
+
+## Amendment — 2026-10-24 (ROAD-FACT-02, issue #243): private personal paint and signed-in submission
+
+Direct product authorization from Derek, October 24, 2026. This amendment is narrow; everything
+above still holds except exactly the two points below.
+
+1. **Private, current-account map paint is allowed for speed and bike-lane corrections.** A signed-in
+   rider's own speed correction may colour that exact road with the shared speed colours, and their
+   own bike-lane correction may draw (or, for None, hide) the shared bike-facility patterns, on that
+   rider's map only. Conditions, all required:
+   - only the current account's own corrections; never a guest's, never another rider's, and retired
+     immediately on sign-out or account change;
+   - only on the exact OSM way the correction targets, on geometry the viewport overlays already
+     admitted under their own toggles, zoom bands and render budgets — no corridor, name or
+     nearest-road inference and no extra acquisition to paint a missing road; artifact-scoped route
+     segments do not paint;
+   - every personal stroke is non-interactive and visibly marked as the rider's own (card: "Yours",
+     unverified), so it can never be read as verified or shared truth;
+   - removing the correction (or Undo) restores the original paint;
+   - traffic and shoulder corrections never paint.
+   This paint is presentation only. It is not a heatmap input, and it does not change the canonical
+   or shared heatmap, scores, resolvers, caches, route artifacts or receipts.
+2. **Submissions require sign-in.** Corrections are sent to Lanterne only by an authenticated
+   account (following OpenStreetMap's account requirement); the server derives the actor from the
+   session. There are no guest submissions and no automatic upload of earlier browser-only reports:
+   those stay explicitly unsent until the rider sends one. A submitted correction is persisted
+   evidence awaiting review (`applied_to_canonical: false`); review metadata does not by itself
+   change canonical truth, scoring or shared paint.
+
+The prohibition on user input reaching the canonical resolver, scoring engine, shared heatmap,
+caches, artifacts and canonical receipts is unchanged.
 
 ## Design Principle
 
