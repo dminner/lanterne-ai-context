@@ -20977,6 +20977,31 @@ Limits of this frontend display-floor guard vs the full offline substrate simpli
 - z14 was a cache-candidate preview and sizing layer, not a central serving contract. Using 14 as a display floor here does not activate a z14 serving contract.
 - Eligibility is not acquisition completeness. Full-cell acquisition, the cache, profiles, render budgets and ranking, palettes, widths and hit tolerances are unchanged by this gate.
 
+### 9.5.1 Dated exception — all-zoom standalone paths and tracks (MAP-BIKE-SOLID-03, 2026-10-24)
+
+The table above stays the historical record of the 2026-10-13 gate. It is not rewritten. This exception was authorized by Derek on 2026-10-24 (phase issue #291, ticket `docs/04-execution/map-bike-solid-20261024-ticket.md`, architecture commit `7c79d87da`). It supersedes the z10 display floor **only** for the two classes below:
+
+| Floor | Display class | Qualification |
+| ---: | --- | --- |
+| every supported zoom (`VIEWPORT_ALL_ZOOM_FLOOR`, Leaflet's 0) | `all_zoom_standalone_path` | a path-class way (cycleway, path, footway, pedestrian, bridleway) that the raw-tag candidate classifier returns as `safe_path`, **or** that the existing safe-path qualification (`isSafePathType`) accepts from the way's own tags and own measured length (its long shared-use path and long named paved trail composites) |
+| every supported zoom | `all_zoom_standalone_track` | a `highway=track` way that the candidate classifier returns as `gravel_track`, **or** a `highway=path` the same classifier returns as `gravel_track` through its existing named path–track bridge (review repair 2: painted as the dashed track kind; bike legality stays unproven, so never a confirmed path; its raw `highway=path` is untouched) |
+
+Rules:
+
+- The row must first pass every existing exclusion above: accepted viewport road, candidate access rejection, sidewalk and crossing.
+- The row is also never promoted with any of these: an explicit `bicycle`/`access` value of `no`, `private`, `dismount` or `use_sidepath`; explicit sidewalk or traffic-island tagging; a crossing connector. Such a row keeps the class the table above gives it.
+- These do not promote a row: the `isSafePath` flag alone, or a name alone outside the classifier's own bridge rule. A pure or generically named path that the classifier does not admit keeps its existing floor. (Review repair, same day: the initial build also withheld the `isSafePathType` length composites, contradicting "all solo blues at any zoom"; an accepted 3.3 km unnamed paved path was solid blue at 15 and hidden at 3. Those composites are accepted standalone paths and are now all-zoom too, decided by the way's own length.)
+- Every other floor is unchanged: protected cycle corridors and primary connectors stay at 10, and motor roads keep 10–14.
+- In the speed overlay's legacy (bbox) branch, these two classes skip ONLY the legacy display gates that would re-hide them: the per-highway zoom/density floor, the heatmap-radius speed-class ceiling, old-blue eligibility, green suppression and the 1-mile short-blue-fragment suppressor (whose helper is unchanged; its `preserve` hook keeps them). The display band, the shared flagged-stub rule, access, sidewalk, crossing and geometry exclusions still apply. Every other row is filtered exactly as before.
+- Presentation: a path is a SOLID blue line and a track is a DASHED blue line. Both are one thick single stroke on the way's own geometry. Solid versus dashed shows the raw accepted kind. It does not mean the speed is known, and it is not a measured safety score.
+- Both overlays dash with ONE law (`bikeFacilityDashArray`: `1.5w w` of the stroke's resting painted width `w`, butt caps), at any taper. Hover widens the speed core's weight and opacity only and keeps the resting dash pattern, so overlapping speed and eye strokes lay identical dashes at rest and while hovered.
+- The analyzed route's path core is decided by kind first: a separated path is solid and a track is dashed. It keeps its canonical colour and token. Motor-road estimated-speed dashes are unchanged.
+- Acquisition: below 10, the existing bounded overview read is used, admitting only these two classes. It uses the same complete broad tiles and the same cache, budget and streaming rules.
+  - A huge view's 0.05° tile inventory is counted arithmetically and is never enumerated.
+  - Such a view is read through a bounded, deterministic, world-fixed lattice of candidate tiles.
+  - It is always reported partial (`overview_inventory_partial`), even when every selected tile is answered.
+- The backend P7 eligibility port is not changed. It is a frozen transcription whose consumers read null versus non-null only; every all-zoom row was already non-null in the base table. Its parity test maps exactly this exception back to the base table (`classifyViewportDisplayBaseBand`).
+
 ---
 
 # 10. Server-Authorized Write Model
