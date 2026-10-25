@@ -829,7 +829,7 @@ The core risk for each continuous segment is:
 SliceRisk = SliceMiles × (0.60 × SpeedFactor + 0.40 × TrafficFactor) × InfraFactor × ShoulderFactor
 ```
 
-Where SpeedFactor uses a piecewise-linear breakpoint table (≤20→0.50 through 55+→6.20), TrafficFactor uses a 6-step AADT-per-lane ladder with a fallback evidence chain, InfraFactor is multiplicative (protected 0.50, buffered 0.68, painted 0.82, none 1.00), and ShoulderFactor applies only when speed ≥ 30 and no bike facility exists (historical v3.1 rule; DS-015 5.7 and the V3.1 preview pipeline now apply shoulder credit at every speed, never over a dedicated facility or for an unknown width).
+Where SpeedFactor uses a piecewise-linear breakpoint table (≤20→0.50 through 55+→6.20), TrafficFactor uses a 6-step AADT-per-lane ladder with a fallback evidence chain, InfraFactor is multiplicative (protected 0.50, buffered 0.68, painted 0.82, none 1.00), and ShoulderFactor applies only when speed ≥ 30 and no bike facility exists.
 
 **Crossing risk contribution** replaces the former left-turn penalty: `min(0.75, 0.05 × √(SpeedFactor × TrafficFactor) × Width × Control × Movement)`. Crossing share is diagnostic; it does not cap additive route risk.
 
@@ -3382,7 +3382,7 @@ Route Safety Score must remain:
 | ADR-001 | Route Acquisition Model | Accepted | Self-contained |
 | ADR-002 | Vault Concept | Accepted | Self-contained |
 | ADR-003 | Mode-Aware Vault Filtering | Accepted | Self-contained |
-| ADR-004 | Rider Field Notes (Deferred) | Deferred — post-alpha; lifted by ADR-070 (proposed) | DS-069 |
+| ADR-004 | Rider Field Notes (Deferred) | Deferred — post-alpha | DS-016 (not yet written) |
 | ADR-005 | Route Analysis Model | Accepted | See DS-001, DS-007 |
 | ADR-006 | Safety Definition | Accepted | Self-contained |
 | ADR-007 | Index Families | Accepted | Self-contained |
@@ -3406,7 +3406,7 @@ Route Safety Score must remain:
 | ADR-025 | Fatigue Index as Extensible Model Family | Accepted | Self-contained |
 | ADR-026 | Canonical Route Identity | Accepted | DS-005, DS-006, DS-009 |
 | ADR-027 | Lantern Screen Model | Accepted | DS-011, DS-012 |
-| ADR-028 | Field Note Confirmation Model | Accepted | DS-069 (was DS-016, never written; number claimed elsewhere) |
+| ADR-028 | Field Note Confirmation Model | Accepted | DS-016 (not yet written) |
 | ADR-029 | Ride-Time Situational Awareness Mode | Proposed | DS-011, DS-012 |
 | ADR-030 | Ride Mode Display, Power, and Sensor Architecture | Proposed | DS-012 (partial); power/sensor specs not yet written |
 | ADR-031 | Multi-Day Events as Ordered References onto Canonical Geometry | Proposed | DS-014 (not yet written) |
@@ -3420,8 +3420,6 @@ Route Safety Score must remain:
 | ADR-057 | Hourly Temporal Motor-Vehicle Risk Model | Accepted for hourly architecture and detached kernel; scenario/scoring integration deferred | DS-062, DS-063 accepted projection contract, DS-064 accepted component-adaptation contract |
 | ADR-058 | Viewport Road Data Plane and Overlay Ownership | Proposed | DS-061 |
 | ADR-059 | Single Route Truth And Score Ledger Pipeline | Accepted | DS-067 |
-| ADR-069 | Modes by Views Grid and Plan Mode | Proposed, recorded from owner direction 2026-10-22 | DS-068 |
-| ADR-070 | Ride Plans and Field Notes as Rider-Authored Layers | Proposed 2026-10-23 | DS-069, DS-070 |
 
 ---
 
@@ -3481,9 +3479,6 @@ Route Safety Score must remain:
 | DS-063 | Hourly Temporal Scenario Projection Contract | ADR-055, ADR-057, DS-031, DS-056, DS-058, DS-062, EXEC-055, EXEC-056 | Accepted for headless prepared-input projection implementation; runtime not yet implemented |
 | DS-064 | Motor-Vehicle Temporal Component Adaptation And Coverage Contract | ADR-055, ADR-057, DS-015, DS-031, DS-056, DS-058, DS-062, DS-063, EXEC-055, EXEC-056 | Accepted for temporal component-adaptation contract only; runtime not implemented; preview, score, presentation, storage, and production deferred |
 | DS-067 | Single Route Truth And Score Ledger Pipeline Spec | ADR-059, ADR-045, ADR-054, DS-015, DS-029, DS-031, DS-032, DS-055 | Accepted for authority closure |
-| DS-068 | Ride Plan Record and Mode/View Registry Spec | ADR-069, ADR-027, ADR-029, ADR-055, ADR-068, DS-059, DS-060, DS-063 | Draft for planning |
-| DS-069 | Field Notes: Schema, Confirmation, Lifecycle and Route Projection | ADR-070, ADR-028, ADR-004, ADR-040, ADR-046, DS-068 | Draft for planning |
-| DS-070 | Ride Plan Persistence, Load and Application | ADR-070, ADR-069, ADR-055, DS-056, DS-068, DS-069 | Draft for planning |
 
 ---
 
@@ -6699,7 +6694,7 @@ Persist the journey. Bound the working set. Do not confuse session recovery with
 
 **Status:** Community-facing methodology manifesto  
 **Companion to:** `ds-015-safety_scoring_model.md`  
-**Updated:** 2026-10-18
+**Updated:** 2026-04-25
 
 This is the plain-English version of Lanterne's safety scoring methodology.
 
@@ -6926,8 +6921,6 @@ And shoulder:
 | none / narrow shoulder | 1.00 |
 | normal shoulder | 0.85 |
 | wide shoulder | 0.80 |
-
-Since DS-015 5.7, that shoulder credit counts at every speed. A real shoulder on a 25 mph road gets the same credit as the same shoulder on a 45 mph road, so going faster can never make a road look safer just because it crossed a speed line. Two things still hold it back: if a bike lane is already getting credit for that operating space, the shoulder does not get counted twice, and if we do not actually know how wide the shoulder is, it gets no credit at all.
 
 This is not saying every painted lane is good or every shoulder is clean. Anyone who rides knows a shoulder can be full of glass, rumble strips, gravel, dead animals, storm grates, or whatever came loose from the last landscaping trailer.
 
@@ -7160,19 +7153,10 @@ Those stories are not the model. The model still has to stand on defensible meth
 
 ## Source File: docs/02-architecture/design/ds-015-safety_scoring_model.md
 
-# DS-015 - Safety Scoring Model 5.7
+# DS-015 - Safety Scoring Model 5.6
 
 **Status:** Canonical
 **Date:** 2026-06-22
-**Amended:** 2026-10-18 — 5.7 (SHOULDER-CREDIT-CONSISTENCY-20261018, [issue #152](https://github.com/dminner/lanterne/issues/152))
-
-**5.7 change (owner decision).** Shoulder credit (§8.5) applies at every speed on roads with positive
-pre-shoulder risk; the 5.6 launch gate that withheld shoulder credit below 30 mph is removed. The
-shoulder width breakpoints and factors, the dedicated-bike-facility double-credit suppression, the
-unknown-width no-credit rule, path / MUP zero road risk, and every other factor, threshold and gate
-(including the distinct crossing eligibility thresholds) are unchanged. Model identities advanced:
-`ds-015-5.6.0` → `ds-015-5.7.0` (`DS015_SCORE_MODEL_VERSION`) and `ds-015-5.6` → `ds-015-5.7`
-(rigid-ledger `modelVersion`). Scores produced under 5.6 are not current 5.7 scores.
 **Filename:** `ds-015-safety_scoring_model.md`
 
 ## Purpose
@@ -7302,7 +7286,7 @@ Minimum required fields:
 
 | Field | Meaning | Required use |
 | --- | --- | --- |
-| `modelVersion` | Safety model version, e.g. `ds-015-5.7` | cache key, trace, rank eligibility |
+| `modelVersion` | Safety model version, e.g. `ds-015-5.6` | cache key, trace, rank eligibility |
 | `routeMiles` | Route length in miles | denominator for risk per mile |
 | `totalRouteRisk` | Policy-calibrated sum of road and crossing risk points | combined route score |
 | `routeRiskPerMile` | `totalRouteRisk / routeMiles` | combined comparison basis |
@@ -7953,9 +7937,7 @@ confidence (§6.4).
 Application rules:
 
 - Shoulder credit applies only when no dedicated bike facility is already providing operating-space credit.
-- Shoulder credit applies at every speed (Amendment 2026-10-18 — DS-015 5.7). The 5.6 launch rule ("most meaningful at 30 mph and above; below that, launch scoring may use 1.00 unless the model version explicitly changes") is retired by this explicit model-version change. Speed is not a shoulder-eligibility input, so a higher speed with all other inputs fixed can never lower Road Risk through shoulder eligibility.
-- Unknown / unavailable / unparseable shoulder width receives no credit (1.00) at every speed; it is never assumed to be a `normal` shoulder.
-- Shoulder credit is multiplicative, so a zero-risk interval (including path / MUP) stays zero.
+- Shoulder credit is most meaningful at 30 mph and above; below that, launch scoring may use 1.00 unless the model version explicitly changes.
 - A path / MUP is not a protected on-road facility. It is handled by the path / MUP rule below.
 - Do not stack facility and shoulder credit in a way that double-counts the same operating space.
 
@@ -8558,7 +8540,7 @@ Source keys:
 | Facility values `0.50 / 0.75 / 0.80 / 1.00` | Protected / buffered / painted / none | `S-CMF-FACILITY`, `P-LANTERNE` | Calibrated launch constants | Values reflect stronger separation for protected, meaningful benefit for buffered, and modest benefit for painted. |
 | Shoulder likelihood concept | Operating-space reduction where no facility exists | `S-CMF-FACILITY`, `S-HSM-NCHRP` | Benchmark-informed / adapted | Shoulder matters as operating space, but should remain secondary to true facility separation. |
 | Shoulder values `1.00 / 0.85 / 0.80` | None or narrow / normal / wide | `S-CMF-FACILITY`, `P-LANTERNE` | Calibrated launch constants | A normal shoulder deserves real credit, while still remaining weaker than true dedicated facility separation. |
-| Shoulder application gate | Applies whenever no dedicated facility already provides operating-space credit, at every speed (5.7; the 5.6 30 mph gate is retired) | `P-LANTERNE` | Owner policy decision 2026-10-18 | A known usable shoulder changes passing space at any speed; withholding it below 30 mph made a faster road able to score lower than a slower one with the same shoulder. |
+| Shoulder application gate | Applies only when no facility and speed is at least 30 mph | `P-LANTERNE` | Calibration policy | Shoulder matters most where it actually changes passing-space conditions. |
 | Path / MUP zero continuous-road risk | Prevents fake road risk on separated paths | `P-LANTERNE` | Canonical rule | A true path should not accumulate road risk while still carrying crossing risk. |
 | 15 mph path-like threshold | Operational proxy for path treatment | `P-LANTERNE` | Measurement policy | Launch needs a workable proxy while staying conservative about safe-path certainty. |
 | Non-intersection crossing inclusion | Includes path-road and similar motor-vehicle conflict points | `S-LOCATION`, `S-PBCAT`, `P-LANTERNE` | Supporting evidence plus policy | Real motor-vehicle conflict points are not limited to formal intersections. |
@@ -20935,6 +20917,65 @@ Current policy:
 
 - z-level controls density and visual familiarity
 - cyclist salience controls styling, loading order, and prioritization
+
+## 9.5 Viewport Display Bands (Active Main Viewport Gate, 2026-10-13)
+
+This section is the policy the two viewport overlays (speed "lightbulb" and bike-facility "eye") apply before painting. It restores the original road-type/zoom assignment as the main viewport gate. Sections 9.1–9.4 above are kept as the historical record of what they described; they are not rewritten.
+
+Authority:
+
+- The table below is the §9.4 substrate z-band table, identical to ADR-047 §10.3, in both the June snapshot `56906c9e27f19a9677cd6f0cffada8d6d7b418ce` and the July snapshot `510fb2889f70feb60bdd0d2493e317eca5afdb00`.
+- Derek clarified on 2026-10-13: the hydration-stage table is not the display policy. Far zoom shows paths, primaries and tracks, then secondaries, then tertiaries.
+- Signed preflight: `docs/04-execution/reports/map-viewport-display-bands-preflight-20261013.md`.
+- The original rules are the `wayZ10Eligible` / `wayZ11Eligible` / `wayZ12Eligible` predicates in `src/lib/substrate/cache-candidate-preview.ts`. They are used as evidence; the full graph and preview are not rebuilt per road.
+
+Active display table. Floors are cumulative, and a floor is the lowest actual map zoom at which a road of that class may paint:
+
+| Floor | Display class | Qualification |
+| ---: | --- | --- |
+| 10 | safe path | existing raw-tag candidate classifier (`classifyCyclistSubstrateCandidateWay`) returns `safe_path` |
+| 10 | gravel track | candidate classifier returns `gravel_track` (including its named path–track bridge case) |
+| 10 | primary connector | candidate classifier returns `primary_connector` (its qualified trunk/primary/link cases) |
+| 10 | protected cycle corridor | candidate classifier returns `protected_cycle_corridor` **and** a cycleway facet is exactly `track` or `opposite_track` |
+| 11 | secondary | secondary (and links) accepted by the existing viewport road rules |
+| 12 | tertiary | tertiary (and links) accepted by the existing viewport road rules |
+| 12 | long residential continuity | only with genuine `residential_continuity_over_2mi` provenance — **currently no producer; nothing is promoted** (see below) |
+| 13 | local | accepted residential, unclassified, living_street |
+| 14 | unclassified accepted detail | any other accepted viewport road, labelled `z14_unclassified_accepted_detail` (for example an expressway trunk the candidate classifier does not qualify as a connector) |
+| never | excluded | not an accepted viewport road (`isViewportSpeedProfileRoad`): no road type, motorway, construction/proposed, private or bike-prohibited access, service/driveway/parking aisle/alley, sidewalk-only footway, crossing connector, hazard/traffic-control node, missing or unusable geometry; also any way the candidate classifier explicitly rejects for access (`private_or_bicycle_prohibited_access`, `trunk_rejected_bicycle_prohibited`), which no class fallback overrides |
+
+Distinction from §9.1 and §9.2:
+
+- §9.1 hydration priority groups and §9.2 acquisition continuity decide what is fetched, in what order, and what is kept warm. They are unchanged, and they still drive acquisition and render-budget ranking.
+- Their group, stage and effective-length tags (`_substrate_viewport_priority_group`, `_viewport_speed_priority_group`, stage keys, `_*_effective_length_*`) are **never read** by the display gate. An acquisition fact cannot give a tertiary z11 or a short named residential z12, and the hydration 0.25 mi / 0.5 mi local groups promote nothing.
+- This **supersedes the viewport visual application of §9.2's one-level hysteresis**. §9.2 hysteresis remains the hydration/acquisition rule.
+
+Current-zoom strict removal and fractional zoom:
+
+- Eligibility is strict `zoom >= floor` at the map's actual fractional zoom. There is no epsilon and no previously-painted allowance. A tertiary shows from exactly 12, not at 11.999. Local fabric shows from exactly 13.
+- Zooming in and zooming out give the same set at the same zoom.
+- A non-finite zoom supplies no entitlement: nothing paints.
+- Retained rows (painted V2 rows re-offered while a refresh or a lower band no longer supplies them) may bridge a refresh/loading gap only while their class floor is met at the current zoom. A newer same-ID observation replaces an older retained one before classification. Retained-row composition itself is unchanged.
+- The gate applies to cache, bbox, retained and peer-handoff rows in both overlays, before render budget, fragment merge, render keys, sidecars and transparent hit paths. The speed overlay's legacy (bbox) branch meets the same floor before its legacy display filter. No null-metadata, search or peer fallback reintroduces an excluded or below-floor row. A dropped row creates no layer and earns no painted standing.
+
+Evidence rules:
+
+- The class comes from the row's own raw road-type facts through the existing candidate, inclusion, access and sidewalk predicates, which are unchanged.
+- None of these promote a road: a hydration group, a speed or colour, a name, the `isSafePath` flag alone, or a generic facility lane.
+- **Protected** means an exact `track` / `opposite_track` cycleway value. The candidate classifier also counts `buffered_lane` (and `protected` / `separate` substrings) as protected; those are not promoted here. A buffered lane on a tertiary stays at 12.
+
+Long residential continuity — missing producer:
+
+- The original preview admits a residential way at 12 only with `residential_continuity_over_2mi` provenance, computed from graph continuity.
+- The current SpeedRoad conversion does not carry preview `includedReasons` or band flags. The viewport candidate builder replaces preview band flags with hydration-derived flags, so those are not interchangeable display authority.
+- These are **not** that provenance: own geometry length, the logical corridor total (`_substrate_corridor_total_length_m`), the hydration effective length (whatever its recorded source), and the name-family length hint.
+- With no producer on current inputs, accepted residential rows stay at 13. Restoring the z12 tier needs that provenance carried to viewport rows. That is a separately reviewed producer/adapter change, outside this scope.
+
+Limits of this frontend display-floor guard vs the full offline substrate simplification:
+
+- The guard does not reproduce historic corridor salience/importance scores, junction-connector promotion, selected/critical primary-connector rules, exceptional-track promotion at 11, or graph-connected residential continuity. Unavailable historical salience stays unavailable rather than being guessed.
+- z14 was a cache-candidate preview and sizing layer, not a central serving contract. Using 14 as a display floor here does not activate a z14 serving contract.
+- Eligibility is not acquisition completeness. Full-cell acquisition, the cache, profiles, render budgets and ranking, palettes, widths and hit tolerances are unchanged by this gate.
 
 ---
 
@@ -40844,661 +40885,289 @@ inputs exist.
 
 ---
 
-## Source File: docs/02-architecture/design/ds-068-ride_plan_record_and_mode_view_registry_spec.md
+## Source File: docs/02-architecture/design/focus-overlay-ux.md
 
-# DS-068 - Ride Plan Record and Mode/View Registry Spec
+# Focus Overlay UX
 
-**Status:** Draft for planning, 2026-10-22
-**ADR Parent:** [ADR-069](../../03-adrs/adr-069-modes_by_views_grid_and_plan_mode.md)
-**Related:** ADR-027, ADR-029, ADR-055, ADR-068, DS-056, DS-059, DS-060, DS-063, EXEC-058, P13/P14 conditions grammar
+Date: 2026-10-24
+Status: implemented locally; independent review and final merge gate pending.
+First implementation: UX-SEARCH-01, destination and origin search.
 
----
+## Purpose
 
-## 1. Purpose
+A reusable, explicitly opened full-screen surface for one focused entry or selection task. Derek requested a mostly opaque grey backdrop, large bold text, and one central CSS definition so later adopters change together. It follows the simplicity principle in `docs/01-philosophy/phl-002-product_principles.md`.
 
-Two things ADR-069 decides need a concrete shape before a phase ticket can be cut:
+This is a presentation primitive, not a new runtime mode or authority. DS-016 experience policy continues to govern when an interaction is appropriate. Do not automatically open it for in-motion guidance, warnings, or unsolicited prompts. Existing flows are migrated only when explicitly scoped.
 
-1. the **mode/view registry** that replaces the two unrelated lantern axes, and the **cell resolver** that turns `(mode, view)` into a surface;
-2. the **ride plan record**, the delta a rider saves over a route artifact.
+## One shared styling contract
 
-This spec defines shapes and rules. It implements nothing and authorizes no runtime wiring, scoring change, storage migration or default-on behaviour.
+`src/components/FocusOverlay.tsx` owns the modal structure and behavior. The **Shared Focus Overlay UX** block in `src/index.css` owns its visual appearance:
 
----
+- `.focus-overlay` and `.focus-overlay__backdrop`: viewport surface and grey backdrop.
+- `.focus-overlay__header`, `__navigation`, `__eyebrow`, `__title`, `__description`: common heading structure.
+- `.focus-overlay__body`, `__options`, `__option`, `__detail`, `__icon-button`: scrollable task content, choices, and controls.
+- `--focus-overlay-background`, `--focus-overlay-opacity`, `--focus-overlay-foreground`, `--focus-overlay-muted`, `--focus-overlay-border`, `--focus-overlay-width`, `--focus-overlay-gap`, `--focus-overlay-title-size`: central visual tokens.
 
-## 2. Mode/View Registry
+Consumers supply text, children, `onClose`, optional `onBack`, and a `returnFocusRef`. They must use the shared classes for options and content rather than copying colors, font sizes, or padding into each flow. Place search uses the shared `.location-search__*` classes in the same stylesheet.
 
-### 2.1 Vocabulary
+Example:
 
-```ts
-type LanternMode = 'account' | 'route' | 'analyze' | 'plan' | 'ride' | 'inspect' | 'dev' | 'test';
-type LanternView = 'safety' | 'weather' | 'traffic' | 'speeds' | 'hazards' | 'stops' | 'controls' | 'cues' | 'map_layers' | 'ride_computer' | 'field_note';
-type ViewTreatment = 'fullscreen' | 'bottom_surface' | 'map_overlay';
-type LanternRestAction = 'universal_voice_capture';
+```tsx
+<FocusOverlay
+  open={open}
+  eyebrow="Choose your origin"
+  title="Start where?"
+  description="Find a place or address."
+  onClose={() => setOpen(false)}
+  onBack={goBack}
+  returnFocusRef={triggerRef}
+>
+  <LocationSearch onLocationSelect={selectOrigin} viewportCenter={center} />
+</FocusOverlay>
 ```
 
-`universal_voice_capture` is deliberately not a `LanternView`. It is a bounded action available only from a fresh downward gesture beginning at rest with nothing to dismiss. Its eligibility and entitlement are separate from whether the rider has the Field Notes view enabled.
+Changing the central tokens/classes updates every adopter. Flow-specific business logic remains with the caller.
 
-`map_layers` is the existing `controls` level (labelled "layers"), renamed so that `controls` can mean brevet controls. The rename is a migration item, not a behaviour change.
+## Shared behavior
 
-### 2.2 Registry entry
+The component portals to the document body at `UI_Z.MODAL`, escaping map/drawer transforms and clipping. Radix Dialog provides the modal focus trap, Escape dismissal, background accessibility isolation, and scroll lock. A supplied trigger ref restores focus on close, including Safari touch clicks that do not naturally focus buttons.
 
-```ts
-interface LanternViewDef {
-  id: LanternView;
-  label: string;                                    // glanceable centre text
-  direction: 'up' | 'down';                         // which side of home it sits on
-  /** Rider profiles this view is offered to by default; undefined = every profile. */
-  profiles?: RideProfileId[];
-  cells: Partial<Record<LanternMode, {
-    treatment: ViewTreatment;
-    isAvailable: (ctx: LanternScreenContext) => boolean;
-  }>>;
-}
+The overlay follows `visualViewport.height`, width and offsets on viewport resize/scroll, with window dimensions as fallback. These geometry properties stay local to the overlay and do not change the map/root viewport sizing. The header compacts when the available visual viewport is below 550px. Search keeps its input above its independently scrolling results.
 
-interface LanternScreenContext {
-  gpsActive: boolean;
-  routeEngaged: boolean;
-  /** From account preferences (§2.6): views and functions the rider has on. */
-  enabledViews: ReadonlySet<LanternView>;
-  enabledModes: ReadonlySet<LanternMode>;
-}
-```
+Back steps through the current task; Close returns to the existing selected destination. Closing never creates a route. GPS failure stays explicit and permits retry/address entry. Late GPS or search responses cannot take ownership after the user changes task or query.
 
-Rules:
+## Bottom workflow actions
 
-- A view appears in a mode's stack only when it has a cell for that mode and the cell's predicate is true. Thresholds are computed from the filtered stack, as `buildDownStack` does today; no manual threshold math.
-- `safety` is always available in `analyze`, `plan` and `ride`, but it is a selectable view rather than a preselected home cell. Each mode lands on its own unselected rest surface, as amended by ADR-069's 2026-10-22 owner revision.
-- A view is filtered out of every stack when it is not in `ctx.enabledViews`; a mode is filtered out of the horizontal order when it is not in `ctx.enabledModes`. `controls` carries `profiles: ['rando']` and so is off by default for every other profile (ADR-069 §6).
-- `ride_computer` and `cues` have cells only in `ride`. `ride_computer` keeps its GPS predicate. `cues` replaces the former horizontal `cues` function (ADR-069 §7). `field_note` has Route, Analyze, Plan and Ride cells and sits in the upward stack.
-- `route` has overlay cells for `weather`, `traffic`, `speeds`, `hazards`, `stops` and `controls`, and no `safety` cell: its rest position is the clean map. `traffic` and `speeds` are the existing route paint lanes, registered as views so the vertical gesture can swap them; elevation is a later addition.
-- `account`, `inspect`, `dev`, `test` have no view cells. Their stacks are empty and the vertical gesture does nothing there.
-- Pulling down while a view, drawer or card is open keeps dismiss/step-to-rest behavior. Only the next gesture that begins at rest and crosses the deliberate threshold dispatches `universal_voice_capture`. The capture state machine is owned by the Phase 0 voice contract, not by the pure cell resolver.
+`BottomActionStrip.tsx` and `.bottom-action-strip*` define the full-width bottom workflow surface. Search selection actions and existing analysis/drawing/edit cancellation use it. `Index.tsx` suppresses competing bottom map chrome while search selection actions are eligible. It is absent when no owning workflow needs it.
 
-### 2.3 Cell resolver
+The standalone floating search card no longer renders. `SearchPinCard.tsx` retains its filename as the controller for selection actions and origin/detail phases.
 
-```ts
-function resolveLanternCell(mode: LanternMode, view: LanternView | null, ctx: LanternScreenContext): LanternCell
-// LanternCell = { mode, view: resolved view, treatment, surface: SurfaceKey }
-```
+## Route marker presentation
 
-- `view === null` resolves to the mode's unselected rest surface.
-- A view with no cell in `mode` resolves to that rest surface, and the resolver reports `fellBack: true` so the lantern can clear the carried view's label.
-- The resolver is pure. It owns no React state. `Index.tsx` holds `(mode, view)` as the single selection authority, replacing today's separate `lanternFunction` and lantern `lockedMode` plus the `selectLanternScreen` tab mapping.
+`createRoutePointIcon` is shared by the proposed search destination and committed GPX endpoints. It retains green start, red destination, and blue waypoint role colors. The proposal uses the destination role with a pulse; committed endpoints remain still. Reduced-motion preference disables the pulse. No color conveys a new safety or scoring claim.
 
-### 2.4 Treatment per mode
+## Verification and limits
 
-| Mode | Treatment | Rule |
-|---|---|---|
-| route | `map_overlay` | Paint along the whole route plus overlay typography. No cards, no drawers, no modals. |
-| analyze | `fullscreen` | The cell may take the screen. The map is not required to stay visible. |
-| plan | `bottom_surface` | Map stays visible; the surface may ask for a decision (direction, time, dial). |
-| ride | `map_overlay` | As `route`, and never covers the position indicator (ADR-029). `cues` is the one Ride cell that may expand to a full sheet. |
+Run the scoped tests listed in the UX-SEARCH-01 implementation report. Browser tests use a component harness and deterministic search fixtures; keyboard geometry is simulated through VisualViewport events. They do not certify a physical iPhone keyboard or the authenticated end-to-end route resolver.
 
-### 2.4a Weather anchor by mode (ADR-069 §1)
+## Serving integration keyboard contract
 
-| Mode | Anchor | Inputs |
-|---|---|---|
-| analyze | The route's actual start point, at the forecast's nearest hour to now | route axis point 0 |
-| plan | The scenario: moves with start time, direction, start offset, and the search window (a day, the next week) | sealed `RidePlanScenarioContext` + sweep window |
-| route, ride | Along the whole route on route-time checkpoints; never one point | forecast adapter checkpoints; in Ride, bound to actual progress |
+FocusOverlay publishes a wildcard through the established `data-consumes-keys` declaration. The shared keyboard-consumption predicate recognizes this entire-task scope even beneath a nested control with its own key list. Index's capture-phase map shortcuts and keyup handling stand down; the overlay stops bubbling without preventing native controls or Radix Tab/Escape handling. This is local to explicitly opened task content and disappears on close.
 
-### 2.5 What each view shows, by subject
-
-The subject is the same in every mode; the treatment and the inputs differ.
-
-| View | Route (overlay) | Analyze (stable artifact) | Plan (sealed scenario) | Ride (overlay, now) |
-|---|---|---|---|---|
-| safety | — | Summary, Method, Receipts, Review, Audit, unchanged | Planned Ride Risk, scenario-labelled, Baseline Risk Per Mile beside it; start, direction, time, pace; optimal-X sweeps | Risk of the stretch ahead |
-| weather | Forecast paint along the route (P14 grammar) | Forecast report at the route start | Forecast for this scenario; the conditions dials | Paint along the route plus `WeatherOverlay` |
-| traffic, speeds | Existing route paint lanes | — | — | Existing paint lanes |
-| hazards | Hazard markers | Every hazard on the route with mile; "few hazards" is an honest state | Same, with the plan's arrival clock time | Existing `HazardOverlay` |
-| stops | Stop markers | Stops the route passes, with mile and distance-off-route | Assigned stops, dwell, push transitions (EXEC-058 rules) | Existing `StopsOverlay` |
-| controls (rando) | Control markers | Controls with distance | Controls with arrival time and window | Next control |
-| cues | — | — | — | Current cue; expands to the full cue sheet (§2.7) |
-| field_note | Map markers; open note at bottom | Running list from route start | Same rows re-measured in plan frame | Map markers; current note and Add/manage surface |
-
-The bottom controls drawer keeps its hazards and stops **settings** tabs. They decide what paints on the map; they are not cells and are not opened by the vertical gesture any more.
-
-### 2.6 Account preferences: views and functions
-
-Account preferences gain a section listing every registered view and mode with an on/off switch. Defaults come from the rider's profile (ADR-068: Road, Rando, Ultra, Gravel, Touring/Bikepacking) through each view's `profiles` field; a rider may turn anything on or off afterwards. The registry filter reads the result through `LanternScreenContext`. The `randonneurEnabled` argument threaded through `useRideModeStore` is removed once this lands; no second switch stays beside it.
-
-### 2.7 One set of rows per view, read three ways (owner, 2026-10-22)
-
-> "When you're in Analyze and you have field notes selected, it should have a running list of all the people's field notes with mile markers tied to the start of the route. If you're in Plan … it should show basically the same field notes rearranged to the mile markers based on that starting point. And then if you go to Ride … it should be an overlay on the map, and markers that you can click, and then you see the field note down at the bottom. Same thing for safety, weather, stops and hazards."
-
-Every view's content is one list of rows on the route artifact's axis, each carrying `artifactDistM` measured from the artifact's own start. The mode decides how the list is read:
-
-| Mode | Reading | Frame |
-|---|---|---|
-| Analyze | A running list, mile markers from the route's start | `artifactFrame(totalDistM)` |
-| Plan | The same rows, re-measured from the plan's start point and direction, in riding order | the plan's `direction`, `startOffsetDistM`, closed-loop flag |
-| Ride (and Route) | Markers on the map; tapping one shows that row at the bottom | the plan frame if a plan is loaded, else the artifact frame |
-
-`projectViewRows(rows, frame)` in `src/lib/lantern-view-rows.ts` owns the re-measuring. A closed loop wraps past its end; an open route started part-way returns the rows behind the start as `notRidden`, which the Plan list shows separately and never silently drops. The rule applies to field notes, safety, weather, stops and hazards alike.
-
-### 2.8 The cue sheet shows what the map shows, and the rider picks which
-
-The cue sheet carries a row of toggles at its top: **Hazards, Stops, Weather, Field notes**. Everything is on by default; the rider switches kinds off, and the choice is remembered per viewer (`src/lib/cue-sheet-views.ts`). Each kind's rows merge into the cue list by distance, read in the same frame as the Plan list. A kind that has no rows on the cue sheet yet is shown disabled, never as a switch that does nothing. As of 2026-10-22 only Hazards merges; the others join as their rows exist.
-
-Field Note schema, lifecycle and route projection are defined by DS-069. The current read adapter/list is implemented; map markers, universal voice routing and later playback remain separately phased.
-
----
-
-## 3. The standard conditions objective
-
-A DS-059 `ScenarioObjectiveProfile`, family `conditions`, id `conditions.standard.v1`:
-
-| preferenceId | preferenceKind | default weight | rider control |
-|---|---|---|---|
-| `no_rain` | minimise precipitation probability and amount at checkpoints | 1.0 | 0 to 2, or off |
-| `no_snow` | minimise snow / freezing precipitation at checkpoints | 1.0 | 0 to 2, or off |
-| `tailwind` | maximise rider-relative wind coefficient summed over the route (positive = at the back) | 1.0 | 0 to 2, or off |
-| `temperature_near_70f` | minimise mean absolute deviation from 70°F (21°C) at checkpoints, apparent temperature preferred | 1.0 | 0 to 2, or off; the target may move |
-
-- "Off" removes the preference from the profile (a non-variable). The profile digest changes, so a ranked result carries the dials it was ranked under.
-- Wind is rider-relative at the checkpoint's route bearing, per the P14 grammar; where bearing is unavailable the coefficient for that checkpoint is `unavailable` and the receipt says so. It is never raw wind speed.
-- Hard constraints: none in v1. Safety is not a preference here; a conditions ranking is only ever shown beside the plan's Planned Ride Risk, and a plan ADR-055's gates have not cleared is shown as blocked, not ranked lower.
-- Output per candidate: the four component scores, the combined score, the dials used, the forecast generation time, and the limitations list from the forecast adapter. All display-only; never a Safety Score input.
-
-Sweep dimensions a Plan surface may request (DS-060 candidate generation): start time over a bounded window, direction `forward | reverse`, start offset over the axis for closed loops. Pace is held fixed per sweep.
-
----
-
-## 4. Ride Plan Record
-
-### 4.1 Shape
-
-```ts
-export const RIDE_PLAN_RECORD_SCHEMA_VERSION = 'ride_plan_record.v1' as const;
-
-interface RidePlanRecordV1 {
-  schemaVersion: 'ride_plan_record.v1';
-  planId: string;                       // UUID
-  planRevision: number;
-  name?: string;
-  routeRef: {
-    routeId: string;                    // saved-route UUID; the authority
-    routeAxisDigest: string;            // SavedRouteAxisV1 digest the plan was made against
-  };
-  direction: 'forward' | 'reverse';
-  startOffsetDistM: number;             // 0 unless the route is a closed loop
-  plannedStartTimeIso?: string;
-  clockContext?: ScenarioClockContext;  // ADR-055
-  pace?: PaceProfile;                   // ADR-055; speed is part of the plan
-  stops: PlannedStop[];
-  objective?: {
-    objectiveId: string;                // e.g. conditions.standard.v1
-    dials: Record<string, number | 'off'>;
-  };
-  derivations: PlanDerivation[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface PlannedStop {
-  stopId: string;
-  axisDistM: number;                    // on the artifact axis, in artifact order
-  ref?: { kind: 'poi' | 'control'; id: string };
-  dwellSec: number;
-  scope: 'in_push' | 'push_transition'; // EXEC-058: > 3 h defaults to push_transition, rider override wins
-  note?: string;
-}
-
-type PlanDerivation =
-  | { kind: 'detour'; derivationId: string;
-      replaces: { fromDistM: number; toDistM: number };   // span on the artifact axis
-      axis: SavedRouteAxisV1;                             // the detour's own geometry
-      reason?: string }
-  | { kind: 'road_fact'; derivationId: string;
-      atDistM: number; fact: string; observedAt: string }; // rider observation, overlay evidence (ADR-040), never truth
-```
-
-### 4.2 Rules
-
-- **The artifact is never rewritten.** A plan references the route by id and digest. If the route's axis digest changes, the plan is `stale` and every distance-bound field is shown as needing confirmation; nothing is silently remapped.
-- **Distances are in artifact order.** `direction: 'reverse'` is applied by `ScenarioRouteTransform` at load, so a stop at 40 km of a 100 km route is at 60 km of the reversed ride. Storing in artifact order keeps one stop one row whichever way the rider goes.
-- **A detour is a span, not a new route.** It carries its own axis so its slices can be analysed; the plan's impact line is computed by subtracting the replaced span's contribution and adding the detour's. This is scenario-specific and never enters stable route truth or the score ledger (ADR-059).
-- **Impact is computed, not stored as truth.** Distance, elevation gain, Planned Ride Risk and Baseline Risk Per Mile are shown as `artifact → plan` pairs, each with the receipt of what produced the plan-side value. A stored copy may exist as a cache and must say it is one.
-- **Road facts are overlay evidence** under ADR-040. They sit on the plan, are shown to the rider who recorded them, and never promote to canonical truth.
-- **Identifiers only.** No forecast values, no scores and no analysis output are stored in the record. Everything derivable is re-derived from the artifact plus the record.
-- **Saved routes list.** A plan is listed beside its route, named for the plan, and loading it loads the route then applies the record. When a route has more than one plan, loading it opens a menu and the rider picks; nothing is applied until they do (ADR-069 §8). A route with no plan loads as the bare artifact.
-
-### 4.3 Storage
-
-Specified in [DS-070](ds-070-ride_plan_persistence_and_application_spec.md) under ADR-070. A `road_fact` derivation is a reference to a private field note ([DS-069](ds-069-field_notes_schema_confirmation_and_route_projection_spec.md)). Originally: deferred to the implementing phase. The record is small (stops and derivations aside) and belongs beside the saved route it references, with the same ownership and the same resume rules as `saved-route-resume-store.ts` (server record is the authority; any local copy is a non-authoritative accelerator).
-
----
-
-## 5. Phasing
-
-Each phase is one cell or one contract, with a builder report and an independent review (AGENTS.md).
-
-1. Registry, cell resolver, `plan` in the function order with an empty shell, `cues` moved to a Ride view. Analyze·safety unchanged. Tests: resolver fallbacks, threshold computation, carried view across modes, `map_layers` rename, profile and preference filtering.
-2. Account preferences for views and functions, seeded from profile; retire `randonneurEnabled`.
-3. Route and Ride overlay views on the existing paint lanes (traffic, speeds), then weather paint along the route.
-4. Analyze·weather at the route start, read-only.
-5. Plan·safety on one sealed scenario (DS-063 projection), Planned Ride Risk labelled, Baseline beside it.
-6. Ride plan record v1: save, list, load, stale detection. No derivations yet.
-7. Plan·weather with `conditions.standard.v1` and the dials; single-scenario evaluation, no sweep.
-8. Plan·stops and Plan·controls.
-9. Sweeps: start time, direction, start offset.
-10. Derivations: detours and road facts.
-
----
-
-## 6. Deferred and out of scope
-
-- Automatic stop inference and POI-derived stops (EXEC-058 keeps these as later Push Intelligence work).
-- Any change to scoring, truth selection, evidence acquisition or the score ledger.
-- Rider-facing wording for the dials and for "optimal" (human gate).
-- Multi-day plans beyond the push-transition rule already in EXEC-058 (ADR-068 §5).
+The current RouteFunctionSurface supplies the search trigger ref to the shared acquisition seam, so closing destination search restores focus to the actual current Route Search button. No old where-to handle or obsolete panel wrapper is reinstated.
 
 
 ---
 
-## Source File: docs/02-architecture/design/ds-069-field_notes_schema_confirmation_and_route_projection_spec.md
+## Source File: docs/02-architecture/design/p7-viewport-cache-reader-v1-proposal-20261011.md
 
-# DS-069 - Field Notes: Schema, Confirmation, Lifecycle and Route Projection
+# P7 viewport road cache reader — contract proposal
 
-**Status:** Draft for planning, 2026-10-23
-**ADR Parent:** [ADR-070](../../03-adrs/adr-070-ride_plans_and_field_notes_as_rider_authored_layers.md); implements [ADR-028](../../03-adrs/adr-028-field_note_confirmation_model.md) and lifts [ADR-004](../../03-adrs/adr-004-rider_field_notes_deferred.md)
-**Related:** ADR-040, ADR-046, ADR-069, DS-068 §2.7–2.8, substrate signal registry (`20260601000100_substrate_signal_registry.sql`)
-**Replaces:** the "DS-016 (Field Note Schema)" pointer in ADR-004 and ADR-028. DS-016 keeps its other uses.
+Recorded: 2026-10-11. Status: **proposed; no implementation or activation**.
+Phase: `MAP-VIEWPORT-SOURCING-20261011`, follow-up to issue #97.
 
----
+The viewport's deployed road proxy still calls the stopped legacy service on port
+3000. The P7 cache has a separate material-object store, but neither its grid
+coverage API nor its route materialization API is a viewport road reader. This
+proposal defines that missing read boundary. It does not restart the old service,
+change providers, admit a new subscriber, or authorize a production operation.
 
-## 1. Purpose
+## Existing authority and scope
 
-Define what a field note is, where it is stored, who can see and change it, how confirmations work, when it stops showing, and how a note on the map becomes a row with a mile marker on any route. The initial schema, capture, read list and reactions have landed. The 2026-10-24 voice amendment below is a contract for additive follow-up work; it does not authorize rewriting the applied migration.
+Frontend source inspected: `c271ffdd1652d6a10660ba3557567701e08b5d5f`.
+Backend source inspected: `5bc7ab3175767816be1fdb3c44a253bd40b052ce` in
+`dminner/nuremberg-owned-spatial`. Repository source is not deployed authority.
+An implementation base must be reconciled with the currently installed P7
+release and composite cache authority before a backend implementation ticket.
 
-## 2. What a field note is
+Follow ADR-047/DS-035 for cache authority, ADR-058/DS-061 for viewport owners,
+ADR-060/DS-065 for selection, and the backend's AGENTS.md for all operations.
+ADR-058 and ADR-060 remain marked Proposed; this proposal does not promote them.
 
-A short structured observation about **a place**, made by a rider, that other riders can confirm or clear.
+The reader exposes cached OSM highway-way material, including paths when present
+under the grid's source enumeration law. It does not return route artifacts,
+route axes, route risk scores, HPMS joins, arbitrary POIs, or complete hazard-node
+coverage. P7 cell terminality cannot establish all of those facts. Full hazard
+and POI acquisition continue to need their own readers.
 
-```ts
-type FieldNoteKind =
-  | 'general'
-  | 'hazard'
-  | 'general_hazard'
-  | 'busy_road'
-  | 'intersection'
-  | 'dog'
-  | 'surface'
-  | 'construction'
-  | 'closure'
-  | 'debris'
-  | 'water'
-  | 'food'
-  | 'restroom'
-  | 'shelter'
-  | 'bike_service';
+## Request and service boundary
 
-interface FieldNote {
-  noteId: string;                         // substrate_signals.signal_id, 'fn_' + uuid
-  kind: FieldNoteKind;                    // §3
-  severity?: 'info' | 'inconvenience' | 'unsafe';   // subset of the ledger enum
-  text?: string;                          // optional, plain text, ≤ 2,000 characters (abuse ceiling only, not a product limit)
-  voice?: {
-    privateObjectRef: string;             // never returned as a public storage path
-    originalDurationSec: number;          // receipt measurement; original bytes normally are not retained
-    trimmedDurationSec?: number;          // absent only on the approved isolation-failure path
-    admittedDurationSec: number;          // server-verified metering/limit authority
-    speechIsolationOutcome: 'trimmed' | 'approved_untrimmed_fallback';
-    speechDetectorPolicyVersion: string;
-    transcriptionState: 'queued' | 'transcribing' | 'complete' | 'failed';
-    transcriptQuality: 'unassessed' | 'usable' | 'suspect' | 'author_confirmed' | 'moderator_confirmed';
-    recordingQuality?: 'good' | 'poor' | 'unknown';
-  };
-  point: { lat: number; lon: number };    // the anchor
-  bearingDeg?: number;                    // optional: the note applies to one direction of travel
-  wayRef?: { osmWayId: number; confidence: 'high' | 'medium' | 'low' };   // snapped road, when known
-  observedAt: string;                     // when the rider saw it
-  visibility: 'private' | 'public';
-  provenance?: { routeId: string; routeAxisDigest: string; distM: number; mode: 'ride' | 'analyze' | 'plan' };
-  media?: { kind: 'photo'; storagePath: string }[];   // at most one in v1
+Proposed backend path: `POST /v1/p7/viewport/roads`.
+
+```json
+{
+  "schemaVersion": "p7-viewport-roads-request.v1",
+  "bounds": { "south": 39.8, "west": -74.6, "north": 39.85, "east": -74.55 }
 }
 ```
 
-Transcription processing and word quality are not one enum. `queued` or `transcribing` pairs only with `unassessed`; `complete` pairs with `usable`, `suspect`, `author_confirmed`, or `moderator_confirmed`; `failed` pairs with `unassessed` and has no publicly eligible text. Any applied migration's older `transcriptStatus` field is historical storage evidence and needs an additive compatibility/backfill contract rather than being relabelled in place.
-
-**Not stored on a note:** mile markers on any route (computed, §6), author identity in any public read (§5), scores or truth (ADR-040).
-
-## 3. Kinds
-
-Revised 2026-10-23 on the owner's direction to start open and police later. Fourteen, grouped so the Hazards and Stops views pick up their own. Labels are drafts for the human gate.
-
-| Kind | Group | Default freshness | Rider label (draft) |
-|---|---|---|---|
-| `general` | — | 60 days | General |
-| `hazard` | hazard | 60 days | Hazard (anything: a metal-grate bridge, a blind bend) |
-| `busy_road` | hazard | 365 days | Busy road |
-| `intersection` | hazard | 365 days | Dangerous intersection |
-| `dog` | hazard | 90 days | Dogs |
-| `surface` | hazard | 60 days | Rough surface |
-| `construction` | hazard | 30 days | Construction |
-| `closure` | hazard | 14 days | Road closed |
-| `debris` | hazard | 7 days | Debris |
-| `water` | stop | 365 days | Water |
-| `food` | stop | 180 days | Food |
-| `restroom` | stop | 180 days | Restroom |
-| `shelter` | stop | 365 days | Shelter |
-| `bike_service` | stop | 365 days | Bike help |
-
-`driver_behaviour` from the first draft folds into `busy_road`; `other` becomes `general`. The applied schema's `hazard` value remains a Phase 1A private compatibility value. Before public playback, an additive schema contract introduces the owner-approved distinct `general_hazard` kind for a credible threat that does not fit a named kind; this document does not rewrite the landed migration. Initial playback direction is owner-approved by kind: `dog`, `construction`, `closure`, `intersection`, `general_hazard`, and all social/place kinds are direction-agnostic; `surface` and `debris` are direction-sensitive. Future sand/gravel, lane, shoulder, and traffic observations are also direction-sensitive. Derek classified `busy_road` as a hazard playback class but did not assign it a direction policy in the approved matrix, so it is not eligible for automatic playback until that later playback gate chooses one. A direction-sensitive record without usable bearing is `direction_unknown`: it does not auto-play and may corroborate a colocated bearing cluster without inheriting that cluster's direction.
-
-Open categories mean language will be rough. Swearing is allowed; what is removed is in §8.
-
-## 4. Confirmation and lifecycle (ADR-028)
-
-### 4.1 Reactions
-
-```sql
-create table public.field_note_reactions (
-  id uuid primary key default gen_random_uuid(),
-  signal_id uuid not null references public.substrate_signals(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  reaction text not null check (reaction in ('still_there', 'gone')),
-  created_at timestamptz not null default now(),
-  unique (signal_id, user_id)            -- one standing reaction per rider; a change is an update
-);
-```
-
-- The author cannot react to their own note (enforced by policy, §5). The report is not a confirmation.
-- A rider's later reaction replaces their earlier one (`gone` after `still_there` counts as `gone`).
-- Only that non-author rider's first `still_there` event may extend freshness. Later changes to or repetitions of the same rider's standing reaction never advance `lastSeenAt`; the durable schema/receipt must preserve enough first-event evidence to enforce this independently of mutable `updated_at`.
-
-### 4.2 Derived counts
-
-Read model per note: `confirmations` = riders whose standing reaction is `still_there`; `clears` = riders whose standing reaction is `gone`; `lastSeenAt` = the latest of `observedAt` and each eligible non-author rider's first `still_there`. Displayed as ADR-028 specifies: *reported · +3*.
-
-### 4.3 Status
-
-| Status | Rule | Shown |
-|---|---|---|
-| `active` | within freshness of `lastSeenAt`, and `clears ≤ confirmations` | yes |
-| `disputed` | `clears > 0` and `clears = confirmations + 1` (one more gone than still-there, counting the report) | yes, marked *may be gone* |
-| `cleared` | `clears ≥ confirmations + 2` | no (author still sees it) |
-| `stale` | past freshness of `lastSeenAt` | no in lists and markers; reachable through *show older notes* |
-| `hidden` | author deleted, or admin hid it | no |
-
-Status is computed at read time from counts and dates. It is never stored as truth and never feeds scoring.
-
-## 5. Access
-
-On `substrate_signals`, for `family = 'field_note'` only:
-
-| Who | Read | Write |
-|---|---|---|
-| Anyone signed in | public notes with status `active` or `disputed`, through the read function in §6 (never the raw row: `source_record_id`, author and raw payload are not returned) | — |
-| The author | all their own notes | insert with `source_actor_type = 'rider'` and their own `user_id`; update text, kind, severity, visibility; delete (sets `hidden`) |
-| Admin | everything | hide, unhide |
-
-On `field_note_reactions`: a signed-in rider may insert or update their own reaction on a public note they did not author; nobody reads another rider's reaction rows directly, only the counts.
-
-**Author identity is never returned for a public note.** The author's own reads mark their notes as theirs.
-
-Validated existing non-voice Field Notes retain their governed public-by-default behavior. Every Phase 1A voice-canary result is forced author-only, irrespective of requested visibility. New voice-originated text cannot become public until the separate Phase 1B intake, privacy, clustering, and public-text gate passes.
-
-**Home privacy** (ADR-070 owner answer 2, amended 2026-10-24): use the rider's global home point and chosen account privacy distance, not saved-route start points. The default and non-disableable minimum are 300 m; the rider may expand the radius to 1,600 m; zero is invalid. If no usable home point exists, otherwise-public-eligible content remains author-only. No per-note confirmation or client flag may bypass the effective zone or minimum. Every create, private→public transition, public/cluster read, and original-audio authorization recomputes the policy server-side without exposing the home point or suppression reason.
-
-**Rate limit:** at most 30 notes and 200 reactions per rider per day, enforced in the write function.
-
-## 6. Route projection: how a note gets a mile marker
-
-```sql
--- Returns the field notes visible to the caller along a saved route, with distances on that route's axis.
-create function public.field_notes_along_route(p_route_id uuid, p_corridor_m numeric default 30)
-returns table (
-  note_id text, kind text, severity text, text text, status text,
-  confirmations int, clears int, last_seen_at timestamptz, observed_at timestamptz,
-  is_mine boolean, artifact_dist_m numeric, offset_m numeric, has_photo boolean
-) ...
-```
-
-1. Build the route line from the saved axis (`route_history.points_json`, the `route_axis_digest` the caller holds).
-2. Candidate notes: `ST_DWithin(point, line, p_corridor_m)` on geography, visible to the caller per §5.
-3. `artifact_dist_m = ST_LineLocatePoint(line, point) × length`. For a route that passes the same place twice (an out-and-back, a figure eight), the note is returned once per pass within the corridor, each with its own distance.
-4. A direction-sensitive note with `bearingDeg` is returned for a playback-compatible pass only if the route's bearing at that distance is within 60° of it. A direction-sensitive note without bearing remains available to its author and for governed corroboration as `direction_unknown`, but never auto-plays. Direction-agnostic kinds do not acquire a direction merely because capture supplied bearing.
-5. Results ordered by `artifact_dist_m`.
-
-The client turns each row into a `ViewRow` (`view: 'field_note'`, `artifactDistM`) and reads it per DS-068 §2.7: Analyze as is, Plan through `projectViewRows` with the plan's frame, Ride as markers. Hazard- and stop-group notes are also emitted as rows for those views.
-
-For a route not yet saved (an unsaved import being analysed), the same function takes the axis as a GeoJSON LineString parameter instead of a route id; nothing is cached.
-
-**Cache:** results are keyed by `(route_axis_digest, notes_watermark)` where the watermark is the latest `updated_at` among field notes inside the route's bounding box. Ride mode fetches once at route load and holds the list for the ride.
-
-## 7. Capture
-
-- **Ride:** the Field note view's bottom sheet offers *Add note here*: kind first (one tap), then optional severity, text and photo. Position and bearing come from GPS; provenance records the route and distance.
-- **Analyze, Plan, Route:** long-press on the map, or *Add note* in the Field note view, places the point; no bearing unless the rider sets one.
-- **A note is saved locally first** and synced when signed in and online, so a rider with no signal at a dog does not lose it.
-
-### 7.1 Voice (owner, 2026-10-23: "typing is basically worthless on the bike")
-
-Voice is the primary capture on the bike. **Record and submit**, not live dictation, but a recording is a voice command before it is a Field Note:
-
-1. Pull-down from rest records an unresolved private `VoiceCommandV1`. **Add note** inside the Field Notes view uses the same recorder with Field Note intent preset. Position and bearing are taken at recording start, not at the end, because the rider keeps moving while talking.
-2. The completed clip is processed on the phone as §7.1b requires. A no-speech result is not uploaded and creates nothing.
-3. The one admitted clip and private command envelope are queued durably. That clip is normally the trimmed recording; only the closed failure-only path in §7.1b may use the unchanged original. No `substrate_signals` Field Note row exists yet.
-4. In the background, the server transcribes, checks transcript quality, and either validates the preset Field Note action or resolves the universal command. A Field Note is created only after usable transcription, valid Field Note intent, intake, authorization, visibility, and home-privacy checks.
-5. Phase 1A forces every resulting note author-only, regardless of requested visibility. Public eligibility is a later gate and never follows merely from completed transcription.
-6. The retained note audio is the admitted recording: normally trimmed, or the specially labelled unchanged original only after an eligible isolation failure. It lives for as long as the note exists unless the author deletes the audio sooner. Deleting the note must enqueue durable server-owned Storage cleanup; the note is hidden/retracted and audio marked `delete_pending` atomically, and deletion is complete only after the fenced worker verifies physical object absence.
-
-Live dictation (the phone's own keyboard) stays available in the form for riders off the bike.
-
-### 7.1a Universal pull-down recorder (owner revision, 2026-10-24)
-
-> "To record them, it should be as easy as hitting the lantern … pull the lantern down and it's record … you can even have a setting. People that know what they're doing, they just pull the lantern down and it starts recording."
-
-- **Pulling the lantern down at rest starts universal voice input in every route mode.** It does not select Field Notes and does not create a Field Note. Nothing sits below rest; universal voice is a rest action, not a view. Field Notes remains its own upward-stack view and cue-sheet toggle (ADR-069 amended).
-- **Pulling down with something open still closes it**, as before. Recording happens only when there is nothing to dismiss, so the two never compete.
-- **Crossing the deliberate downward threshold starts recording.** Release before the initial remotely configurable 350 ms crossover latches the recording. Holding beyond 350 ms enters momentary mode with a second short haptic, and release submits. A latched recording stops on a tap of the active recorder or a second quick pull-and-release. Neither interaction is privileged.
-- **Both forms use one cap and stop-and-submit at it.** Derek requires enough time for a winded rider who is not speaking in shorthand and approved two minutes, a tone at 1:45, a large white-on-grey ten-second countdown beginning at 1:50, then stop-and-submit at 2:00.
-- **Capture survives ordinary UI interruption.** Recorder ownership is at the app root so in-app navigation and normal backgrounding do not stop it. Pointer cancellation after the threshold moves to the obvious latched state. Microphone/permission loss or unexpected teardown stops and discards with **Try again** and no success state. After durable admission, server processing survives browser close.
-- **One recorder has two entries.** Pull-down leaves intent open. **Add note** presets Field Note intent and skips open-ended classification, but does not bypass transcript health, intake, authorization, visibility, or privacy.
-- **The old Pull to record preference stops controlling capture.** Phase 1A stops reading and writing `lanterne:field-note-capture:v1`, ignores a stale value for one compatibility release, and does not delete it. If mounted tests show the 350 ms distinction is unreliable, a new preference may favor momentary or latched behavior without removing either.
-
-### 7.1b On-device speech isolation and audio lifecycle (owner Decision 7, 2026-10-24)
-
-Before upload:
-
-- use an on-device speech detector/VAD, not a loudness gate;
-- remove leading and trailing non-speech;
-- shorten internal non-speech longer than 2,000 ms to 1,000 ms, preserving natural separation between words;
-- upload nothing and create no product record when no speech is detected; play the local failure phrase instead;
-- retain no original/untrimmed copy on the normal path;
-- record original seconds, trimmed seconds, detector version, trim-policy version, and result in the private processing receipt;
-- test wind, road noise, gloves on the microphone, heavy breathing, and a soft word following a breath on a mounted phone.
-
-The detector class remains a gated technical choice. The 2,000/1,000 ms pause values are owner-approved and policy-versioned. The owner-approved Phase 1A exception admits one original clip only for `vad_load_unsupported_or_failed`, `audio_decode_unsupported_or_failed`, or `audio_reencode_unsupported_or_failed`, after the Phase 0 final gate accepts the contract. It remains capped at two minutes, author-only, remotely disableable, marked `approved_untrimmed_fallback`, fully metered, and unable to bypass transcript, privacy, cost, or action validation. `no_speech`, microphone loss, corrupt/digest-mismatched or over-cap media, authorization failure, and quota/circuit-breaker rejection are never eligible. The client never uploads both original and derived copies and never treats a generic exception as eligible.
-
-The one admitted object begins as ephemeral command audio. If validated resolution creates a Field Note, ownership transfers atomically and idempotently to the note before command cleanup. A no-note command still unresolved 24 hours after capture becomes `failed_resolution`, can never act later, and loses its audio; its minimized transcript and receipts remain for 30 days. Persistent transcription failure follows the same 24-hour audio ceiling. Note audio follows the note's lifecycle unless the author, moderator, or retention policy deletes it sooner. Redacted learning phrases live 90 days with rider opt-out. Cleanup failure is operator-only: no cleanup-status language is shown or spoken to the rider, and the command is not reported fully settled until transfer/delete settlement succeeds.
-
-The local queue is durable or capture fails closed; an in-memory-only fallback is prohibited. Admission-pending audio expires after 24 hours, remains isolated to its originating actor across logout/login, and is neither visible nor processable by another account. Cancel deletes it; only a durable admission receipt allows local deletion. Quota exhaustion is visible and either refuses capture or uses an explicitly receipted oldest-item expiry policy whose failure is shown to the same actor on return. Preferred media is WebM/Opus with MP4/AAC for Safari/iOS. Reserved command uploads use the protected `<actor-id>/_voice-command-reserved/<reservation-id>/<clip-id>.<ext>` prefix in the private `field-note-audio` bucket, whose hard object ceiling is 5,242,880 bytes (5 MiB). Server admission bounds the read at that ceiling plus one byte, rejects oversize before an unbounded parse, and verifies bytes, MIME/container, digest, and decoded duration against the tested allowlist.
-
-Phase 1A performs no pre-action confirmation. A valid supported action commits once and exposes an exact ten-second undo bound to the server action receipt; an in-window request wins through pre-commit cancellation or idempotent post-commit compensation. Failed compensation remains unsettled for operator attention rather than being reported complete.
-
-### 7.2 Transcription provider (owner, 2026-10-23)
-
-Lanterne now has OpenAI speech-to-text in `supabase/functions/field-note-transcribe`, including retry and transcript-health logic. It is still coupled to an already-created Field Note and invoked fire-and-forget, so it is evidence to reuse rather than the durable universal-command processor:
-
-- **Keep the product boundary.** Rider audio remains in Lanterne's service/storage and uses Lanterne credentials and billing; no Of Me data path is shared.
-- **Make processing durable.** A server-owned queued job survives browser close, claims work with a lease, distinguishes retryable and terminal failures, and writes idempotent transcription/resolution/action/cleanup receipts. Missing credentials or provider failure cannot strand a note as pending forever.
-- **Name the recovery authority.** Supabase Cron runs a guarded due-work dispatcher at least once per minute; the SQL dispatcher uses `pg_net` plus a server-only credential from Supabase Vault to invoke the Edge worker. A security-definer claim RPC takes bounded rows with `FOR UPDATE SKIP LOCKED`, writes expiring fenced leases, and rejects stale-worker writes after another generation claims the job. A browser wake is a latency optimization only. The linked-project preflight found `pg_cron` and Vault installed and `pg_net` available but absent; Derek authorized Phase 1A to enable it only through a new additive migration, with non-production verification before rider enablement and a separately gated production deployment. No landed migration is edited or replayed.
-- **Keep transcript quality separate from intent confidence.** Empty, filler, repeating, or implausibly thin output becomes suspect/failed rather than public text. The slow-speech threshold is deliberately loose for winded riders.
-- **Model by configuration and minimize input.** OpenAI remains the initial transcription provider. The intent fallback is a separate provider-neutral adapter using the cheapest current Haiku-class model that passes the corpus. It receives only normalized transcript, enabled-intent names, and coarse mode—never raw audio, precise coordinates, route IDs, or unneeded identity/context—and returns only the enabled strict schema. A model never writes a Field Note directly.
-- **Delete command audio at the correct terminal boundary.** Successful transcription alone is not enough if resolution/action still needs the clip transferred to retained note audio; cleanup follows the lifecycle in §7.1b.
-
-### 7.3 Confirmation voice and future rider-audio playback
-
-Fixed Phase 1A confirmations use the selected Speechify voice, pre-rendered and cached on the phone. Eligible variable text uses live Speechify when available and device TTS only when Speechify cannot be reached. Instant mute is actor-scoped and persists across remount, reload, a new ride, and logout/login until that actor explicitly unmutes; another account does not inherit it. Speechify API access, voice choice, billing/terms, permitted runtime, asset provenance, and refresh behavior are not evidenced in this repository and remain a Phase 1A enablement gate rather than permission to substitute a device-only design.
-
-For later playback to another rider, a trusted transcript plus current share consent plus good recording quality may play the trimmed rider recording. **Share my voice** is account-wide and controls future authorization for both new and previously recorded notes; turning it off makes eligible text use Speechify moving forward. A later per-note control may narrow consent. New riders are audio-eligible on day one; after one warning, confirmed abuse may trigger a 30-day voice ban that any admin may remove. Moderation may delete stored audio and Lanterne promises neither retention nor replay. “Bad reception” means network reachability, addressed by bounded encrypted prefetch; it is not a recording-quality label. A suspect transcript remains unspoken until author/moderator confirmation; polished synthesis does not make uncertain words true. A verified personal clone and standard Speechify voice are equal selector choices, with device TTS as availability fallback. Public playback is not part of Phase 1A.
-
-## 8. Boundaries
-
-- Never an input to truth resolution, Route Safety Score, Planned Ride Risk, the score ledger, or heatmap colour (ADR-040).
-- Never a thread: no replies, no comments, no author profile.
-- **Removed on report or by review:** another person's identity (names, plates, addresses), threats, slurs aimed at people, spam and advertising. A note reported by three riders is hidden pending review. Swearing about a road is not removed.
-- A note never promotes itself to a POI or a hazard detection. Promotion, if ever, is a reviewed act under ADR-040's `admin_approved` path.
-
-## 9. Historical phases and current follow-up state (see also §10)
-
-The original plan below is retained as provenance, not a claim that all phases are still future:
-
-| Original phase | Current state on the 2026-10-24 baseline | Follow-up boundary |
-| --- | --- | --- |
-| Schema and write path | Landed in `20261024000100_field_notes.sql` with the defects recorded in VOICE-WALKIE-00 | Repair only through a new additive migration; use the global account home policy, not the obsolete saved-route-start rule |
-| Read path | Route read adapter and Field Notes list landed with contract gaps | Enforce transcript eligibility, direction compatibility, and effective visibility; verify every mode/cue host separately |
-| Ride capture | Recorder, private audio and offline queue concepts landed in a note-first form | VOICE-WALKIE-01A replaces note-first pull ownership with the shared command recorder; route markers/surfaces remain evidence-driven follow-up |
-| Reactions | `still_there` / `gone`, counts and derived status landed | Repair same-rider freshness extension and author self-report before expansion |
-| Hazards and Stops grouping | Not certified as complete | Later public-text phase after intake, clustering, privacy and moderation gates |
-| Plan remeasurement | Not certified as complete; depends on DS-070 phase 1 | Later plan phase; no Phase 1A scope |
-
-## 10. Free or paid: resolved owner policy
-
-**All voice input is free. Core safety information and visual safety output are free. Read-aloud and enhanced cue-sheet inclusion are paid membership delivery; spoken social playback, planning delivery, offline ride extras, and other convenience output may also be paid.**
-
-- **The cost that scales is not expected to be transcription alone.** The earlier estimate used 20-second notes and a 30-note/45-second cap, but that cap is superseded by the 2026-10-24 long-clip decision. Recalculate provider cost from measured trimmed seconds, retry rates, and the owner-approved hard cap before making a budget or membership claim. Phase 1A must set explicit per-rider seconds, command, fallback-call, and cost pause thresholds.
-- **The cost that scales is moderation**, and that is driven by volume and openness, not by price. Reports, auto-hide and a review queue are needed whether or not notes are paid.
-- **Charging to contribute starves the layer.** A note's value is to the next rider, not the author; a paywall on voice or tap input removes the riders whose notes would make the free tier useful, and ADR-068 holds that underlying safety is never paid.
-- **The paid line that fits ADR-068:** read-aloud and enhanced cue-sheet delivery ahead of a note, spoken social offers, notes in Plan rows and arrival times, and offline packs for a whole route. The hazard record and core visual warning remain free; entitlement copy must describe speech/cue-sheet delivery as convenience rather than imply that free riders lack safety information.
-
-
----
-
-## Source File: docs/02-architecture/design/ds-070-ride_plan_persistence_and_application_spec.md
-
-# DS-070 - Ride Plan Persistence, Load and Application
-
-**Status:** Draft for planning, 2026-10-23
-**ADR Parent:** [ADR-070](../../03-adrs/adr-070-ride_plans_and_field_notes_as_rider_authored_layers.md), [ADR-069](../../03-adrs/adr-069-modes_by_views_grid_and_plan_mode.md)
-**Related:** ADR-055, DS-056, DS-059, DS-060, DS-063, DS-068 §3–4, DS-069, EXEC-058 (stops and pushes), `saved-route-axis.ts`, `saved-route-resume-store.ts`
-
----
-
-## 1. Purpose
-
-DS-068 §4 defined the `RidePlanRecordV1` shape. This spec gives it tables, access rules, a save/load/apply flow, the mapping into the scenario engine, and the line between what a plan can show today and what waits for the transform extension.
-
-## 2. Tables
-
-```sql
-create table public.ride_plans (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  route_id uuid not null references public.route_history(id) on delete cascade,
-  route_axis_digest text not null,                  -- the axis the plan was made against
-  schema_version text not null default 'ride_plan_record.v1',
-  revision integer not null default 1,
-  name text not null check (char_length(name) between 1 and 80),
-  direction text not null default 'forward' check (direction in ('forward', 'reverse')),
-  start_offset_dist_m numeric not null default 0 check (start_offset_dist_m >= 0),
-  planned_start_at timestamptz,                     -- null = no time chosen yet
-  time_zone text,                                   -- IANA, required when planned_start_at is set
-  pace jsonb,                                       -- PaceProfile (ADR-055)
-  objective jsonb,                                  -- { objectiveId, dials } (DS-068 §3)
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  deleted_at timestamptz,
-  check ((planned_start_at is null) = (time_zone is null))
-);
-create index ride_plans_user_route_idx on public.ride_plans (user_id, route_id) where deleted_at is null;
-
-create table public.ride_plan_stops (
-  id uuid primary key default gen_random_uuid(),
-  plan_id uuid not null references public.ride_plans(id) on delete cascade,
-  axis_dist_m numeric not null check (axis_dist_m >= 0),   -- artifact order, artifact start
-  ref_kind text check (ref_kind in ('poi', 'control', 'field_note')),
-  ref_id text,                                             -- 'osm:node/123', route_controls.id, or a field note id
-  ref_snapshot jsonb,                                      -- name, lat, lon at the time of picking; display only
-  dwell_sec integer not null default 0 check (dwell_sec between 0 and 172800),
-  scope text not null default 'in_push' check (scope in ('in_push', 'push_transition')),
-  note text check (char_length(note) <= 140),
-  sort_key integer not null default 0
-);
-
-create table public.ride_plan_derivations (
-  id uuid primary key default gen_random_uuid(),
-  plan_id uuid not null references public.ride_plans(id) on delete cascade,
-  kind text not null check (kind in ('detour', 'road_fact')),
-  replaces_from_m numeric,                                  -- detour: span on the artifact axis
-  replaces_to_m numeric,
-  detour_axis jsonb,                                        -- detour: SavedRouteAxisV1, ≤ 5,000 points
-  field_note_id text,                                       -- road_fact: a private field note (DS-069)
-  reason text check (char_length(reason) <= 140),
-  created_at timestamptz not null default now(),
-  check ((kind = 'detour' and replaces_from_m is not null and replaces_to_m > replaces_from_m and detour_axis is not null)
-      or (kind = 'road_fact' and field_note_id is not null))
-);
-```
-
-**Access:** row-level security on all three; a rider reads and writes only rows whose plan `user_id` is theirs. No public, shared or admin read in v1. Sharing a plan is a later decision.
-
-**Not stored:** forecasts, Planned Ride Risk, Baseline Risk, impact numbers, cue sheets, or anything else derivable from the artifact plus the record (DS-068 §4.2).
-
-**Rules carried from DS-068 and EXEC-058:**
-- Every distance is on the artifact axis, measured from the artifact's start, whatever the plan's direction or start.
-- A stop with `dwell_sec > 10800` defaults to `push_transition`; the rider's choice wins.
-- A plan referencing a POI keeps a display snapshot, because Overpass ids are not durable; a missing POI shows the snapshot marked *may have changed*.
-
-## 3. Closed loop
-
-A route is a closed loop when its first and last axis points are within 200 m. Computed from the axis on load, never stored. Only a closed loop may carry a non-zero `start_offset_dist_m`; for an open route a start offset is rejected on save in v1 (the rider is starting part-way, which is a different route).
-
-## 4. Save, list, load
-
-**Save.** Plan state lives in the client while the rider works. *Save plan* writes `ride_plans` and replaces its stops and derivations in one transaction (a database function), bumping `revision`. Saving needs a saved route; an unsaved import asks the rider to save the route first. Entitlement check `planning` in the function; during early access it passes for every signed-in rider (ADR-069).
-
-**List.** The saved routes list shows each plan beside its route, by name. A route with plans shows a count.
-
-**Load** (ADR-069 §8):
-
-```
-load route R
-  → fetch plans for (user, R)
-  → 0 plans: load the bare artifact
-  → 1+ plans: show the menu (plans by name, newest first, plus "No plan")
-  → rider picks: apply the plan (§5); nothing is applied before the pick
-```
-
-**Stale.** If the plan's `route_axis_digest` differs from the route's current digest, the menu marks it *route changed* and applying it opens Plan with every stop and derivation flagged for the rider to confirm or move. Distances are never silently remapped.
-
-**Local copy.** The last applied plan is mirrored in the resume store beside the route snapshot as a non-authoritative accelerator; the server row is the authority, as for saved routes.
-
-## 5. Applying a plan
-
-| Plan field | What it drives | Available now |
-|---|---|---|
-| direction, start offset | `PlanFrame` for `projectViewRows`: stops, field notes, hazards, cue sheet in riding order (DS-068 §2.7) | **yes** |
-| stops | Plan·stops list; cue sheet rows; map markers in Ride | **yes** |
-| pace, planned start | `RouteTimeBinding` arrival clock times on rows | yes for `forward` and offset 0; otherwise *Not ready* |
-| objective and dials | Plan·weather ranking (DS-068 §3) | after DS-068 phase 7 |
-| Planned Ride Risk | Plan·safety (ADR-055) | forward and offset 0 only, until §6 |
-| detour derivation | route impact line; analysed detour span | after DS-068 phase 10 |
-| road fact derivation | the private field note shows on this plan's rows | with DS-069 phase 2 |
-
-## 6. The transform extension (gated)
-
-`ScenarioRouteTransform` today authorizes only `direction = forward` and `startOffsetDistM = 0` (`scenario-route-transform.ts`, `forward_start_zero_transform.v1`). A plan that reverses or re-starts a loop can be saved, loaded and displayed, but cannot be evaluated for Planned Ride Risk or planned weather until a new transform model version authorizes both:
-
-- **reverse:** axis points reversed; each slice's per-direction evidence (turn side, crossing side, climb sign, wind relative bearing) must be read for the reversed direction, not reused;
-- **start offset on a closed loop:** axis rotated at the offset point, slices re-cut at the seam.
-
-Because this transform feeds Planned Ride Risk, the change goes through the human gate (AGENTS.md: scoring changes and safety semantics) as its own ticket with replay evidence. Until then, Plan·safety shows **Not ready** with the receipt line for those plans.
-
-## 7. Mapping to the scenario engine
-
-`RidePlanRecordV1 → RidePlanScenarioDraft`: `direction`, `startOffsetDistM`, `plannedStartTimeIso`, `clockContext {kind: 'fixed_time_zone', timeZone}`, `expectedPaceProfile` from `pace`, `stopModel` from stops (`none` when empty; `fixed_elapsed_penalty` summing dwell until EXEC-058's route-positioned stop model lands), `objectiveProfile` from `objective`, `source: 'manual_user_input'`. Validation errors are shown as the receipt line, never hidden.
-
-## 8. Phases
-
-1. Tables, access rules, save/replace function; save, list, menu-on-load, stale marking. Plan·stops list re-measured through `projectViewRows`.
-2. Pace and planned start: arrival times on rows for forward, offset-0 plans.
-3. Transform extension ticket (§6), gated.
-4. Objective and dials stored and applied (with DS-068 phase 7).
-5. Detours (with DS-068 phase 10).
+These are the only request fields. Require finite JSON numbers, world bounds,
+and strictly positive width/height. Reject unknown keys, wrapped/crossing boxes,
+caller-selected source revisions, manifests, SQL, tables, paths, limits, or
+profile authorities. Dateline callers use two ordinary regions, preserving each
+request and observation separately. Reuse the existing grid API's exact decimal
+positive-intersection law; do not add epsilon snapping or change grid resolution.
+
+A separately installed cache-only process has the existing cache-reader and
+cancellation pools, exact cache database identity, pinned source/manifest/policy
+authority and a loopback listener. It has no OSM source pool, writer credential,
+hydrator/controller import, materialization endpoint, or route compiler. Reject
+forbidden environment names by presence, as the artifact-reader seam already
+does. Reuse existing fixed read-only identity/ACL/digest guards; do not weaken
+them or assume current role access is sufficient without checking it.
+
+The upstream read bearer stays in a server-side Edge proxy. A browser never
+receives that bearer or selects the upstream. Existing admin-only grid coverage
+access is not rider authorization for this new API. A separate gate must choose
+the rider access policy, rate limits and exact provider configuration before an
+Edge implementation or activation; this proposal does not make that choice.
+
+## Response and completeness
+
+Success schema: `p7-viewport-roads-response.v1`. Return the exact normalized
+request, deterministic query digest, repeatable-read observation time, source
+revision, grid version, manifest/policy authority, actual/effective cell receipts,
+validated material objects, and a compact acquisition summary. For composite
+coverage retain parent/supplement and per-cell origin authority. A monolithic
+manifest label must not hide a composite read.
+
+Use separate fields for three different claims:
+
+| Field | Meaning |
+| --- | --- |
+| `responseComplete` | The bounded response is whole and untruncated. |
+| `coverage.state` | `complete`, `partial`, `verified_empty`, or `unavailable` for the selected cached highway-way target law and authority. |
+| Per-object source tags/missing fields | Which source facts exist; coverage does not fill absent speed, traffic, lane, shoulder, or timestamp facts. |
+
+Every positively intersecting expected grid cell must have a receipt, including
+cells outside the configured manifest footprint. An absent cell is `missing`,
+not empty. Retain each physical execution state independently of effective
+inherited coverage. Cell receipts bind source/manifest/policy and contain
+expected target count, membership count, validated target-geometry count,
+incomplete target count, and typed refusal/missing reasons. Distinct object
+counts and per-cell occurrence counts remain separate.
+
+`complete` requires all selected cells to be valid native `live` or
+`verified_empty`, or equivalent inherited cells whose existing compatibility
+receipts and retained predecessor evidence validate. Reconcile target counts,
+unique target/incomplete memberships, policy-bound object bindings and every
+returned blob before asserting completeness. Merely receiving a coverage run,
+seeing a nonzero row, or reading a healthy service is insufficient. Inherited
+objects retain their actual predecessor policy/manifest binding; do not relabel
+v1 material as native v2. Current native destination state wins under the
+existing effective-state law. Missing or invalid predecessor receipts refuse
+inherited completeness.
+
+`processed_incomplete`, `pending`, `leased`, `failed`, missing cells, unavailable
+bindings and incomplete target geometry keep the rectangle partial/unavailable.
+Valid cached objects may still be returned under a partial receipt. Material
+from a typed incomplete target may be shown only if its object independently
+passes the existing geometry/tag/digest validator; its presence does not repair
+the cell's completeness claim.
+
+When any selected cell is unresolved, use `partial` if at least one current,
+authority-valid object is returned, and `unavailable` otherwise. All resolved
+cells with at least one valid target use `complete`; all resolved zero-target
+cells use `verified_empty`. An invalid authority, conflicting body, malformed
+response or cap failure refuses the entire new response rather than publishing
+its remaining objects as a new complete generation. Previously accepted stale
+rendering is a separate client retention decision.
+
+`verified_empty` requires every selected cell to prove zero targets under the
+exact cached enumeration law, with zero memberships and no invalid inheritance.
+It never means no roads, hazards or cyclists exist in the real world. An empty
+object array without those receipts is unavailable, not verified empty.
+
+Preserve complete canonical object payloads: source way ID, ordered geometry and
+node IDs, terminal nodes, source name/ref/tags, missing-field list, and existing
+geometry/tag/node/body digests. Full object geometry may extend outside the
+requested cell window; the viewport owner filters and retains it under existing
+budgets. Do not clip or simplify a payload while retaining its original digest.
+Deduplicate by source/policy/object/body identity; conflicting bodies fail closed.
+
+`observedAt` is the cache snapshot time, not source freshness. Existing objects
+have null source version/timestamp with explicit missing-field reasons. Preserve
+those facts. Absent cycleway/shoulder tags do not mean confirmed absence, and
+missing traffic is not zero. Keep any existing client display estimates separate
+from source facts and preserve their present provenance and classification law.
+
+## Bounded cache read
+
+One repeatable-read, read-only transaction re-proves cache identity, role ACL,
+eligible source epoch, native/composite launch bindings, and inheritance before
+reading membership/object blobs. Fixed parameterized reads use only existing
+approved cache tables/views. No source database scan, on-demand hydration,
+materialization, writer fallback, unbounded JSON/table scan or broad object-store
+enumeration is permitted. Payload budgets are checked before fetching blobs.
+
+Initial proposed limits, subject to synthetic and read-only plan evidence:
+
+| Resource | Proposed hard maximum |
+| --- | --- |
+| Request | 1 KiB |
+| Expected intersecting cells | 64 |
+| Distinct target IDs | 2,000 |
+| Geometry vertices | 100,000 |
+| Encoded response | 2 MiB |
+| SQL statement / transaction wall time | 1.8 s / 3 s |
+| Lock wait | 250 ms |
+| In-flight backend reads | 2 |
+
+These are design bounds, not measured capacity or latency claims. Use cap+1
+probes and fixed ordering to detect overflow; never return a truncated success.
+An exceeded limit returns a typed 422 with no geometry/complete coverage claim.
+The future client may subdivide into at most four regions, with at most two
+outstanding reads and explicit non-atomic observation bounds. Exhaustion remains
+partial and waits for a new view or deliberate retry; no automatic retry storm.
+
+Cancellation retires the HTTP read, cancels its SQL through the existing
+separately authenticated read-only cancellation seam, rolls back and releases
+both pools. Superseded browser generations cannot commit even when a transport
+ignores abort. Responses use `no-store`, including failures. Invalid input,
+authentication, bounded capacity and service failures retain distinct typed
+errors without database details or credentials.
+
+## Future frontend integration and visual language
+
+Implement an adapter at the existing viewport acquisition owner, outside the
+renderers and road strip. Keep legacy acquisition unchanged until separately
+gated activation; do not silently combine P7 and legacy objects as one complete
+answer. Compare normalized public fixtures and a read-only shadow before cutover.
+
+Feed speed and bike selectors from the same accepted generation. Retain stable
+object keys, moving-window eviction, off-screen layer removal, cancellation and
+the repaired stale/partial disclosure. A stale retained object can remain visible
+but cannot certify current coverage. A later current complete result clears the
+failure. Nonempty DS035 readiness cannot override a complete source set merely
+because it has one joined candidate; its replacement/completeness law needs a
+separate, explicit subscriber decision.
+
+Reuse the existing route/viewport paint primitives: the present speed-based core,
+blue paths, and facility sidecars, including one blue buffered sidecar with white
+dots. Preserve facility-side evidence, unknown states and selection length model.
+No scoring or bidirectional risk assumption is introduced here. No renderer,
+drawer or A-controller redesign is part of this sourcing phase.
+
+## Implementation and activation gates
+
+Next backend ticket must pin its exact base and permitted new reader/contract/
+service/test files, identify reused immutable validators, and preserve existing
+service behavior. Use synthetic database rows and credentials. Required fixtures
+include valid native/inherited cells, actual destination state precedence,
+incomplete/missing cells, metadata-only coverage, missing/corrupt object blobs,
+unknown source facts, count/body conflicts, world-edge slivers, caps, timeout,
+disconnect and bounded concurrency. Matching wire goldens come only after the
+contract's precise response projection is independently reviewed; the companion
+behavior vectors are not executable reader tests or wire goldens.
+
+Before activation require separately reviewed exact backend, Edge and frontend
+candidates, bounded query-plan/material-availability evidence, explicit rider
+authorization, owner-approved operational manifest and rollback, current backend
+deployment prerequisites, subscriber/human gate and post-deployment read receipt.
+Then repeat matched route-optional and loaded-route pan/toggle/return sequences
+with the same basemap, camera, switches and timings, tracing requested cells,
+received objects, coverage and renderer retention independently. Complete cache
+hydration does not certify map responsiveness, Safari recovery or battery life.
 
 
 ---
@@ -41714,7 +41383,7 @@ The Vault should feel like it understands what kind of riding you are planning. 
 **Date:** 2026
 
 **Related ADRs:** ADR-028 (Field Note Confirmation Model)  
-**Companion DS:** DS-069, under ADR-070 (proposed 2026-10-23), which proposes lifting the deferral.
+**No companion DS required** — DS-016 will cover implementation when deferred status is lifted.
 
 ---
 
@@ -44521,7 +44190,7 @@ ADR-028 — Field Note Confirmation Model
 Status: Accepted
 Date: 2026
 
-Pending spec: DS-069 (Field Notes: Schema, Confirmation, Lifecycle and Route Projection), under ADR-070. The earlier DS-016 pointer was never written and that number is used elsewhere.
+Pending spec: DS-016 (Field Note Schema and Confirmation Model) — not yet written
 Related ADRs: ADR-026 (Canonical Route Identity)
 
 Note: This ADR is self-contained at the decision level.
@@ -47941,6 +47610,37 @@ Current behavior:
 - observations render only as display overlays in `TruthSection`
 - overlays are explicitly marked as `user_observation`
 
+## Amendment — 2026-10-24 (ROAD-FACT-02, issue #243): private personal paint and signed-in submission
+
+Direct product authorization from Derek, October 24, 2026. This amendment is narrow; everything
+above still holds except exactly the two points below.
+
+1. **Private, current-account map paint is allowed for speed and bike-lane corrections.** A signed-in
+   rider's own speed correction may colour that exact road with the shared speed colours, and their
+   own bike-lane correction may draw (or, for None, hide) the shared bike-facility patterns, on that
+   rider's map only. Conditions, all required:
+   - only the current account's own corrections; never a guest's, never another rider's, and retired
+     immediately on sign-out or account change;
+   - only on the exact OSM way the correction targets, on geometry the viewport overlays already
+     admitted under their own toggles, zoom bands and render budgets — no corridor, name or
+     nearest-road inference and no extra acquisition to paint a missing road; artifact-scoped route
+     segments do not paint;
+   - every personal stroke is non-interactive and visibly marked as the rider's own (card: "Yours",
+     unverified), so it can never be read as verified or shared truth;
+   - removing the correction (or Undo) restores the original paint;
+   - traffic and shoulder corrections never paint.
+   This paint is presentation only. It is not a heatmap input, and it does not change the canonical
+   or shared heatmap, scores, resolvers, caches, route artifacts or receipts.
+2. **Submissions require sign-in.** Corrections are sent to Lanterne only by an authenticated
+   account (following OpenStreetMap's account requirement); the server derives the actor from the
+   session. There are no guest submissions and no automatic upload of earlier browser-only reports:
+   those stay explicitly unsent until the rider sends one. A submitted correction is persisted
+   evidence awaiting review (`applied_to_canonical: false`); review metadata does not by itself
+   change canonical truth, scoring or shared paint.
+
+The prohibition on user input reaching the canonical resolver, scoring engine, shared heatmap,
+caches, artifacts and canonical receipts is unchanged.
+
 ## Design Principle
 
 **User observations are evidence overlays, not canonical truth inputs.**
@@ -50107,6 +49807,8 @@ Current implementation snapshot:
 - z14: preview-only broad traversable street universe, excluding service/driveway/sidewalk/private/construction junk
 
 The simplified central substrate currently emits z10-z13. z14 exists as cache-candidate preview and sizing evidence, not as the central substrate serving contract.
+
+Cross-reference (2026-10-13): this table, unchanged in the June (`56906c9e`) and July (`510fb288`) snapshots, is now applied as the main viewport DISPLAY gate for both viewport overlays, strictly at the actual map zoom. That gate is specified in DS-035 §9.5 (signed preflight `map-viewport-display-bands-preflight-20261013.md`), which also supersedes the viewport visual application of the one-level hysteresis in §10.2. The text above is kept as written: it is the historical substrate/cache-preview description, and §10.1/§10.2 remain the hydration and acquisition policy. Long residential continuity at 12 needs `residential_continuity_over_2mi` provenance that viewport rows do not currently carry, so it is not promoted. Using z14 as a display floor does not make z14 a central serving contract.
 
 ---
 
@@ -54891,422 +54593,4 @@ The source digest checks bind evidence to the trusted owner-published material r
 Claude's [independent review](https://github.com/dminner/lanterne/pull/93#issuecomment-6101252232) found modern contraflow evidence omitted from the shared evaluator. The bounded correction adds `cycleway:oneway` and `cycleway:left/right/both:oneway` to its exact receipted tag set. A value of `-1` or `no` retains the traversal as a bicycle exception; these permissions must not let car-only `oneway` evidence remove a competitor. Modern [contraflow tagging](https://wiki.openstreetmap.org/wiki/Tag:cycleway:left:oneway%3D-1) replaces deprecated `opposite*` tags. Unsupported or malformed present values, and `yes` conflicting with general `oneway=-1`, retain the traversal as uncertain. Explicit matching `yes` still permits the existing wrong-way exclusion. Unevaluated conditional evidence and failed source authentication keep their existing precedence.
 
 Version the evaluator/evaluation identities to v6, the closure to v19 and its audit to v6. Audit rows preserve the actual retained bicycle-exception evaluations and tags as well as the existing counts and conditional rows. This is matching eligibility, not time-specific permission or a legality certification. All subsequent geometry, completeness, bound, sealed-owner and positional-overlay proofs remain unchanged. Repeat the 18 matched attempts and preserve the prior packages, observations and historical review. This correction supplies implementation evidence for re-gate; it does not authorize merge or activation.
-
-
----
-
-## Source File: docs/03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md
-
-# ADR-068 — Safety First: Lanterne Is a Bike Safety Brand, the Everyday Rider Is the Default, and Lanterne Is the Check Between Planning and Riding
-
-**Status:** Accepted, 2026-10-19, by Derek at the owner gate (PR #182 merged; accepted in words the same day). Rider-facing and public wording that follows from it still goes through the human gate (AGENTS.md).
-
-**Owner statement this records:** "Protect the magic." Don't strip riders of the night ride, the long day, the thing they love. Shave the risk off inside it.
-
-**Related:** PROD-001 (Positioning), PROD-003 (Rider Archetypes), PROD-006 (Anti-Features), ADR-003 (Mode-Aware Vault Filtering), ADR-006 (Safety Definition), ADR-031 (Multi-Day Events, Proposed), ADR-034 (Master Route Expeditions, Draft), ADR-044 (Profile-Based Routing), `src/config/modes.ts`
-
----
-
-## Context
-
-The product documents position Lanterne for long-distance riders. PROD-001 says the factors Lanterne reveals "matter deeply for long-distance cyclists" and lists the rider as one who travels far, rides alone, rides through the night and plans multi-day routes. PROD-003 names four archetypes (randonneur, bikepacker, endurance soloist, nocturne rider) and says Lanterne is not optimized for casual riders or short recreational loops. Earlier strategy sessions pushed the positioning further in the same direction, toward "long ride intelligence".
-
-Three things changed that framing.
-
-1. **"Long ride intelligence" is the narrow frame, not the broad one.** It speaks to the endurance minority. Route risk speaks to anyone who has had a car come up too fast behind them, which is everyone on a bike. The safety question PROD-001 already names — "What kind of road am I committing to?" — has no distance in it.
-2. **Build effort has followed the owner's own riding.** A disproportionate share of recent work serves randonneuring (brevet tooling, support-gap emphasis, American Randonneur surfaces, long-route windowing). That work is good and stays. It is not where the next hours should go.
-3. **The distribution path is physical and local.** Lanterne is going to reach riders through local bike shops and races (a countertop display of reflective ankle bands; red lanterns for the last finisher at local events), with the free safety check as what those riders download. That audience is everyday riders and commuters first.
-
-The code already has the mechanism this needs. `src/config/modes.ts` defines `normal`, `randonneuring` and `bikepacking` as a pure interpretation layer, with `DEFAULT_MODE = 'normal'`, and the `normal` lens already emphasises traffic exposure, speed environment, bike infrastructure and hazards.
-
-## Decision
-
-1. **Lanterne is a bike safety brand.** Safety is the identity. The app is one expression of it, not an app category. Route intelligence, routing, pacing and long-ride planning are capabilities inside a safety product, never the headline. Physical products (reflective gear, formerly the separate Eye Catcher brand) are a Lanterne product line; they live outside this repository and are named here only so the positioning documents stay consistent with them.
-
-2. **The everyday rider is the default user.** The default experience assumes no knowledge of brevets, controls or randonneuring vocabulary. **Road** is the default ride profile and the one every new rider-facing feature is designed for first. (Owner, 2026-10-19: "Road not normal." The code's `normal` mode is renamed by the implementing ticket.)
-
-   **This is the beginning of the profile-aware ride experience.** The profile set is **Road, Rando, Ultra, Gravel, and Touring/Bikepacking**. Today `src/config/modes.ts` has three of them (`normal`, `randonneuring`, `bikepacking`); Ultra and Gravel are to be added. Profiles remain a pure interpretation layer.
-
-3. **Randonneuring and bikepacking are advanced lenses, and their build-out pauses.** Existing work in those modes is kept, not removed. New work in them is limited to defects and to keeping them working as the shared pipeline changes. A new mode-specific feature needs a fresh owner decision. The profile selector stays **visible**. The rider's profile is set from the type of riding they give at registration (page 2 of the registration form), and they can change it.
-
-4. **Lanterne is the safety check between planning and riding, not an end-to-end planner.** Riders plan in the tools they already use (Ride with GPS, Komoot, Strava, Garmin), bring the route to Lanterne to see how risky it is and where, adjust, then navigate wherever they navigate. Lanterne does not compete on route drawing, turn-by-turn navigation or ride recording. This restates PROD-001's "intelligence layer above the map" and makes it a scope rule.
-
-5. **Multi-day excursion tracking is deprioritized, not withdrawn.** ADR-031 and ADR-034 remain as they are (Proposed and Draft) and are not advanced now. The near-term requirement is only that the single-route safety check works on a route that happens to be long or span days; owning a multi-day planning and tracking experience waits for a later owner decision.
-
-6. **Product tiers: the line is pre-computed versus calculated on the fly, and safety is never paid.** (Refined by Derek on 2026-10-13; restated by him on 2026-10-19.)
-   - **Free:** the **safety map for exploring local roads** (street, traffic and hazard data), and the **full safety route analysis on pre-computed routes**: library routes such as RUSA's, and community-submitted local routes. A submitted route is computed once and stored as an artifact, so the free library grows at near-zero marginal cost.
-   - **Paid:** features **calculated on the fly**: bringing one's own route (GPX, Ride with GPS and similar imports), custom routing; plus **convenience, pacing and ride-time features**.
-   - **Guardrail:** the free tier must feel complete, never like safety is being held hostage. The paywall is "I've outgrown the free tier", not "they're hiding the danger".
-   - **Water is free** on every route: on a long ride it is a safety need, not a comfort. (Set 2026-10-13; confirmed by Derek 2026-10-19.)
-
-   This is product intent, not a pricing decision. "Free" and any price are public claims that must be gated before they appear anywhere a rider can read them.
-
-## Consequences
-
-The PROD-001 and PROD-003 revisions are drafted in the same PR as this ADR (2026-10-19), so the owner gate reviews the decision and its wording together. The PROD-006 rule is held back (owner, 2026-10-19: "not yet").
-
-- PROD-001 is to be revised: the rider Lanterne serves is any cyclist choosing a road, with long-distance riders as a served advanced audience rather than the definition.
-- PROD-003 is to be revised: add an everyday/commuter archetype first; remove or rewrite "Who Lanterne Is Not Designed For", which currently excludes short recreational loops.
-- PROD-006 is to gain a rule that Lanterne does not build route-drawing, turn-by-turn or ride-recording features to compete with the planning tools it sits beside. Not yet: held by the owner on 2026-10-19.
-- The implementing ticket renames `normal` to Road, adds the Ultra and Gravel profiles, and sets the profile from the registration answer.
-- Rider-facing copy written for the old frame (the onboarding page's "Intelligence for riders who go the distance", "Distance exposes what short rides don't") is out of step with this decision. Changing it is rider-facing language and goes through the human gate.
-- Phase planning uses one test: does this serve the everyday safety default? Work that only serves an advanced lens needs an explicit reason.
-- Nothing in the truth lane, scoring or evidence pipeline changes. Mode remains an interpretation layer (`modes.ts` architectural rule).
-
-## Alternatives considered
-
-- **"Long ride intelligence" as the headline.** Rejected: it narrows the market to the endurance minority and frames Lanterne as a feature set that can be out-featured.
-- **End-to-end planner and navigator.** Rejected: it competes with mature tools on their strengths and spreads effort away from the one question they don't answer.
-- **Removing the randonneuring and bikepacking modes.** Rejected: the work is sound and serves real riders; the decision is about priority and defaults, not deletion.
-
-## Owner answers, 2026-10-19
-
-- **Selector visibility:** visible. The type of riding asked at registration (form page 2) drives the selection.
-- **Free versus paid:** free is the safety map for exploring local roads plus full safety analysis on pre-computed routes; paid is anything calculated on the fly (GPX, Ride with GPS, etc.) plus convenience, pacing and ride-time features. Recorded in Decision 6.
-- **Default label:** Road, not Normal. The profiles are Road, Rando, Ultra, Gravel, and Touring/Bikepacking.
-- **Water:** stays free.
-- **Status:** accepted.
-
-## The registration question that drives the profile
-
-The form is the account registration flow at `/auth?mode=signup`, Step 2 (`src/components/auth/RiderPreferencesStep.tsx`, options in `src/lib/account/rider-profile-options.json`, saved to `user_metadata.rider_profile.ridingStyles`). As of 2026-10-19 it is on the release line (`codex/rollback-map-identity-release` and the Golden18 branches), not yet on `main`. "Riding styles" is multi-select. Proposed mapping, for the implementing ticket to confirm:
-
-| Registration answer | Profile |
-| --- | --- |
-| Commuting | Road |
-| Local cruising | Road |
-| Local fitness | Road |
-| Racing | Road (open, see below) |
-| Ultra-distance | Ultra |
-| Gravel | Gravel |
-| Touring / bikepacking | Touring/Bikepacking |
-| Other | Road |
-| No answer (legacy accounts, skipped step) | Road |
-
-## Still open
-
-- **The form has no randonneuring answer.** Rando is a profile, but no riding style maps to it. Add a "Randonneuring / brevets" option, or decide that Ultra-distance covers it.
-- **More than one answer.** Riding styles is multi-select. Which profile wins when a rider picks several (for example Commuting and Gravel)?
-- **Racing.** Road is the nearest profile, but racing is not what the safety default is built around.
-- Rider-facing wording for the free tier and for "Protect the magic" as a public line.
-
-
----
-
-## Source File: docs/03-adrs/adr-069-modes_by_views_grid_and_plan_mode.md
-
-# ADR-069 — Modes by Views: the Lantern Is a Grid, Not Two Unrelated Axes, and Plan Sits Between Analyze and Ride
-
-**Status:** Proposed. Owner amendments recorded 2026-10-22 and 2026-10-24; acceptance remains pending the Derek/ChatGPT final architecture gate. Interaction semantics and rider-facing wording still go through the human gate (AGENTS.md).
-
-**Companion DS:** [DS-068](../02-architecture/design/ds-068-ride_plan_record_and_mode_view_registry_spec.md)
-
-**Related:** ADR-027 (Lantern Screen Model), ADR-029 (Ride-Time Situational Awareness), ADR-055 (Ride Plan Scenario Engine), ADR-068 (Safety First), DS-056, DS-059, DS-060, DS-063, exec-058, `src/lib/lantern-functions.ts`, `src/lib/lantern-interaction.ts`, `src/lib/lantern-screen-stack.ts`, `src/pages/Index.tsx`
-
----
-
-## Context
-
-### What the lantern does today
-
-The lantern carries two gestures.
-
-- **Left and right** choose a *function*: `account`, `route`, `analyze`, `ride`, `cues`, `inspect`, `dev`, `test` (`src/lib/lantern-functions.ts`). Each function opens its own bottom surface: Route opens the top drawer, Analyze opens the Analyze function surface, Cues opens the cues drawer, and so on (`selectLanternFunction` in `src/pages/Index.tsx`).
-- **Up and down** choose a *screen*: `hazards`, `stops`, `weather`, `controls` (labelled "layers") upward, `ride_computer` and `field_note` downward (`LANTERN_LEVELS` in `src/lib/lantern-interaction.ts`, `DOWN_SCREEN_REGISTRY` in `src/lib/lantern-screen-stack.ts`).
-
-The two gestures are two unrelated pieces of state. `lanternFunction` and the lantern's `lockedMode` never read each other. A committed screen selection goes through `selectLanternScreen`, which maps `hazards`, `stops` and `controls` to a tab of the bottom controls drawer and ignores `weather` entirely, whatever function is open. The Analyze surface (`src/components/analyze/AnalyzeFunctionSurface.tsx`) has one fixed action strip, Summary, Method, Receipts, Review, Audit, and does not take the screen as an input at all.
-
-So the rider's experience is the one the owner described:
-
-> "If I'm in Analyze, there's just one section, and if I pull up and down, it goes through hazards, field note, all that sort of stuff. But it doesn't actually change either the menu or the information in the Analyze screen. It's really just static and disconnected. It's almost like worthless."
-
-ADR-027 anticipated this. It said screens are content and the lantern is the selector, and that the stack is "defined by ride mode defaults". It did not say what a screen means inside a function, because at the time the horizontal functions did not exist. The hazards phase ticket (`docs/04-execution/lantern-hazards-selection-phase-ticket.md`) wired the first vertical destination and explicitly deferred horizontal state. This ADR is the piece that joins them.
-
-### What already exists underneath
-
-- **A scenario engine without a room.** ADR-055 accepted the `RidePlanScenario` architecture: the same route, from a start point, in a direction, at a start time, at a pace, under assumptions. `src/lib/ride-plan-scenario/` holds sealed contexts, transforms, time bindings, hourly temporal projection and the long-route temporal axis. DS-059 defines objective adapters (families `safety`, `access`, `logistics`, `conditions`, `fatigue`, `climbing`) and DS-060 defines bounded sweeps. None of it is reachable from the lantern. There is no function whose job is "decide how to ride this".
-- **Weather along the route, display-only.** `src/lib/conditions/open-meteo-client.ts` fetches the approved hourly variables and `route-forecast-conditions-adapter.ts` maps them onto route-time checkpoints. The P14 conditions grammar (`docs/04-execution/reports/p14-conditions-display-grammar-decision.md`) already fixes the paint and the rider-relative wind rule. The `WeatherOverlay` ride component exists. None of these are the weather *view* the owner describes; the Weather screen today opens nothing.
-- **A saved route is geometry.** `saved-route-axis.ts` persists the ordered route axis behind a UUID. Nothing persists the rider's chosen direction, start point, pace, or stops. Reloading a saved route reloads "the non-directional, non-optimized general route artifact".
-
-### The owner's direction, 2026-10-22
-
-> "You move left and right, and that puts you into modes, and then up and down is kind of like views and functions inside of those modes."
-
-> "When you pull up Analyze, the first thing it has always is safety. That's the main menu. … But then if I pull up and I go to weather, … that menu should change, and it should be about weather."
-
-> "Between Analyze and Ride, there needs to be a plan mode. And that's where you're actually deciding how you, in advance, want to go about the ride."
-
-> "Their version of the route, after they lock in the plan, save the plan, is the one that they can load from their saved routes file … we wouldn't want to have to resave the entire artifact. We would just want to save direction, starting point, maybe speed, … the stops that they assign, and any sort of derivations from the main route."
-
-## Decision
-
-### 1. The lantern is a grid: modes across, views up and down, and the cell decides what is shown
-
-A **mode** is what the rider is doing with the route. A **view** is what the rider is looking at. The surface the lantern opens is the **cell** at their intersection, and both the menu and the content of that surface come from the cell, never from the mode alone.
-
-```text
-                  Safety     Weather    Hazards    Stops      Controls*  Cues       Ride computer  Field note
-  Route           —          Ro·weather Ro·hazards Ro·stops   Ro·controls —          —              Ro·note
-  Analyze         A·safety   A·weather  A·hazards  A·stops    A·controls  —          —              A·note
-  Plan            P·safety   P·weather  P·hazards  P·stops    P·controls  —          —              P·note
-  Ride            R·safety   R·weather  R·hazards  R·stops    R·controls  R·cues     R·computer     R·note
-
-  * Controls cells exist only for riders whose profile includes randonneuring (§6).
-```
-
-Route and Ride share one treatment: the view is a **map overlay**, painted along the whole route the way road colours are painted today. Weather, traffic and speeds first; elevation later. Owner, 2026-10-22: *"you can swipe up and down and actually see the overlays of things like weather and traffic and speeds."* 
-
-- **Safety is present in every route mode but is not a preselected home.** The 2026-10-22 owner revision below amended the original home-cell proposal: entering a mode lands on that mode's own unselected rest surface, and Safety is a selectable view whose content remains governed by ADR-068.
-- **The view carries across modes.** Moving left or right keeps the current view where the target mode has that cell. A rider looking at weather in Analyze who moves to Plan is looking at weather in Plan. Moving to a mode that lacks the cell lands on that mode's unselected rest surface and reports the fallback; it does not silently select Safety.
-- **A cell declares its own treatment.** Analyze cells fill the screen. Route and Ride cells are overlays on the map: paint along the route plus the typography of `ride-overlays/`, with its rule of "no cards, no drawers, no modals" (ADR-029). Plan cells are a bottom surface with the map still visible, because the rider is reading the route while choosing. The content for a view is the same subject everywhere; what changes is how much of the screen it may take and whether it can ask for a decision.
-- **Weather is anchored by mode.** Owner, 2026-10-22: *"the default for analyze on weather location is the start of the route. Whenever you get into planning, then that changes. The ride, the route view, are all kind of throughout."* So: Analyze anchors on the route's actual start. Plan anchors on the scenario, and moves as the rider changes start time, direction or the window being searched (a day, the next week). Route and Ride paint the forecast along the whole route on its route-time checkpoints, never pinned to one point.
-- **Views are a registry, not constants.** `LANTERN_LEVELS` becomes the view registry that ADR-027 asked for: a list of view ids, each with the modes it is available in, an availability predicate (today's `isAvailable(ctx)`), and the treatment per mode. Thresholds stay computed from the filtered list, as `buildDownStack` already does. The up stack and the down stack become one list. `ride_computer` and `cues` are available only in Ride; `field_note` has Route, Analyze, Plan and Ride cells in the upward stack.
-
-What this replaces: `selectLanternScreen` mapping a screen to a bottom controls tab regardless of function, and the Analyze surface ignoring the screen. The bottom controls drawer's hazards and stops tabs remain the *settings* owners for those views (what to show on the map); they are not the cells.
-
-### 2. Plan is a mode, between Analyze and Ride
-
-The order becomes `account`, `route`, `analyze`, `plan`, `ride`, `inspect`, `dev`, `test`. Cues leaves the horizontal order and becomes a Ride view (§7). Plan is where the rider decides, in advance, how to ride a route they have already analyzed. It is the room ADR-055's scenario engine was built for.
-
-Plan's cells, by view:
-
-- **Safety.** Planned Ride Risk for the current plan, labelled scenario-based and receipt-backed exactly as ADR-055 requires, with Baseline Route Risk Per Mile still visible beside it. Start point, direction, start time, pace. The "optimal" controls live here: optimal start time, optimal direction, optimal start point, each a bounded sweep (DS-060) ranked by an objective adapter (DS-059).
-- **Weather.** The forecast along the route for *this* plan's start time, direction and pace, on the route-time checkpoints the forecast adapter already produces. This is the cell the owner's "standard optimal" dials belong to.
-- **Hazards.** Every hazard the route passes, in plan order, with the mile and the clock time the plan reaches it. A route with few hazards says so.
-- **Stops.** Planned stops: which POIs or controls the rider assigns, at what mile, with what dwell. Exec-058's manual planned stops and its push-transition rule (a stop over three hours defaults to a push transition) apply unchanged.
-- **Controls.** For routes that have them, each control with its distance, the plan's arrival clock time, and the window.
-
-### 3. The standard objective, and the dials
-
-The default conditions objective is the owner's: **no rain, no snow, wind at the rider's back, and temperature as close to 70°F as the day allows.** In DS-059 terms it is one `conditions`-family objective profile with four soft preferences, each weighted, and the rider may:
-
-- turn a preference up or down,
-- or remove it as a non-variable ("I don't care about wind"),
-
-and the ranked plan changes. The tailwind preference is a rider-relative coefficient over the route, so a loop can be ranked by direction, not only by hour. Wind is always rider-relative and never raw, per the P14 grammar. Safety stays a separate objective family and a hard floor: a conditions sweep never ranks a plan above one that ADR-055's gates have not cleared.
-
-Everything the sweep answers is a modeled result under stated assumptions and receipts, never advice. DS-059 says this already; it is repeated here because the Plan surface is the first place a rider will read it.
-
-### 4. The saved plan is a delta over the route artifact, never a second route
-
-A plan is saved as a **ride plan record** that points at the route and carries only what the rider decided:
-
-```text
-RidePlanRecord
-  routeRef          saved-route UUID + routeAxisDigest (the artifact it is a plan for)
-  direction         forward | reverse
-  startOffsetDistM  where on the axis the ride starts (loops), 0 by default
-  plannedStartTime  ISO + clock context
-  pace              a PaceProfile (ADR-055), speed is part of the plan
-  stops[]           assigned stops: axis distance, POI/control ref if any, dwell, scope
-  objective         the conditions objective and the rider's dial settings
-  derivations[]     anything that departs from the artifact: a detour (its own axis
-                    span and the span it replaces), a road fact the rider recorded
-  impact            computed, not stored as truth: distance, elevation, Planned Ride
-                    Risk and Baseline Risk Per Mile, each as artifact → plan
-```
-
-The route artifact is not rewritten. A saved plan appears in the rider's saved routes beside the route it belongs to, and loading it loads the route and applies the plan. A derivation that changes geometry (a detour) is held as a span over the axis with its own analysis, so the plan can be reconstructed from the artifact plus the record, and the impact line can say what the departure cost or saved. DS-068 carries the schema. Reversing a route or starting it elsewhere is a `ScenarioRouteTransform` (ADR-055), which already exists for exactly this.
-
-### 5. What does not change
-
-- The truth lane, scoring, evidence pipeline and `RouteIndexedTruthCache` are untouched. A view reads; it never recomputes. This is the `modes.ts` rule (mode is a pure interpretation layer) extended to the grid.
-- Ride profiles (Road, Rando, Ultra, Gravel, Touring/Bikepacking per ADR-068) are orthogonal. A profile may set which views a mode offers by default, as ADR-027 intended; it does not add cells.
-- Forecast data stays display-only and never a Safety Score input (P13/P14 boundary).
-- ADR-068 §4 still holds: Plan decides how to ride a route Lanterne was handed. It does not draw routes or navigate.
-
-## Consequences
-
-- `src/lib/lantern-functions.ts` gains `plan`. `src/lib/lantern-interaction.ts` and `src/lib/lantern-screen-stack.ts` merge into one view registry keyed by mode. `selectLanternScreen` in `Index.tsx` is replaced by a cell resolver that takes `(mode, view)` and returns the surface to mount. The Analyze, Plan and Ride surfaces take the view as a prop.
-- The **Weather view gets content for the first time**: in Analyze, the forecast report at the route's start; in Plan, the forecast for the scenario as the rider moves it; in Route and Ride, paint along the whole route with the existing typography overlay.
-- **Cues** leaves `LANTERN_FUNCTION_ORDER` and the right drawer; its surface becomes the Ride·cues cell. The cue-sheet owner gains optional columns fed by the view registry.
-- **Account preferences** gain a views-and-functions section seeded from the rider's profile. `randonneurEnabled` in `useRideModeStore` is retired into it.
-- **All planning is paid.** Owner, 2026-10-22: *"All planning should be paid."* Every Plan cell, the dials, the sweeps and saved plans sit on the paid side of ADR-068 §6. During early access, planning is included for free; that is a launch-period allowance, not a tier line. Analyze on a pre-computed route stays free. This is product intent, not a public claim.
-- **Naming collision resolved.** The existing `controls` view is labelled "layers" and opens map layer settings; it is renamed `map_layers` so `controls` means brevet controls (owner confirmed 2026-10-22).
-- Implementation is phased, one cell at a time, each with a builder report and an independent review per AGENTS.md. Suggested order: the registry and cell resolver with Analyze·safety unchanged; Analyze·weather; the Plan mode shell with Plan·safety on a sealed single scenario; the plan record; Plan·weather with the standard objective; Plan·stops; sweeps.
-
-## Alternatives considered
-
-- **Keep two axes and make the Analyze strip longer.** Rejected: it keeps the view meaningless and pushes every subject through one strip.
-- **Make Plan a tab inside Analyze.** Rejected: planning changes the inputs (time, direction, pace) and Analyze must keep showing the stable artifact so riders can compare routes. ADR-055 draws the same line between Baseline Route Risk and Planned Ride Risk.
-- **Save the plan by re-saving the route.** Rejected by the owner: it duplicates the artifact, breaks the route's identity, and loses the ability to say what the plan changed.
-
-### 6. Controls follow the rider's profile, and the profile decides which views and functions exist
-
-Controls (the brevet kind) appear only for a rider whose profile includes randonneuring, as set at registration and changeable afterwards (ADR-068 §2). Owner, 2026-10-22: *"we should only be showing controls if somebody has self-identified as a randonneur."*
-
-This generalises: **account preferences carry which rider-type views and functions a rider wants to see.** The profile sets the default; the rider can turn individual views and functions on or off. The registry (DS-068 §2) reads that preference when it filters a mode's stack, so an everyday Road rider never meets a brevet control and a randonneur never has to hunt for one.
-
-The existing `randonneurEnabled` switch in `src/hooks/useRideModeStore.ts` is what this replaces. Owner: *"it's super janky. It was built for the old system. It hasn't been ported over and cleaned up for the new UI."* It is ported into the preference, not kept beside it.
-
-### 7. Cues is a Ride view, and the cue sheet shows what the map shows
-
-Cues stops being a horizontal function. In Ride it is a view in the bottom stack: tap it and it shows the cue the rider is on; expand it and it is the full cue sheet. Owner: *"it really is a ride mode thing."*
-
-The cue sheet is also where everything a view can paint on the map becomes a column the rider can turn on: stops, hazards, weather, and later sun and moon conditions. Owner: *"anything that would be visible theoretically on the map in terms of swiping up and down … should be visible in, and customizable in, the cue sheet."* One registry feeds both: a view's per-checkpoint rows are what the map paints and what the cue sheet lists.
-
-### 8. Several plans on one route: ask, never choose
-
-When a rider loads a route that has more than one saved plan, a menu asks which plan to apply. Nothing is selected on their behalf. Owner: *"We don't just automatically tell them which one's going to get selected."*
-
-## Owner revision, 2026-10-22 (after phase 1b)
-
-*"I do think field notes should be visible in all modes. In fact I think all the current layers should; they should just show stuff for that mode. Change layers to settings, and drop the speed icon, because that really should be in a new vertical category called safety, which then has buttons … that show all road speeds as overlay, traffic as overlay, risk/mi as overlay."*
-
-This amends §1. Route, Analyze, Plan and Ride carry the same views: safety, hazards, stops, weather, settings and Field Notes in the upward stack, with cues and ride computer added below in Ride. **Safety is a view, not a pre-selected home**: it is a bottom strip of overlay switches for road speeds, traffic and risk/mi, and every mode rests on its own surface until a view is chosen. "Layers" is renamed **Settings** and loses its Speed switch to Safety. See the [phase 1c report](../04-execution/reports/modes-views-phase1c-safety-settings-20261022.md).
-
-## Owner revision, 2026-10-24 — universal voice below rest
-
-A fresh downward pull that begins at lantern rest, with nothing to dismiss, is the universal voice entry point. It does not select Field Notes and does not create a Field Note. The bounded clip first becomes a private `VoiceCommandV1` envelope. Only validated intent and the destination adapter may turn it into a Field Note, a rider correction, a supported question, or no product record.
-
-Universal voice is a rest action, not a `LanternView` and not a cell in the mode/view grid. Pulling down while a surface is open keeps dismiss or step-to-rest behavior. Only a new gesture beginning at rest may arm capture.
-
-The gesture supports two equally valid forms. Crossing the deliberate threshold starts recording. Release before the initial remotely configurable 350 ms crossover latches recording; holding beyond it enters momentary mode and release submits. A latched recording stops on the active control or a second quick pull-and-release. Both forms share the owner-approved two-minute cap, a tone at 1:45, a large white-on-grey countdown from 1:50, and stop-and-submit at 2:00.
-
-Field Notes remains a separate upward-stack view in Route, Analyze, Plan and Ride, with the mode-specific readings in DS-068 §2.7, and remains a separate cue-sheet toggle. **Add note** inside that view invokes the same recorder with Field Note intent preset; it does not redefine the global pull-down action or bypass transcript, intake, authorization, visibility, or privacy checks.
-
-This revision supersedes §1's original Ride-only Field Note entries and DS-068 wherever they say `field_note` has a cell only in Ride. It also supersedes DS-069 §7.1a only as to assigning pull-down directly to Field Note creation. It does not supersede ADR-040's evidence/truth boundary, ADR-068's product boundary, or ADR-070/DS-069's Field Note anchor, lifecycle, access, and route-projection rules.
-
-## Owner answers, 2026-10-22
-
-Recorded the same day the ADR was drafted, in reply to its four open questions.
-
-- **Weather anchor:** by mode. Analyze at the route start; Plan moves with the scenario; Route and Ride along the whole route. Decision §1.
-- **Cues:** a Ride view, with the cue sheet as the place to customise what the map paints. Decision §7.
-- **Several plans:** a menu; never automatic. Decision §8.
-- **Controls:** rider-profile dependent, through account preferences for views and functions; port and retire the old toggle. Decision §6.
-- **Tier:** all planning is paid, free during early access. Consequences.
-
-## Rider-facing wording, approved at the human gate
-
-Derek, 2026-10-22: *"I approve all."* This is the wording a rider reads; any change to it goes back through the gate (AGENTS.md).
-
-**The dials** (Plan · weather). Four rows, each a slider with an off switch. Slider ends read *Nice to have* and *Matters a lot*; no numbers are shown (the 0 to 2 weights stay underneath).
-
-| Dial | Label | Sub-label | Off state reads |
-|---|---|---|---|
-| `no_rain` | **Dry** | Avoid rain | Rain doesn't matter |
-| `no_snow` | **No snow or ice** | Avoid snow and freezing precip | Snow doesn't matter |
-| `tailwind` | **Wind at your back** | Favor tailwind over the ride | Wind doesn't matter |
-| `temperature_near_70f` | **Comfortable temperature** | Closest to 70°F, adjust the target | Temperature doesn't matter |
-
-**"Optimal" is not used in the interface.** It promises a verdict; DS-059 says these are ranked results under stated assumptions.
-
-- Section title **Best windows**, with the line: *Ranked for your dials from the forecast. Conditions change; check again before you roll.*
-- Buttons: **Best start time**, **Best direction**, **Best start point** (closed loops only).
-- Each result card: the plan's values first (start, direction, arrival), then one short reason in words (*dry, tailwind most of the way, 64 to 72°F*), then Planned Ride Risk labelled *for this plan* beside *route baseline*. A plan ADR-055's gates have not cleared reads **Not ready** with its receipt line; it is never shown as a lower rank.
-
-**Preferences screen.** Under Account, a section titled **What you see**.
-
-- Lead line: *Lanterne shows the views and tools that fit how you ride. Turn any of them on or off.*
-- **Riding**: the profile chips (Road, Rando, Ultra, Gravel, Touring/Bikepacking), with the note *Changing this resets the switches below to that profile's defaults.*
-- **Views**: Safety (always on, no switch), Weather, Traffic, Speeds, Hazards, Stops, Controls, Cues, Ride computer, Field note. Controls carries the note *Brevet checkpoints. On by default for Rando.*
-- **Tools**: Route, Analyze, Plan, Ride, Inspect. Plan carries a **Paid** tag with *Free during early access.*
-
-Two alternatives were offered and not taken, recorded so they are not re-derived: **Checkpoints** in place of Controls as the view label (removes the settings ambiguity, loses the brevet term), and **No rain** in place of Dry (Dry is calmer; the variable underneath is precipitation probability).
-
-## Still open
-
-- The mode/view questions recorded in the 2026-10-22 owner answers are settled. The later owner gate fixes the universal-voice cap at two minutes, with a tone at 1:45 and visual countdown from 1:50. Every implementation phase still requires its builder report, independent review, and final gate.
-- Whether the map-overlay views in Route mode are free or paid under ADR-068 §6. Weather and traffic on the free safety map read as free; along a rider's own imported route they are calculated on the fly.
-
-
----
-
-## Source File: docs/03-adrs/adr-070-ride_plans_and_field_notes_as_rider_authored_layers.md
-
-# ADR-070 — Ride Plans and Field Notes: Two Rider-Authored Layers Over the Route, Anchored Differently
-
-**Status:** Proposed, 2026-10-23. Drafted at Derek's request ("we do need to design the architecture of this next phase: especially the planning data and field notes"). The historical owner questions at the foot are answered and recorded; acceptance still requires the Derek/ChatGPT final gate (AGENTS.md).
-
-**Companion DS:** [DS-069 Field Notes](../02-architecture/design/ds-069-field_notes_schema_confirmation_and_route_projection_spec.md), [DS-070 Ride Plan Persistence](../02-architecture/design/ds-070-ride_plan_persistence_and_application_spec.md)
-
-**Related:** ADR-004 (Field Notes Deferred), ADR-028 (Field Note Confirmation Model), ADR-040 (User Observations as Overlay Evidence), ADR-046 (Cyclist Mobility Substrate), ADR-055 (Ride Plan Scenario Engine), ADR-068 (Safety First), ADR-069 (Modes by Views), DS-068 (Mode/View Registry and Ride Plan Record)
-
----
-
-## Context
-
-### Historical proposal-time baseline — 2026-10-23
-
-ADR-069 and DS-068 settled how the rider moves (modes across, views up and down) and how one view's rows read in each mode: Analyze from the route start, Plan from the chosen start and direction, Ride as map markers (DS-068 §2.7). At the time this ADR was proposed, two kinds of rider-authored data needed homes and did not yet have the implementations described below:
-
-- **Ride plans.** DS-068 §4 sketched the record (route ref, direction, start offset, time, pace, stops, derivations). There is no table, no load flow, and the scenario engine refuses the two things a plan most often changes: `scenario-route-transform.ts` rejects any direction but `forward` and any start offset but `0`.
-- **Field notes.** ADR-004 deferred them post-alpha with three principles (structured, optional mile marker, no threads). ADR-028 accepted report-plus-confirmation and pointed at "DS-016" for the schema. DS-016 never got written, and the number is now claimed three ways: the existing file is the Experience Policy layer, the design index reserves it for Predicted vs Observed Conditions, and ADR-004 and ADR-028 point to it for field notes. The substrate signal registry already carries a `field_note` family with point geometry, way attachments, media and visibility, but nothing writes to it and its access rules admit only admins and route owners.
-
-The owner's example fixes the field note requirement: *"a running list of all the people's field notes with mile markers tied to the start of the route"* in Analyze, *"the same field notes rearranged to the mile markers based on that starting point"* in Plan, and markers that open the note at the bottom in Ride.
-
-### Current repository baseline — 2026-10-24
-
-Repository evidence now includes the additive `20261024000100_field_notes.sql` migration with the Field Note ledger extension, reaction/report tables, create/update/delete/react/report functions, route/GeoJSON read functions, and private audio-bucket policies. The client also includes a Field Notes view, recorder, local queue/sync path, author management controls, and route-read surfaces; `field-note-transcribe` and its shared transcript checks provide the repository's server-side OpenAI transcription boundary.
-
-This is a source-code baseline, **not evidence that any migration, bucket, function, secret, or deployment is live in a particular Supabase project**. Universal voice-command authority, durable voice processing, later public-audio playback, moderation/clustering, and any widened read or write authority remain additive work. They must not be inferred from the existing Field Note surfaces or introduced by editing or replaying the landed migration.
-
-## Decision
-
-### 1. A plan belongs to a route; a field note belongs to the world
-
-The two layers look alike (rider-authored, sit over a route, carry a mile marker) and must be anchored differently.
-
-- **A ride plan is anchored to a route artifact.** It is meaningless without one, it is private to its rider, and every distance in it is measured along that artifact's axis (DS-068 §4.2).
-- **A field note is anchored to a place.** A dog at a farm gate is at that gate whichever route passes it, in either direction, from any start. The note stores a point (and, when it can be snapped, the road it is on). **Mile markers are never stored on a field note; they are computed at read time** by projecting the note onto whichever route is being looked at. That is what makes "all the people's field notes" appear on a route none of them rode, and what makes the Plan reordering free: project once onto the artifact, then `projectViewRows` re-measures for the plan.
-
-A note made while riding records the route and distance it was made on as **provenance**, never as its anchor.
-
-### 2. Field notes are overlay evidence in the substrate signal ledger
-
-A voice command is not a Field Note. Universal pull-down and the **voice recorder inside Add note** create or queue a private command envelope first; that recorder entry merely presets the Field Note destination. A voice-originated `substrate_signals` Field Note exists only after usable transcription, validated Field Note intent, intake, visibility, and home-privacy checks. Existing off-bike text/photo Field Note creation remains governed by its own validated create path and does not require a fake voice command. Once created, every note remains the place-anchored evidence object governed here. Universal voice changes input routing, not Field Note identity, anchor, lifecycle, truth status, or route projection.
-
-- **Storage:** each field note is one `substrate_signals` row of family `field_note` (ADR-046's ledger already models point geometry, way attachments, media, visibility and consumers), plus a new `field_note_reactions` table for confirmations. DS-069 carries the schema, kinds, lifecycle and access rules.
-- **Structured, not freeform** (ADR-004): a fixed kind list, an optional severity, an optional short line of text, an optional photo. No threads, no replies.
-- **Report plus confirmation** (ADR-028): the author's report is not a confirmation. Other riders add *still there* (+1) or *gone*. Status is derived from those reactions and from a per-kind freshness window, never voted into truth.
-- **Never truth** (ADR-040): field notes never enter canonical truth resolution, scoring, the score ledger or heatmap colour. A hazard-kind note appears in the Hazards view as *rider-reported*, visually distinct from detected hazards.
-- **Account required to write or react.** ADR-040 allowed guest observations; confirmations are only honest if one rider counts once, which needs an identity.
-- **Public by default, with explicit voice and privacy gates; author never shown.** A validated existing non-voice note may follow the governed public default and reads "a rider, 12 days ago"; the author can always see and delete their own. Every Phase 1A voice-canary result is forced author-only. New voice-originated text cannot become public until the separate Phase 1B intake, privacy, clustering, and public-text gate passes. The account home zone may also force any otherwise-public note author-only.
-
-### 3. Ride plans are their own tables, private, delta-only
-
-- **Storage:** `ride_plans`, `ride_plan_stops`, `ride_plan_derivations`, keyed to `route_history.id` and the route's `route_axis_digest`. Owner-only access. DS-070 carries the schema.
-- **Delta only** (DS-068 §4.2): the artifact is never rewritten; no forecast, score or analysis output is stored on a plan.
-- **A rider's own road fact on a plan is a private field note.** DS-068's `road_fact` derivation becomes a reference to a field note with `visibility: private`. One kind of rider observation, one table, and the rider can later make it public without retyping it.
-- **Stale is visible:** if the route's axis digest changes, the plan is shown as needing confirmation, never silently remapped.
-- **Several plans open a menu** (ADR-069 §8); none is applied without the rider's pick.
-
-### 4. Applying a plan needs the scenario transform to grow, and that is gated
-
-A plan can be saved, listed and loaded, and its rows re-measured for display (DS-068 §2.7), without the scenario engine. But Planned Ride Risk and planned weather for a reversed or re-started route need `ScenarioRouteTransform` to authorize `reverse` and non-zero start offsets. That transform feeds Planned Ride Risk, so extending it is a scoring-adjacent change under the human gate (AGENTS.md). Until it lands, a reversed or re-started plan shows its stops, notes and hazards re-measured, and shows Planned Ride Risk as **Not ready** with the receipt line (ADR-069's approved wording).
-
-### 5. Tiers
-
-Planning is paid and free during early access (ADR-069). All voice input is free. Core safety information and visual safety output are free. Read-aloud and enhanced cue-sheet inclusion are paid membership delivery; spoken social playback, planning delivery, offline ride extras, and other convenience output may also be paid. A hazard record and its core visual warning are never paywalled. (ADR-068 §6's "safety is never paid".)
-
-## Consequences
-
-- DS-069 replaces DS-016 as the field note spec. ADR-004 and ADR-028's pointers and the design index are updated; DS-016 keeps its existing file and its conditions reservation is untouched.
-- At proposal time, the expected migrations covered `field_note_reactions`, rider read/write policies on `substrate_signals` for family `field_note`, a route projection function, `ride_plans`, and its two child tables. The Field Note portion has since landed in the repository as `20261024000100_field_notes.sql`; this ADR itself neither proves nor performs its application. Ride-plan persistence remains separate work.
-- Any later voice-command, moderation, public-audio, clustering, or authority change uses a new additive migration and preserves the existing migration as history.
-- The cue sheet's Field notes toggle (DS-068 §2.8), the Field Note view, capture/queue/sync, private/public route reads, reactions, and transcription now have repository surfaces. Their presence does not certify a live deployment or authorize later public/voice behavior.
-- The Plan list in DS-068 §2.7 becomes real once DS-070 phase 1 lands; its risk and weather numbers wait for the transform extension (§4).
-
-## Alternatives considered
-
-- **Anchor field notes to the route they were made on.** Rejected: a note would vanish from every other route through the same place, and reversing a route would need every note re-entered.
-- **A dedicated `field_notes` table outside the substrate ledger.** Viable and simpler to read; rejected because the ledger already has point geometry, way attachment, media, visibility and consumer routing, and a second home would split rider evidence (ADR-046).
-- **Store plans as a JSON blob on `route_history`.** Rejected: plans are per rider, a shared or library route has many riders, and stops need to be queryable.
-
-## Historical owner questions
-
-1. **Field note visibility default.** Proposal: public, author never shown, author can delete. The alternative is private by default with a per-note *share* step, which keeps the layer thin early.
-2. **Start-point privacy.** A public note near where a rider's rides usually start can reveal their home. Proposal: a public note within 300 m of the start of any of the author's saved routes is held private until the author confirms it.
-3. **Field notes free to read and write.** Proposal: yes, both.
-4. **Kinds list.** DS-069 §3 proposes twelve kinds. Add, cut or rename before they become rider-facing wording.
-
-## Owner answers, 2026-10-23, amended 2026-10-24
-
-1. **Visibility: governed public-by-default with staged voice carveouts.** Existing validated non-voice creation retains the public default, subject to effective privacy and moderation. Phase 1A voice output is always author-only; Phase 1B is the separate public-text gate. The author can make any note private, and the public read never exposes the author.
-2. **Privacy distance is a global account setting, not a field-note rule.** The rider gives their home address and chooses a distance from 300 m through 1,600 m; 300 m is the default and non-disableable minimum, and zero is invalid. It applies to everything Lanterne would otherwise show near home: public field notes, recorded rides, shared routes and plans. When no usable home point exists, otherwise-public-eligible content remains author-only. No per-note confirmation or client flag may bypass the zone or minimum. Asking for the address carries a **separate, optional** consent to occasional mailed goodies (for example reflectors from the Lanterne product line, ADR-068 §1); the privacy use never depends on that consent. Wording goes through the human gate.
-3. **Free or paid: resolved.** All voice input is free; core safety information and visual safety output are free. Read-aloud and enhanced cue-sheet inclusion are paid membership delivery; spoken social playback, planning delivery, offline ride extras, and other convenience output may also be paid. The free tier never hides the underlying hazard or core visual warning.
-4. **Kinds: start open, police later.** *"We can always police it and shut it down if it gets out of hand … I'd like to start open."* The list gains a General kind, a general Hazard kind, Busy road and Dangerous intersection, and the 140-character text limit is lifted. DS-069 §3 is revised.
-5. **Voice is the primary way to make a note on the bike, but pull-down is universal input.** *"Typing is basically worthless on the bike."* Record-and-submit with transcription in the background is preferred over live dictation, so the rider never looks down to check the words. The 2026-10-24 owner amendment makes pull-down a command-first input that may become a Field Note, correction, supported question, or nothing. **Add note** presets Field Note intent. DS-069 §7 is revised. This does not change the note's place anchor, lifecycle, access, or ADR-040 boundary.
-6. **Phase 1A is author-only and additive.** It has no pre-action confirmation, uses an exact ten-second post-action undo, and keeps mute actor-scoped across reload, new rides, and logout/login until explicit unmute. Fixed confirmations and eligible live readback use Speechify, with device speech only as the availability fallback and with external provider evidence still required. The server dispatcher may enable available `pg_net` only through a new additive Phase 1A migration; the landed Field Notes migration is never edited or replayed, and production deployment remains separately gated.
 
