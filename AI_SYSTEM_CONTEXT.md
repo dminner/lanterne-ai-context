@@ -3479,6 +3479,7 @@ Route Safety Score must remain:
 | DS-063 | Hourly Temporal Scenario Projection Contract | ADR-055, ADR-057, DS-031, DS-056, DS-058, DS-062, EXEC-055, EXEC-056 | Accepted for headless prepared-input projection implementation; runtime not yet implemented |
 | DS-064 | Motor-Vehicle Temporal Component Adaptation And Coverage Contract | ADR-055, ADR-057, DS-015, DS-031, DS-056, DS-058, DS-062, DS-063, EXEC-055, EXEC-056 | Accepted for temporal component-adaptation contract only; runtime not implemented; preview, score, presentation, storage, and production deferred |
 | DS-067 | Single Route Truth And Score Ledger Pipeline Spec | ADR-059, ADR-045, ADR-054, DS-015, DS-029, DS-031, DS-032, DS-055 | Accepted for authority closure |
+| DS-068 | Imported Place Observations: Extraction, Matching, Storage and Read Contract | ADR-028, ADR-040, EXEC-018, DS-027, DS-050, PROD-010 | Draft (RWGPS-OBS-01, unapplied, flag off) |
 
 ---
 
@@ -16207,14 +16208,6 @@ Hazards should follow the same two-level control model as POIs / Stops:
 - expanding a category reveals the exact hazard toggles inside it
 - category gate state and child hazard-kind state are stored separately; effective visibility is derived from both
 
-### Current control presentation — 2026-10-07
-
-Derek's compact-drawer direction replaces the seven-category UI with four presentation groups: Road surface, Conflict points, Pinch points, Surroundings. Road surface collects the existing live metal-surface and wheel-catching controls; the two railroad-track aliases share one visible switch. The underlying category gates and stable toggle IDs below remain the persisted authority. Grouping does not change hazard evidence, route qualification, severity, scoring or source meaning.
-
-Only registry entries marked live appear as controls. Planned entries are removed from both compact and compatibility UI and recorded in [PROD-015 — Future hazard controls](../../05-product/prod-015-future-hazard-controls.md). Their stored preferences remain intact. The older launch-category table below describes the canonical gates, rather than the current layout. The category-accent palette is a local preview experiment; marker severity colors are unchanged.
-
-Hazard viewing is intended to support the viewport without a loaded route as well as route context. Until the viewport producer is connected, the no-route state remains explicitly unavailable, using area-context wording. The compact drawer supplies settings and does not manufacture viewport evidence.
-
 Launch category gates:
 
 | Category ID | Rider label | Purpose | Implemented child toggles | Planned / reportable child toggles |
@@ -16309,7 +16302,7 @@ Hazard existence and route applicability are separate decisions.
 | Accepted matched-way escape hatch | Way-anchored hazards are accepted when their `osmWayId` or `sourceRoadWayId` belongs to an accepted matched route way, even if the GPX polyline is offset beyond the normal snap threshold. This is required for source-backed bridge parity on imperfect GPX traces. Railroad crossings do not use this as a standalone acceptance rule. |
 | Railroad crossing topology gate | Railroad crossings must prove the route actually traverses the same-level rail crossing before becoming rider-facing hazards. Accepted proof is either a shared crossing node on a matched route way that is locally traversed by the route, or a route-axis/rail segment intersection within the crossing-node tolerance when topology is unavailable. Bridge/tunnel/layer separation rejects the candidate. Nearby rail nodes, nearby road nodes, or route projection distance alone must not produce map markers, cue rows, or rider-facing angle values. Rejected candidates may keep diagnostic angle/projection fields in admin debug only. |
 | Report-backed planned hazards | A planned toggle becomes rider-facing only after a user report, feed row, or detector candidate attaches to a route point or interval and passes the toggle-specific freshness / confidence policy. |
-| Empty planned toggles | Planned controls stay in the future product catalog and do not appear as current switches. They must not create map markers, cue rows, analysis counts, or false "0 hazards found" claims. |
+| Empty planned toggles | Planned toggles with no data may appear as reportable controls, but they must not create map markers, cue rows, analysis counts, or false "0 hazards found" claims. |
 | Central evidence registry | V2 publishes rider-facing hazards as route-indexed `hazard_events` with `distM`, `routeMile`, `startDistM`, `endDistM`, source IDs, provenance, semantic presentation token, and `scoreBearing=false`. |
 | Subscriber rule | Map, cue sheet, analysis drawer, overlays, and review surfaces subscribe to `hazard_events` and shared presentation helpers. They may filter or group hazards for visibility, but they may not reinterpret hazard category, toggle, kind, label, route distance, or source meaning. |
 
@@ -20917,90 +20910,6 @@ Current policy:
 
 - z-level controls density and visual familiarity
 - cyclist salience controls styling, loading order, and prioritization
-
-## 9.5 Viewport Display Bands (Active Main Viewport Gate, 2026-10-13)
-
-This section is the policy the two viewport overlays (speed "lightbulb" and bike-facility "eye") apply before painting. It restores the original road-type/zoom assignment as the main viewport gate. Sections 9.1–9.4 above are kept as the historical record of what they described; they are not rewritten.
-
-Authority:
-
-- The table below is the §9.4 substrate z-band table, identical to ADR-047 §10.3, in both the June snapshot `56906c9e27f19a9677cd6f0cffada8d6d7b418ce` and the July snapshot `510fb2889f70feb60bdd0d2493e317eca5afdb00`.
-- Derek clarified on 2026-10-13: the hydration-stage table is not the display policy. Far zoom shows paths, primaries and tracks, then secondaries, then tertiaries.
-- Signed preflight: `docs/04-execution/reports/map-viewport-display-bands-preflight-20261013.md`.
-- The original rules are the `wayZ10Eligible` / `wayZ11Eligible` / `wayZ12Eligible` predicates in `src/lib/substrate/cache-candidate-preview.ts`. They are used as evidence; the full graph and preview are not rebuilt per road.
-
-Active display table. Floors are cumulative, and a floor is the lowest actual map zoom at which a road of that class may paint:
-
-| Floor | Display class | Qualification |
-| ---: | --- | --- |
-| 10 | safe path | existing raw-tag candidate classifier (`classifyCyclistSubstrateCandidateWay`) returns `safe_path` |
-| 10 | gravel track | candidate classifier returns `gravel_track` (including its named path–track bridge case) |
-| 10 | primary connector | candidate classifier returns `primary_connector` (its qualified trunk/primary/link cases) |
-| 10 | protected cycle corridor | candidate classifier returns `protected_cycle_corridor` **and** a cycleway facet is exactly `track` or `opposite_track` |
-| 11 | secondary | secondary (and links) accepted by the existing viewport road rules |
-| 12 | tertiary | tertiary (and links) accepted by the existing viewport road rules |
-| 12 | long residential continuity | only with genuine `residential_continuity_over_2mi` provenance — **currently no producer; nothing is promoted** (see below) |
-| 13 | local | accepted residential, unclassified, living_street |
-| 14 | unclassified accepted detail | any other accepted viewport road, labelled `z14_unclassified_accepted_detail` (for example an expressway trunk the candidate classifier does not qualify as a connector) |
-| never | excluded | not an accepted viewport road (`isViewportSpeedProfileRoad`): no road type, motorway, construction/proposed, private or bike-prohibited access, service/driveway/parking aisle/alley, sidewalk-only footway, crossing connector, hazard/traffic-control node, missing or unusable geometry; also any way the candidate classifier explicitly rejects for access (`private_or_bicycle_prohibited_access`, `trunk_rejected_bicycle_prohibited`), which no class fallback overrides |
-
-Distinction from §9.1 and §9.2:
-
-- §9.1 hydration priority groups and §9.2 acquisition continuity decide what is fetched, in what order, and what is kept warm. They are unchanged, and they still drive acquisition and render-budget ranking.
-- Their group, stage and effective-length tags (`_substrate_viewport_priority_group`, `_viewport_speed_priority_group`, stage keys, `_*_effective_length_*`) are **never read** by the display gate. An acquisition fact cannot give a tertiary z11 or a short named residential z12, and the hydration 0.25 mi / 0.5 mi local groups promote nothing.
-- This **supersedes the viewport visual application of §9.2's one-level hysteresis**. §9.2 hysteresis remains the hydration/acquisition rule.
-
-Current-zoom strict removal and fractional zoom:
-
-- Eligibility is strict `zoom >= floor` at the map's actual fractional zoom. There is no epsilon and no previously-painted allowance. A tertiary shows from exactly 12, not at 11.999. Local fabric shows from exactly 13.
-- Zooming in and zooming out give the same set at the same zoom.
-- A non-finite zoom supplies no entitlement: nothing paints.
-- Retained rows (painted V2 rows re-offered while a refresh or a lower band no longer supplies them) may bridge a refresh/loading gap only while their class floor is met at the current zoom. A newer same-ID observation replaces an older retained one before classification. Retained-row composition itself is unchanged.
-- The gate applies to cache, bbox, retained and peer-handoff rows in both overlays, before render budget, fragment merge, render keys, sidecars and transparent hit paths. The speed overlay's legacy (bbox) branch meets the same floor before its legacy display filter. No null-metadata, search or peer fallback reintroduces an excluded or below-floor row. A dropped row creates no layer and earns no painted standing.
-
-Evidence rules:
-
-- The class comes from the row's own raw road-type facts through the existing candidate, inclusion, access and sidewalk predicates, which are unchanged.
-- None of these promote a road: a hydration group, a speed or colour, a name, the `isSafePath` flag alone, or a generic facility lane.
-- **Protected** means an exact `track` / `opposite_track` cycleway value. The candidate classifier also counts `buffered_lane` (and `protected` / `separate` substrings) as protected; those are not promoted here. A buffered lane on a tertiary stays at 12.
-
-Long residential continuity — missing producer:
-
-- The original preview admits a residential way at 12 only with `residential_continuity_over_2mi` provenance, computed from graph continuity.
-- The current SpeedRoad conversion does not carry preview `includedReasons` or band flags. The viewport candidate builder replaces preview band flags with hydration-derived flags, so those are not interchangeable display authority.
-- These are **not** that provenance: own geometry length, the logical corridor total (`_substrate_corridor_total_length_m`), the hydration effective length (whatever its recorded source), and the name-family length hint.
-- With no producer on current inputs, accepted residential rows stay at 13. Restoring the z12 tier needs that provenance carried to viewport rows. That is a separately reviewed producer/adapter change, outside this scope.
-
-Limits of this frontend display-floor guard vs the full offline substrate simplification:
-
-- The guard does not reproduce historic corridor salience/importance scores, junction-connector promotion, selected/critical primary-connector rules, exceptional-track promotion at 11, or graph-connected residential continuity. Unavailable historical salience stays unavailable rather than being guessed.
-- z14 was a cache-candidate preview and sizing layer, not a central serving contract. Using 14 as a display floor here does not activate a z14 serving contract.
-- Eligibility is not acquisition completeness. Full-cell acquisition, the cache, profiles, render budgets and ranking, palettes, widths and hit tolerances are unchanged by this gate.
-
-### 9.5.1 Dated exception — all-zoom standalone paths and tracks (MAP-BIKE-SOLID-03, 2026-10-24)
-
-The table above stays the historical record of the 2026-10-13 gate. It is not rewritten. This exception was authorized by Derek on 2026-10-24 (phase issue #291, ticket `docs/04-execution/map-bike-solid-20261024-ticket.md`, architecture commit `7c79d87da`). It supersedes the z10 display floor **only** for the two classes below:
-
-| Floor | Display class | Qualification |
-| ---: | --- | --- |
-| every supported zoom (`VIEWPORT_ALL_ZOOM_FLOOR`, Leaflet's 0) | `all_zoom_standalone_path` | a path-class way (cycleway, path, footway, pedestrian, bridleway) that the raw-tag candidate classifier returns as `safe_path`, **or** that the existing safe-path qualification (`isSafePathType`) accepts from the way's own tags and own measured length (its long shared-use path and long named paved trail composites) |
-| every supported zoom | `all_zoom_standalone_track` | a `highway=track` way that the candidate classifier returns as `gravel_track`, **or** a `highway=path` the same classifier returns as `gravel_track` through its existing named path–track bridge (review repair 2: painted as the dashed track kind; bike legality stays unproven, so never a confirmed path; its raw `highway=path` is untouched) |
-
-Rules:
-
-- The row must first pass every existing exclusion above: accepted viewport road, candidate access rejection, sidewalk and crossing.
-- The row is also never promoted with any of these: an explicit `bicycle`/`access` value of `no`, `private`, `dismount` or `use_sidepath`; explicit sidewalk or traffic-island tagging; a crossing connector. Such a row keeps the class the table above gives it.
-- These do not promote a row: the `isSafePath` flag alone, or a name alone outside the classifier's own bridge rule. A pure or generically named path that the classifier does not admit keeps its existing floor. (Review repair, same day: the initial build also withheld the `isSafePathType` length composites, contradicting "all solo blues at any zoom"; an accepted 3.3 km unnamed paved path was solid blue at 15 and hidden at 3. Those composites are accepted standalone paths and are now all-zoom too, decided by the way's own length.)
-- Every other floor is unchanged: protected cycle corridors and primary connectors stay at 10, and motor roads keep 10–14.
-- In the speed overlay's legacy (bbox) branch, these two classes skip ONLY the legacy display gates that would re-hide them: the per-highway zoom/density floor, the heatmap-radius speed-class ceiling, old-blue eligibility, green suppression and the 1-mile short-blue-fragment suppressor (whose helper is unchanged; its `preserve` hook keeps them). The display band, the shared flagged-stub rule, access, sidewalk, crossing and geometry exclusions still apply. Every other row is filtered exactly as before.
-- Presentation: a path is a SOLID blue line and a track is a DASHED blue line. Both are one thick single stroke on the way's own geometry. Solid versus dashed shows the raw accepted kind. It does not mean the speed is known, and it is not a measured safety score.
-- Both overlays dash with ONE law (`bikeFacilityDashArray`: `1.5w w` of the stroke's resting painted width `w`, butt caps), at any taper. Hover widens the speed core's weight and opacity only and keeps the resting dash pattern, so overlapping speed and eye strokes lay identical dashes at rest and while hovered.
-- The analyzed route's path core is decided by kind first: a separated path is solid and a track is dashed. It keeps its canonical colour and token. Motor-road estimated-speed dashes are unchanged.
-- Acquisition: below 10, the existing bounded overview read is used, admitting only these two classes. It uses the same complete broad tiles and the same cache, budget and streaming rules.
-  - A huge view's 0.05° tile inventory is counted arithmetically and is never enumerated.
-  - Such a view is read through a bounded, deterministic, world-fixed lattice of candidate tiles.
-  - It is always reported partial (`overview_inventory_partial`), even when every selected tile is answered.
-- The backend P7 eligibility port is not changed. It is a frozen transcription whose consumers read null versus non-null only; every all-zoom row was already non-null in the base table. Its parity test maps exactly this exception back to the base table (`classifyViewportDisplayBaseBand`).
 
 ---
 
@@ -40910,6 +40819,309 @@ inputs exist.
 
 ---
 
+## Source File: docs/02-architecture/design/ds-068-imported_place_observations_contract.md
+
+# DS-068 — Imported Place Observations: Extraction, Matching, Storage and Read Contract
+
+Status: Draft — implemented behind default-off flag in RWGPS-OBS-01; not applied, not activated
+Date: 2026-11-03
+Phase: RWGPS-OBS-01 (`docs/04-execution/rwgps-place-observations-01-ticket.md`)
+Related: ADR-028, ADR-040, ADR-004, EXEC-018, DS-027, DS-050, PROD-010
+
+---
+
+## 1. Decision summary
+
+An imported RWGPS POI (or cue) is **source evidence about a place**, never a place and never a rider
+submission. It becomes one *imported place observation*: original text preserved verbatim, plus zero
+or more attributed *claims* extracted conservatively, plus one *resolution* that either links it to a
+definite OSM element (`node/123`, `way/123`, `relation/123`) or records it explicitly as `ambiguous`,
+`unmatched`, or `standalone` (a caution or note with world-point geometry and no place).
+
+Observations never write to OSM tags, OSM tile cache, hours, availability, hazard truth, routing,
+scores, controls, or confirmations. Stops remain the existing OSM stop classification
+(`src/lib/pois/parsePois.ts` rules). There is no new stop taxonomy.
+
+## 2. Reconciliation of referenced documents
+
+| Reference | Actual state in repo (base 60250a655) | Consequence |
+|---|---|---|
+| ADR-028 "Pending spec: DS-016 (Field Note Schema)" | DS-016 is the *Experience Policy Layer*; no field-note schema spec exists. ADR-004 still records rider Field Notes as deferred. No `field_notes` table or migration exists. | ADR-028's *principle* is binding here (a claim is not a confirmation); its schema pointer is stale. This phase does not invent a Field Notes system. |
+| DS-050 `field_note` family | `substrate_signals.family` allows `field_note` (rider-entered). `source_actor_type` allows `routex_archive, rider, admin, external_org, system`. | Imported text is **not** written as `field_note` and not as `rider` — that would impersonate rider submission. |
+| EXEC-018 §5.3 `pois` / §5.4 `route_poi_links` | Implemented in `20260423_route_annotation_archive_phase1.sql`. No unique key on `pois(source_platform, source_poi_id)`. `replaceRwgpsRouteGraph` deletes and re-inserts every `pois` row for a route on each hydrate, so `pois.id` UUIDs are not stable. `route_poi_links.poi_id` cascades on delete. | Durable observation rows must not reference `pois.id`. They key on stable source identity instead (§4.1). |
+| EXEC-018 §10 controls | `route_controls` are route-owned. | Unchanged. Control status alone proves no service; the extractor never derives a service claim from `is_control`. |
+| EXEC-018 §11 hazard hints | "Must not overwrite canonical hazard truth." | Caution text becomes an attributed `caution` claim on a standalone observation, never a `hazards` row. |
+| DS-027 canonical POI `sourceType: osm_node/osm_way/osm_relation` | Runtime `Poi` carried only numeric `id`; `dedupePois` keyed by number. | Runtime `Poi` gains `osmType`; identity is `${osmType}/${id}` (§5). |
+| PROD-010 water truth rule | Water confidence classes exist; ambiguous sources must not be called potable. | Parser never upgrades negated / unreliable / seasonal water text into `available` (§6). |
+
+## 3. Why not reuse an existing registry
+
+Considered and rejected for this slice:
+
+1. **`substrate_signals` (DS-050).** Closest registry, but: (a) DS-050 §6.7 forbids runtime clients
+   scanning raw `substrate_signals`; the stop detail must show attributed original text, which is raw
+   signal content, so serving it would violate DS-050's read boundary; (b) `route_id` references
+   `route_history` (rider saved routes), not RWGPS catalog routes; (c) attachments carry `osm_node_id`
+   / `osm_way_id` but no relation and no resolution status (ambiguous/unmatched); (d) the upsert RPC
+   deletes and re-inserts attachments on every write, so an admin-locked resolution cannot survive a
+   reharvest; (e) the closest families (`field_note`, `external_safety_record`) would misstate the
+   source actor.
+   A later phase may *project* approved, resolved observations into DS-050 as a new
+   `imported_observation`-style family for rollups. That projection requires a DS-050 enum change and
+   is out of scope.
+2. **`pois` (EXEC-018 §5.3).** Route-scoped source mirror rebuilt on every hydrate (§2). Stays the
+   source mirror; observations reference the same stable source ids it stores (`source_poi_id`).
+3. **`hazards`.** Canonical-adjacent; standalone cautions must not become hazard rows.
+
+Hence two new tables, both additive, both unapplied in this phase.
+
+## 4. Schema (migration `supabase/migrations/20261103000100_imported_place_observations.sql`)
+
+Plain `lat/lng double precision` with btree indexes; no PostGIS dependency, so the migration is
+testable on a disposable local Postgres. Bounded box reads are sufficient for this slice.
+
+### 4.1 `imported_place_observations` — one row per source annotation
+
+- `observation_key text primary key` — stable: `rwgps:route:<routeId>:poi:<poiId>` or
+  `rwgps:route:<routeId>:cue:<lat5>,<lng5>:<cueType>` (RWGPS cues have no id; coordinates+type are
+  stable across cue reordering).
+- provenance: `source_platform`, `source_route_id`, `source_route_url`, `source_kind (poi|cue)`,
+  `source_entity_id`, `source_type_name`, `source_type_id`, `source_user_id`, `source_name`,
+  `source_description`, `source_url`, `source_created_at`, `source_updated_at`, `fetched_at`
+  (nullable = unknown), `raw_payload_ref jsonb` (file path or catalog row + JSON pointer),
+  `raw_payload jsonb` (verbatim source object), `extraction_version`.
+- `observed_at timestamptz` — **always null for imported rows in v1.** Source modified time is not
+  observation time. Dates mentioned in text ("As of 2024") are kept as claim qualifiers only.
+- `content_fingerprint` — hash of normalized name/description/type/rounded coords. Copies of the same
+  POI on different routes share it; readers group by it so copies render as one observation with
+  several provenance entries, never as independent confirmations.
+- `content_hash` — hash of exact source content; drives idempotent "unchanged" upserts.
+- geometry: `lat`, `lng`, `geometry_kind ('point')`, `span_reference jsonb` (unresolved span text such
+  as "until mile 13.9"; never a verified span).
+- `claims jsonb`, `unparsed_text text[]`.
+- `stop_classification jsonb` — source category hint only; `proven=false` unless resolved to an OSM
+  element, in which case the stop type is the OSM element's existing classification.
+- `source_visibility_code integer` (raw RWGPS `visibility`), `source_visibility_interpretation text
+  default 'uninterpreted'`.
+- `serving_status text default 'pending_review'` (`pending_review|approved|rejected`), `reviewed_by`,
+  `reviewed_at`, `review_note`.
+- `source_status text default 'active'` (`active|absent_from_latest_harvest`), `first_seen_at`,
+  `last_seen_at`.
+- `confirmation_count` is not a column. Imported rows produce zero confirmations by construction.
+
+### 4.2 `imported_place_observation_resolutions` — one current resolution per observation
+
+- `observation_key text primary key references imported_place_observations(observation_key)
+  on delete restrict` — no cascade path from any harvest table.
+- `resolution_status (resolved|ambiguous|unmatched|standalone)`, `reason`, `osm_element_type
+  (node|way|relation)`, `osm_element_id bigint`, `osm_ref text` (generated `type/id`), `distance_m`,
+  `candidates jsonb` (bounded, for admin review), `matcher_version`, `locked_by_admin boolean` (an
+  admin-locked resolution is not overwritten by later matcher runs),
+  `match_input_fingerprint` (hash of source type, name, URL and 5-dp coordinates — the matcher's
+  inputs; description text excluded), `resolution_policy` (policy of the last write),
+  `previous_resolution jsonb` (audit of a match invalidated by an automatic refresh).
+- check: `resolved` requires both element type and id.
+
+### 4.3 Write and read functions
+
+- `upsert_imported_place_observation_plan(p_plan jsonb)` — `security definer`, execute granted to
+  `service_role` only. Rejects plans over 500 observations. Upserts by `observation_key`; unchanged
+  content only bumps `last_seen_at`; changed content resets `serving_status` to `pending_review`.
+  `retireAbsent=true` marks this route's other keys `absent_from_latest_harvest` — never deletes.
+  Every plan must declare `resolutionPolicy` (§4.4); the server never infers intent from reason text.
+
+### 4.4 Resolution policy (refresh vs rematch)
+
+| Existing resolution | `refresh_without_matching` (automatic harvest/rehydrate; operator without snapshot) | `rematch_with_candidates` (operator with `--osm-candidates`) |
+|---|---|---|
+| none (new observation) | insert incoming (unmatched / standalone) | insert incoming |
+| admin-locked | skip | skip |
+| unlocked, `match_input_fingerprint` unchanged | **preserve** as is (including a prior match) | overwrite with incoming |
+| unlocked `resolved`/`ambiguous`, fingerprint changed | **invalidate** → `unmatched` / `match_inputs_changed_needs_rematch`, prior target kept only in `previous_resolution` | overwrite with incoming |
+| unlocked `unmatched`/`standalone`, fingerprint changed | overwrite with incoming | overwrite with incoming |
+
+- `refresh_without_matching` plans may not contain `resolved` rows (rejected client- and server-side).
+- `stop_classification` follows the resolution decision: under refresh it is left as is when the
+  resolution is preserved/locked and reset from the plan when written or invalidated.
+- A location/type/name/URL change also changes the content hash, so the observation returns to
+  `pending_review`; a moved note never keeps an automatic match silently.
+- `review_imported_place_observation(p_observation_key, p_status, p_note)` — `security definer`,
+  requires `has_role(auth.uid(), 'admin')`. This is the only path to `approved`.
+- `read_imported_place_observations(p_request jsonb)` — `security definer`, execute granted to
+  `authenticated` only (revoked from `anon`/`public`); raises when `auth.uid()` is null. Requires
+  1–24 boxes, each ≤ 0.25° on both axes, `limit` 1–200, optional `osmRefs` ≤ 50 matching
+  `^(node|way|relation)/[0-9]+$`. Non-admin callers receive only `approved` + `active` rows. Admins may
+  pass `includePending=true`. No route filter exists: rows are returned by geography regardless of
+  originating route.
+- RLS enabled on both tables; table privileges revoked from `anon`/`authenticated`; admin-only select
+  policies. No service key in the browser.
+
+**Public serving rule.** RWGPS `visibility=0` is *not* interpreted as public in this phase. A row is
+served to non-admins only after explicit admin approval. Interpreting raw visibility codes is a
+Derek/ChatGPT gate decision.
+
+## 5. OSM identity
+
+- `Poi.osmType?: 'node'|'way'|'relation'` is set by `parsePoiElements` from the Overpass element type
+  and persists through the tile cache (it is stored inside the existing `data` JSON).
+- `poiIdentityKey(poi)` = `node/123` etc; untyped legacy cache entries become `untyped/123`.
+- `dedupePois` and the Street View URL map key by identity, so `node/123` and `way/123` no longer
+  collide.
+- A legacy cache entry without `osmType` can never be the target of a `resolved` match
+  (`reason=candidate_missing_osm_element_type`). Cached tiles naturally refresh at the existing TTL.
+
+## 6. Extraction contract (`extraction_version = rwgps-place-obs.v1`)
+
+Source: `supabase/functions/_shared/place-observations/{rwgps-observation-extract,observation-claims,plan-core,projection,types,hash}.ts`
+(Deno/Node/Vite-compatible: relative `.ts` imports only, no remote imports). `src/lib/place-observations/*`
+re-exports them, so the app, the operator command, the edge functions and local ingest share one
+implementation.
+
+Local SQL verification: `bash supabase/tests/imported_place_observations/run-local.sh` (disposable
+Postgres cluster, Supabase stubs; never connects to a remote database).
+
+- Inputs: raw RWGPS route JSON, `{ route: … }` API wrapper, or the EXEC-018 catalog envelope
+  (`normalized_data.source_mirror.raw_route_json`). All POIs are extracted. Turn/maneuver cues
+  are never extracted.
+- Route-marker cues (`control`, `checkpoint`, `start`, `finish`, `end`, `segment start/end`) are
+  extracted when their author text says more than the bare marker ("Control 2: Smiths General Store —
+  restrooms inside"); bare markers ("Control 3", "Finish") are skipped and reported as
+  `route_marker_without_content`. Marker cues get the generic source label `control` /
+  `route_marker`: no claim, stop type or category hint is ever inferred from control status, and
+  `route_controls` identity/status is not read or written. Claims come only from the text.
+- Text = `name` + `description`, split into sentences. Original text is always retained; sentences
+  that produce no claim are kept in `unparsed_text`.
+- Claim kinds: `drinking_water`, `restroom`, `shower`, `food`, `resupply`, `camping`, `hours`,
+  `season`, `caution`.
+- Polarity per claim: `available | unavailable | unreliable | conditional | mentioned`. When several
+  sentences speak to one kind, the most conservative wins (`unavailable > unreliable > conditional >
+  available > mentioned`) and every supporting excerpt is kept.
+- Water requires an explicit drinking/potable/pump/fountain/spigot/tap/refill phrase or the RWGPS
+  `water` type; "water-covered trail", lakes and rivers are not water service.
+- Qualifiers: `season` (winter, year-round, month ranges), `direction` (north/south/east/westbound),
+  `uncertainty` (may, sometimes, unclear, unknown, often closed), `text_dates` (years mentioned).
+- Removal / out-of-service language (unavailable, closed, removed, gone, no longer, broken, dry,
+  shut off) makes the sentence's claim `unavailable`. This is deliberately over-broad: a sentence
+  such as "Restrooms open, drinking water fountain broken" marks both as unavailable. Wrong-conservative is
+  preferred over wrong-available.
+- `hours` claims carry text only and never populate OSM `opening_hours`.
+- `caution` claims come only from the RWGPS `caution` type. Span language ("from here until mile
+  13.9", "from here to X") is recorded in `span_reference` with `status=unresolved`.
+
+## 7. Matching contract (`matcher_version = place-obs-matcher.v1`)
+
+Source: `src/lib/place-observations/place-matcher.ts`. Thresholds are **initial matching
+heuristics, not confidence truth**:
+
+| Heuristic | Value |
+|---|---|
+| Max match radius, general | 150 m |
+| Max match radius, small amenities (water, toilet, shower) | 60 m |
+| Name evidence | ≥1 shared significant token and overlap coefficient ≥ 0.5 |
+| Website evidence | same registrable host |
+| Runner-up ambiguity | second evidence-bearing candidate with score ≥ 0.8 × best |
+
+Rules:
+
+1. Distance alone never resolves. Every `resolved` result needs a compatible stop type **and** name or
+   website evidence.
+2. Compatibility comes from an explicit RWGPS-type → Lanterne-stop-type table. `generic`, `park`,
+   `monument`, `summit`, `rest_stop` have no compatible stop types. `caution` is `standalone`.
+3. Generic labels (Water, Store, Restroom, Outhouse, Port-a-potty, Convenience Store, …) contribute
+   no significant tokens, so they never resolve; nearby compatible candidates are kept for review.
+4. A water pump is never matched to a campground: `water` is incompatible with `campground`.
+5. Candidates without `osmType` cannot be the resolved target.
+6. Output always includes the bounded candidate list and a reason code.
+
+## 8. Read and presentation contract
+
+- `src/lib/place-observations/observation-read-client.ts` is the single browser adapter. It validates
+  requests client-side, never calls the backend unauthenticated, and returns a discriminated result:
+  `ok` (possibly empty) | `unavailable` (function missing / backend down) | `error` (rejected or
+  malformed). Unavailable and error are never rendered as "no notes".
+- The stop detail surface (POI popup in `usePoiClustering`) appends an "Imported route notes" section
+  only when `DEBUG.IMPORTED_PLACE_OBSERVATIONS_UI` is true (default false). With the flag off no
+  request is made and popup HTML is unchanged. The section is fetched on popup open, never on map
+  load, and the read is never written into `osm_poi_tile_cache`.
+- Both POI load paths (`fetchPoisAlongRouteStreaming` and `fetchPoisForBounds*`) emit `Poi` objects
+  from the same `parsePoiElements` and render through the same popup; the observation section is
+  attached by one shared function (`attachImportedObservationsToPopup`).
+- Display: attributed text labelled with source platform and route, separate from canonical OSM
+  facts; freshness shown as "observation date unknown" plus the source's last-edited date; copies
+  collapsed with a copy count; no confirmation counts.
+
+### 8.1 Stop detail surfaces actually used
+
+Riders open a stop only through the Leaflet POI popup built in `usePoiClustering` (both single
+markers and expanded-cluster leaves). `PoiDrawerContent` (`PoiPeekContent` / `PoiExpandedContent`) is
+the route-wide "Loading places along your route…" drawer: it receives per-category
+`CategoryResult` loading statuses only and is never opened with, or given, a single stop. It
+therefore has no stop to attach notes to and is intentionally unchanged.
+
+### 8.2 Map overlay for standalone / unresolved observations
+
+`useImportedObservationOverlay` (wired once in `RouteMap`, same flag
+`IMPORTED_PLACE_OBSERVATIONS_UI`, same read RPC via `readViewportObservations`):
+
+- Route-independent and bounds-based: on map `moveend` (debounced 400 ms) the visible bounds are
+  split into ≤ 24 boxes of ≤ 0.25°; below zoom 11 or for larger areas it shows "Zoom in…" and reads
+  nothing. Unchanged viewports do not re-read; stale responses are discarded.
+- Draws one pin per standalone / unmatched / ambiguous observation. Observations resolved to an OSM
+  element are **not** drawn — they appear in that stop's popup — so no duplicate stop pins exist.
+- Pin popups use the shared, HTML-escaped renderer (`renderImportedObservationItemHtml`).
+- `unauthenticated`, `unavailable` and `error` clear pins and show an explicit status control; an
+  empty `ok` shows nothing.
+- Flag off: no listeners, layers, controls or reads.
+
+The pure `corridorBoxes` helper remains available for a future route-corridor consumer; it is not
+used by this overlay.
+
+## 9. Operator command
+
+`npx vite-node scripts/rwgps-place-observations/run.ts -- --input <raw.json> [--osm-candidates <overpass.json>]`
+
+Dry run by default: writes a plan + report JSON under `.tmp/`. `--apply` additionally requires
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `--confirm-project-ref <ref>` matching the URL, and
+`--max-observations N` (≤ 500). Not invoked against production in RWGPS-OBS-01.
+
+### 9.1 Harvest-time projection (default off) and rematch
+
+`supabase/functions/_shared/place-observations/projection.ts` is called after the route graph is
+written by `rwgps-harvester`, `rwgps-hydrator` (non-dry-run only) and
+`scripts/lib/rwgps_local_ingest.mjs` (`projectPlaceObservationsAfterIngest`).
+
+- Setting: env `RWGPS_PLACE_OBSERVATION_PROJECTION=enabled` (edge function secret or local env /
+  `placeObservationProjection` option). Anything else is off. Off = no extraction, no RPC, no
+  TypeScript load in the Node path, so imports keep working with the migration unapplied.
+- On: builds a `refresh_without_matching` plan (no OSM candidates; new rows unmatched /
+  `osm_candidates_not_supplied`; cautions `standalone`; existing matches preserved or invalidated per
+  §4.4), `retireAbsent=true`, raw payload reference `storage_object` (`rwgps-raw/<path>`),
+  and calls `upsert_imported_place_observation_plan`.
+- Failures never throw and are never reported as success: each route result carries
+  `place_observations: {status:'failed', stage, reason}`; edge function responses add
+  `place_observation_projection: {setting, projected?, failed}`; `rwgps_smoke_one_route.mjs` prints
+  the outcome and exits non-zero on failure. The route graph write itself is not rolled back.
+- Keys derive from RWGPS ids, not `pois` UUIDs, so a rehydrate that rebuilds `pois` rows maps to
+  the same observations.
+
+Rematch: rerun the operator command with the route JSON (or catalog row) and a real, route-bounded
+Overpass snapshot (`[out:json]; … out center tags;`, ≤ 50,000 elements) via `--osm-candidates`.
+The report records snapshot element count, parsed candidates, untyped candidates and
+`osm3s.timestamp_osm_base`. Supplying a snapshot makes the plan `rematch_with_candidates`; without
+one the operator plan is `refresh_without_matching`. Keys and content hashes match the projection,
+so `--apply` updates unlocked resolutions in place (admin-locked ones skipped) and keeps existing
+review decisions.
+
+## 10. Open items for the gate
+
+- Interpretation of RWGPS `visibility` codes for public serving.
+- Whether approved, resolved observations should later project into DS-050 rollups.
+- Whether rider-facing copy for imported caution text is acceptable (rider-facing safety language is
+  a human-gate item).
+
+
+---
+
 ## Source File: docs/02-architecture/design/focus-overlay-ux.md
 
 # Focus Overlay UX
@@ -40974,225 +41186,6 @@ The standalone floating search card no longer renders. `SearchPinCard.tsx` retai
 ## Verification and limits
 
 Run the scoped tests listed in the UX-SEARCH-01 implementation report. Browser tests use a component harness and deterministic search fixtures; keyboard geometry is simulated through VisualViewport events. They do not certify a physical iPhone keyboard or the authenticated end-to-end route resolver.
-
-## Serving integration keyboard contract
-
-FocusOverlay publishes a wildcard through the established `data-consumes-keys` declaration. The shared keyboard-consumption predicate recognizes this entire-task scope even beneath a nested control with its own key list. Index's capture-phase map shortcuts and keyup handling stand down; the overlay stops bubbling without preventing native controls or Radix Tab/Escape handling. This is local to explicitly opened task content and disappears on close.
-
-The current RouteFunctionSurface supplies the search trigger ref to the shared acquisition seam, so closing destination search restores focus to the actual current Route Search button. No old where-to handle or obsolete panel wrapper is reinstated.
-
-
----
-
-## Source File: docs/02-architecture/design/p7-viewport-cache-reader-v1-proposal-20261011.md
-
-# P7 viewport road cache reader — contract proposal
-
-Recorded: 2026-10-11. Status: **proposed; no implementation or activation**.
-Phase: `MAP-VIEWPORT-SOURCING-20261011`, follow-up to issue #97.
-
-The viewport's deployed road proxy still calls the stopped legacy service on port
-3000. The P7 cache has a separate material-object store, but neither its grid
-coverage API nor its route materialization API is a viewport road reader. This
-proposal defines that missing read boundary. It does not restart the old service,
-change providers, admit a new subscriber, or authorize a production operation.
-
-## Existing authority and scope
-
-Frontend source inspected: `c271ffdd1652d6a10660ba3557567701e08b5d5f`.
-Backend source inspected: `5bc7ab3175767816be1fdb3c44a253bd40b052ce` in
-`dminner/nuremberg-owned-spatial`. Repository source is not deployed authority.
-An implementation base must be reconciled with the currently installed P7
-release and composite cache authority before a backend implementation ticket.
-
-Follow ADR-047/DS-035 for cache authority, ADR-058/DS-061 for viewport owners,
-ADR-060/DS-065 for selection, and the backend's AGENTS.md for all operations.
-ADR-058 and ADR-060 remain marked Proposed; this proposal does not promote them.
-
-The reader exposes cached OSM highway-way material, including paths when present
-under the grid's source enumeration law. It does not return route artifacts,
-route axes, route risk scores, HPMS joins, arbitrary POIs, or complete hazard-node
-coverage. P7 cell terminality cannot establish all of those facts. Full hazard
-and POI acquisition continue to need their own readers.
-
-## Request and service boundary
-
-Proposed backend path: `POST /v1/p7/viewport/roads`.
-
-```json
-{
-  "schemaVersion": "p7-viewport-roads-request.v1",
-  "bounds": { "south": 39.8, "west": -74.6, "north": 39.85, "east": -74.55 }
-}
-```
-
-These are the only request fields. Require finite JSON numbers, world bounds,
-and strictly positive width/height. Reject unknown keys, wrapped/crossing boxes,
-caller-selected source revisions, manifests, SQL, tables, paths, limits, or
-profile authorities. Dateline callers use two ordinary regions, preserving each
-request and observation separately. Reuse the existing grid API's exact decimal
-positive-intersection law; do not add epsilon snapping or change grid resolution.
-
-A separately installed cache-only process has the existing cache-reader and
-cancellation pools, exact cache database identity, pinned source/manifest/policy
-authority and a loopback listener. It has no OSM source pool, writer credential,
-hydrator/controller import, materialization endpoint, or route compiler. Reject
-forbidden environment names by presence, as the artifact-reader seam already
-does. Reuse existing fixed read-only identity/ACL/digest guards; do not weaken
-them or assume current role access is sufficient without checking it.
-
-The upstream read bearer stays in a server-side Edge proxy. A browser never
-receives that bearer or selects the upstream. Existing admin-only grid coverage
-access is not rider authorization for this new API. A separate gate must choose
-the rider access policy, rate limits and exact provider configuration before an
-Edge implementation or activation; this proposal does not make that choice.
-
-## Response and completeness
-
-Success schema: `p7-viewport-roads-response.v1`. Return the exact normalized
-request, deterministic query digest, repeatable-read observation time, source
-revision, grid version, manifest/policy authority, actual/effective cell receipts,
-validated material objects, and a compact acquisition summary. For composite
-coverage retain parent/supplement and per-cell origin authority. A monolithic
-manifest label must not hide a composite read.
-
-Use separate fields for three different claims:
-
-| Field | Meaning |
-| --- | --- |
-| `responseComplete` | The bounded response is whole and untruncated. |
-| `coverage.state` | `complete`, `partial`, `verified_empty`, or `unavailable` for the selected cached highway-way target law and authority. |
-| Per-object source tags/missing fields | Which source facts exist; coverage does not fill absent speed, traffic, lane, shoulder, or timestamp facts. |
-
-Every positively intersecting expected grid cell must have a receipt, including
-cells outside the configured manifest footprint. An absent cell is `missing`,
-not empty. Retain each physical execution state independently of effective
-inherited coverage. Cell receipts bind source/manifest/policy and contain
-expected target count, membership count, validated target-geometry count,
-incomplete target count, and typed refusal/missing reasons. Distinct object
-counts and per-cell occurrence counts remain separate.
-
-`complete` requires all selected cells to be valid native `live` or
-`verified_empty`, or equivalent inherited cells whose existing compatibility
-receipts and retained predecessor evidence validate. Reconcile target counts,
-unique target/incomplete memberships, policy-bound object bindings and every
-returned blob before asserting completeness. Merely receiving a coverage run,
-seeing a nonzero row, or reading a healthy service is insufficient. Inherited
-objects retain their actual predecessor policy/manifest binding; do not relabel
-v1 material as native v2. Current native destination state wins under the
-existing effective-state law. Missing or invalid predecessor receipts refuse
-inherited completeness.
-
-`processed_incomplete`, `pending`, `leased`, `failed`, missing cells, unavailable
-bindings and incomplete target geometry keep the rectangle partial/unavailable.
-Valid cached objects may still be returned under a partial receipt. Material
-from a typed incomplete target may be shown only if its object independently
-passes the existing geometry/tag/digest validator; its presence does not repair
-the cell's completeness claim.
-
-When any selected cell is unresolved, use `partial` if at least one current,
-authority-valid object is returned, and `unavailable` otherwise. All resolved
-cells with at least one valid target use `complete`; all resolved zero-target
-cells use `verified_empty`. An invalid authority, conflicting body, malformed
-response or cap failure refuses the entire new response rather than publishing
-its remaining objects as a new complete generation. Previously accepted stale
-rendering is a separate client retention decision.
-
-`verified_empty` requires every selected cell to prove zero targets under the
-exact cached enumeration law, with zero memberships and no invalid inheritance.
-It never means no roads, hazards or cyclists exist in the real world. An empty
-object array without those receipts is unavailable, not verified empty.
-
-Preserve complete canonical object payloads: source way ID, ordered geometry and
-node IDs, terminal nodes, source name/ref/tags, missing-field list, and existing
-geometry/tag/node/body digests. Full object geometry may extend outside the
-requested cell window; the viewport owner filters and retains it under existing
-budgets. Do not clip or simplify a payload while retaining its original digest.
-Deduplicate by source/policy/object/body identity; conflicting bodies fail closed.
-
-`observedAt` is the cache snapshot time, not source freshness. Existing objects
-have null source version/timestamp with explicit missing-field reasons. Preserve
-those facts. Absent cycleway/shoulder tags do not mean confirmed absence, and
-missing traffic is not zero. Keep any existing client display estimates separate
-from source facts and preserve their present provenance and classification law.
-
-## Bounded cache read
-
-One repeatable-read, read-only transaction re-proves cache identity, role ACL,
-eligible source epoch, native/composite launch bindings, and inheritance before
-reading membership/object blobs. Fixed parameterized reads use only existing
-approved cache tables/views. No source database scan, on-demand hydration,
-materialization, writer fallback, unbounded JSON/table scan or broad object-store
-enumeration is permitted. Payload budgets are checked before fetching blobs.
-
-Initial proposed limits, subject to synthetic and read-only plan evidence:
-
-| Resource | Proposed hard maximum |
-| --- | --- |
-| Request | 1 KiB |
-| Expected intersecting cells | 64 |
-| Distinct target IDs | 2,000 |
-| Geometry vertices | 100,000 |
-| Encoded response | 2 MiB |
-| SQL statement / transaction wall time | 1.8 s / 3 s |
-| Lock wait | 250 ms |
-| In-flight backend reads | 2 |
-
-These are design bounds, not measured capacity or latency claims. Use cap+1
-probes and fixed ordering to detect overflow; never return a truncated success.
-An exceeded limit returns a typed 422 with no geometry/complete coverage claim.
-The future client may subdivide into at most four regions, with at most two
-outstanding reads and explicit non-atomic observation bounds. Exhaustion remains
-partial and waits for a new view or deliberate retry; no automatic retry storm.
-
-Cancellation retires the HTTP read, cancels its SQL through the existing
-separately authenticated read-only cancellation seam, rolls back and releases
-both pools. Superseded browser generations cannot commit even when a transport
-ignores abort. Responses use `no-store`, including failures. Invalid input,
-authentication, bounded capacity and service failures retain distinct typed
-errors without database details or credentials.
-
-## Future frontend integration and visual language
-
-Implement an adapter at the existing viewport acquisition owner, outside the
-renderers and road strip. Keep legacy acquisition unchanged until separately
-gated activation; do not silently combine P7 and legacy objects as one complete
-answer. Compare normalized public fixtures and a read-only shadow before cutover.
-
-Feed speed and bike selectors from the same accepted generation. Retain stable
-object keys, moving-window eviction, off-screen layer removal, cancellation and
-the repaired stale/partial disclosure. A stale retained object can remain visible
-but cannot certify current coverage. A later current complete result clears the
-failure. Nonempty DS035 readiness cannot override a complete source set merely
-because it has one joined candidate; its replacement/completeness law needs a
-separate, explicit subscriber decision.
-
-Reuse the existing route/viewport paint primitives: the present speed-based core,
-blue paths, and facility sidecars, including one blue buffered sidecar with white
-dots. Preserve facility-side evidence, unknown states and selection length model.
-No scoring or bidirectional risk assumption is introduced here. No renderer,
-drawer or A-controller redesign is part of this sourcing phase.
-
-## Implementation and activation gates
-
-Next backend ticket must pin its exact base and permitted new reader/contract/
-service/test files, identify reused immutable validators, and preserve existing
-service behavior. Use synthetic database rows and credentials. Required fixtures
-include valid native/inherited cells, actual destination state precedence,
-incomplete/missing cells, metadata-only coverage, missing/corrupt object blobs,
-unknown source facts, count/body conflicts, world-edge slivers, caps, timeout,
-disconnect and bounded concurrency. Matching wire goldens come only after the
-contract's precise response projection is independently reviewed; the companion
-behavior vectors are not executable reader tests or wire goldens.
-
-Before activation require separately reviewed exact backend, Edge and frontend
-candidates, bounded query-plan/material-availability evidence, explicit rider
-authorization, owner-approved operational manifest and rollback, current backend
-deployment prerequisites, subscriber/human gate and post-deployment read receipt.
-Then repeat matched route-optional and loaded-route pan/toggle/return sequences
-with the same basemap, camera, switches and timings, tracing requested cells,
-received objects, coverage and renderer retention independently. Complete cache
-hydration does not certify map responsiveness, Safari recovery or battery life.
 
 
 ---
@@ -47635,37 +47628,6 @@ Current behavior:
 - observations render only as display overlays in `TruthSection`
 - overlays are explicitly marked as `user_observation`
 
-## Amendment — 2026-10-24 (ROAD-FACT-02, issue #243): private personal paint and signed-in submission
-
-Direct product authorization from Derek, October 24, 2026. This amendment is narrow; everything
-above still holds except exactly the two points below.
-
-1. **Private, current-account map paint is allowed for speed and bike-lane corrections.** A signed-in
-   rider's own speed correction may colour that exact road with the shared speed colours, and their
-   own bike-lane correction may draw (or, for None, hide) the shared bike-facility patterns, on that
-   rider's map only. Conditions, all required:
-   - only the current account's own corrections; never a guest's, never another rider's, and retired
-     immediately on sign-out or account change;
-   - only on the exact OSM way the correction targets, on geometry the viewport overlays already
-     admitted under their own toggles, zoom bands and render budgets — no corridor, name or
-     nearest-road inference and no extra acquisition to paint a missing road; artifact-scoped route
-     segments do not paint;
-   - every personal stroke is non-interactive and visibly marked as the rider's own (card: "Yours",
-     unverified), so it can never be read as verified or shared truth;
-   - removing the correction (or Undo) restores the original paint;
-   - traffic and shoulder corrections never paint.
-   This paint is presentation only. It is not a heatmap input, and it does not change the canonical
-   or shared heatmap, scores, resolvers, caches, route artifacts or receipts.
-2. **Submissions require sign-in.** Corrections are sent to Lanterne only by an authenticated
-   account (following OpenStreetMap's account requirement); the server derives the actor from the
-   session. There are no guest submissions and no automatic upload of earlier browser-only reports:
-   those stay explicitly unsent until the rider sends one. A submitted correction is persisted
-   evidence awaiting review (`applied_to_canonical: false`); review metadata does not by itself
-   change canonical truth, scoring or shared paint.
-
-The prohibition on user input reaching the canonical resolver, scoring engine, shared heatmap,
-caches, artifacts and canonical receipts is unchanged.
-
 ## Design Principle
 
 **User observations are evidence overlays, not canonical truth inputs.**
@@ -49832,8 +49794,6 @@ Current implementation snapshot:
 - z14: preview-only broad traversable street universe, excluding service/driveway/sidewalk/private/construction junk
 
 The simplified central substrate currently emits z10-z13. z14 exists as cache-candidate preview and sizing evidence, not as the central substrate serving contract.
-
-Cross-reference (2026-10-13): this table, unchanged in the June (`56906c9e`) and July (`510fb288`) snapshots, is now applied as the main viewport DISPLAY gate for both viewport overlays, strictly at the actual map zoom. That gate is specified in DS-035 §9.5 (signed preflight `map-viewport-display-bands-preflight-20261013.md`), which also supersedes the viewport visual application of the one-level hysteresis in §10.2. The text above is kept as written: it is the historical substrate/cache-preview description, and §10.1/§10.2 remain the hydration and acquisition policy. Long residential continuity at 12 needs `residential_continuity_over_2mi` provenance that viewport rows do not currently carry, so it is not promoted. Using z14 as a display floor does not make z14 a central serving contract.
 
 ---
 
@@ -53664,958 +53624,4 @@ The seed is **provisional display, never authority**: it feeds neither ActiveTru
 - Reloads become near-instant at tile-class payload sizes, honestly labeled until re-scored.
 - Two display truth tiers now exist pre-score (provisional vs score-bearing); label vocabulary and fail-closed staleness are mandatory, permanent obligations.
 - The program runs as CUTOVER-3C-0 … 3C-6 (measurement → contract → demotion → write-only store → fail-closed replay → warm-start proof → smoke/decision), each phase owner-spec'd and Codex-reviewed; no phase authorizes deployment, runtime enablement, or flag flips.
-
-
----
-
-## Source File: docs/03-adrs/adr-062-bounded-receipted-material-gaps.md
-
-# ADR-062 — Bounded, Receipted Material Gaps in Whole-Route P7 Acquisition
-
-**Status:** Proposed (route-truth authority change; requires the Derek/ChatGPT human gate before merge or rollout)
-**Date:** 2026-09-24
-**Author:** Claude (builder), from Finding 22 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
-**Implementation ticket:** `docs/04-execution/exec-062-bounded-material-gaps-implementation-ticket.md`
-**Numbering note:** sequential successor to ADR-061 (`docs/03-adrs/` numbering verified at authoring time).
-
-## Context
-
-Whole-route P7 material acquisition (`acquireP7MaterialForWholeRoute`) asks the owned material
-service for the route corridor in bounded windows of at most 129 inclusive route points. A window
-the service cannot deliver within its per-window bounds answers a typed, source-revision-bound
-HTTP 422 control response and the client bisects deterministically. The contract's law today is:
-"any irreducible/incomplete/invalid window fails the whole route closed; Overpass, route_cache and
-P5 are never fallback authority."
-
-That law has a case it did not anticipate. A window of one segment cannot be bisected. When the
-material service refuses such a window (`p7_whole_route_candidate_window_irreducible`, detail
-`bound_source_object_limit_exceeded` and
-`cached_immutable_receipt_validation_evidence_bytes_exceeded`), the whole route fails, and it fails
-identically in the browser and in the server compiler. Finding 22 shows it on RUSA 5067 ("Capitol
-to Capitol, Monument to Monument", 11,084 points, 200.4 km): the segment between route points 4
-and 5, about 5 m on the US Capitol grounds, is refused, so 200.4 km of route paint nothing.
-Census route 18 (Des Moines–Madison, 15,146 points) hit the same class at points 15121–15122 after
-149 completed leaves. The source cache for both routes is complete; the limit is the per-window
-delivery bound of the material service on the densest few metres of the corridor, not hydration.
-
-Two families of fix exist:
-
-- **Service side.** Give a one-segment window a larger evidence budget or a narrower corridor.
-  This changes the material policy identity (`p7-material-policy.v2` → v3) on Nürnberg and its
-  Lanterne mirror, needs a host release under the backup rule, and only moves the cliff: some
-  corridor somewhere will exceed the next bound too.
-- **Contract side.** Let the client record an irreducible one-segment refusal as an explicit,
-  bounded, receipted gap and carry on, so the rest of the route becomes truth and the gap stays an
-  unknown. Nothing is guessed for the gap; it is painted as unresolved, exactly as an unresolved
-  owner span is painted today. This is a Lanterne-only change to the acquisition contract and its
-  validators; the material service and the backend artifact contracts are untouched.
-
-The downstream pipeline already tolerates coverage gaps: `inspectWholeRouteTargetPartitionCoverage`
-in `prehydrated-p7-road-identity.ts` turns a `partition_gap` into the typed unresolved receipt
-`whole_route_target_partition_coverage_incomplete` and a `partial` owner status, which is how every
-partial artifact in the overnight census was produced. Only the acquisition client and the sealed
-bundle validators fail closed before that point.
-
-## Decision (proposed)
-
-1. **A material gap is a first-class, receipted outcome of whole-route acquisition.** A refused
-   segment is an inclusive route-point window `[k, k+1]` for which the material service answered
-   the exact, validated window-bound control envelope (`isP7WholeRouteWindowBoundControlResponse`)
-   with every reason code in `{p7_whole_route_candidate_window_irreducible,
-   p7_whole_route_candidate_window_split_required}`. Adjacent refused segments form one **gap
-   run**; the measurement below shows refusals arrive as runs (five and four consecutive segments
-   on the Capitol grounds), so runs are the unit the bounds apply to, and metres are the measure,
-   never segment counts, which only reflect GPS point density. A proxy upstream timeout (503) on a
-   one-segment window stays terminal and retryable, as today; it is transient, not a bound.
-2. **Gaps are bounded, and beyond the bounds the route still fails closed.** Sealed client bounds
-   (proposed values, gate-settable): at most 8 gap runs per route; each run at most 100 m of route
-   axis; at most 250 m of gap in total. A refused run longer than the per-run bound is unexplained
-   and fails the route as today. A route that yields only gaps fails.
-3. **Every gap is carried as a receipt bound to the service's own refusal:** route-point window,
-   segment length, reason codes and details, `sourceRevisionId`, `queryDigest` and the
-   `requestAuthority` echoed by the control response, sealed by a gap digest. The receipt travels in
-   the window bundle, the aggregate candidate coverage, the merged hazard coverage, the acquisition
-   receipt and the engine diagnostics, so a reviewer can see exactly which metres were never
-   delivered and why.
-4. **Gap-free acquisitions are byte-identical to today.** The v2 bundle, coverage, hazard-coverage
-   and receipt shapes exist only when at least one gap is present; without gaps the v1 shapes and
-   digests are emitted unchanged. Batsto's canonical artifact digest and MACTRI's partial digest must
-   not move.
-5. **A gap can never become canonical truth.** The gap has no material, so the owner solve is
-   partial, `p7_owner_axis_incomplete` blocks the canonical attestation, and the route compiles as
-   `display_only_unresolved`, the existing partial path. The full-axis hazard lane reports
-   `ready=false` with the distinct reason `p7_material_gaps_declared` while still delivering the
-   hazard material of every covered window. No fallback source is consulted for the gap.
-6. **The sealed leaf-window cap follows the caller's aggregate bound.** The bundle validator's
-   `maximumWholeRouteLeafWindowCount` check uses the bound the acquisition ran under (the server
-   compiler's 512, never above the 4,096 ceiling); the browser's sealed 128 is unchanged. Without
-   this, routes that need more than 128 leaves finish acquisition and are then rejected as
-   `window_bundle_shape_invalid` (Finding 18; Codex review of PR #54, finding 4).
-7. **No rider-facing language changes.** The gap paints as today's unresolved grey with identity
-   withheld. Any label that names the gap is a separate gate.
-
-## Alternatives considered
-
-- Service-side budget or corridor scaling for one-segment windows (above): deferred, not
-  rejected; it can follow later and would simply produce fewer gaps.
-- Treating an irreducible window as covered by its neighbours: rejected, it would claim a corridor
-  search that never happened.
-- Silently skipping the window: rejected, a gap without a receipt is a lie of omission.
-
-## Measurement (this session, diagnostic client with refusals recorded as gaps)
-
-RUSA 5067 under the server compiler's bounds: 9 refused segments in two runs, points 4–9
-(19.4 m, at the start) and 307–311 (34.1 m, 5.77 km in, where the route passes the Capitol
-again), 53.5 m undelivered of 200.4 km; 174 leaf windows, 279 requests (96 splits), 101.6 MB of
-requests (each repeats the 11,084-point geometry), 142.0 MB of responses, 221 s. Under the sealed
-browser bounds the same route ends after 34 s as `unavailable`: a 16-point window
-(`candidate_window_80_96`) exceeds the browser's 6 s per-window deadline, which is terminal; and
-even without that, 174 leaves, 279 requests, 101.6 MB and 142.0 MB each exceed the browser's
-128, 255, 64 MiB and 64 MiB. The same run's HPMS acquisition was incomplete only because three
-DC 2020 windows exceeded 30 s (Finding 19). Des Moines–Madison (15,146 points) under server
-bounds: 3 refused segments in two runs at points 15121–15122 and 15143–15145 near the route end,
-155 leaves, 197 requests, 65.6 MB of responses, 124 s; also above the sealed 128-leaf cap.
-
-## Consequences
-
-- Routes with a few tens of metres of undeliverable corridor become partial artifacts instead of
-  nothing. On RUSA 5067 that is 53.5 m in two grey runs on the Capitol grounds.
-- Partial, not canonical, remains the honest ceiling for such routes until the material service
-  can deliver the segments; the receipts name the exact segments to fix.
-- The browser's sealed budgets still bound live loads. RUSA 5067 cannot be acquired live under
-  them on any count; after this change it loads through the compiler's published partial
-  artifact, not through the live engine. That is a property of dense 200 km routes under the
-  sealed browser bounds, not of this change.
-- The HPMS gate of the compile runner is independent: RUSA 5067 also needs the pending Nürnberg
-  statement-timeout release (Finding 19) before it can compile.
-- Decision 6 (leaf cap follows the caller's bound) is required for this route: 174 leaves exceed
-  the sealed 128 that the validator enforces today regardless of the server override.
-
-## Gate items (each needs an explicit decision)
-
-1. The contract law change in Decision 1 and 3 (route-truth authority).
-2. The bound values in Decision 2 (8 runs, 100 m per run, 250 m total).
-3. The leaf-cap rule in Decision 6.
-4. The hazard-lane rule in Decision 5.
-5. Confirmation that no rider-facing language changes (Decision 7).
-
-## Implementation findings — proposed gate addendum, 2026-09-25
-
-The first sealed implementation acquired Capitol's nine refusals in the same two runs, but the
-untruncated union contains **543,245 nearby-way associations**, exceeding the existing aggregate
-524,288 bound. Gap support and the leaf-bound fix alone therefore do not open this route. The
-candidate adds an explicit compiler aggregate association bound of **1,000,000**, capped by the
-owner validator's existing total-context-reference ceiling. The browser stays at 524,288; per-window
-SQL-equivalent counts, complete-union validation, byte caps and all source policy rules remain.
-The actual bound travels in acquisition accounting and is checked before either validation memo
-can return. This is an additional operational-bound decision for the final gate, not an accepted
-amendment or a reason to discard associations.
-
-Independent review also identified a zero-measure case: a refused duplicate-point segment can
-vanish from distance intervals. Every declared receipt now withholds complete owner status even
-when its length is zero. When *all* refusals have zero measure and no other owner gap exists, the
-existing partial display/backend contract cannot express the result: it requires positive grey
-coverage. Such a route remains blocked with its v2 receipt; no phantom grey distance is invented.
-Capitol contains positive-measure gaps as well, so this limitation does not describe its two runs.
-The final gate must explicitly accept this conservative limitation or commission the separate
-partial-contract extension; changing Nürnberg's contract remains outside EXEC-062.
-
-A retained-response CPU profile found the same deeply frozen partial projection being rehashed
-for every donor row. The builder now validates its full content once before issuing the private
-object-identity capability. Serialized content validation remains intact and clones cannot acquire
-that capability. This changes validation cost, not the projection, ownership law or digest.
-
-
----
-
-## Source File: docs/03-adrs/adr-063-hpms-deadline-ladder-and-truncation-subdivision.md
-
-# ADR-063 — HPMS Window Deadline Ladder and Truncation Subdivision
-
-**Status:** Proposed (requires the Derek/ChatGPT human gate; touches an Edge fallback policy, a host proxy setting and the acquisition completeness proof)
-**Date:** 2026-09-24
-**Author:** Claude (builder), from Finding 23 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`, on Codex's host diagnosis of the same day
-**Implementation ticket:** `docs/04-execution/exec-063-hpms-deadline-ladder-implementation-ticket.md`
-**Numbering note:** sequential successor to ADR-062.
-
-## Context
-
-One HPMS state-year request crosses four deadlines, and today they are in the wrong order:
-
-| Layer | Deadline | Where |
-| --- | --- | --- |
-| Browser, per state-year request | 4,000 ms | `CURRENT_ROUTE_HPMS_STATE_YEAR_FETCH_TIMEOUT_MS` (engine); the server compiler uses 30,000 ms |
-| Nginx, `location /v1/p7/hpms/sections` | 4 s | host only; maps upstream 502/504 to `503 hpms_service_unavailable / origin_not_ready` |
-| Edge `hpms-read-proxy`, hosted upstream | 4,500 ms on `main`, 10,000 ms deployed (v13, draft PR #55) | `NUREMBERG_HPMS_UPSTREAM_TIMEOUT_MS` |
-| Nürnberg, Postgres statement | 8,000 ms since the 2026-09-24 release (was 1,800) | `HPMS_SECTIONS_BOUNDS.statementTimeoutMilliseconds` |
-
-The innermost bound is larger than two outer ones, so every query that needs between 4 and 8 s is
-killed by Nginx at 4 s and by the browser at 4 s while the database is still working. The
-statement-timeout release therefore fixed the boxes under 4 s (thirteen of the fifteen that failed
-on 2026-09-24) and none above it. Codex measured the two survivors on the host: the DC Mall box
-answers in 5.04–5.07 s with 4,971 complete rows directly, and 503 at 4.09 s through Nginx; the
-Madison box answers in 4.63 s directly with 5,000 rows, `truncated: true`, and 503 at 4.1–4.2 s
-through Nginx. `origin_not_ready` is Nginx's wording for the cut-off, not a readiness state.
-
-A second, independent limit: the hosted read returns at most `HPMS_SECTIONS_MAX_LIMIT = 5,000`
-rows and marks `truncated: true` beyond it. The Edge validator rejects any truncated or
-incomplete hosted answer (`response_truncated`), which is right, and then falls back to the public
-ArcGIS feed, which is not: that path has no bounded deadline, the Supabase gateway ends it at 150 s
-(`IDLE_TIMEOUT`, observed as HTTP 504), and its pages are themselves unproven. Madison downtown is
-denser than one 5,000-row window. Derek's direction (2026-09-24): if a section is too dense to fit
-inside one answer, take a subsection approach.
-
-## Decision (proposed)
-
-1. **A strict deadline ladder, outer greater than inner by at least 2 s of transport margin,
-   with every value a named constant.** Postgres statement 8,000 ms (as released) < Nginx
-   `proxy_read_timeout` 10 s on the HPMS location < Edge hosted upstream 12,000 ms < browser
-   per-state-year 15,000 ms. The compiler keeps 30,000 ms. A Lanterne architecture test asserts
-   browser > Edge > 8,000 ms; the Nginx value is recorded with the site configuration's SHA-256 in
-   the release receipt, since it lives only on the host.
-2. **Truncation becomes a typed split signal, never a fallback.** When the hosted answer is
-   `truncated: true`, the Edge returns a typed, non-data control response (HTTP 422,
-   `hpms_window_split_required`, echoing state, year, bounding box and the row limit) instead of
-   consulting ArcGIS. The engine splits that route window into **four** sub-windows by route
-   distance and requests all four, for every year, **in parallel** inside the existing concurrency
-   and attempt budget, so a dense window costs one further wait rather than a chain of them. A
-   sub-window that is itself truncated is split the same way once more (two levels, at most 16
-   sub-windows). The window's official traffic is complete only when three proofs hold, and a bare
-   union is not one of them: (a) the sub-windows tile the parent's route-point interval exactly, no
-   gap and no overlap; (b) for every state and year the parent required, every sub-window whose
-   corridor touches that state answered `complete: true, truncated: false`, and the union of the
-   sub-windows' state sets covers the parent's; (c) rows shared across sub-window seams are
-   de-duplicated by section identity before any per-window retention cap is applied, so the cap
-   sees the parent's true row set. A sub-window still truncated at the second level is
-   `hpms_window_truncated_irreducible`, and the window fails exactly as a failed window fails today
-   (canonical blocked, interactive baseline continuation), with the sub-window receipts.
-   *Optional refinement, a separate additive backend change:* the hosted service may include the
-   total row count in a truncated answer (`truncatedTotalCount`, computed only when truncating,
-   under the same statement bound, `null` if it cannot be computed in time), and the engine then
-   chooses the fan-out width as `ceil(count / 3,500)`, capped at 8. The count is a planning hint;
-   it is never evidence of completeness. Counting before every window was considered and rejected:
-   it adds a round trip to every window of every route to help the few dense ones.
-3. **The ArcGIS fallback is bounded.** Where it still applies (hosted network or configuration
-   failure, not truncation), the Edge gives the whole fallback path one deadline (proposed 45 s)
-   and answers a typed failure before the gateway's 150 s limit.
-4. **The typed controls must survive the transport.** The browser worker and the compiler fetch
-   wrappers pass a validated 422 split control and a validated 429 control through to the engine,
-   as they already do for the materialize control, and apply no hidden retries to
-   `hpms-read-proxy`; the shared scheduler is the only retrier, so attempts are counted once and
-   stop on cancellation.
-5. **Nothing else moves.** Retention caps, the year policy (2024 primary, 2020 companion), scoring,
-   the compiler's `hpms_acquisition_complete=true` gate and the 5,000-row hosted limit are
-   unchanged.
-
-## Alternatives considered
-
-- Raise the 5,000-row limit: bytes and query time grow with it and collide with the 8 s bound;
-  subdivision keeps every answer small and proven.
-- Treat a failed 2020 companion as non-fatal when 2024 succeeded: a year-policy change Derek
-  declined ("get 2020 not to fail").
-- Keep ArcGIS as the answer for dense boxes: slow, paged, completeness unproven; it turned a 5 s
-  query into a 136 s or 504 answer.
-- Recursive halving on truncation: correct but serial in depth (each level is another wait);
-  superseded by the one-shot four-way fan-out above, which has the same proof and one wait.
-
-## Consequences
-
-- Boxes that need 4–8 s answer from Nürnberg through every layer. On 2026-09-24 that is the DC Mall
-  box, which unblocks the compiler's HPMS gate for Capitol to Capitol.
-- Dense boxes above 5,000 rows cost extra requests only where they occur; Madison becomes four
-  proven sub-windows after one further parallel wait. The first attempt on a dense window still
-  costs its full query (4.6 s on Madison); no variant avoids that without counting first.
-- **Nürnberg's HPMS read path has four connections and answers HTTP 429 to any request beyond
-  them; excess requests are rejected, not queued** (Codex, verified on the host 2026-09-24). The
-  fan-out therefore runs under one shared scheduler of at most four requests in flight across all
-  parent windows and their children, with bounded, counted handling of 429 (retry after the
-  server's hint or a short backoff, a small maximum, then the request fails as a failed request
-  fails today). Four children times two years is already two waves under that scheduler. This
-  bound also applies to the browser's existing fan-out, which today allows up to 16 in flight
-  (four windows times four state-years); whether that burst produces 429s and fallbacks in
-  Production is unmeasured and is measured by the ticket.
-- Live loads of dense routes spend longer in the HPMS phase, bounded by 15 s per request over the
-  existing concurrency; the compiler path is unaffected.
-- Rollout order matters: Edge 12 s first (harmless while Nginx is 4 s), then Nginx 10 s, then the
-  browser and engine change through the frontend gate.
-
-## Gate items
-
-1. The browser deadline of 15,000 ms (a UX and load-time decision).
-2. The Nginx change on the host, under the host's own change governance and receipt.
-3. The Edge change: 12,000 ms, truncation passthrough instead of fallback, bounded fallback.
-4. The subdivision semantics and the three-part completeness proof.
-
-
----
-
-## Source File: docs/03-adrs/adr-064-browser-acquisition-bounds-ladder.md
-
-# ADR-064 — Browser Acquisition Bounds Follow the Compiler's, and Every Window Deadline Sits Above the Proxy's Typed Timeout
-
-**Status:** Accepted by Derek (owner gate, 2026-09-25, in session); implementation ticket EXEC-064; skeptical review and ChatGPT final gate on the implementing PR
-**Date:** 2026-09-25
-**Author:** Claude (builder), from Findings 22–24 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
-**Implementation ticket:** `docs/04-execution/exec-064-browser-acquisition-bounds-implementation-ticket.md`
-**Related:** ADR-062 (bounded receipted material gaps, including the validator leaf cap following the caller's bound), ADR-063 / EXEC-063 (HPMS ladder), ADR-065 (direction for 3,000-mile live loads)
-**Numbering note:** sequential successor to ADR-063.
-
-## Context
-
-Dense routes that acquire under the server compiler fail in the browser for two reasons that have
-nothing to do with route truth.
-
-1. **The material window deadline is inside the proxy's typed timeout.** The materialize proxy
-   aborts a slow hosted read at 4,500 ms and answers a typed 503 that the client bisects; the
-   browser's own per-window deadline is 6,000 ms. Add Edge transport and a slow window's typed
-   control arrives after the browser has already aborted it as a terminal `request_timeout`, which
-   fails the whole route closed. The compiler waits 20,000 ms and receives the control. Tims Fresh
-   100 fails live exactly this way (Finding 24): nine leaves in 2.0–3.7 s, the tenth aborted at
-   6,000 ms; the same route acquires under the compiler in 62 s within every browser budget.
-2. **The sealed aggregate budgets are the compiler's divided by four or more.** Browser: 128 leaf
-   windows, 255 requests, 64 MiB of requests, 64 MiB of responses, 120 s wall. Compiler: 512,
-   1,023, 1 GiB, 512 MiB, 480 s. Capitol to Capitol needs 174 leaves, 279 requests, 101.6 MB and
-   142 MB over 221 s (Finding 22), so it exceeds every browser budget even after ADR-062 makes its
-   gaps admissible.
-
-Derek's direction (2026-09-25): a densely populated 126-mile route failing to load live is
-unacceptable for the product; 3,000-mile routes should load live eventually. This ADR is the part
-of that direction that constants can deliver; ADR-065 is the part they cannot.
-
-## Decision
-
-1. **Material deadline ladder.** Postgres statement 1,800 ms (unchanged) < materialize proxy
-   upstream 4,500 ms (unchanged, answered as the typed control) < browser window deadline
-   **20,000 ms** (from 6,000; equal to the compiler's). An architecture test asserts the ordering
-   with at least 2 s of transport margin, as ADR-063 does for HPMS.
-2. **Browser aggregate budgets follow the compiler's.** `P7_MATERIAL_CLIENT_BOUNDS` for the
-   interactive engine becomes 512 leaves, 1,023 requests, 1 GiB request bytes, 512 MiB response
-   bytes, 480 s wall, the values the compiler has run since 2026-09-24 without incident. The
-   validator's leaf cap follows the caller's bound as ADR-062 Decision 6 already requires; the
-   4,096-leaf ceiling stays.
-3. **Same laws, same proofs.** Nothing changes in what counts as material, a gap (ADR-062), a
-   split (ADR-063) or completeness; only how long and how much the browser is allowed to wait and
-   carry. A route that exhausts the wider budgets fails closed exactly as today.
-4. **The user sees progress, not a blank purple.** While the wider budgets are in use the load
-   shell's existing phase label continues to update per completed window (window count and
-   elapsed), so a four-minute acquisition is visible as work, not a hang. No new rider-facing
-   safety language; this is a progress label.
-
-## Expected effect, from measurements
-
-| Route | Live today | After ADR-064 (and ADR-062 for Capitol) |
-| --- | --- | --- |
-| Tims Fresh 100 (100 km, 3,690 points) | fails at one 6 s window | about 1–2 min: 62 s material plus HPMS and engine time |
-| Capitol to Capitol (200 km, 11,084 points) | fails: gaps, then every budget | about 4–5 min: 221 s material plus engine time, 53.5 m of grey gap |
-| Batsto, MACTRI, rural routes | unchanged | unchanged; they never touched the old bounds |
-
-The costs are real and are the gate items: a dense 200 km route uploads about 100 MB of repeated
-geometry and downloads about 140 MB of material in one live load, holds it in browser memory, and
-takes minutes. That is acceptable as a floor for the product Derek describes and unacceptable as a
-ceiling, which is why ADR-065 exists.
-
-## Alternatives considered
-
-- Widen only the window deadline (Decision 1) and keep the aggregate budgets: fixes Tims and every
-  route whose frontier already fits; leaves Capitol and all dense 200 km routes to the compiler.
-  This is the minimal step and is acceptable as phase one if the gate prefers it.
-- Budgets scaling with route length instead of fixed values: better long-term, but the request
-  bytes are dominated by geometry repetition, so scaling the byte budget only postpones the wall;
-  deferred to ADR-065.
-
-## Consequences
-
-- Dense 100–200 km routes load live, slowly, with honest partial paint where material or HPMS is
-  unproven; repeat loads come from published artifacts and are fast.
-- Live loads of dense routes cost minutes and hundreds of megabytes on the current transport.
-- The compiler remains the authority path; nothing here changes what it publishes.
-
-## Gate items
-
-1. Decision 1, the 20,000 ms browser window deadline (latency).
-2. Decision 2, the wider aggregate budgets (browser memory, mobile data, latency); or phase one,
-   Decision 1 alone.
-3. Decision 4, the progress label wording (a product label, not safety language).
-
-## Implementation alignment — 2026-09-25
-
-EXEC-062 subsequently established a two-request material concurrency limit and a 1,000,000
-whole-route nearby-association limit for the compiler. Capitol measured 543,245 associations,
-above the old browser limit of 524,288. Applying Decision 2 to the implemented compiler therefore
-also makes those two browser bounds equal to the compiler's. The existing association ceiling
-remains 1,000,000; per-window, object, node, incidence, gap and proof limits are unchanged.
-
-The 480-second acquisition wall must sit inside the canonical worker and caller budgets. They
-become 510 and 525 seconds, preserving the existing 30-second construction margin and 15-second
-caller margin. The material contract and policy versions stay unchanged.
-
-The route table above records the observations and estimates used to propose this ADR; it is not
-release acceptance. A later production Tims load passed once with 95.0% scored coverage, and Derek
-subsequently reported a purple failure. EXEC-064 therefore requires fresh measured acceptance,
-including repeated Tims loads, rather than treating that one earlier success as reliability proof.
-
-
----
-
-## Source File: docs/03-adrs/adr-065-scalable-live-acquisition-direction.md
-
-# ADR-065 — Scalable Live Acquisition: the Direction for 3,000-Mile Routes
-
-**Status:** Direction accepted by Derek (owner gate, 2026-09-25, in session); each step is its own gated ticket, none written yet
-**Date:** 2026-09-25
-**Author:** Claude (builder), on Derek's product direction of 2026-09-25 and Findings 22–24 of `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`
-**Related:** ADR-061 (compact first-paint core and provisional display tier), ADR-062, ADR-063, ADR-064
-
-## Context
-
-Derek's requirement: people should be able to live-load 3,000-mile routes; a dense 126-mile route
-failing to live-load is unacceptable. ADR-064 raises the browser's constants to the compiler's,
-which makes dense 100–200 km routes load live in minutes. Constants cannot go further, for one
-structural reason and three consequences of it:
-
-- **Every window request repeats the full route geometry.** Capitol to Capitol (11,084 points)
-  sends about 364 KB per request; 279 requests made 101.6 MB of uploads for a 200 km route. A
-  3,000-mile route of roughly 150,000 points would send about 5 MB per request over thousands of
-  windows: tens of gigabytes, from a phone, per load. No budget admits that.
-- **Acquisition is all-or-nothing.** The whole-route contract seals material only when every
-  window has answered; a 30-minute acquisition shows nothing until the last window, and one
-  terminal window discards all of it.
-- **Every load repeats every other load.** Two riders opening the same route acquire the same
-  windows twice; the material service's per-target cache helps the server, not the transport.
-- **Budgets are fixed, not proportional.** 512 leaves suit 200 km; 3,000 miles needs about 25×
-  the windows.
-
-## Decision (proposed direction)
-
-1. **Geometry once.** The client registers the route axis (geometry, fingerprint, axis id and
-   revision) with the material service once per load or reuses a registered axis; window requests
-   reference the axis and a point range and carry no geometry. Request volume falls from
-   windows × points to points. The service already binds every answer to the axis revision, so the
-   proofs (coverage, tiling, source revision) are unchanged; only the wire shape changes. This is a
-   material contract version (v3) on both sides.
-2. **Stream and paint progressively.** Windows are acquired under the shared scheduler and each
-   sealed window is handed to the display tier as it completes, as a provisional paint in the sense
-   of ADR-061: visibly provisional, never authority, never fed to ActiveTruth or scoring. Truth is
-   still sealed once, at the end, under the unchanged fail-closed laws; display stops being
-   all-or-nothing.
-3. **A shared window cache of record.** A completed, sealed window (material, hazard, HPMS
-   sub-window results) is stored server-side keyed by axis revision, point range, policy and source
-   revision, so the second rider, and the compiler, reuse it. This is the honest form of the
-   "cache the provisional artifact on load" idea: nothing provisional is cached; only sealed windows
-   with their receipts are, and the compiler remains the only publisher of route artifacts.
-4. **Budgets proportional to length.** Leaf, request and wall budgets scale with route length
-   from a per-100 km allowance, with an absolute ceiling and the same fail-closed behaviour beyond
-   it.
-5. **Sequential hydration by location and zoom for cross-country routes.** As previously agreed
-   with Derek, a very long route is hydrated in the order the rider needs it, by position along
-   the route and by map zoom, not all at once; the streamed windows of Decision 2 are the unit of
-   that sequence, and scoring follows the same order, sealed per hydrated span and never
-   extrapolated to spans not yet hydrated.
-6. **Demand-driven compilation stays the fast path.** A route first opened live is queued for the
-   compiler at the front; its published artifact makes every later open instant. Live acquisition
-   is the first-open experience, not the steady state.
-
-## What this does not change
-
-The route-truth laws: no fallback authority, material gaps receipted and bounded, HPMS subdivision
-proven per sub-window, canonical only when gap-free, partial otherwise. Scoring, year policy and
-rider-facing safety language.
-
-## Consequences
-
-- 3,000-mile live loads become a question of time and server capacity, not of gigabytes in a
-  browser: about 150,000 points once, then thousands of small window requests, painted as they
-  arrive, most of them served from the shared cache after the first rider.
-- Two contract versions (material v3, a cache contract) and a display-tier change; each is its
-  own gated ticket. Suggested order: geometry once (largest cost removed), then progressive paint,
-  then the shared cache, then proportional budgets.
-- The material service's per-request bounds (256 targets, 1,024 objects, 5,000 HPMS rows) stay;
-  density is handled by subdivision, length by streaming.
-
-## Gate items
-
-1. Adopt the direction and its order, or amend it.
-2. Authorize the first ticket, geometry-once transport (material contract v3, both repositories).
-3. Confirm the provisional display tier of ADR-061 is the right home for progressive paint.
-
-
----
-
-## Source File: docs/03-adrs/adr-066-cyclist-presentation-lane-over-sterile-truth.md
-
-# ADR-066 — A Cyclist Presentation Lane Above the Sterile Truth Lane, With One Provenance Rule, Receipted Road Facts and Bounded Seam Bridging
-
-**Status:** Accepted by Derek (owner gate, 2026-09-27, in session: the four provenances, the 50 m seam bound with the topology-veto exclusion, the rider-facing wording to be confirmed on the implementing PR, and Decision 5 kept out of scope); implementation ticket EXEC-066; skeptical review and ChatGPT final gate on the implementing PR.
-
-**Owner questions this answers:** "Is this where we say: leave this as the acceptable sterile truth, then massage the cyclist-centric layer above it, and identify roads, full coloration and scoring off that layer?"
-
-## Context
-
-The canonical P7 truth lane is fail-closed by design: a route is canonical only with a gap-free
-whole-route owner solve, and the compiler census has produced no canonical route except Batsto.
-The product's paint today is the published partial artifact (`p7-persisted-partial-route-paint.v2`),
-which paints certified intervals and leaves everything else grey. Tims Fresh 100, published on
-2026-09-27, paints 96,066 m of 101,134 m (95.0 %). Its 5,068 m of grey, read from the artifact
-(record, Finding 28), is not one thing:
-
-| Grey on Tims | Distance | Intervals | What it is |
-|---|---|---|---|
-| One towpath way (OSM 39053551) with a resolved owner but no route occurrence | 1,979 m | 1 | a truth defect in the occurrence builder |
-| Occurrence-only slivers (owner resolved, occurrence missing) | 1,514 m | 106 | median 0.4 m, max 810 m: mostly boundary epsilon, a few real holes |
-| Owner gaps (`road_identity_missing`) | 3,060 m | 67 | median 15 m, p75 60 m, max 420 m; codes `family_owner_unresolved` 1,716 m, `material_context_topology_veto` 790 m, `exact_topology_owner_unavailable` 461 m, other 93 m |
-| Speed or traffic only | 21 m | 6 | noise |
-
-Of the 67 owner gaps, a bounded seam rule closes little: gaps of at most 50 m whose two neighbours
-carry the same non-unknown token total 299 m (22 gaps); at most 100 m, 673 m (27 gaps). The
-remaining 2.4 km are genuinely unresolved ownership between different ways, which no presentation
-rule can honestly colour.
-
-Every tapped road on a partial route says "Unnamed Road" and "segment": the partial lane exposes
-hitboxes but withholds identity by design, although the owner partitions carry the OSM way id with
-a receipt, and OSM carries the name and the highway type.
-
-The projection contract is explicit that consumers "must never infer across an unresolved atom or
-reconstruct a missing interval by proximity" (`runtime-p7-partial-owner-display-projection.v1`),
-and the partial paint core refuses a coloured interval that overlaps an owner gap. Any bridging
-therefore has to be a compiler-side, receipted, versioned rule, never a consumer heuristic.
-
-## Decision (proposed)
-
-1. **Two lanes, one provenance rule.** The truth lane (owner solve, evidence ledger, route surface
-   truth, ActiveTruth, canonical score) stays exactly as it is: sterile, fail-closed, unchanged by
-   this ADR. Above it, the presentation lane owns what a rider sees on a partial route. Every value
-   the presentation lane shows carries exactly one provenance: `certified` (from the truth lane),
-   `receipted_fact` (a fact about a receipted owner way, such as its OSM name), `seam_bridged`
-   (Decision 3) or `provisional_estimate` (Decision 5, deferred). The four are visually distinct on
-   the map ~~and named on the card~~. *Amended by Gate decision 2 (Derek, 2026-09-28):* the
-   provenance travels in the artifact (`provenance` per paint interval) and its token is never shown
-   on a rider surface (card, legend or inspect panel). Receipted facts appear as the facts
-   themselves (Decision 2), and the only rider wording that explains a provenance is the seam
-   sentence in the inspect panel, in rider words. Nothing with a provenance other than
-   `certified` ever enters a canonical score, a route truth artifact, or a persisted receipt that
-   claims truth.
-2. **Receipted road facts on partial cards.** The compiler writes, for every resolved owner
-   partition of a partial artifact, the display facts of its owner way taken from the same sealed
-   material set: OSM `name`, `highway`, and `surface` when present, plus `ref`. The card on a partial
-   route shows them under its existing footer ("Partial evidence · canonical pending"), replacing
-   "Unnamed Road" and "segment" with, for example, "Delaware & Raritan Canal Towpath · cycleway ·
-   gravel". Unresolved intervals keep "Unresolved". This is a fact about the receipted way, not an
-   inference, so it is `receipted_fact`.
-3. **Bounded seam bridging, in the paint lane only.** The compiler may colour an owner gap when all
-   of the following hold: the gap is at most **50 m**; both neighbouring partitions are resolved at
-   confidence `high`; both neighbouring paint intervals carry the same token and that token is not
-   `unknown`; and the gap's own reason codes do not include `material_context_topology_veto`. The
-   bridged interval carries the shared token with provenance `seam_bridged`, is drawn distinctly
-   (the ticket names the treatment), and is **not** counted as painted in coverage: painted distance,
-   unresolved distance, the owner gap list and the provisional risk per mile are unchanged. The
-   50 m bound is a policy value with its own version; raising it is a gate decision with the numbers
-   above in hand (100 m would add 374 m on Tims).
-4. **Occurrence completeness is a truth defect, not a presentation problem.** The occurrence builder
-   must produce, for every resolved owner partition, either an occurrence or an unresolved record with
-   a reason. The Tims towpath way and the boundary slivers are fixed in the truth lane, which raises
-   the certified paint itself. No presentation rule substitutes for this.
-5. **Provisional fill is deferred.** Colouring the remaining genuinely unresolved ownership (2.4 km
-   on Tims) with neighbours' tokens or road-class baselines is not decided here. It is re-proposed,
-   if at all, after Decisions 2 to 4 have landed and the grey has been re-measured, with the
-   `provisional_estimate` provenance already reserved for it.
-6. **Scoring stays truth-only.** The canonical score, the rigid score ledger and the provisional
-   risk per mile keep their current inputs. A score computed from bridged or estimated intervals
-   would be a fabricated number, which is what the fail-closed design exists to prevent. Coverage
-   is reported next to every score.
-
-## Expected effect, from measurements
-
-- Tims Fresh 100 (101.1 km): grey 5,068 m today. After Decision 4 (the towpath way and the sub-metre
-  slivers, if the builder fix covers them): about 1,600 m less. After Decision 3 at 50 m: 299 m
-  drawn as bridged. Remaining honest grey: about 3.1 km, of which 2.4 km is unresolved ownership
-  between different ways, the target of separate owner-solve work (family resolution, topology
-  veto), not of this ADR.
-- Every partial card names its way.
-
-## Alternatives considered
-
-- **Massage in the consumer**: reconstruct missing intervals by proximity in the app. Rejected: the
-  projection contract forbids it, it cannot be receipted, and the live lane is not where partial
-  paint is produced today (record, Finding 27: the observed fresh browser loads did not paint; the
-  cause is not established, see the record's correction to that finding).
-- **Colour every gap from neighbours**: rejected for now (Decision 5), because on Tims it would
-  paint 2.4 km of ownership the truth lane could not resolve between different ways, with no way for
-  the rider to tell.
-- **Score off the presentation lane**: rejected (Decision 6).
-
-## Consequences
-
-- The partial artifact grows an additive `displayFacts` field per owner partition and an additive
-  `provenance` field per paint interval; both are versioned (`p7-persisted-partial-route-paint.v3`)
-  and validated by the existing fail-closed validators; v2 artifacts stay readable.
-- Published artifacts are re-compiled and re-published under the owner-approved manifest to pick up
-  Decisions 2 to 4.
-- Rider-facing wording changes (card facts, the bridged treatment and its legend) are human-gate
-  items and are listed in the ticket. Gate decision 2 later declined the legend row and moved the
-  seam wording to the inspect panel.
-
-## Gate items
-
-- Accept the four provenances and the rule that only `certified` reaches a score.
-- Accept the 50 m seam bound and the exclusion of topology-vetoed gaps.
-- Accept the rider-facing wording for card facts and the bridged treatment.
-- Confirm that Decision 5 stays out of scope until re-measured.
-
-## Addendum, 2026-09-27, after PR #66's diagnosis: Decision 4b, resolve projection ambiguity by continuity instead of vetoing the way (accepted by Derek, in session: "fix the problem, not paper over it")
-
-### What PR #66 established, verified in the code on `main` at `95a62540`
-
-- The geometric projection of a source way onto the route axis samples the route every 15 m and,
-  at each sample, collects the way's segments within 50 m laterally and 35 degrees of undirected
-  heading (`ROAD_IDENTITY_ROUTE_PROJECTION_POLICY_V1`). When those segments form two or more
-  disjoint runs along the way (`hasMultipleDisjointOrdinalRuns`), the sample is marked ambiguous,
-  and **one ambiguous aligned sample anywhere vetoes the whole way** (`if (sawAmbiguous) return
-  unresolved 'ambiguous_route_binding'`), discarding every accepted run. A towpath following a river
-  meander puts two of its own legs, anti-parallel, within 50 m of one route point; direction is
-  ignored, so it trips this on itself and loses all 1,979 m (way 39053551).
-- The whole-route P7 solve seals ownership for that way anyway (partition, confidence high) but
-  builds no recovery projections, so the way stays unresolved road identity with no admitted span and
-  no route occurrence (PR #66's code path, verified).
-- The veto is not one function. It is copied into seven projection modules under
-  `src/lib/source-projection/`: road identity, path domain, bike infra, speed limit, shoulder, road
-  context and traffic, each with its own policy version and its own `sawAmbiguous` veto. The same
-  meander therefore also removes the way's path-domain proof, which is what makes the neighbouring
-  towpath ways safe-path blue.
-- Size of the class: resolved-owner partitions without an occurrence are 110 / 3,501 m on Tims and
-  294 / 30,058 m on Capitol (PR #66's baseline tables); the share carrying `ambiguous_route_binding`
-  against `no_sustained_aligned_overlap` is reported by EXEC-066 A step 1.
-
-### Why the owner-anchored recovery (the earlier Decision 4a) is withdrawn
-
-It would restore identity and an occurrence from the owner receipt, but the other six projections
-of the same way would still be vetoed, so the towpath would most likely paint as a road on baselines
-instead of as a safe path. That papers over the defect. 4a is **not accepted**; it stays on file only
-as a possible later measure for the `no_sustained_aligned_overlap` residue, which continuity cannot
-help, and would need its own gate then.
-
-### Decision 4b (accepted)
-
-1. **Continuity, not veto.** In all seven projection modules, an ambiguous sample is resolved by
-   continuity: among its disjoint runs, take the run containing the segment ordinal nearest to the
-   ordinal chosen at the nearest resolved aligned sample within `maximumContiguousGapM` (30 m) along
-   the route, first looking back, then, for the leading samples of a run, looking forward; the
-   winner must be unique. Within the chosen run the segment is the best lateral offset, as today.
-2. **What stays unresolved, amended after PR #66's first implementation.** A sample with no
-   resolved neighbour to anchor to, or with two runs equally near, stays ambiguous and breaks the
-   run at that point. Chosen ordinals within a run are **not** required to be monotonic: the first
-   implementation rejected any run whose ordinals stepped back, and on Tims that discarded 4,081 m
-   of correctly projected towpath because a route point near a segment junction picks the
-   neighbouring segment by a marginally smaller offset (ordinal sequences such as `0,0,1,1,0,0,…`,
-   `…12,12,11,11,12` and `1,1,…,0,0,1,…`, measured on the committed Tims axis). The rule is instead a
-   **regression tolerance of one ordinal**: track the furthest ordinal reached in the run's
-   direction; a chosen ordinal one behind it is jitter and stays in the run; a cumulative regression
-   of two or more ordinals against the run's direction is a genuine reversal, and the run is
-   **split** at the sample where the regression began, so an out-and-back on one way yields two
-   intervals, one per traversal. Runs are never rejected for monotonicity alone. Existing
-   minimum-samples and minimum-length rules then apply to every resulting run unchanged.
-3. **Verdict per way.** `ambiguous_route_binding` is returned only when no run survives and at least
-   one sample stayed ambiguous; `no_sustained_aligned_overlap` when no run survives without any;
-   otherwise `projected`, with two new stats, `ambiguousResolvedSampleCount` and
-   `ambiguousUnresolvedSampleCount`, and the rejected-run count including runs rejected for
-   ambiguity.
-4. **Versioning.** Each of the seven policies moves to its next version in lockstep with no new
-   tunables (six to `.v2`; traffic, whose `.v2` already names its finite-endpoint semantics, to
-   `.v3`); the receipts and digests that embed the policy version change, so every artifact is
-   recompiled. Earlier snapshots stay readable by the existing version check. **Bounded exception,
-   granted:** the two protected files that pin the traffic policy by version,
-   `build-runtime-canonical-evidence-ledger.ts` (its four traffic V2 references) and
-   `truth-selection/traffic/owner-route-reference-association.ts` (its two), may change those
-   reference lines and nothing else, so the lockstep bump reaches traffic; the diff of each file must
-   show only those lines.
-5. **The hidden dependency is verified, not assumed.** The windowed P7 refinement reads a nearby
-   way's `ambiguous_route_binding` as a competition signal (`ambiguousCompetitor` in
-   `prehydrated-p7-road-identity.ts`) and as recovery eligibility (`eligibleP5Failure`). Fewer
-   ambiguous ways can change its owner recoveries. The P7 gate suites must pass, and the owner
-   partitions and owner gaps on Tims and Capitol are compared before and after; any change is
-   explained in the builder report, not waved through.
-
-### Expected effect
-
-On Tims the towpath way (26.953–28.932 km) should project in all seven modules, gain an occurrence,
-and paint safe-path blue like its neighbours; the resolved-owner-without-occurrence class should
-fall by whatever share step 1 attributes to ambiguity, on both routes. Numbers are read from the
-after artifacts, never predicted in the report.
-
-### Gate items
-
-- Accepted: the continuity rule and its unresolved cases (Decision 4b.1 to 4b.3), with 4b.2 as
-  amended (regression tolerance, split not reject) after PR #66's first implementation.
-- Accepted: the lockstep policy bump and fleet recompile (4b.4), including the bounded exception
-  for the two traffic policy references.
-- To confirm on the implementing PR: the before-and-after owner comparison (4b.5) shows no
-  unexplained change.
-
-## Gate decisions (Derek, 2026-09-28, in session)
-
-1. **Seam treatment on the map:** accepted as built, the token colour at 55 % opacity with `4 3`
-   dashes.
-2. **Seam wording:** rider wording, and only in the inspect panel; no seam sentence on the road card
-   and no legend row. A seam is tens of metres; the card is not the place. Provenance tokens
-   (`seam_bridged`, `receipted_fact`) stay off rider surfaces by the same rule.
-3. **Receipted facts on partial cards:** accepted as built (name · type · surface); a known surface
-   is always shown.
-4. **Provisional scores moving with certified paint** (Tims 14 → 16, Capitol 3 → 6): acknowledged
-   as a consequence of Decision 6, not a change to scoring; scores are not frozen.
-5. **Landing order:** this ADR, EXEC-066 and the record land on `main` before PR #66.
-6. **Republication after merge:** Tims and Capitol first, the remaining manifest routes the same
-   day; the app and the read proxy deploy together, since v3 needs both.
-7. **Run direction from sustained movement:** a separate ticket immediately after PR #66
-   (EXEC-066 §7).
-8. **The next truth work:** decided 2026-09-28, in session: every truth rule first, then one fleet
-   compile of the 2,801 source-cached routes, then the live lane of ADR-065 ("it makes no sense to
-   rerun 3000 routes several times"). The measured truth-rule backlog is in the record's section of
-   the same date.
-
-
----
-
-## Source File: docs/03-adrs/adr-067-owner-gap-truth-rules.md
-
-# ADR-067 — Owner-Gap Truth Rules for the Sealed Exact-Topology Overlay: Medium Family Corroboration, Direction-Legal Carriers, and Divided-Road Disambiguation
-
-**Status:** R1, R2 and direction-only R3 approved for implementation and isolated validation by the amended architecture gate (2026-10-09); R4–R6 remain proposed. Original proposal: 2026-10-01. This is a truth-lane change to route ownership, so it needs the
-human gate (Derek) and the architecture gate (ChatGPT) before any implementation. Nothing here
-changes code, artifacts, policies or published routes.
-
-**Owner question this answers:** Derek's decision 8 ("every truth rule first, then one fleet
-compile"; recorded in `docs/04-execution/reports/p7-full-cutover-overnight-20260924.md`, "Decision 8
-resolved"). This ADR takes the largest item of the measured backlog, the owner
-gaps (97 % of grey on Tims and Capitol), and proposes the rules that close them, each with its
-measured effect and its risk.
-
-## Context
-
-A partial route is grey wherever the whole-route owner solve leaves an owner gap. The sealed
-exact-topology owner overlay (`sealed-p7-exact-topology-owner-overlay.ts`) is the second chance:
-for every interval the direct P7 selection left unresolved, it asks, in this order,
-
-1. is the interval a declared material gap (`material_gap_declared`);
-2. does an ordered-closure safety veto cover it (`material_context_topology_veto`), unless the veto is
-   a sustained context carrier that is itself the one exact owner;
-3. is there exactly one sealed exact-topology owner (`exact_topology_owner_unavailable` otherwise);
-4. is the interval contained by exactly one **HIGH**-confidence ownership family from the route
-   identity kernel (`family_owner_unresolved` otherwise);
-5. is the exact owner a member of that family (`exact_owner_outside_family` otherwise).
-
-Only an interval that passes all five is corrected. The record's backlog table measured the classes
-on PR #66's head; this ADR explains them.
-
-### Method
-
-The PR #66 revision 5 compiler bundle (`03b751f5`; the overlay is unchanged on `main` at
-`95a62540`) was copied and given a read-only diagnostic hook. For every unresolved interval, the
-hook writes:
-
-- the overlay's verdict and detail;
-- the sealed exact-topology partitions and runs around it;
-- the ordered-path blockers;
-- the family atoms, with their confidence and way sets;
-- the ordered-closure diagnostics, with their evidence;
-- the kernel ownership span that contains it;
-- the alternative way sequences behind each `multiple_ordered_way_sequences` rejection, with the
-  direction of every traversed segment;
-- the OSM tags of every material way.
-
-Tims (`50c803c5`) and Capitol (`26cde7f7`) were compiled with `compile-one --bundle-out`: no
-publication, 0 database writes, 0 grid writes.
-
-The hook changes no decision:
-
-- the class totals equal the record's backlog table to the decimetre on both routes;
-- on Tims, a pristine compile of the same compiler gives identical paint, owner partitions and
-  gaps.
-
-The effects below are **simulated**, by replaying the overlay's decision on the captured inputs with
-each rule switched on. They are estimates for the implementing PR to confirm, not results.
-
-**Evidence.** Every figure in this ADR can be recomputed from
-`docs/04-execution/reports/fixtures/adr-067/`, which holds:
-
-- one compact capture per route: the unresolved intervals with every decision input, the alternative
-  sequences, the micro-kink carriers, and the OSM tags of the ways they reference;
-- `simulate.py`, which replays the rules: run
-  `python3 simulate.py tims-overlay-capture.json capitol-overlay-capture.json`;
-- `tables.py`, which recomputes the Findings tables.
-
-The instrumented compiler is retained outside the repository. It is not a release package:
-
-- its SHA-256 is `c72500f6fc41026acd6cc59d0e94c2f922ca31ee72ece81d1fc0b5d2baebda4b`;
-- its base, the revision 5 bundle, is `9fa62bdff871f274981832ff39503b9456359cab02d276da1bb305c633e79c2c`.
-
-## Findings
-
-### 1. `family_owner_unresolved` is a medium-confidence family, not a missing one
-
-| | Tims | Capitol |
-|---|---|---|
-| class total | 1,715.6 m | 4,488.3 m |
-| family resolved at **medium**, unique exact owner **inside** the family | 1,645.8 m | 4,229.7 m |
-| family resolved at medium, exact owner outside the family | 69.8 m | 68.1 m |
-| family resolved at **low** | 0 | 190.5 m |
-
-Every interval in the class has exactly one sealed exact owner (the overlay checks that first). The
-family exists and agrees with that owner in 96 % of the class's metres on Tims and 94 % on
-Capitol; it fails only because it is not HIGH.
-
-What "medium" means here: the kernel (`route-line-v2/ownership-spans.ts`) gives a span the
-confidence of the transition that opens it. A transition located by a shared OSM node within 12 m
-of the route is high; a shared node further away, a route-apex boundary or a clamped boundary is
-medium. A span is also lowered to medium when one of its edges strays more than 30 m or 65° from
-the route samples. The medium spans on these routes are long named roads split into many OSM ways
-(Talmadge Road: 17 ways over 3.3 km; East Broad Street; Foothill Road) and trail segments whose
-entry was placed by a route-apex fallback. The diagnostic records each span's reason
-(`shared_osm_node_transition` or `accepted_ordered_path`) and boundary diagnostics; it does not
-attribute every medium span to boundary versus geometry, so that split is not claimed here.
-
-### 2. The topology vetoes are mostly carriers a bicycle could not legally use, or the other carriageway
-
-| veto reason | Tims | Capitol | what the evidence shows |
-|---|---|---|---|
-| `sustained_material_context_geometry_veto` | 200.0 m | 2,488.4 m | a competing carrier runs alongside. On Capitol 1,158.4 m are carriers the route could only ride **against** a one-way direction somewhere along their path: a one-way service road beside Dorsey Run Road (469.6 m), the other carriageway of Hollins Ferry Road (375.8 m), Park Circle Drive (222.9 m), Cathedral Street (60.1 m), Edmonston Road (30.1 m). Martin Luther King Jr. Highway (751.7 m) is ridden **with** its one-way flow beside a cycleway, a genuine alternative; the remaining 578.3 m are two-way roads and a trail. On Tims 150 m are sidewalks (`highway=footway`, `footway=sidewalk`, no bicycle tag) beside Grove Avenue and West Broad Street, and 50 m a one-way slip lane on Talmadge Road ridden with its flow |
-| `micro_axis_kink_competing_material_carrier` | 0 | 1,266.5 m | where the route drawing kinks inside a segment, another segment covers the kink. On Capitol the competitor is almost always the same road: the other side of E Street Northwest, Race Road, Hanover Road, the Rachel Carson Greenway Trail, and unnamed tertiary pairs |
-| `route_apex_sustained_competing_material_carrier` | 0 | 1,112.5 m | a competing path at a route apex; 120.3 m of it rides Cathedral Street against its one-way direction |
-| `multiple_ordered_way_sequences` | 530.1 m | 1,112.5 m | two complete ordered way sequences. On Tims both are the same street: every alternative rides one carriageway of a divided road against its `oneway=yes` (North Main Street way 1425001902, Mountain Boulevard way 703842002), and the with-flow sequence is unique. On Capitol the Rhode Island Avenue Trolley Trail splits the same way twice (way 1207782766 is ridden against `oneway=yes`); of the three detours, a footway loop at West Mount Vernon Place and a service-road loop off Annapolis Road revisit a way, and the Warner Street detour has two legal sequences |
-| `route_apex_handoff_adjustment_bound` | 60.0 m | 481.1 m | a proof budget of one route-apex handoff adjustment per path; the rejected paths needed two |
-| other (`multiple_directed_source_traversals`, `reverse_route_coverage_incomplete`) | 0 | 350.8 m | not examined in this ADR |
-
-### 3. `exact_topology_owner_unavailable` is OSM topology, and stays
-
-Tims 461.1 m, Capitol 2,928.8 m, all with **zero** exact owners. Capitol has 112 such intervals,
-median 10 m, longest 247 m. The sealed runs on either side are on target ways, but the seam
-between them cannot be proven: no shared node projects into the window
-(`cross_way_exact_shared_node_unproven`), the same way does not continue in its node order,
-a run does not match its way's node list uniquely, or an ordered-path blocker
-(`path_discontinuity`) sits in between. They cluster on trails and at trail-road junctions
-(Johnson Drive and the D&R Canal on Tims). Short ones are already bridged for display by ADR-066
-Decision 3 where the neighbours agree; the truth lane has no evidence of which way carries them.
-No rule is proposed for this class.
-
-## Decision (proposed)
-
-Each rule is a separate gate item, and each bumps the version of the policy it changes:
-
-- **R1** changes the overlay policy (`SEALED_P7_EXACT_TOPOLOGY_OWNER_OVERLAY_POLICY_VERSION`).
-- **R2 to R6** change the ordered-closure policy (`ORDERED_EXACT_NODE_OWNER_POLICY_VERSION`).
-
-Both versions reach the persisted artifact:
-
-- The closure policy is part of the ownership policy recorded in
-  `policyAuthority.p7OwnershipPolicyDigest`.
-- The overlay policy version and digest are recorded in the owner-authority receipt, which the
-  artifact names in `displayHandoff.ownerAuthorityReceiptId`.
-
-1. **R1 — Medium family corroboration.** In step 4, accept a family resolved at `medium` (never
-   `low` or `unresolved`) when exactly one sealed exact owner covers the interval, the owner is a
-   member of the family's way set, the interval is contained by that one family atom, and no veto
-   applies. The exact owner remains the only owner; the family only corroborates identity.
-   *Simulated effect: Tims 1,645.8 m, Capitol 4,229.7 m.*
-2. **R2 — A carrier the bicycle may not ride in that direction cannot veto.** A competing carrier in
-   `sustained_material_context_geometry_veto` or `route_apex_sustained_competing_material_carrier`
-   is discounted when its directed source segments traverse a `oneway=yes` way against its node
-   order (or `oneway=-1` along it) and the way has no `oneway:bicycle=no`. Every other competitor
-   still vetoes. *Simulated effect: Capitol 902.0 m alone, Tims 0. Capitol has 1,278.7 m of
-   wrong-way vetoes in all; the rest also fail a later step.*
-3. **R3 — Divided-road and detour disambiguation.** When the closure finds more than one ordered way
-   sequence, discard sequences that traverse a one-way way against its direction (same exemption as
-   R2) and sequences that revisit a way inside the gap; if exactly one sequence remains and it contains
-   the sealed exact owner, the interval proceeds to steps 3 to 5. *Simulated effect alone: Tims
-   510.1 m; Capitol 13.7 m, plus 246.0 m on one Trolley Trail split where the capture kept 64 of 80
-   paths (see Unknowns). With R1, Capitol adds a further 261.5 m on the other Trolley Trail split,
-   whose family is medium.* The owner check matters: on the Annapolis Road service loop (337.6 m) the
-   one remaining sequence does not contain the sealed exact owner, and the interval stays vetoed.
-4. **R4 — A sidewalk without bicycle access cannot veto (owner decision).** A competitor whose ways
-   are all `highway=footway` without a `bicycle` tag, or with `bicycle=no|dismount`, is discounted.
-   This is a legal and product judgement (sidewalk riding is permitted in some jurisdictions), so it
-   is offered, not recommended. *Simulated effect: Tims 150.0 m, Capitol 0.*
-5. **R5 — Two route-apex handoff adjustments per path.** Raise
-   `maximumRouteApexHandoffAdjustmentsPerPath` from 1 to 2. A resource ceiling, not a rule of
-   evidence; it needs a timing check. *Simulated effect: Tims 50.3 m, Capitol 114.4 m.*
-6. **R6 — A micro-kink competitor that is the same named road does not veto.** In
-   `micro_axis_kink_competing_material_carrier`, discount a competing segment whose way has the same
-   non-empty `name` and the same `highway` class as the owner's way. Unnamed competitors still veto.
-   *Simulated effect: Capitol 425.9 m alone, Tims 0.*
-
-Combined, all six: Tims 2,361.0 m of 3,069.7 m of unresolved intervals (77 %), all measured.
-Capitol 6,724.7 m of 14,559.5 m (46 %) measured, 6,970.7 m (48 %) with the inferred Trolley Trail
-interval. Without R3: Tims 1,850.8 m (60 %), Capitol 6,449.5 m (44 %).
-
-## Alternatives considered
-
-- **Lower the family requirement to "any resolved family".** Rejected: `low` families (190.5 m on
-  Capitol) come from midpoint transition boundaries with no source evidence of the handoff.
-- **Treat every one-way competitor as non-vetoing.** Rejected: riding with the flow (751.7 m on
-  Capitol) is legal, and those competitors are real alternatives.
-- **Bridge `exact_topology_owner_unavailable` seams in the truth lane by distance.** Rejected: it
-  would assert an owner across a join OSM does not record; display already bridges the short ones.
-- **Leave the vetoes as they are.** Possible, and safe; it forgoes about 1 km on Capitol that R2 and
-  R5 would close with evidence the closure already holds.
-
-## Consequences
-
-- The overlay and closure policy versions move, and an artifact shows which ones it was compiled
-  under (see Decision). One fleet compile follows all accepted truth rules (decision 8).
-- R1 changes ownership for intervals whose family is medium: those intervals become certified paint
-  and receive evidence; the provisional score of a route can move, as with ADR-066 Decision 6.
-- R2 and R4 introduce a dependency on OSM `oneway`, `oneway:bicycle`, `highway` and `bicycle` tags in
-  the truth lane; mis-tagged data can now admit or keep an owner.
-
-## Gate items
-
-- Accept, amend or reject R1 to R6 individually.
-- R4: decide whether sidewalks without explicit bicycle access are legal carriers for the product.
-- Confirm that `exact_topology_owner_unavailable` stays unresolved in the truth lane.
-
-## Unknowns
-
-- R3 on one Capitol interval (Trolley Trail, 19,724.9 to 20,015.6 m along the route; 246.0 m of
-  owned intervals): the capture kept 64 of 80 accepted paths. All 64 that use the second
-  carriageway (way 1207782766) ride it against `oneway=yes`, and the 80 paths have the same two way
-  sequences. So the 16 uncaptured paths are expected to change nothing. That is inferred from the
-  topology, not measured.
-- Which unnamed micro-kink competitors are the same road (R6 leaves them vetoing).
-- How each medium family splits between a medium boundary and stray edge geometry.
-- Whether the effects on two routes generalise to the fleet: the sample is two NJ/MD routes.
-
-## Amended architecture gate — 2026-10-09
-
-Derek relayed the architecture gate approving **R1, R2 and direction-only R3 for implementation and isolated validation**. This addendum controls over the original proposed wording and simulated figures above. It authorizes no merge or production activation.
-
-- **R1:** Preserve medium corroboration in receipts. Require a unique sealed exact owner, full containment in one eligible high/medium family atom, owner membership and no veto. Low/unresolved are ineligible. Do not broaden unrelated high-confidence gates. Report actual confidence causes, distinguishing initial 18 m / 45°, later-edge 30 m / 65°, boundary effects, combinations and explicit unknowns.
-- **R2:** Use one source-bound direction evaluator shared with R3. Honor `oneway:bicycle=no` and legacy `cycleway=opposite*`, `cycleway:left=opposite*`, `cycleway:right=opposite*`. Exclude only proven-forbidden traversals of explicit `oneway=yes` / `oneway=-1`; uncertainty retains competitors. Do not remove whole ways or stop after excluding the first witness.
-- **R3:** Count distinct directed sequences without losing surviving path realizations. Zero or multiple survivors refuse. One survivor still requires sealed-owner membership and every applicable subsequent proof. Incomplete searches cannot establish uniqueness. The original repeated-way/revisit exclusion is withdrawn; no blanket revisit exclusion is authorized.
-- Version policies and receipts; distinguish eligible sets, exclusions and performed work, and preserve historical identities. Validate Dam plus the 17 working routes with matched inputs and complete ownership, coverage and risk deltas. Keep native 1,024-record and experimental Dam 2,048-record package identities separate.
-- #90 finding A is satisfied **as disclosed evidence**, not a renamed historical receipt. M remains unresolved; B/C/D and capacity remain separate gate matters. No R4–R6, raised shipping limits, proximity ownership, merge, publication, deployment, pin changes or production activation.
-
-The explicit one-way source dependency is a bounded safety risk: a wrong sealed OSM restriction can exclude a real competitor. This gate does not certify reverse-route legality, contraflow completeness or real-world bicycle access. Implementation and independent review must report the measured fleet outcomes; the old simulated gains are not acceptance claims.
-
-## Bounded PR #93 gate correction FG-93-01 — 2026-10-10
-
-The architecture gate returned **REQUEST CHANGES** on documentary head `2974b3ee8fc9e14af4a951b73ec6ad4f4474aaec`, runtime `62a5991fc2a983d657bfeac2da804673569c8ea0`. Static direction exclusions ignored conditional direction evidence. The authorized correction retains a traversal whenever relevant conditional direction evidence cannot be evaluated, including malformed-but-present evidence; preserves its tags and explicit uncertainty reason in versioned receipts; and adds shared-evaluator and R2/R3 integration tests, including a later conditional competitor after an earlier forbidden witness. No time-dependent routing engine is authorized. Static controls remain.
-
-The gate requires the combined raw-trim proof → positional overlay cases, including right-trim/apex and supported rounded-endpoint adjustment, without relaxing any downstream proof, tolerance or limit. Rebuild exact packages and repeat all 18 attempts on matched inputs; preserve the previous measurements and report conditional exclusions/ownership/paint/risk deltas. Native 1024 and experimental Dam 2048 remain separate. Crush/One Tributary material repair is outside this correction; unavailable stays unavailable. Return exact-head tests, scope, paired deltas and independent Claude review for re-gate.
-
-The gate resolves the prior interpretation questions: **B1** is approved as a scoped hard zero-survivor refusal after complete search and valid exclusions; **N2** is approved for the existing finite complete supporting path, including certification flanks, with distinct exclusion/counting domains retained. **R1** is accepted within its narrow scope. Raw partition count is defensive bookkeeping, not independent geometry proof. These resolutions are not merge authorization.
-
-No merge, production, publication, pin change, raised shipping limits, R3 revisit filtering, R4–R6 or proximity ownership is authorized. #90 M, B/C/D and shipping capacity remain separate gate matters.
-
-### Correction scope and retained evidence limitations
-
-The conditional rule covers `oneway:conditional`, `oneway:bicycle:conditional`, `oneway:vehicle:conditional` and `cycleway[:left|right|both][:oneway]:conditional`. A vehicle-wide condition is relevant to bicycles in the [OSM transport-mode hierarchy](https://wiki.openstreetmap.org/wiki/Key:access#Transport_mode_restrictions). It is retained without evaluating its time or syntax, including an empty value. Speed and motor-vehicle-only conditions are not evaluated as bicycle direction conditions. Conditional evidence takes receipt-reason precedence over a simultaneous static bicycle exception; the tags preserve both and the traversal remains eligible.
-
-The FG-93-01 runtime `5d837d8b` did not extend the original static exception set. Its omission of modern static cycleway direction evidence is addressed by C-1 below, not retroactively repaired in that identity. Static `oneway:vehicle`, static motor-vehicle hierarchy tags and directional bicycle access conditions (`bicycle:forward/backward:conditional`) remain uninterpreted. Directional bicycle access conditions can carry relevant permission and are not claimed irrelevant. Their effect on bicycle permission remains a separate gate item, not a repaired or certified capability. Missing/odd-value retention claims apply only to the enumerated keys, not to every OSM direction tag.
-
-Value-blind retention also covers a conditional value that merely repeats a restriction. As a competitor this can preserve a veto; as a sole owner traversal it can permit admission under the unchanged ordinary complete-path proofs. This is matching eligibility, not certification of bicycle legality or permission at a particular time. The paired sole-owner regression and the fleet's branch/exclusion deltas must disclose this consequence.
-
-The source digest checks bind evidence to the trusted owner-published material representation. The existing predicate accepts nullable per-object version/timestamp metadata when producer digests match; this correction does not change that boundary or certify external OSM authenticity. Claude's review raised stricter metadata checks as optional separate work. Preserve that finding and the earlier trusted-publisher limitations; do not describe them as repaired vulnerabilities.
-
-### Bounded reviewer correction C-1 — modern static contraflow evidence
-
-Claude's [independent review](https://github.com/dminner/lanterne/pull/93#issuecomment-6101252232) found modern contraflow evidence omitted from the shared evaluator. The bounded correction adds `cycleway:oneway` and `cycleway:left/right/both:oneway` to its exact receipted tag set. A value of `-1` or `no` retains the traversal as a bicycle exception; these permissions must not let car-only `oneway` evidence remove a competitor. Modern [contraflow tagging](https://wiki.openstreetmap.org/wiki/Tag:cycleway:left:oneway%3D-1) replaces deprecated `opposite*` tags. Unsupported or malformed present values, and `yes` conflicting with general `oneway=-1`, retain the traversal as uncertain. Explicit matching `yes` still permits the existing wrong-way exclusion. Unevaluated conditional evidence and failed source authentication keep their existing precedence.
-
-Version the evaluator/evaluation identities to v6, the closure to v19 and its audit to v6. Audit rows preserve the actual retained bicycle-exception evaluations and tags as well as the existing counts and conditional rows. This is matching eligibility, not time-specific permission or a legality certification. All subsequent geometry, completeness, bound, sealed-owner and positional-overlay proofs remain unchanged. Repeat the 18 matched attempts and preserve the prior packages, observations and historical review. This correction supplies implementation evidence for re-gate; it does not authorize merge or activation.
 
