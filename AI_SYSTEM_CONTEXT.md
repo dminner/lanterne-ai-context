@@ -18263,13 +18263,26 @@ The companion last-resort speed baseline is **10 MPH** under
 `selected-speed-input.ds029-ladder.track.v2`, also an estimate rather than a
 posted speed. The previous speed ladder remains unchanged. Higher-precedence
 source measurements still win. The
-proposed traffic policy is `traffic-selection.track-baseline.v4`, with the
+proposed traffic policy is `traffic-selection.track-designation.v5`, with the
 v2 table as its model/producer identity. Existing v1–v3 policies retain the
-v1 table and do not admit a track traffic candidate.
+v1 table and do not admit a track traffic candidate. The v4 preview policy
+remains an immutable comparison artifact; v5 adds the source-bound designation
+gate described below.
 
 Only source-bound `highway=track` may receive these baselines. A track with
 motor access permitted or unspecified remains in the motor-road risk domain;
-an explicit `motor_vehicle=no` plus no bicycle/access prohibition may establish
+however, an explicit `motor_vehicle=designated` means motor vehicles are
+specifically intended to use the way, not that only official vehicles may use
+it. On a same-source, route-bound interval with that tag, v5 withholds the
+20/day low-traffic track proxy. The road context and name remain available;
+stronger measured traffic may still be selected. If no traffic rung resolves,
+the interval stays unscored/grey rather than receiving green from the proxy.
+This does not infer a higher traffic count from the tag alone.
+See the [OSM tag definition](https://wiki.openstreetmap.org/wiki/Tag:motor_vehicle%3Ddesignated).
+An explicit `motor_vehicle=yes` does not make the track a separated path and
+does not by itself prove its actual traffic volume; the 20/day value remains
+subject to Derek's human gate even for that case.
+Only an explicit `motor_vehicle=no` plus no bicycle/access prohibition may establish
 the existing separated path/MUP domain and its blue style. `bicycle=no` or
 forbidden general access blocks that path classification. No model input may
 create route ownership, fill an owner gap, or override a source prohibition.
