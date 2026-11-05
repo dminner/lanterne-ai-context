@@ -18296,6 +18296,37 @@ create route ownership, fill an owner gap, or override a source prohibition.
 This is a rider-facing scoring/safety change and requires Derek/ChatGPT gate
 approval before merge or deployment.
 
+#### L.4.2 Proposed low-exposure track policy (human gate pending)
+
+This proposal supersedes v5 as the **live** track policy while preserving v1–v5
+unchanged for receipt replay and comparison. The versioned
+`ds015-highway-class-proxy-effective-right-lane-aadt.v3` table copies all
+fourteen v1 rows and sets `highway=track` to **5 effective right-lane
+vehicles/day**. `selected-speed-input.ds029-ladder.track.v3` sets a last-resort
+track speed of **8 MPH**. Both values are product model assumptions, not
+measurements or universal claims about track access or safety. The live runtime
+selects `traffic-selection.track-low-exposure.v6` and the v3 speed ladder.
+Higher-precedence observed evidence wins; a selected speed over 10 MPH or
+effective right-lane traffic over 20/day cannot receive the low-exposure track
+paint. An exact source-bound `highway=track` owner is required. A designation
+tag alone is not a measured vehicle count and no longer vetoes the class proxy.
+Explicit motor prohibition continues to use the existing separated-path rule;
+`bicycle=no` or forbidden access does not establish path proof.
+
+A motor-accessible track with accepted owner, selected low exposure inputs,
+and a `low` computed risk token receives **dashed blue** route paint. This is
+the track low-exposure presentation category; **solid blue** remains the
+separated-path category. The track is still scored in the motor-road domain:
+its road risk is **positive**, its miles enter total scored distance, and its
+risk contributes to total risk and risk per mile. No presentation token changes
+the scoring formula or promotes a partial display owner into certified route
+truth. Unresolved owner gaps remain grey and cannot dilute a whole-route
+average. In the current DS-015 traffic-factor table, positive values from 1 to
+500 share the same factor floor. The change from 20 to 5 therefore changes the
+modeled input and provenance, but does not by itself lower the numeric score.
+The dashed-blue category is a distinct, explicitly modeled rider presentation,
+not a claim of observed traffic or a zero-risk path.
+
 ### L.5 Highway Baseline identity (separately typed)
 
 - **selection class:** `highway_baseline`
