@@ -18250,83 +18250,6 @@ AADT**.
   (`src/shared/scoring/ds015-contract.ts`). The code is evidence of the previously
   implicit table; this amended DS-029 appendix is the authority.
 
-#### L.4.1 Proposed track-baseline amendment (human gate pending)
-
-The v1 table above remains immutable. The proposed
-`ds015-highway-class-proxy-effective-right-lane-aadt.v2` copies all fourteen v1
-rows unchanged and adds exactly `highway=track` at **20 effective right-lane
-vehicles/day**. This is a low-confidence model input, not a traffic count, posted
-limit, or claim that every track receives that volume. It is chosen as a
-nonzero working estimate below the previously discussed 100/day;
-the existing DS-015 traffic-factor floor makes both values score identically.
-The companion last-resort speed baseline is **10 MPH** under
-`selected-speed-input.ds029-ladder.track.v2`, also an estimate rather than a
-posted speed. The previous speed ladder remains unchanged. Higher-precedence
-source measurements still win. The
-proposed traffic policy is `traffic-selection.track-designation.v5`, with the
-v2 table as its model/producer identity. Existing v1–v3 policies retain the
-v1 table and do not admit a track traffic candidate. The v4 preview policy
-remains an immutable comparison artifact; v5 adds the source-bound designation
-gate described below.
-
-Only source-bound `highway=track` may receive these baselines. A track with
-motor access permitted or unspecified remains in the motor-road risk domain;
-however, an explicit `motor_vehicle=designated` means motor vehicles are
-specifically intended to use the way, not that only official vehicles may use
-it. On a route interval bound to that exact OSM way (system, record type, ID,
-and version), v5 withholds the 20/day low-traffic track proxy. This includes
-path-domain evidence whose geometry projection is unresolved when P7 still
-proves the owner way; an ID collision from another source cannot veto it.
-The road context and name remain available;
-stronger measured traffic may still be selected. If no traffic rung resolves,
-the interval stays unscored/grey rather than receiving green from the proxy.
-This does not infer a higher traffic count from the tag alone.
-The 10 MPH speed estimate may still be selected on such a track, so the road
-card can show that estimate while risk paint remains grey for missing traffic.
-Whether motor designation should also weaken the speed estimate remains a
-human-gate model question.
-See the [OSM tag definition](https://wiki.openstreetmap.org/wiki/Tag:motor_vehicle%3Ddesignated).
-An explicit `motor_vehicle=yes` does not make the track a separated path and
-does not by itself prove its actual traffic volume; the 20/day value remains
-subject to Derek's human gate even for that case.
-Only an explicit `motor_vehicle=no` plus no bicycle/access prohibition may establish
-the existing separated path/MUP domain and its blue style. `bicycle=no` or
-forbidden general access blocks that path classification. No model input may
-create route ownership, fill an owner gap, or override a source prohibition.
-This is a rider-facing scoring/safety change and requires Derek/ChatGPT gate
-approval before merge or deployment.
-
-#### L.4.2 Proposed low-exposure track policy (human gate pending)
-
-This proposal supersedes v5 as the **live** track policy while preserving v1–v5
-unchanged for receipt replay and comparison. The versioned
-`ds015-highway-class-proxy-effective-right-lane-aadt.v3` table copies all
-fourteen v1 rows and sets `highway=track` to **5 effective right-lane
-vehicles/day**. `selected-speed-input.ds029-ladder.track.v3` sets a last-resort
-track speed of **8 MPH**. Both values are product model assumptions, not
-measurements or universal claims about track access or safety. The live runtime
-selects `traffic-selection.track-low-exposure.v6` and the v3 speed ladder.
-Higher-precedence observed evidence wins; a selected speed over 10 MPH or
-effective right-lane traffic over 20/day cannot receive the low-exposure track
-paint. An exact source-bound `highway=track` owner is required. A designation
-tag alone is not a measured vehicle count and no longer vetoes the class proxy.
-Explicit motor prohibition continues to use the existing separated-path rule;
-`bicycle=no` or forbidden access does not establish path proof.
-
-A motor-accessible track with accepted owner, selected low exposure inputs,
-and a `low` computed risk token receives **dashed blue** route paint. This is
-the track low-exposure presentation category; **solid blue** remains the
-separated-path category. The track is still scored in the motor-road domain:
-its road risk is **positive**, its miles enter total scored distance, and its
-risk contributes to total risk and risk per mile. No presentation token changes
-the scoring formula or promotes a partial display owner into certified route
-truth. Unresolved owner gaps remain grey and cannot dilute a whole-route
-average. In the current DS-015 traffic-factor table, positive values from 1 to
-500 share the same factor floor. The change from 20 to 5 therefore changes the
-modeled input and provenance, but does not by itself lower the numeric score.
-The dashed-blue category is a distinct, explicitly modeled rider presentation,
-not a claim of observed traffic or a zero-risk path.
-
 ### L.5 Highway Baseline identity (separately typed)
 
 - **selection class:** `highway_baseline`
@@ -21053,6 +20976,31 @@ Limits of this frontend display-floor guard vs the full offline substrate simpli
 - The guard does not reproduce historic corridor salience/importance scores, junction-connector promotion, selected/critical primary-connector rules, exceptional-track promotion at 11, or graph-connected residential continuity. Unavailable historical salience stays unavailable rather than being guessed.
 - z14 was a cache-candidate preview and sizing layer, not a central serving contract. Using 14 as a display floor here does not activate a z14 serving contract.
 - Eligibility is not acquisition completeness. Full-cell acquisition, the cache, profiles, render budgets and ranking, palettes, widths and hit tolerances are unchanged by this gate.
+
+### 9.5.1 Dated exception — all-zoom standalone paths and tracks (MAP-BIKE-SOLID-03, 2026-10-24)
+
+The table above stays the historical record of the 2026-10-13 gate. It is not rewritten. This exception was authorized by Derek on 2026-10-24 (phase issue #291, ticket `docs/04-execution/map-bike-solid-20261024-ticket.md`, architecture commit `7c79d87da`). It supersedes the z10 display floor **only** for the two classes below:
+
+| Floor | Display class | Qualification |
+| ---: | --- | --- |
+| every supported zoom (`VIEWPORT_ALL_ZOOM_FLOOR`, Leaflet's 0) | `all_zoom_standalone_path` | a path-class way (cycleway, path, footway, pedestrian, bridleway) that the raw-tag candidate classifier returns as `safe_path`, **or** that the existing safe-path qualification (`isSafePathType`) accepts from the way's own tags and own measured length (its long shared-use path and long named paved trail composites) |
+| every supported zoom | `all_zoom_standalone_track` | a `highway=track` way that the candidate classifier returns as `gravel_track`, **or** a `highway=path` the same classifier returns as `gravel_track` through its existing named path–track bridge (review repair 2: painted as the dashed track kind; bike legality stays unproven, so never a confirmed path; its raw `highway=path` is untouched) |
+
+Rules:
+
+- The row must first pass every existing exclusion above: accepted viewport road, candidate access rejection, sidewalk and crossing.
+- The row is also never promoted with any of these: an explicit `bicycle`/`access` value of `no`, `private`, `dismount` or `use_sidepath`; explicit sidewalk or traffic-island tagging; a crossing connector. Such a row keeps the class the table above gives it.
+- These do not promote a row: the `isSafePath` flag alone, or a name alone outside the classifier's own bridge rule. A pure or generically named path that the classifier does not admit keeps its existing floor. (Review repair, same day: the initial build also withheld the `isSafePathType` length composites, contradicting "all solo blues at any zoom"; an accepted 3.3 km unnamed paved path was solid blue at 15 and hidden at 3. Those composites are accepted standalone paths and are now all-zoom too, decided by the way's own length.)
+- Every other floor is unchanged: protected cycle corridors and primary connectors stay at 10, and motor roads keep 10–14.
+- In the speed overlay's legacy (bbox) branch, these two classes skip ONLY the legacy display gates that would re-hide them: the per-highway zoom/density floor, the heatmap-radius speed-class ceiling, old-blue eligibility, green suppression and the 1-mile short-blue-fragment suppressor (whose helper is unchanged; its `preserve` hook keeps them). The display band, the shared flagged-stub rule, access, sidewalk, crossing and geometry exclusions still apply. Every other row is filtered exactly as before.
+- Presentation: a path is a SOLID blue line and a track is a DASHED blue line. Both are one thick single stroke on the way's own geometry. Solid versus dashed shows the raw accepted kind. It does not mean the speed is known, and it is not a measured safety score.
+- Both overlays dash with ONE law (`bikeFacilityDashArray`: `1.5w w` of the stroke's resting painted width `w`, butt caps), at any taper. Hover widens the speed core's weight and opacity only and keeps the resting dash pattern, so overlapping speed and eye strokes lay identical dashes at rest and while hovered.
+- The analyzed route's path core is decided by kind first: a separated path is solid and a track is dashed. It keeps its canonical colour and token. Motor-road estimated-speed dashes are unchanged.
+- Acquisition: below 10, the existing bounded overview read is used, admitting only these two classes. It uses the same complete broad tiles and the same cache, budget and streaming rules.
+  - A huge view's 0.05° tile inventory is counted arithmetically and is never enumerated.
+  - Such a view is read through a bounded, deterministic, world-fixed lattice of candidate tiles.
+  - It is always reported partial (`overview_inventory_partial`), even when every selected tile is answered.
+- The backend P7 eligibility port is not changed. It is a frozen transcription whose consumers read null versus non-null only; every all-zoom row was already non-null in the base table. Its parity test maps exactly this exception back to the base table (`classifyViewportDisplayBaseBand`).
 
 ---
 
@@ -40962,6 +40910,80 @@ inputs exist.
 
 ---
 
+## Source File: docs/02-architecture/design/focus-overlay-ux.md
+
+# Focus Overlay UX
+
+Date: 2026-10-24
+Status: implemented locally; independent review and final merge gate pending.
+First implementation: UX-SEARCH-01, destination and origin search.
+
+## Purpose
+
+A reusable, explicitly opened full-screen surface for one focused entry or selection task. Derek requested a mostly opaque grey backdrop, large bold text, and one central CSS definition so later adopters change together. It follows the simplicity principle in `docs/01-philosophy/phl-002-product_principles.md`.
+
+This is a presentation primitive, not a new runtime mode or authority. DS-016 experience policy continues to govern when an interaction is appropriate. Do not automatically open it for in-motion guidance, warnings, or unsolicited prompts. Existing flows are migrated only when explicitly scoped.
+
+## One shared styling contract
+
+`src/components/FocusOverlay.tsx` owns the modal structure and behavior. The **Shared Focus Overlay UX** block in `src/index.css` owns its visual appearance:
+
+- `.focus-overlay` and `.focus-overlay__backdrop`: viewport surface and grey backdrop.
+- `.focus-overlay__header`, `__navigation`, `__eyebrow`, `__title`, `__description`: common heading structure.
+- `.focus-overlay__body`, `__options`, `__option`, `__detail`, `__icon-button`: scrollable task content, choices, and controls.
+- `--focus-overlay-background`, `--focus-overlay-opacity`, `--focus-overlay-foreground`, `--focus-overlay-muted`, `--focus-overlay-border`, `--focus-overlay-width`, `--focus-overlay-gap`, `--focus-overlay-title-size`: central visual tokens.
+
+Consumers supply text, children, `onClose`, optional `onBack`, and a `returnFocusRef`. They must use the shared classes for options and content rather than copying colors, font sizes, or padding into each flow. Place search uses the shared `.location-search__*` classes in the same stylesheet.
+
+Example:
+
+```tsx
+<FocusOverlay
+  open={open}
+  eyebrow="Choose your origin"
+  title="Start where?"
+  description="Find a place or address."
+  onClose={() => setOpen(false)}
+  onBack={goBack}
+  returnFocusRef={triggerRef}
+>
+  <LocationSearch onLocationSelect={selectOrigin} viewportCenter={center} />
+</FocusOverlay>
+```
+
+Changing the central tokens/classes updates every adopter. Flow-specific business logic remains with the caller.
+
+## Shared behavior
+
+The component portals to the document body at `UI_Z.MODAL`, escaping map/drawer transforms and clipping. Radix Dialog provides the modal focus trap, Escape dismissal, background accessibility isolation, and scroll lock. A supplied trigger ref restores focus on close, including Safari touch clicks that do not naturally focus buttons.
+
+The overlay follows `visualViewport.height`, width and offsets on viewport resize/scroll, with window dimensions as fallback. These geometry properties stay local to the overlay and do not change the map/root viewport sizing. The header compacts when the available visual viewport is below 550px. Search keeps its input above its independently scrolling results.
+
+Back steps through the current task; Close returns to the existing selected destination. Closing never creates a route. GPS failure stays explicit and permits retry/address entry. Late GPS or search responses cannot take ownership after the user changes task or query.
+
+## Bottom workflow actions
+
+`BottomActionStrip.tsx` and `.bottom-action-strip*` define the full-width bottom workflow surface. Search selection actions and existing analysis/drawing/edit cancellation use it. `Index.tsx` suppresses competing bottom map chrome while search selection actions are eligible. It is absent when no owning workflow needs it.
+
+The standalone floating search card no longer renders. `SearchPinCard.tsx` retains its filename as the controller for selection actions and origin/detail phases.
+
+## Route marker presentation
+
+`createRoutePointIcon` is shared by the proposed search destination and committed GPX endpoints. It retains green start, red destination, and blue waypoint role colors. The proposal uses the destination role with a pulse; committed endpoints remain still. Reduced-motion preference disables the pulse. No color conveys a new safety or scoring claim.
+
+## Verification and limits
+
+Run the scoped tests listed in the UX-SEARCH-01 implementation report. Browser tests use a component harness and deterministic search fixtures; keyboard geometry is simulated through VisualViewport events. They do not certify a physical iPhone keyboard or the authenticated end-to-end route resolver.
+
+## Serving integration keyboard contract
+
+FocusOverlay publishes a wildcard through the established `data-consumes-keys` declaration. The shared keyboard-consumption predicate recognizes this entire-task scope even beneath a nested control with its own key list. Index's capture-phase map shortcuts and keyup handling stand down; the overlay stops bubbling without preventing native controls or Radix Tab/Escape handling. This is local to explicitly opened task content and disappears on close.
+
+The current RouteFunctionSurface supplies the search trigger ref to the shared acquisition seam, so closing destination search restores focus to the actual current Route Search button. No old where-to handle or obsolete panel wrapper is reinstated.
+
+
+---
+
 ## Source File: docs/02-architecture/design/p7-viewport-cache-reader-v1-proposal-20261011.md
 
 # P7 viewport road cache reader — contract proposal
@@ -47612,6 +47634,37 @@ Current behavior:
 - scoring, heatmap colors, and risk calculations are unaffected by user input
 - observations render only as display overlays in `TruthSection`
 - overlays are explicitly marked as `user_observation`
+
+## Amendment — 2026-10-24 (ROAD-FACT-02, issue #243): private personal paint and signed-in submission
+
+Direct product authorization from Derek, October 24, 2026. This amendment is narrow; everything
+above still holds except exactly the two points below.
+
+1. **Private, current-account map paint is allowed for speed and bike-lane corrections.** A signed-in
+   rider's own speed correction may colour that exact road with the shared speed colours, and their
+   own bike-lane correction may draw (or, for None, hide) the shared bike-facility patterns, on that
+   rider's map only. Conditions, all required:
+   - only the current account's own corrections; never a guest's, never another rider's, and retired
+     immediately on sign-out or account change;
+   - only on the exact OSM way the correction targets, on geometry the viewport overlays already
+     admitted under their own toggles, zoom bands and render budgets — no corridor, name or
+     nearest-road inference and no extra acquisition to paint a missing road; artifact-scoped route
+     segments do not paint;
+   - every personal stroke is non-interactive and visibly marked as the rider's own (card: "Yours",
+     unverified), so it can never be read as verified or shared truth;
+   - removing the correction (or Undo) restores the original paint;
+   - traffic and shoulder corrections never paint.
+   This paint is presentation only. It is not a heatmap input, and it does not change the canonical
+   or shared heatmap, scores, resolvers, caches, route artifacts or receipts.
+2. **Submissions require sign-in.** Corrections are sent to Lanterne only by an authenticated
+   account (following OpenStreetMap's account requirement); the server derives the actor from the
+   session. There are no guest submissions and no automatic upload of earlier browser-only reports:
+   those stay explicitly unsent until the rider sends one. A submitted correction is persisted
+   evidence awaiting review (`applied_to_canonical: false`); review metadata does not by itself
+   change canonical truth, scoring or shared paint.
+
+The prohibition on user input reaching the canonical resolver, scoring engine, shared heatmap,
+caches, artifacts and canonical receipts is unchanged.
 
 ## Design Principle
 
