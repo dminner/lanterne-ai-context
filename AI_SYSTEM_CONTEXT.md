@@ -18250,6 +18250,32 @@ AADT**.
   (`src/shared/scoring/ds015-contract.ts`). The code is evidence of the previously
   implicit table; this amended DS-029 appendix is the authority.
 
+#### L.4.1 Proposed track-baseline amendment (human gate pending)
+
+The v1 table above remains immutable. The proposed
+`ds015-highway-class-proxy-effective-right-lane-aadt.v2` copies all fourteen v1
+rows unchanged and adds exactly `highway=track` at **20 effective right-lane
+vehicles/day**. This is a low-confidence model input, not a traffic count, posted
+limit, or claim that every track receives that volume. It is chosen as a
+conservative nonzero working estimate below the previously discussed 100/day;
+the existing DS-015 traffic-factor floor makes both values score identically.
+The companion last-resort speed baseline is **10 MPH** under
+`selected-speed-input.ds029-ladder.track.v2`, also an estimate rather than a
+posted speed. The previous speed ladder remains unchanged. Higher-precedence
+source measurements still win. The
+proposed traffic policy is `traffic-selection.track-baseline.v4`, with the
+v2 table as its model/producer identity. Existing v1–v3 policies retain the
+v1 table and do not admit a track traffic candidate.
+
+Only source-bound `highway=track` may receive these baselines. A track with
+motor access permitted or unspecified remains in the motor-road risk domain;
+an explicit `motor_vehicle=no` plus no bicycle/access prohibition may establish
+the existing separated path/MUP domain and its blue style. `bicycle=no` or
+forbidden general access blocks that path classification. No model input may
+create route ownership, fill an owner gap, or override a source prohibition.
+This is a rider-facing scoring/safety change and requires Derek/ChatGPT gate
+approval before merge or deployment.
+
 ### L.5 Highway Baseline identity (separately typed)
 
 - **selection class:** `highway_baseline`
