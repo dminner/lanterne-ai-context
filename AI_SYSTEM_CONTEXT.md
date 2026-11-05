@@ -18273,11 +18273,18 @@ Only source-bound `highway=track` may receive these baselines. A track with
 motor access permitted or unspecified remains in the motor-road risk domain;
 however, an explicit `motor_vehicle=designated` means motor vehicles are
 specifically intended to use the way, not that only official vehicles may use
-it. On a same-source, route-bound interval with that tag, v5 withholds the
-20/day low-traffic track proxy. The road context and name remain available;
+it. On a route interval bound to that exact OSM way (system, record type, ID,
+and version), v5 withholds the 20/day low-traffic track proxy. This includes
+path-domain evidence whose geometry projection is unresolved when P7 still
+proves the owner way; an ID collision from another source cannot veto it.
+The road context and name remain available;
 stronger measured traffic may still be selected. If no traffic rung resolves,
 the interval stays unscored/grey rather than receiving green from the proxy.
 This does not infer a higher traffic count from the tag alone.
+The 10 MPH speed estimate may still be selected on such a track, so the road
+card can show that estimate while risk paint remains grey for missing traffic.
+Whether motor designation should also weaken the speed estimate remains a
+human-gate model question.
 See the [OSM tag definition](https://wiki.openstreetmap.org/wiki/Tag:motor_vehicle%3Ddesignated).
 An explicit `motor_vehicle=yes` does not make the track a separated path and
 does not by itself prove its actual traffic volume; the 20/day value remains
