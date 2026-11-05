@@ -18257,7 +18257,7 @@ The v1 table above remains immutable. The proposed
 rows unchanged and adds exactly `highway=track` at **20 effective right-lane
 vehicles/day**. This is a low-confidence model input, not a traffic count, posted
 limit, or claim that every track receives that volume. It is chosen as a
-conservative nonzero working estimate below the previously discussed 100/day;
+nonzero working estimate below the previously discussed 100/day;
 the existing DS-015 traffic-factor floor makes both values score identically.
 The companion last-resort speed baseline is **10 MPH** under
 `selected-speed-input.ds029-ladder.track.v2`, also an estimate rather than a
