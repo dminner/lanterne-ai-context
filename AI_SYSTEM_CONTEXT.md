@@ -53599,6 +53599,18 @@ Old semantic authority must not be labeled deprecated and left executable. It mu
 - ActiveTruthView is a mechanical projection, not a ledger, selector, scorer, cache, or independent read-model authority.
 - Presentation panes subscribe and render only.
 
+------
+
+## Proposed narrow amendment for blocked personal partial routes (2026-11-06)
+
+**Status: proposed for Derek/ChatGPT human safety and architecture gate on PR #378; not an accepted broad exception.** The already-serving Field Notes source `72e5fe2c6` has one additional call to `compileActiveTruthRouteExperience` in `p7-personal-partial-accounting.ts`. The original first-paint sole-consumer guard therefore fails on that source. This amendment records the behavior and its precise allowable boundary rather than calling the red guard green.
+
+When both the runtime and the rigid ledger are **blocked**, and the same-source partial owner projection, terminal core, truth bundle, and route axis match, the worker may run this second compiler call to obtain heatmap truth-segment geometry and selected ActiveTruth detail for certified partial intervals. Those details and the existing rigid-ledger trace feed a validated `riskAccounting` receipt for certified intervals. This is not merely diagnostic: its **provisional risk per scored mile and scored percentage can appear in the rider's private History**. Unknown intervals remain excluded and must not be presented as known risk. No new scoring formula or owner inference is authorized.
+
+This blocked-only result is distinct from the current-route canonical compiled commit. The worker must not return or persist the supplemental `compileResult`, route analysis, or canonical score. The receipt carries `canonicalScoreReady: false`, `routeTruthReady: false`, and `activeTruthReady: false`; the main-thread admission revalidates it against the current geometry and terminal core. Private History persistence requires the same owner, saved route axis, null canonical score/grade/risk columns, validated receipt, and compare-and-swap readback. It may publish provisional accounting only under those limits, never claim full-route or canonical score readiness, and never authorize public route or route-cache truth.
+
+The exception is exactly one additional consumer file, not permission for a second route-truth pipeline or for a presentation pane to compute risk. Ready and failed runtimes, or a ready rigid ledger, must not invoke the supplemental compiler or mint this receipt. The structural guard enumerates the three allowed compiler references and the false-ready boundaries; a runtime boundary test covers those rejected states. Any expanded consumer, changed readiness, changed accounting inputs, or public use requires a new human gate. The long-term consolidation target is a single compiled experience per route generation once blocked partial accounting can obtain certified interval details without this worker-local second compile.
+
 
 ---
 
