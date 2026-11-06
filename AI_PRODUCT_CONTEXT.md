@@ -5009,17 +5009,19 @@ It’s:
 
 # Event notes
 
-Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`.
+Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`. Editable pages also live at `/about`, `/reflectors`, and `/app`. Reflectors and App contain Derek’s approved introductory articles; About remains a “More soon.” starter page. The homepage continues to open the map application. Older links `/eyecatcher` and `/eyecatchers` redirect to `/reflectors`; `/lanterne` redirects to `/app`.
 
-## Add or edit a note
+## Add a note
 
-Edit `src/content/event-notes.ts`. Each entry defines its URL path, event label, browser title, description, paragraphs, signature, optional links, and optional media. Entries register their own routes through `src/App.tsx`; no separate page component is needed. Choose a unique path that does not collide with an existing application route.
+Add new pages in `src/content/event-notes.ts`. Each entry defines its URL path, event label, browser title, description, paragraphs, signature, optional links, and optional media. Entries register their own routes through `src/App.tsx`; no separate page component is needed. Choose a unique path that does not collide with an existing application route.
 
 The first note preserves Derek's supplied wording and Instagram destination. Its photo is stored at `public/assets/events/crcx-ride.jpeg`, so deployment does not depend on access to his Photos library.
 
+Printable direct QR assets are in `docs/05-product/assets/crcx-direct-qr.svg` and `.png`. They encode `https://lanterne.io/crcx` itself. The previously supplied sticker's QR uses a short-link provider and currently opens the homepage; replace that QR with the direct asset before printing.
+
 Set `intro: true` to open with the existing Lanterne intro film. CRCX enables this. Visitors tap play to hear the film, then the screen fades into the letter when it ends. A “Read the note” shortcut and Escape reveal the letter immediately. The letter remains accessible if the video fails to load. This mode omits the app's map-gesture tutorial and does not read or change `lanterneIntroSeen`; a fresh visit to the note starts with the film even for an existing app visitor. Omit `intro` for a note that opens directly on the writing.
 
-An image entry needs `src`, descriptive `alt`, and intrinsic `width` and `height`. An optional `caption` appears below the image. Images retain their full proportions.
+An image entry needs `src`, descriptive `alt`, and intrinsic `width` and `height`. An optional `caption` appears below the image. Images retain their full proportions. Optional `afterParagraph` places media before the writing (`0`) or after a numbered paragraph (`1` through the paragraph count). Omit it to keep the existing end-of-page placement. Optional image `align` is `full`, `left`, or `right`; left/right images wrap alongside the writing at widths of 700 px and above and become full width on smaller screens. Videos may be positioned in the writing and retain a full-width frame.
 
 Add a YouTube video to the `media` array using its eleven-character video ID:
 
@@ -5034,11 +5036,85 @@ Add a YouTube video to the `media` array using its eleven-character video ID:
 
 Replace the placeholder ID before publishing. Embeds use YouTube's privacy-enhanced host, lazy loading, a responsive 16:9 frame, and no autoplay. Multiple images, videos, and links are supported. Omit `media` or `links` for a plain letter. No additional YouTube video has been selected for CRCX.
 
+## Edit inline: draft, then publish
+
+Open `/crcx?edit=1` (or choose “Edit note” in the footer) and sign in. Signed-in users can edit and preview a private draft on their own device; only Lanterne administrators can publish. Click the writing to edit it directly. Paragraphs, signature, event name, links, image URLs/descriptions/captions, and YouTube videos can be changed in the page. Page details contains the browser title, description, and intro toggle. The registered URL stays fixed so printed QR codes keep working.
+
+Paragraphs support simple text formatting in Preview and the reader: start a paragraph with `#`, `##`, or `###` followed by a space for a heading; surround words with `**` for bold. Other text and HTML stay literal. The editor retains these markers in the source text.
+
+Choose **+ Insert photo** before the writing or after any paragraph, paste a photo URL, and supply its description. Every image has **Placement** and **Image layout** controls. Choose full width, left with text wrapping, or right with text wrapping. Existing photos can be moved from the end into the writing; removing a paragraph retains its images at the nearest preceding position. Preview uses the same ordering and wrapping as the published view. Images are added by URL; file uploads are not part of this editor.
+
+Typing saves a private draft in this browser's local storage, scoped to the signed-in user and page. Drafts do not sync between devices and are lost if browser storage is cleared. Preview shows the draft without publishing. For administrators, **Publish changes** explicitly publishes for everyone. Other signed-in users see a private-draft notice and a disabled Publish button. Discard restores the loaded live version. Failed publishing keeps the local draft. A newer live version blocks stale publication; inspect it before explicitly keeping the draft for a subsequent publish.
+
+Published overrides use the existing `app_config` table, key `event-note:published:/crcx`, value `{ version: 1, note }`. Existing public SELECT and administrator INSERT/UPDATE RLS policies remain the authorization boundary. No private drafts enter this publicly readable table. Writes require a verified session and use conditional updates on `updated_at` (or an initial insert) to detect competing publishes. No schema, policy, Supabase client, or backend changes are required. Only bounded plain content is accepted; published links require HTTPS and video embeds accept YouTube IDs from supported hosts. Invalid content cannot preview or publish.
+
+On load, a valid published override takes precedence over the checked-in default. Repository-authored copy may also be published through the normal frontend release process when no override exists; verify that boundary before releasing content. If public content cannot load, reading falls back to the bundled note; the editor blocks publishing until it can load the live version successfully. Removing an override intentionally requires an administrator/operator action outside this editor. New event paths still require a code release.
+
+The intro video has no overlaid Lanterne logo. The letter has no visible “A note from Derek” label; its event name remains an accessible heading.
+
 ## Scope and release
 
-This is a repository-authored publishing format, without a browser editor or CMS. Content updates follow the normal reviewed release process. The page reads without authentication, map controls, or loading the main route-analysis application. Reading pages restore browser scrolling and zoom without changing the map application's viewport contract.
+Content overrides publish without a frontend redeployment. The page reads without authentication, map controls, or loading the main route-analysis application. Reading pages restore browser scrolling and zoom without changing the map application's viewport contract.
 
-The shared layout is in `src/pages/EventNote.tsx` and `src/pages/EventNote.css`. Existing app routes and providers live in `src/MainApplication.tsx` and load when needed.
+The loader is `src/pages/EventNote.tsx`, the shared reading layout is `src/pages/EventNoteView.tsx`, and styles are in `src/pages/EventNote.css`. The editor is lazy-loaded only when requested. Existing app routes and providers live in `src/MainApplication.tsx` and load when needed.
 
 Public wording and claims remain subject to the human gate in `AGENTS.md`. Implementation validation does not certify a phase or authorize merging or production deployment.
+
+
+---
+
+## Source File: docs/05-product/prod-015-future-hazard-controls.md
+
+# PROD-015 — Future hazard controls
+
+**Status:** Future product/design catalog, 2026-10-07. These controls are not available in the current settings UI.
+**Owner:** Derek Minner
+**Decision:** Keep the current drawer compact and expose live controls only. Move planned controls into this catalog.
+**Related:** [PROD-011 Hazards System](prod-011-hazard_severity_model.md), [DS-028 Hazard Ingestion, Normalization, and Presentation](../02-architecture/design/ds-028-hazard_ingestion_normalization_and_presentation_spec.md), [compact drawer phase](../04-execution/compact-hazard-settings-phase-ticket.md).
+
+## Current versus future
+
+The current interface has four presentation groups: Road surface, Conflict points, Pinch points, Surroundings. Road surface collects the existing live metal-surface and wheel-catching filters. Railroad tracks is one visible control governing both existing rail aliases. These presentation groups do not recategorize canonical hazard evidence or change severity, route qualification, scoring, marker paint, persisted IDs or preferences.
+
+The 21 entries below were marked `planned` in `src/lib/presentation/hazard-registry.ts` on 2026-10-07. Their stable IDs remain in the registry for stored preferences and future work, but neither the compact drawer nor the compatibility subtype sheet exposes them as switches. No planned toggle produces data or guarantees coverage. The old category is retained here as source context; the eventual grouping of moving hazards needs a separate product decision.
+
+## Deferred catalog
+
+| Existing category | Stable toggle ID | Rider label | Qualification to preserve | Intended source path |
+|---|---|---|---|---|
+| road_surface | `loose_sand_gravel` | Loose sand/gravel | Recurring loose aggregate on pavement or shoulder. | Future user reports and surface-condition layers |
+| road_surface | `shoulder_debris` | Shoulder debris | Debris that forces riders out of the shoulder or bikeable edge. | Future user reports |
+| road_surface | `asphalt_cracks` | Asphalt cracks | Recurring cracks, seams, or broken asphalt surface. | Future user reports and pavement-condition layers |
+| road_surface | `cobbles` | Cobbles | Cobbled or set-stone road surface. | Future OSM surface tags and user reports |
+| road_surface | `potholes` | Potholes | Common or recurring pothole zones. | Future user reports |
+| road_surface | `concrete_gaps` | Concrete gaps | Surface-level seams or slab gaps that affect ride quality. | Future user reports |
+| wheel_grabbers | `gapped_storm_grate` | Gapped storm grate | Storm drain or grate gap aligned with the riding line. | Future user reports |
+| wheel_grabbers | `deep_pothole` | Deep pothole | Individual severe pothole likely to trap or deflect a wheel. | Future user reports |
+| wheel_grabbers | `deep_concrete_gap` | Deep concrete gap | Individual severe slab gap likely to trap or deflect a wheel. | Future user reports |
+| dynamic_hazards | `wildlife_crossing` | Wildlife crossing | Known animal crossing or frequent wildlife conflict point. | Future user reports and advisory layers |
+| dynamic_hazards | `loose_dog` | Loose dog | Known loose-dog location reported by riders. | Future user reports |
+| dynamic_hazards | `pedestrians` | Pedestrians | Known pedestrian-heavy riding conflict point. | Future user reports and local activity layers |
+| dynamic_hazards | `parked_door_swing` | Parked door swing | Door-zone exposure where parked cars conflict with the riding line. | Future user reports and parking-context layers |
+| pinch_points | `tight_guardrail` | Tight guardrail | Guardrail or barrier that removes recovery room. | Future user reports and barrier layers |
+| pinch_points | `shoulder_ends` | Shoulder ends | Abrupt loss of shoulder or bikeable edge. | Future user reports and road-edge layers |
+| surroundings | `cliff_edge` | Cliff edge | Exposed edge or steep drop near the riding line. | Future user reports and terrain-edge layers |
+| surroundings | `falling_rocks` | Falling rocks | Known rockfall exposure near the riding line. | Future user reports and advisory layers |
+| surroundings | `blind_turn` | Blind turn | Sight-line limited curve or turn reported as rider-relevant. | Future user reports and geometry layers |
+| surroundings | `large_wildlife_advisory` | Large wildlife advisory | Static advisory area for recurring large-wildlife exposure. | Future advisory layers |
+| surroundings | `weather_exposure_zone` | Weather exposure zone | Static exposure area; live weather remains a separate future layer. | Future exposure layers |
+| surroundings | `flood_prone_low_road` | Flood-prone low road | Low road or crossing with recurring flood exposure. | Future advisory layers and user reports |
+
+## Admission into the UI
+
+### Route and viewport context
+
+Derek clarified that hazard viewing must work against the current viewport when no route is loaded, and against the route when one is loaded. The compact settings remain available in both contexts. The unavailable-data explanation uses “this area” without a route and “this route” with one. The current map host has no viewport-only hazard retrieval wired to this drawer, so no-route availability remains explicitly unavailable. Adding viewport evidence, its spatial query ownership, coverage and freshness is separate future work; an empty viewport result must never be treated as verified absence without coverage evidence.
+
+A future implementation must establish an actual producer or report intake, route attachment, provenance, qualification, coverage and explicit unavailable states before a switch becomes current. Temporary reports need defined freshness and expiry. The existing DS-028 topology and route-qualification rules still apply. Planned source paths in this table are ideas, not implemented integrations.
+
+Preserve prior child choices independently of parent visibility gates. Product review must resolve the eventual presentation group and rider-facing wording; independent implementation review and ChatGPT/Derek final gate must check the receipts before cutover. This catalog does not schedule or authorize any future implementation.
+
+## Color exploration
+
+The compact settings drawer uses neutral controls. A local preview compares small orange/red/blue/green icon accents across Hazards, Stops and Layers with white icons. Labels stay white on the common charcoal surface. Category accents identify controls, not assign severity or mark a route safe. The final category palette is undecided. Existing warning/acute hazard marker colors and scoring colors remain governed by their current contracts.
 
