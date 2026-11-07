@@ -54788,3 +54788,40 @@ Claude's [independent review](https://github.com/dminner/lanterne/pull/93#issuec
 
 Version the evaluator/evaluation identities to v6, the closure to v19 and its audit to v6. Audit rows preserve the actual retained bicycle-exception evaluations and tags as well as the existing counts and conditional rows. This is matching eligibility, not time-specific permission or a legality certification. All subsequent geometry, completeness, bound, sealed-owner and positional-overlay proofs remain unchanged. Repeat the 18 matched attempts and preserve the prior packages, observations and historical review. This correction supplies implementation evidence for re-gate; it does not authorize merge or activation.
 
+
+---
+
+## Source File: docs/03-adrs/adr-068-canadian-dense-postmaterial-runtime-budget.md
+
+# ADR-068 — Finite post-material runtime budget for the Montréal route profile
+
+**Status:** Accepted by the ChatGPT architecture gate for the exact scoped execution policy below. Deployment, source adoption and rider acceptance remain separately gated.
+**Date:** 2026-11-07
+**Related:** ADR-064, ADR-065, PR #403, P7 Canadian route handoff.
+
+## Context
+
+ADR-064 set a 480-second whole-route acquisition wall inside 510-second worker and 525-second caller walls. Those remain the ordinary route budgets. The protected Montréal route canary on 2026-11-07 completed all 113 source leaves and 177 requests with no transport validation error. The browser recorded 401,653 ms of material acquisition, entered RuntimeActiveTruth threading around 475 seconds, then hit the 525-second caller wall. It showed “Analysis unavailable.” The browser did not produce an accepted score or partial route result, and the shared Canadian source was restored. A prior Node replay of the same route and source finished threading in 47,973 ms and the full engine in 436,552 ms. The local packet replay finished threading in 49,430 ms. These observations show that the existing 30-second worker headroom after the maximum 480-second source wall is insufficient for this dense profile.
+
+An offline Chrome replay of the exact 113 retained packets made 177 fixture calls and no live P7 calls. It measured 51,198 ms of material reconstruction, 88,237 ms of RuntimeActiveTruth threading, and 203,104 ms for the full engine. Material acquisition is a separately bounded wall; the browser needs roughly 152 seconds of post-material work for this route. If a source read consumes the full allowed 480 seconds, the measured composition needs about 632 seconds before GC and scheduling margin.
+
+The live browser used about 2.4 GB while loading this route. That is a release gate concern; a longer timer is not evidence of mobile viability.
+
+## Proposed decision
+
+1. Keep ADR-064's ordinary 480/510/525-second ladder unchanged, including every US route.
+2. Admit a separate finite worker/caller pair only when the compiled client explicitly carries `p7-ca-route-local-context.ca-dense.v8` and every route point is inside the existing reviewed Montréal rectangle. The source itself independently checks the same profile and its frozen revision. A missing policy, an invalid point, or a crossing route uses the ordinary budget.
+3. The admitted profile gets a **720-second worker deadline and 735-second caller deadline**. The Canadian source acquisition remains capped at 480 seconds, with unchanged per-window, request, byte, geometry, ownership, source-revision, and scoring gates. The 720-second worker wall gives about 88 seconds beyond the measured worst-source-wall composition; the caller remains 15 seconds outside the worker. Cancellation and fail-closed terminal behavior remain mandatory.
+4. Record the selected budget in the caller and worker diagnostic traces. These diagnostics cannot confer source, route, or score authority.
+
+## Gate evidence required
+
+- Offline replay of the exact 5,825-point route against the 113 retained source packets, without a live P7 read, including browser processing and memory observations.
+- Tests for ordinary US, policy absent, invalid/crossing geometry, and eligible Canadian routes; strict acquisition < worker < caller ordering; timeout/cancel behavior in both caller and worker.
+- The original protected app already passed all 113 source leaves before the old caller timeout. After the deadline-only correction and offline browser proof, a separately gated public saved-route acceptance may use the existing signed-in `www.lanterne.io` session instead of repeating the 113-leaf protected download. Require the rider-visible result, normal owned save/readback, and unchanged stored geometry. A partial result must remain labeled partial; canonical readiness cannot be inferred from colored display. Roll back the public candidate if this acceptance fails.
+- Resource and US control readbacks, current-public-descendant source comparison, independent review, and a separate final public adoption gate.
+
+## Alternatives
+
+Increasing all routes' deadlines would affect unrelated US loads. Removing canonical threading or accepting display paint as a score would change route truth. Both are outside this decision. Reducing duplicated post-material work is preferred if the offline profile identifies a safe, material improvement; any such code requires its own review.
+
