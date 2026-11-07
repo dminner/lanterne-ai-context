@@ -18250,6 +18250,83 @@ AADT**.
   (`src/shared/scoring/ds015-contract.ts`). The code is evidence of the previously
   implicit table; this amended DS-029 appendix is the authority.
 
+#### L.4.1 Proposed track-baseline amendment (human gate pending)
+
+The v1 table above remains immutable. The proposed
+`ds015-highway-class-proxy-effective-right-lane-aadt.v2` copies all fourteen v1
+rows unchanged and adds exactly `highway=track` at **20 effective right-lane
+vehicles/day**. This is a low-confidence model input, not a traffic count, posted
+limit, or claim that every track receives that volume. It is chosen as a
+nonzero working estimate below the previously discussed 100/day;
+the existing DS-015 traffic-factor floor makes both values score identically.
+The companion last-resort speed baseline is **10 MPH** under
+`selected-speed-input.ds029-ladder.track.v2`, also an estimate rather than a
+posted speed. The previous speed ladder remains unchanged. Higher-precedence
+source measurements still win. The
+proposed traffic policy is `traffic-selection.track-designation.v5`, with the
+v2 table as its model/producer identity. Existing v1–v3 policies retain the
+v1 table and do not admit a track traffic candidate. The v4 preview policy
+remains an immutable comparison artifact; v5 adds the source-bound designation
+gate described below.
+
+Only source-bound `highway=track` may receive these baselines. A track with
+motor access permitted or unspecified remains in the motor-road risk domain;
+however, an explicit `motor_vehicle=designated` means motor vehicles are
+specifically intended to use the way, not that only official vehicles may use
+it. On a route interval bound to that exact OSM way (system, record type, ID,
+and version), v5 withholds the 20/day low-traffic track proxy. This includes
+path-domain evidence whose geometry projection is unresolved when P7 still
+proves the owner way; an ID collision from another source cannot veto it.
+The road context and name remain available;
+stronger measured traffic may still be selected. If no traffic rung resolves,
+the interval stays unscored/grey rather than receiving green from the proxy.
+This does not infer a higher traffic count from the tag alone.
+The 10 MPH speed estimate may still be selected on such a track, so the road
+card can show that estimate while risk paint remains grey for missing traffic.
+Whether motor designation should also weaken the speed estimate remains a
+human-gate model question.
+See the [OSM tag definition](https://wiki.openstreetmap.org/wiki/Tag:motor_vehicle%3Ddesignated).
+An explicit `motor_vehicle=yes` does not make the track a separated path and
+does not by itself prove its actual traffic volume; the 20/day value remains
+subject to Derek's human gate even for that case.
+Only an explicit `motor_vehicle=no` plus no bicycle/access prohibition may establish
+the existing separated path/MUP domain and its blue style. `bicycle=no` or
+forbidden general access blocks that path classification. No model input may
+create route ownership, fill an owner gap, or override a source prohibition.
+This is a rider-facing scoring/safety change and requires Derek/ChatGPT gate
+approval before merge or deployment.
+
+#### L.4.2 Proposed low-exposure track policy (human gate pending)
+
+This proposal supersedes v5 as the **live** track policy while preserving v1–v5
+unchanged for receipt replay and comparison. The versioned
+`ds015-highway-class-proxy-effective-right-lane-aadt.v3` table copies all
+fourteen v1 rows and sets `highway=track` to **5 effective right-lane
+vehicles/day**. `selected-speed-input.ds029-ladder.track.v3` sets a last-resort
+track speed of **8 MPH**. Both values are product model assumptions, not
+measurements or universal claims about track access or safety. The live runtime
+selects `traffic-selection.track-low-exposure.v6` and the v3 speed ladder.
+Higher-precedence observed evidence wins; a selected speed over 10 MPH or
+effective right-lane traffic over 20/day cannot receive the low-exposure track
+paint. An exact source-bound `highway=track` owner is required. A designation
+tag alone is not a measured vehicle count and no longer vetoes the class proxy.
+Explicit motor prohibition continues to use the existing separated-path rule;
+`bicycle=no` or forbidden access does not establish path proof.
+
+A motor-accessible track with accepted owner, selected low exposure inputs,
+and a `low` computed risk token receives **dashed blue** route paint. This is
+the track low-exposure presentation category; **solid blue** remains the
+separated-path category. The track is still scored in the motor-road domain:
+its road risk is **positive**, its miles enter total scored distance, and its
+risk contributes to total risk and risk per mile. No presentation token changes
+the scoring formula or promotes a partial display owner into certified route
+truth. Unresolved owner gaps remain grey and cannot dilute a whole-route
+average. In the current DS-015 traffic-factor table, positive values from 1 to
+500 share the same factor floor. The change from 20 to 5 therefore changes the
+modeled input and provenance, but does not by itself lower the numeric score.
+The dashed-blue category is a distinct, explicitly modeled rider presentation,
+not a claim of observed traffic or a zero-risk path.
+
 ### L.5 Highway Baseline identity (separately typed)
 
 - **selection class:** `highway_baseline`
@@ -40910,6 +40987,86 @@ inputs exist.
 
 ---
 
+## Source File: docs/02-architecture/design/ds-069a-field_note_applicability_addendum.md
+
+# DS-069 addendum A: Field Note applicability and current-route projection
+
+**Status:** Phase design for FN-APP-PROJECTION-01, protected preview only. It does not rewrite DS-069 or any applied SQL.
+**Parent:** [DS-069](ds-069-field_notes_schema_confirmation_and_route_projection_spec.md) §3 and §6, ADR-070.
+
+## Why
+
+DS-069 makes notes place-anchored and route mileage derived. It does not say how a note's kind of claim differs from its browse tags. Some notes are claims about a road. Others describe a place that is useful on any route passing near it. A rigid topic enum cannot prove either one, and tags overlap.
+
+## Model
+
+A note is one durable place record. Three things stay separate:
+
+| | Holds | Stored on the note? |
+|---|---|---|
+| Tags | Overlapping browse labels | Yes. Never evidence of applicability. |
+| Applicability | `route_segment`, `nearby_place` or `unresolved`, with `explicit`, `inferred` or `unknown` status, the basis, and direction sensitivity | Yes |
+| Projection | Passes on the current route, with distance, offset and per-pass eligibility | No. Derived per route geometry revision. |
+
+Own notes, imports and any future community read use the same projection and keep their own source, visibility and access bounds.
+
+## Inference from Ride with GPS
+
+Inference suggests a scope and proves nothing. The status shows it was inferred.
+
+1. A caution stays route-bound, whatever else its words or tags say.
+2. A routing instruction stays route-bound.
+3. Condition words on a place-typed note are a real conflict, so it is `unresolved`, direction-sensitive and silent.
+4. Condition words on anything else make it route-bound and direction-sensitive.
+5. Place types and place topics become `nearby_place`.
+6. Anything else is `unresolved`.
+
+The condition word list is deliberately broad, because a false match only loses autoplay. Example: "Webb's Mill Bog" is a park whose text says it is flooded, so it is `unresolved`.
+
+## Evidence for a route-bound note
+
+Only a supplied road association proves a route-bound note applies: a `wayRef` of high or medium confidence, within the DS-069 30 m corridor, on a way the route uses at that distance.
+
+Distance is never evidence. Neither is the note's attachment to the same route geometry: an RWGPS POI is not snapped to a segment, and a report on a parallel road can sit metres from the line it was attached to. Source attachment only keeps a note visible, as attribution. Bearing cannot create a match. It only selects among passes once a road match exists (DS-069 §6, 60°).
+
+## Eligibility per pass
+
+One decision, read by pins, cue rows and audio.
+
+| State | Means | Cue row | Autoplay |
+|---|---|---|---|
+| `on_route` | Road matched, direction fits or does not matter | Route order | Yes |
+| `direction_unknown` | Road matched, direction-sensitive, no bearing | Route order, labelled | No |
+| `opposite_direction` | Road matched, bearing does not fit this pass | None | No |
+| `unconfirmed_nearby` | Route-bound with no road match | Separate section | No |
+| `nearby_place` | Place within the rider's radius | Route order, as its own row | Yes |
+| `attached_beyond_radius` | Place this route's author attached, outside the radius | Separate section | No |
+| `unresolved` | Scope unknown | Separate section | No |
+| `out_of_range` | Not shown on this route | None | No |
+
+## Radius
+
+Nearby discovery defaults to 500 m and is adjustable from 50 m to 5 km in Account Preferences. **This is a provisional preview default, not approved safety policy.** It is not a home privacy radius, a route-condition tolerance or an approach distance, and only `nearby_place` reads it. Unconfirmed and unresolved reports use a fixed 500 m display window, so widening the radius cannot promote one.
+
+## Passes
+
+Passes come from the full loaded route axis, never a thinned line or the source route's mileage. Identity is `<axis digest>:<note key>:<rounded distance>`, so a reversed or edited route cannot reuse one.
+
+Walking the route in order, a new pass needs the route to really leave:
+
+- The offset must rise at least `max(30 m, half the offset)`. Polyline vertices supply that rise, so detection does not depend on sampling density: a three-vertex out-and-back gives two passes.
+- Within 1 km along the route, the rise must also be at least a quarter of the gap. An out-and-back rises half its gap, and a wobble in one approach far less. Apple Pie Hill's 52 m approach and its 19 m summit spur are one pass.
+- Leaving the 5 km scan window always separates passes.
+
+A pin and the default detail lead with the **nearest** pass, the earlier on a tie. All passes stay in route order for cues and audio. A note attached to the route keeps visibility only at its nearest pass.
+
+## Approach
+
+Approach is measured along the route to the occurrence, from the rider's current route progress, so a place 400 m off the line is spoken as the rider nears its route mile. Progress reads the app's one GPS owner. If earlier progress or a course cannot settle which leg an out-and-back fix is on, progress is unknown and nothing auto-plays. The 160 m approach is a preview heuristic, not rider safety truth.
+
+
+---
+
 ## Source File: docs/02-architecture/design/focus-overlay-ux.md
 
 # Focus Overlay UX
@@ -53442,6 +53599,18 @@ Old semantic authority must not be labeled deprecated and left executable. It mu
 - ActiveTruthView is a mechanical projection, not a ledger, selector, scorer, cache, or independent read-model authority.
 - Presentation panes subscribe and render only.
 
+------
+
+## Proposed narrow amendment for blocked personal partial routes (2026-11-06)
+
+**Status: proposed for Derek/ChatGPT human safety and architecture gate on PR #378; not an accepted broad exception.** The already-serving Field Notes source `72e5fe2c6` has one additional call to `compileActiveTruthRouteExperience` in `p7-personal-partial-accounting.ts`. The original first-paint sole-consumer guard therefore fails on that source. This amendment records the behavior and its precise allowable boundary rather than calling the red guard green.
+
+When both the runtime and the rigid ledger are **blocked**, and the same-source partial owner projection, terminal core, truth bundle, and route axis match, the worker may run this second compiler call to obtain heatmap truth-segment geometry and selected ActiveTruth detail for certified partial intervals. Those details and the existing rigid-ledger trace feed a validated `riskAccounting` receipt for certified intervals. This is not merely diagnostic: its **provisional risk per scored mile and scored percentage can appear in the rider's private History**. Unknown intervals remain excluded and must not be presented as known risk. No new scoring formula or owner inference is authorized.
+
+This blocked-only result is distinct from the current-route canonical compiled commit. The worker must not return or persist the supplemental `compileResult`, route analysis, or canonical score. The receipt carries `canonicalScoreReady: false`, `routeTruthReady: false`, and `activeTruthReady: false`; the main-thread admission revalidates it against the current geometry and terminal core. Private History persistence requires the same owner, saved route axis, null canonical score/grade/risk columns, validated receipt, and compare-and-swap readback. It may publish provisional accounting only under those limits, never claim full-route or canonical score readiness, and never authorize public route or route-cache truth.
+
+The exception is exactly one additional consumer file, not permission for a second route-truth pipeline or for a presentation pane to compute risk. Ready and failed runtimes, or a ready rigid ledger, must not invoke the supplemental compiler or mint this receipt. The structural guard enumerates the three allowed compiler references and the false-ready boundaries; a runtime boundary test covers those rejected states. Any expanded consumer, changed readiness, changed accounting inputs, or public use requires a new human gate. The long-term consolidation target is a single compiled experience per route generation once blocked partial accounting can obtain certified interval details without this worker-local second compile.
+
 
 ---
 
@@ -54618,4 +54787,41 @@ The source digest checks bind evidence to the trusted owner-published material r
 Claude's [independent review](https://github.com/dminner/lanterne/pull/93#issuecomment-6101252232) found modern contraflow evidence omitted from the shared evaluator. The bounded correction adds `cycleway:oneway` and `cycleway:left/right/both:oneway` to its exact receipted tag set. A value of `-1` or `no` retains the traversal as a bicycle exception; these permissions must not let car-only `oneway` evidence remove a competitor. Modern [contraflow tagging](https://wiki.openstreetmap.org/wiki/Tag:cycleway:left:oneway%3D-1) replaces deprecated `opposite*` tags. Unsupported or malformed present values, and `yes` conflicting with general `oneway=-1`, retain the traversal as uncertain. Explicit matching `yes` still permits the existing wrong-way exclusion. Unevaluated conditional evidence and failed source authentication keep their existing precedence.
 
 Version the evaluator/evaluation identities to v6, the closure to v19 and its audit to v6. Audit rows preserve the actual retained bicycle-exception evaluations and tags as well as the existing counts and conditional rows. This is matching eligibility, not time-specific permission or a legality certification. All subsequent geometry, completeness, bound, sealed-owner and positional-overlay proofs remain unchanged. Repeat the 18 matched attempts and preserve the prior packages, observations and historical review. This correction supplies implementation evidence for re-gate; it does not authorize merge or activation.
+
+
+---
+
+## Source File: docs/03-adrs/adr-068-canadian-dense-postmaterial-runtime-budget.md
+
+# ADR-068 — Finite post-material runtime budget for the Montréal route profile
+
+**Status:** Accepted by the ChatGPT architecture gate for the exact scoped execution policy below. Deployment, source adoption and rider acceptance remain separately gated.
+**Date:** 2026-11-07
+**Related:** ADR-064, ADR-065, PR #403, P7 Canadian route handoff.
+
+## Context
+
+ADR-064 set a 480-second whole-route acquisition wall inside 510-second worker and 525-second caller walls. Those remain the ordinary route budgets. The protected Montréal route canary on 2026-11-07 completed all 113 source leaves and 177 requests with no transport validation error. The browser recorded 401,653 ms of material acquisition, entered RuntimeActiveTruth threading around 475 seconds, then hit the 525-second caller wall. It showed “Analysis unavailable.” The browser did not produce an accepted score or partial route result, and the shared Canadian source was restored. A prior Node replay of the same route and source finished threading in 47,973 ms and the full engine in 436,552 ms. The local packet replay finished threading in 49,430 ms. These observations show that the existing 30-second worker headroom after the maximum 480-second source wall is insufficient for this dense profile.
+
+An offline Chrome replay of the exact 113 retained packets made 177 fixture calls and no live P7 calls. It measured 51,198 ms of material reconstruction, 88,237 ms of RuntimeActiveTruth threading, and 203,104 ms for the full engine. Material acquisition is a separately bounded wall; the browser needs roughly 152 seconds of post-material work for this route. If a source read consumes the full allowed 480 seconds, the measured composition needs about 632 seconds before GC and scheduling margin.
+
+The live browser used about 2.4 GB while loading this route. That is a release gate concern; a longer timer is not evidence of mobile viability.
+
+## Proposed decision
+
+1. Keep ADR-064's ordinary 480/510/525-second ladder unchanged, including every US route.
+2. Admit a separate finite worker/caller pair only when the compiled client explicitly carries `p7-ca-route-local-context.ca-dense.v8` and every route point is inside the existing reviewed Montréal rectangle. The source itself independently checks the same profile and its frozen revision. A missing policy, an invalid point, or a crossing route uses the ordinary budget.
+3. The admitted profile gets a **720-second worker deadline and 735-second caller deadline**. The Canadian source acquisition remains capped at 480 seconds, with unchanged per-window, request, byte, geometry, ownership, source-revision, and scoring gates. The 720-second worker wall gives about 88 seconds beyond the measured worst-source-wall composition; the caller remains 15 seconds outside the worker. Cancellation and fail-closed terminal behavior remain mandatory.
+4. Record the selected budget in the caller and worker diagnostic traces. These diagnostics cannot confer source, route, or score authority.
+
+## Gate evidence required
+
+- Offline replay of the exact 5,825-point route against the 113 retained source packets, without a live P7 read, including browser processing and memory observations.
+- Tests for ordinary US, policy absent, invalid/crossing geometry, and eligible Canadian routes; strict acquisition < worker < caller ordering; timeout/cancel behavior in both caller and worker.
+- The original protected app already passed all 113 source leaves before the old caller timeout. After the deadline-only correction and offline browser proof, a separately gated public saved-route acceptance may use the existing signed-in `www.lanterne.io` session instead of repeating the 113-leaf protected download. Require the rider-visible result, normal owned save/readback, and unchanged stored geometry. A partial result must remain labeled partial; canonical readiness cannot be inferred from colored display. Roll back the public candidate if this acceptance fails.
+- Resource and US control readbacks, current-public-descendant source comparison, independent review, and a separate final public adoption gate.
+
+## Alternatives
+
+Increasing all routes' deadlines would affect unrelated US loads. Removing canonical threading or accepting display paint as a score would change route truth. Both are outside this decision. Reducing duplicated post-material work is preferred if the offline profile identifies a safe, material improvement; any such code requires its own review.
 
