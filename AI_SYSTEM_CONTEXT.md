@@ -8121,8 +8121,7 @@ Most crossing events use standard severity context:
 An `uncontrolled_left_across` rider-facing marker and severity context exist only when all of the following are true:
 
 - the event occurs at an accepted ordered route-path handoff or equivalent canonical route-ownership transition
-- smoothed route bearings classify the maneuver as `left` or `sharp_left`, except for the source-bound named-road branch case below
-- An exact, source-bound first-hand confirmation may also qualify a 30°–45° `slight_left` as a `named_road_branch_left` when the rider turns onto a different, explicitly named source road. The raw bearing and `slight_left` geometry class remain in the trace; the distinct source names, exact directional handoff, route ownership, and confirmation receipt must all be present. This exception does not reclassify other slight turns or infer absent control from missing tags.
+- smoothed route bearings classify the maneuver as `left` or `sharp_left`
 - `fromFamilyKey !== toFamilyKey` under the road-family identity policy, including same-name/same-ref continuation handling
 - the crossed or entered road is motor-road domain
 - no governing traffic signal or stop control applies to the rider's incoming approach
