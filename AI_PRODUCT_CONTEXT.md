@@ -834,13 +834,134 @@ These constants came from the audited legacy implementation. They are retained h
 
 ---
 
+## Source File: docs/05-product/list-leader-interaction-contract.md
+
+# List-leader interaction contract
+
+Status: durable design spec. Introduced by issue #420 (Library).
+
+## What it is
+
+For a map-linked list, the row at the **top of the actually visible list** supplies passive scroll
+focus by default. It gets a shared visual treatment, and the map emphasizes that item's exact place.
+As the rider scrolls and a different row becomes the visible leader, the focus follows it.
+
+An explicit choice by tapping a row or a map item takes visual focus immediately, regardless of its
+rank in the list. Layout, resize, rerender, and observer callbacks may update the measured leader,
+but they must not steal focus from that explicit choice. A later genuine user scroll that changes
+the visible leader returns focus to scroll-following. Choosing the same item again is still a new
+explicit focus action, even when its ID did not change.
+
+The shared *focus* is presentation state. It is not:
+
+- explicit row selection;
+- opening, expanding or navigating into a row;
+- loading a route, starting an analysis or changing what is "active";
+- choosing a truth, scoring or evidence result.
+
+Focus is distinct from item identity, result-window membership, camera framing, and open/detail state.
+Explicit selection may take focus, but it does not silently add map-preview membership, change camera
+ownership, open a row, load a route, or enter details. A focused item without exact displayed map
+geometry stays focused in the list and produces no map paint; the map must not fall back to a different
+row or fabricate an approximation. Opening a row never changes focus unless that interaction also
+explicitly selects it.
+
+## Rules every consumer must keep
+
+1. **Actually visible rows only.** The passive leader comes from measured, clipped row rectangles inside every
+   scrolling/clipping ancestor and below sticky occluders. Mounted overscan, spacers and off-screen
+   recycled nodes are never evidence. A row that still has any visible pixels at the top is still the
+   leader (partial clipping). If no row is visible, there is no leader.
+2. **Exact domain identity.** Each row carries the exact identity of its domain record
+   (`data-result-list-item-id`). The consumer resolves the leader to map geometry only through that
+   identity and the record's own persisted facts, such as route IDs or saved route-distance
+   bounds. It never matches by display text, such as a road or route name.
+3. **Bound to one source.** The leader belongs to one exact source generation, such as a collection,
+   filter and sort, or a saved calculation identity. When the source changes, the previous leader
+   and explicit focus are cleared before any new leader binds. The old focus is never carried over,
+   even when IDs coincide. An item removed from the active source also loses explicit focus.
+4. **Never stale.** The map paint is removed when the surface unmounts, the source changes, the
+   route is replaced, or the effective focused item has no exact mapped geometry. "No exact geometry" stays
+   explicit as no paint. It is never approximated.
+5. **Same focus identity.** Row emphasis and map emphasis resolve from the same effective focus ID.
+   Do not style one row while highlighting another route.
+6. **Input provenance.** Only an actual user scroll from this list or one of its clipping/scrolling
+   ancestors that changes the visible leader resumes scroll focus. The gesture must start after the
+   latest explicit focus action, and its measured scroll event must come from the same scroll chain.
+   A completed scroll measurement that leaves the leader unchanged consumes that gesture; later
+   resize, layout, rerender, mutation, and observer measurements cannot borrow it to clear focus.
+7. **Read-only.** Following the leader reads already-presented data. It must not mutate route truth,
+   scoring, evidence authority, caches, history or saved calculations.
+8. **Shared mechanics, domain-owned semantics.** All consumers use the shared visible-list
+   primitives. Each consumer keeps its own small adapter that maps its domain identity to its domain
+   geometry. Do not write a widget-specific scroll listener. Do not write a generic adapter that
+   erases domain identity, for example one that turns everything into "a lat/lng box" chosen by name.
+
+## Shared primitives
+
+| Primitive | File | Role |
+| --- | --- | --- |
+| `readVisibleResultItems` / `resultListViewport` | `src/hooks/useResultListScroll.ts` | Measures clipped row rectangles and returns the leading (and trailing) item ID. |
+| `useResultListScroll` | `src/hooks/useResultListScroll.ts` | Observes the list's clipping/scrolling ancestors, resize, visual-viewport and focus changes. Coalesces work to one frame and reports whether a changed leader followed a fresh gesture from that scroll chain or a layout measurement. An explicit-focus boundary prevents earlier gestures from being reused. The `generation` key restarts it for a new source. |
+| `resultListFocusReducer` / `resolveResultListFocus` | `src/hooks/useResultListFocus.ts` | Shared focus state machine: passive leader by default, explicit choice override, scroll hand-back, and source/item reset. Its monotonic selection revision fences stale scroll intent and same-ID reselects. |
+| `useResultListPage` / `ResultListRowWindow` | `src/hooks/useResultListPage.ts` | Optional bounded row window for long lists (Library uses it). |
+| Library focus presentation | `src/index.css` | The current Library adapter styles the effective focused row with `.vault-map-route-row.is-leading`. A reusable `.result-list-row.is-leading` class belongs to the separate, unmerged #426 branch and is not part of this change. |
+
+Row markup carries `data-result-list-item-id="<exact id>"`. `data-leading-result="true"` reports
+the passive measured leader only. The current Library UI styles the effective focused row, which
+may differ from that measured leader after an explicit choice.
+
+## Adopters
+
+### Current
+
+- **Library** (issue #420). Rows are saved routes, identified by `routeId` within the collection,
+  filter and sort generation. The top visible route is the passive focus; an explicit row or map-item
+  selection takes visual focus regardless of rank. Focus does not change the result window or camera.
+- **Analyze Receipts** (issue #426, separate unmerged branch). Rows are saved road visits in the calculation receipts. Identity
+  is the saved calculation `sourceIdentity` (canonical: the ActiveTruthView id; partial: the
+  accounting digest) plus the saved visit ID (`visit:<saved visit index>`). The geometry is the visit's
+  copied saved `startDistM`–`endDistM` interval along the loaded route
+  (`src/domain/analyze/receipts/receiptLeaderSpan.ts`). It is painted in the existing
+  selected-section map pane, and the map pans to it without zooming in
+  (`src/hooks/useReceiptLeaderSpanPaint.ts`). Its current adapter follows the visible receipt leader;
+  explicit receipt selection remains separate and should adopt the shared override when that work is
+  rebased. Expanding a receipt row stays independent.
+
+### Future (not implemented)
+
+These surfaces are named here so that, when they are built, they adopt this contract. Their UI is
+**not** implemented by #420 or #426.
+
+- **Field Notes.** The leader should resolve by the note's persisted identity and its saved location or
+  route-distance.
+- **Hazards.** The leader should resolve by the hazard's persisted identity and its saved location or
+  route interval, never by hazard label.
+- **Weather measurement points.** The leader should resolve by the measurement's persisted identity
+  and its saved sample position or time. It must not resolve by a displayed place name.
+
+Each future consumer must preserve exact identity, keep the active state presentation-only, and
+use the shared focus state machine rather than reimplementing scroll, tap, and reset behavior. The
+domain adapter still owns how an exact item maps to route geometry or a measurement; the shared model
+does not decide hazard semantics, weather calculations, or Field Note meaning.
+
+## Known limits (Analyze Receipts)
+
+- Saved receipt metres and the map's haversine walk the same ordered route points but may use
+  slightly different earth models. A span whose end exceeds the displayed route length by more than
+  0.5% (+1 m) is treated as unmapped. Within that slack, the end is clamped to the route end.
+- The map is not checked against `routeAxisId`. Binding relies on the host: the span comes only from
+  the open Analyze sheet, it clears whenever the route changes, and the receipt list remounts per
+  source identity.
+- Only the bottom Analyze surface is wired. The legacy side-drawer Receipts tab does not follow
+  scrolling.
+
+
+---
+
 ## Source File: docs/05-product/prod-001-positioning.md
 
 # Product Positioning
-
-> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
-
-Lanterne is a bike safety brand. The app is one expression of it.
 
 Lanterne occupies a unique position within the cycling ecosystem.
 
@@ -858,7 +979,7 @@ Instead, it sits **alongside them**.
 | RideWithGPS  | route planning and sharing             |
 | Garmin       | device ecosystem and ride recording    |
 | Komoot       | recreational route discovery           |
-| **Lanterne** | route safety: the check between planning and riding |
+| **Lanterne** | route intelligence and safety analysis |
 
 ------
 
@@ -889,19 +1010,13 @@ It reveals things that are otherwise invisible:
 • fatigue accumulation
 • descent risk
 
-These factors matter to anyone choosing a road, and they compound on long rides. They are rarely modeled.
-
-Lanterne is the **safety check between planning and riding**. Riders plan in the tools they already use, bring the route to Lanterne to see how risky it is and where, adjust, then navigate wherever they navigate.
+These factors matter deeply for long-distance cyclists but are rarely modeled.
 
 ------
 
 ## The Rider Lanterne Serves
 
-Lanterne serves any cyclist choosing a road.
-
-The default rider is the everyday rider: commuting, riding errands, doing a weekly loop, and not necessarily knowing what a brevet is. Every new rider-facing feature is designed for this rider first.
-
-Long-distance riders are a served advanced audience, not the definition. Lanterne also serves riders who:
+Lanterne is designed for riders who:
 
 • travel far from home
 • ride alone frequently
@@ -909,7 +1024,7 @@ Long-distance riders are a served advanced audience, not the definition. Lantern
 • explore unfamiliar terrain
 • plan multi-day routes
 
-For every one of these riders, route choice is not trivial.
+For these riders, route choice is not trivial.
 
 It can be the difference between a great ride and a dangerous one.
 
@@ -988,42 +1103,13 @@ Cyclists deserve to understand these differences before committing to hundreds o
 
 # Rider Archetypes
 
-> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
-
-Lanterne serves any cyclist choosing a road. The everyday rider is the default; the other archetypes are advanced lenses on the same safety check.
+Lanterne is optimized for a specific set of cyclists.
 
 Understanding these riders helps guide product decisions.
 
 ------
 
-## 1. The Everyday Rider
-
-The default rider. Commutes, runs errands, does the same local loop, rides with family. Assumes no knowledge of brevets, controls or randonneuring vocabulary.
-
-Typical characteristics:
-
-• short and medium rides, often from home
-• routes repeated week after week
-• riding at whatever hour the day allows
-
-Needs from Lanterne:
-
-• which roads are fast and busy, and where
-• where bike infrastructure and shoulder actually are
-• the crossings that matter on a familiar route
-• how the same road changes by the hour
-
-Served by the default **Road** profile.
-
-------
-
-## Advanced lenses
-
-The archetypes below are served through the other ride profiles: Rando, Ultra, Gravel, and Touring/Bikepacking. A rider's profile comes from the type of riding they give at registration, and they can change it. Existing work for these profiles stays; new profile-specific build-out is paused (ADR-068).
-
-------
-
-## 2. The Randonneur
+## 1. The Randonneur
 
 The randonneur rides extremely long distances under time limits.
 
@@ -1042,7 +1128,7 @@ Needs from Lanterne:
 
 ------
 
-## 3. The Bikepacker
+## 2. The Bikepacker
 
 The bikepacker travels for days or weeks across varied terrain.
 
@@ -1060,7 +1146,7 @@ Needs from Lanterne:
 
 ------
 
-## 4. The Endurance Soloist
+## 3. The Endurance Soloist
 
 This rider pushes extreme personal challenges.
 
@@ -1078,7 +1164,7 @@ Needs from Lanterne:
 
 ------
 
-## 5. The Nocturne Rider
+## 4. The Nocturne Rider
 
 Many endurance cyclists ride heavily at night.
 
@@ -1098,13 +1184,14 @@ Needs from Lanterne:
 
 ## Who Lanterne Is Not Designed For
 
-Lanterne does not try to serve these needs:
+Lanterne is not optimized for:
 
+• casual fitness riders
+• short recreational loops
 • group ride coordination
 • social activity tracking
-• performance training
 
-Existing apps serve those well. Lanterne sits beside them.
+Those riders are well served by existing apps.
 
 ---
 
@@ -1289,6 +1376,14 @@ If a feature encourages riders to ride **faster instead of smarter**, it likely 
 # Lanterne In-App Branding Refresh
 
 # **Nocturne Survey**
+
+## Canonical logo
+
+Use Derek's supplied white wordmark with the colored flame A, stored unchanged at `public/assets/lanterne-logo.svg`. Render branding through `src/components/BrandLogo.tsx` so event pages, the intro, authentication, onboarding, plan selection, the route drawer, and the map watermark share the same artwork.
+
+The compact `mark` variant uses the original flame A, extracted from that SVG with a charcoal backing. It supplies the install prompt, browser favicon, and Apple home-screen icon. The white wordmark needs a dark backing when displayed over a bright map. Preserve its colors and aspect ratio; use width-based sizing.
+
+The app's interactive lantern instrument and gesture tutorial retain their functional artwork. Old logo files are retained as unused assets; active branding references use the supplied identity. The intro film itself is reused unchanged, with the new wordmark displayed over it.
 
 ## Design Philosophy
 
@@ -1684,6 +1779,7 @@ Lanterne is not an outdoor lifestyle brand.
 It is a **route intelligence instrument** for riders who travel far and often through darkness.
 
 The interface should reflect **discipline, focus, and quiet exploration**.
+
 
 ---
 
@@ -2678,7 +2774,7 @@ That gives Lanterne a stop system that is simple on the surface, truthful in the
 
 ## Supersession Notice
 
-This v3.1 methodology is historical. The active canonical model is [DS-015 - Safety Scoring Model](../02-architecture/design/ds-015-safety_scoring_model.md) (5.7 as of 2026-10-18).
+This v3.1 methodology is historical. The active canonical model is [DS-015 - Safety Scoring Model 5.5](../02-architecture/design/ds-015-safety_scoring_model.md).
 
 Current doctrine:
 
@@ -2766,8 +2862,6 @@ Sharrows receive no credit at launch.
 ### ShoulderFactor
 
 Shoulder credit applies **only** when there is no dedicated bike facility **and** speed ≥ 30 mph.
-
-> **Historical v3.1 rule — not current.** DS-015 5.7 (2026-10-18) applies shoulder credit at every speed, never over a dedicated bike facility and never for an unknown width. The legacy V3.1 preview pipeline follows the same application rule with its own V3.1 multipliers.
 
 | Shoulder Class | Width           | ShoulderFactor |
 |---------------|-----------------|----------------|
@@ -5033,6 +5127,64 @@ Because the question isn’t just:
 It’s:
 
 > “What happens if I keep going like this?”
+
+---
+
+## Source File: docs/05-product/prod-015-event-notes.md
+
+# Event notes
+
+Event notes are public, single-column letters with large Georgia text, warm off-white ink (`#eeeae2`), and a charcoal background (`#171819`). The supplied white Lanterne wordmark with its colored flame A and a quiet footer frame the writing. The CRCX note lives at `/crcx`. Editable pages also live at `/about`, `/reflectors`, and `/app`. Reflectors and App contain Derek’s approved introductory articles; About remains a “More soon.” starter page. The homepage continues to open the map application. Older links `/eyecatcher` and `/eyecatchers` redirect to `/reflectors`; `/lanterne` redirects to `/app`.
+
+## Add a note
+
+Add new pages in `src/content/event-notes.ts`. Each entry defines its URL path, event label, browser title, description, paragraphs, signature, optional links, and optional media. Entries register their own routes through `src/App.tsx`; no separate page component is needed. Choose a unique path that does not collide with an existing application route.
+
+The first note preserves Derek's supplied wording and Instagram destination. Its photo is stored at `public/assets/events/crcx-ride.jpeg`, so deployment does not depend on access to his Photos library.
+
+Printable direct QR assets are in `docs/05-product/assets/crcx-direct-qr.svg` and `.png`. They encode `https://lanterne.io/crcx` itself. The previously supplied sticker's QR uses a short-link provider and currently opens the homepage; replace that QR with the direct asset before printing.
+
+Set `intro: true` to open with the existing Lanterne intro film. CRCX enables this. Visitors tap play to hear the film, then the screen fades into the letter when it ends. A “Read the note” shortcut and Escape reveal the letter immediately. The letter remains accessible if the video fails to load. This mode omits the app's map-gesture tutorial and does not read or change `lanterneIntroSeen`; a fresh visit to the note starts with the film even for an existing app visitor. Omit `intro` for a note that opens directly on the writing.
+
+An image entry needs `src`, descriptive `alt`, and intrinsic `width` and `height`. An optional `caption` appears below the image. Images retain their full proportions. Optional `afterParagraph` places media before the writing (`0`) or after a numbered paragraph (`1` through the paragraph count). Omit it to keep the existing end-of-page placement. Optional image `align` is `full`, `left`, or `right`; left/right images wrap alongside the writing at widths of 700 px and above and become full width on smaller screens. Videos may be positioned in the writing and retain a full-width frame.
+
+Add a YouTube video to the `media` array using its eleven-character video ID:
+
+```ts
+{
+  type: "youtube",
+  videoId: "VIDEO_ID_11",
+  title: "A descriptive video title",
+  caption: "An optional caption",
+}
+```
+
+Replace the placeholder ID before publishing. Embeds use YouTube's privacy-enhanced host, lazy loading, a responsive 16:9 frame, and no autoplay. Multiple images, videos, and links are supported. Omit `media` or `links` for a plain letter. No additional YouTube video has been selected for CRCX.
+
+## Edit inline: draft, then publish
+
+Open `/crcx?edit=1` (or choose “Edit note” in the footer) and sign in. Signed-in users can edit and preview a private draft on their own device; only Lanterne administrators can publish. Click the writing to edit it directly. Paragraphs, signature, event name, links, image URLs/descriptions/captions, and YouTube videos can be changed in the page. Page details contains the browser title, description, and intro toggle. The registered URL stays fixed so printed QR codes keep working.
+
+Paragraphs support simple text formatting in Preview and the reader: start a paragraph with `#`, `##`, or `###` followed by a space for a heading; surround words with `**` for bold. Other text and HTML stay literal. The editor retains these markers in the source text.
+
+Choose **+ Insert photo** before the writing or after any paragraph, paste a photo URL, and supply its description. Every image has **Placement** and **Image layout** controls. Choose full width, left with text wrapping, or right with text wrapping. Existing photos can be moved from the end into the writing; removing a paragraph retains its images at the nearest preceding position. Preview uses the same ordering and wrapping as the published view. Images are added by URL; file uploads are not part of this editor.
+
+Typing saves a private draft in this browser's local storage, scoped to the signed-in user and page. Drafts do not sync between devices and are lost if browser storage is cleared. Preview shows the draft without publishing. For administrators, **Publish changes** explicitly publishes for everyone. Other signed-in users see a private-draft notice and a disabled Publish button. Discard restores the loaded live version. Failed publishing keeps the local draft. A newer live version blocks stale publication; inspect it before explicitly keeping the draft for a subsequent publish.
+
+Published overrides use the existing `app_config` table, key `event-note:published:/crcx`, value `{ version: 1, note }`. Existing public SELECT and administrator INSERT/UPDATE RLS policies remain the authorization boundary. No private drafts enter this publicly readable table. Writes require a verified session and use conditional updates on `updated_at` (or an initial insert) to detect competing publishes. No schema, policy, Supabase client, or backend changes are required. Only bounded plain content is accepted; published links require HTTPS and video embeds accept YouTube IDs from supported hosts. Invalid content cannot preview or publish.
+
+On load, a valid published override takes precedence over the checked-in default. Repository-authored copy may also be published through the normal frontend release process when no override exists; verify that boundary before releasing content. If public content cannot load, reading falls back to the bundled note; the editor blocks publishing until it can load the live version successfully. Removing an override intentionally requires an administrator/operator action outside this editor. New event paths still require a code release.
+
+The intro video has no overlaid Lanterne logo. The letter has no visible “A note from Derek” label; its event name remains an accessible heading.
+
+## Scope and release
+
+Content overrides publish without a frontend redeployment. The page reads without authentication, map controls, or loading the main route-analysis application. Reading pages restore browser scrolling and zoom without changing the map application's viewport contract.
+
+The loader is `src/pages/EventNote.tsx`, the shared reading layout is `src/pages/EventNoteView.tsx`, and styles are in `src/pages/EventNote.css`. The editor is lazy-loaded only when requested. Existing app routes and providers live in `src/MainApplication.tsx` and load when needed.
+
+Public wording and claims remain subject to the human gate in `AGENTS.md`. Implementation validation does not certify a phase or authorize merging or production deployment.
+
 
 ---
 
