@@ -44270,6 +44270,7 @@ ADR-027 — Lantern Screen Model
 
 Status: Accepted
 Date: 2026
+Revision: 2026-11-09 — two-axis selector decision
 
 Companion specs: DS-011 (Ride-Time Situational Awareness Interface),
                  DS-012 (Ride Computer Tile System)
@@ -44286,11 +44287,13 @@ layers (e.g., hazards, cues, stops, weather).
 As the interaction evolved, the lantern became a mode selector driven by gesture,
 displaying large center text confirmation rather than chip buttons.
 
-Because the lantern selector no longer occupies fixed UI slots, the constraint of equal
-layer counts across ride modes is no longer necessary.
+An earlier design assumed different modes could expose different numbers of layers.
+The 2026-11-09 amendment below replaces that assumption with separate mode and layer
+axes and a shared layer list.
 
 Different ride contexts (e.g., randonneuring, commuting, bikepacking) require different
-sets of glanceable information.
+glanceable content. The selected layer can adapt its content to the mode without changing
+the shared selector list.
 
 Additionally, riders are accustomed to configuring screens on cycling head units
 (Garmin, Karoo), though those systems typically expose raw data fields rather than
@@ -44300,12 +44303,40 @@ meaningful riding views.
 
 Decision
 
-Lantern selector items will represent Lantern Screens, not fixed map layers.
+### Amendment — independent mode and layer axes (Derek, 2026-11-09)
 
-A Lantern Screen represents a glanceable riding view optimized for a single type
-of information.
+This amendment supersedes the earlier decision that Lantern Screens are arranged in
+mode-specific, user-overridable Lantern Stacks. The lantern navigation model now has
+two independent axes:
 
-Examples include:
+- **The long-hold horizontal mode gear cycles through the four primary modes:** Route,
+  Analyze, Plan, and Ride.
+- **Vertical selects a layer or supplemental screen.** Starting at None, moving upward
+  selects Hazards, Stops, Weather, Field notes, then Layer settings. Moving downward
+  selects Walkie-talkie. None remains the no-layer choice; Walkie-talkie also has a
+  dedicated record control.
+
+The layer axis is shared across modes. The former promises of mode-specific default
+stacks, per-mode overrides, and variable stack lengths do not define this selector.
+They may be reconsidered in a future product decision, but must not be assumed by an
+implementation.
+
+The long-hold selector opens the two-axis chooser. The hold's release ends finger
+control but does not commit a selection. The rider confirms by tapping a mode or layer
+choice, the record control, or the lantern's open action. An empty-area tap or Escape
+dismisses without changing the active selection.
+
+The existing short-gesture path remains available. Its horizontal movement uses the
+context- and access-filtered function order (which can include Account, Help, or admin
+functions), previewing and committing on release; it is broader than the four-mode
+gear. Upward movement previews the shared layer order and commits on release; the
+downward quick action is Walkie-talkie. In the long-hold chooser, horizontal and
+vertical movement instead control the four-mode gear and shared layer axis together.
+
+### Screen content
+
+A layer/screen is a glanceable riding view or map layer that presents one type of
+information. Examples include:
 	•	hazards
 	•	cues
 	•	controls
@@ -44316,18 +44347,9 @@ Examples include:
 	•	traffic metrics
 	•	filtered POI types (e.g., food, toilets)
 
-Lantern Screens are organized into a Lantern Stack.
-
-The Lantern Stack is:
-	•	defined by ride mode defaults
-	•	user-overridable per mode
-	•	variable length
-	•	ordered by importance for quick glance interaction
-
-The lantern gesture interaction itself remains mode-agnostic:
-	•	pull upward to scroll through screens
-	•	center text confirms selection
-	•	release activates the selected screen
+The selector's available layer/screen choices are presented on the vertical axis
+regardless of the selected mode. A screen may still adapt its content to the current
+mode, but mode does not change the selector's layer list or order.
 
 ⸻
 
@@ -44339,20 +44361,23 @@ Advantages:
 	•	the system can support future screen types without redesigning the lantern control
 
 Tradeoffs:
-	•	lantern thresholds must be computed dynamically from stack length
-	•	UI must support configuration of Lantern Screens per ride mode
+	•	the two selector axes must remain visually and interactively distinct
+	•	layer/screen content can adapt to mode, while the selection list remains shared
+	•	tapping confirms a long-hold selection after the fingers release the chooser
+
+The earlier dynamic-threshold and per-mode configuration tradeoffs are superseded
+for this selector by the amendment above. Proposed ride-time documents that still
+describe a mode-specific Lantern Stack must be reconciled before they are accepted or
+used as implementation authority.
 
 ⸻
 
 Future evolution
 
-The Lantern Screen model enables future customization such as:
-	•	user-configured screen ordering
-	•	filtered POI screens (e.g., food vs toilets)
-	•	multi-metric riding screens
-	•	traffic and environmental intelligence views
-
-These capabilities are not required for initial implementation.
+Future product decisions may change the shared layer list, adapt screen content by
+mode, add filtered POI screens (e.g., food vs toilets), or introduce multi-metric,
+traffic, and environmental intelligence views. User-configured or mode-specific
+screen lists are outside this decision and require an explicit ADR revision.
 
 ⸻
 
