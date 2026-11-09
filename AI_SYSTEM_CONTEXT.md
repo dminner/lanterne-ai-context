@@ -8121,19 +8121,11 @@ Most crossing events use standard severity context:
 An `uncontrolled_left_across` rider-facing marker and severity context exist only when all of the following are true:
 
 - the event occurs at an accepted ordered route-path handoff or equivalent canonical route-ownership transition
-- smoothed route bearings classify the maneuver as `left` or `sharp_left`, or the maneuver is a source-confirmed left-across under the narrow exception below
+- smoothed route bearings classify the maneuver as `left` or `sharp_left`
 - `fromFamilyKey !== toFamilyKey` under the road-family identity policy, including same-name/same-ref continuation handling
 - the crossed or entered road is motor-road domain
 - no governing traffic signal or stop control applies to the rider's incoming approach
 - control status is resolved as `uncontrolled`; unresolved control remains `unknown`
-
-**Source-confirmed left-across exception (LEFT-OBS-01, issue #444; pending Derek's human gate).** The generic geometry requirement above is unchanged: a measured `slight_left` (under 45°) is never an `uncontrolled_left_across` by angle alone, and missing OSM stop/signal tags are never proof of absence. The only exception is an administrator-verified turn observation approved as an audited source (ADR-040 `admin_approved`; ADR-043 `observed`). The record states only what its source establishes about the observer's basis; a first-hand ride through the junction is asserted only once the observer confirms it. The record must name the observer and approval reference, observation date, exact OSM node, ordered source way IDs, road names, highway classes, refs, and road-family keys, direction of travel, the measured leftward geometry window, and the control observed on the rider's incoming approach. One shared selector applies it to the existing-scoring adapter and the P7 entered-road path. It confirms the movement only on an owned, ordered route-path handoff at that node, from that way to that way, with distinct motor-road families, no same-ref continuation, no source drift, and incoming, outgoing, and signed bearings within the record's tolerance. Opposite travel, the reverse handoff, same-road continuation, nearby geometry, another node or way, and unresolved ownership do not qualify. Only then may the selected input carry `left_across` with the record's evidence ID. Control becomes `uncontrolled` only when the shared scan of sealed P7 stop/signal material covers the junction and finds no mapped stop or signal within 30 m of the node.
-
-Precedence when a mapped control conflicts with the reviewed observation: mapped stop/signal evidence always wins over the observation's `uncontrolled`. The event stays one ordinary `left_across` with the path's own resolved control (`stop_controlled`, `signalized`, or `unknown`) and `standard` severity, with no `left_turn` marker. The conflicting controls are listed in the observation match receipt. A missing scan, or a sealed hazard-material gap within 60 m of the node, also leaves control at the path's own value (normally `unknown`). The first approved record is Indian Mills Road (way 11609171) → Grassy Lake Road (way 11595979) at node 103415544, signed delta −37.8° (`slight_left`). New records require the same admin approval and human gate. This exception changes neither the 2.25 factor nor the crossing eligibility rule.
-
-**Crossed-road inputs for a source-confirmed left-across (LEFT-OBS-01 Revision 2; pending Derek's human gate).** For a movement the approved record confirms, §9.1 eligibility and the §9.2 speed, traffic and width inputs use the road whose traffic the rider crosses. The record names that road. For the first record it is the departed Indian Mills Road (way 11609171): the rider leaves it to the left across its opposing lane before entering Grassy Lake Road. The record carries no speed, traffic or lane value. Each path selects the crossed way's own route evidence. The existing-scoring adapter uses the draft ridden into the junction, only when that draft is owned solely by the crossed way. The P7 path reads the same selected speed and traffic sets at the last route millimetre of the crossed way's resolved owner atom, which ends exactly at the handoff. Both the traffic interval and the speed fact must be owned by that way. Proxy inputs keep their proxy provenance. If the crossed road cannot be bound, the gap stays explicit: the adapter excludes the event with no marker, and P7 blocks it with typed missing components. The entered road's input is never substituted. This binding follows movement confirmation, so it also applies when mapped control suppresses the uncontrolled assertion; that event is then an ordinary `standard` left across the crossed road. Every other left-across keeps its existing entered-road inputs. The P7 crossing-input policy version is unchanged, and the binding is receipted per event.
-
-**Whole-route-ready selection of a source-confirmed left-across (LEFT-OBS-01 Revision 3; pending Derek's human gate).** ADR-059 makes the ActiveScoreLedger the only rider-facing score truth, so the approved event must be selected and scored on the ordinary complete-owner route, not only by the existing-scoring adapter. On a whole-route-ready P7 route (complete, gap-free owner and owner-capability equivalence ready), the crossing set is the generic `crossing-risk-input-selection.v1` set, which reads `junction_context` evidence only. The P7 entered-road junction builder therefore also runs on that complete owner, restricted to handoffs that an approved record confirms. It reads the authenticated owner partitions and exact handoffs; it does not mint a partial display projection. Its facts are selected by the same P7 selector, with the crossed-road binding above, and bound to the complete-owner selection snapshot. They are then composed onto the generic set, once, under the set policy `crossing-risk-input-selection.v1+approved-left-across-whole-route-composition.v1`. Without an approved event the generic set is unchanged. Every composed fact must be an approved `left_across`. If the generic set already has an event within 30 m, the approved fact is not added: the set carries an explicit `ambiguous_event` blocker instead of a second crossing. A blocked approved fact blocks the set, so the route is not score-ready over an unscored approved crossing. The RigidScoreLedger alone computes its risk under the unchanged §9 formula and 2.25 context. The `left_turn` marker for an approved movement is placed only from exactly one such canonical fact at its node, with a score-bearing RigidScoreLedger trace of positive risk and an ActiveScoreLedger bound to that ledger revision. The adapter conflict remains compatibility and diagnostic output; it cannot place the approved marker on its own.
 
 This factor is applied after the crossing-likelihood cap. It represents residual operating-speed/severity context at confidently uncontrolled left-across locations, not an additional claim about crash likelihood. Do not multiply it into `MovementFactor`, `ControlFactor`, or both.
 
@@ -16290,7 +16282,7 @@ hazards until a trusted user-report, feed, or detector source exists.
 | Dynamic Hazards | `loose_dog` | Loose dog | No - planned | Rider reports | Reported loose dog or recurring dog chase location. | Time-sensitive unless repeatedly confirmed; must attach to route point/segment. | Non-scoring display/report toggle. |
 | Dynamic Hazards | `pedestrians` | Pedestrians | No - planned | Rider reports; future land-use / trail conflict feeds | Known pedestrian conflict area that affects cycling line choice or speed. | Bounded interval or point cluster; should avoid flagging ordinary pedestrian presence. | Non-scoring display/report toggle. |
 | Dynamic Hazards | `parked_door_swing` | Parked door swing | No - planned | Rider reports; parking lane / curbside activity feeds where available | Report or feed identifies repeated door-zone exposure on the route. | Interval-based; needs persistence or repeated confirmation. | Non-scoring display/report toggle. |
-| Conflict Points | `left_turn` | Uncontrolled left turn | Yes - crossing model | Canonical `uncontrolled_left_across` crossing/conflict evidence | A genuine left turn across traffic between distinct route-owned roads without a governing stop sign or traffic signal. | Requires accepted ordered route-path handoff/equivalent ownership transition, `left`/`sharp_left` geometry, distinct canonical road family, motor-road conflict, and resolved `control=uncontrolled`. Unknown control does not qualify. Narrow exception (DS-015 §9.6, LEFT-OBS-01): a measured `slight_left` qualifies only at a handoff that an administrator-approved observation confirms, for its exact node, ordered ways, and direction. The marker is derived only from that selected crossing input and carries its evidence ID; it is never added in the UI. For that approved movement the marker appears only when the event's crossing inputs are bound to the record's crossed road (DS-015 §9.6), and it names that binding and the event's scoring disposition. The approved marker is placed only from exactly one canonical selected crossing fact at its node that the RigidScoreLedger scored and the ActiveScoreLedger binds (LEFT-OBS-01 Revision 3); it carries that fact, selection receipt, rigid trace and ledger revision IDs. The adapter conflict alone never places it. A mapped stop/signal near the node suppresses it. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. Stop/signal markers take presentation precedence at the same conflict location. |
+| Conflict Points | `left_turn` | Uncontrolled left turn | Yes - crossing model | Canonical `uncontrolled_left_across` crossing/conflict evidence | A genuine left turn across traffic between distinct route-owned roads without a governing stop sign or traffic signal. | Requires accepted ordered route-path handoff/equivalent ownership transition, `left`/`sharp_left` geometry, distinct canonical road family, motor-road conflict, and resolved `control=uncontrolled`. Unknown control does not qualify. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. Stop/signal markers take presentation precedence at the same conflict location. |
 | Conflict Points | `signed_crossing` | Signed crossing | Yes - detector/crossing evidence | Current `stop_crossing`; owned OSM road corridor | Explicit hazard node with `highway=stop`, represented as a displayable signed crossing/control. | Accepted if the node projects within normal route snap. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. |
 | Conflict Points | `signaled_crossing` | Signaled crossing | Yes - detector/crossing evidence | Current `signal_crossing`; owned OSM road corridor | Explicit hazard node with `highway=traffic_signals`, excluding pedestrian-only / crosswalk-signal patterns. | Accepted if the node projects within normal route snap. Hazard visibility toggle does not alter scoring inputs. | Non-scoring display toggle; score math is independent. |
 | Pinch Points | `tight_guardrail` | Tight guardrail | No - planned | Rider reports; future roadway edge/barrier feeds | Report identifies a guardrail pinch with little escape room or poor passing margin. | Point or interval; must attach to route and carry confirmation/freshness. | Non-scoring display/report toggle. |
@@ -44278,6 +44270,7 @@ ADR-027 — Lantern Screen Model
 
 Status: Accepted
 Date: 2026
+Revision: 2026-11-09 — two-axis selector decision
 
 Companion specs: DS-011 (Ride-Time Situational Awareness Interface),
                  DS-012 (Ride Computer Tile System)
@@ -44294,11 +44287,13 @@ layers (e.g., hazards, cues, stops, weather).
 As the interaction evolved, the lantern became a mode selector driven by gesture,
 displaying large center text confirmation rather than chip buttons.
 
-Because the lantern selector no longer occupies fixed UI slots, the constraint of equal
-layer counts across ride modes is no longer necessary.
+An earlier design assumed different modes could expose different numbers of layers.
+The 2026-11-09 amendment below replaces that assumption with separate mode and layer
+axes and a shared layer list.
 
 Different ride contexts (e.g., randonneuring, commuting, bikepacking) require different
-sets of glanceable information.
+glanceable content. The selected layer can adapt its content to the mode without changing
+the shared selector list.
 
 Additionally, riders are accustomed to configuring screens on cycling head units
 (Garmin, Karoo), though those systems typically expose raw data fields rather than
@@ -44308,12 +44303,40 @@ meaningful riding views.
 
 Decision
 
-Lantern selector items will represent Lantern Screens, not fixed map layers.
+### Amendment — independent mode and layer axes (Derek, 2026-11-09)
 
-A Lantern Screen represents a glanceable riding view optimized for a single type
-of information.
+This amendment supersedes the earlier decision that Lantern Screens are arranged in
+mode-specific, user-overridable Lantern Stacks. The lantern navigation model now has
+two independent axes:
 
-Examples include:
+- **The long-hold horizontal mode gear cycles through the four primary modes:** Route,
+  Analyze, Plan, and Ride.
+- **Vertical selects a layer or supplemental screen.** Starting at None, moving upward
+  selects Hazards, Stops, Weather, Field notes, then Layer settings. Moving downward
+  selects Walkie-talkie. None remains the no-layer choice; Walkie-talkie also has a
+  dedicated record control.
+
+The layer axis is shared across modes. The former promises of mode-specific default
+stacks, per-mode overrides, and variable stack lengths do not define this selector.
+They may be reconsidered in a future product decision, but must not be assumed by an
+implementation.
+
+The long-hold selector opens the two-axis chooser. The hold's release ends finger
+control but does not commit a selection. The rider confirms by tapping a mode or layer
+choice, the record control, or the lantern's open action. An empty-area tap or Escape
+dismisses without changing the active selection.
+
+The existing short-gesture path remains available. Its horizontal movement uses the
+context- and access-filtered function order (which can include Account, Help, or admin
+functions), previewing and committing on release; it is broader than the four-mode
+gear. Upward movement previews the shared layer order and commits on release; the
+downward quick action is Walkie-talkie. In the long-hold chooser, horizontal and
+vertical movement instead control the four-mode gear and shared layer axis together.
+
+### Screen content
+
+A layer/screen is a glanceable riding view or map layer that presents one type of
+information. Examples include:
 	•	hazards
 	•	cues
 	•	controls
@@ -44324,18 +44347,9 @@ Examples include:
 	•	traffic metrics
 	•	filtered POI types (e.g., food, toilets)
 
-Lantern Screens are organized into a Lantern Stack.
-
-The Lantern Stack is:
-	•	defined by ride mode defaults
-	•	user-overridable per mode
-	•	variable length
-	•	ordered by importance for quick glance interaction
-
-The lantern gesture interaction itself remains mode-agnostic:
-	•	pull upward to scroll through screens
-	•	center text confirms selection
-	•	release activates the selected screen
+The selector's available layer/screen choices are presented on the vertical axis
+regardless of the selected mode. A screen may still adapt its content to the current
+mode, but mode does not change the selector's layer list or order.
 
 ⸻
 
@@ -44347,20 +44361,23 @@ Advantages:
 	•	the system can support future screen types without redesigning the lantern control
 
 Tradeoffs:
-	•	lantern thresholds must be computed dynamically from stack length
-	•	UI must support configuration of Lantern Screens per ride mode
+	•	the two selector axes must remain visually and interactively distinct
+	•	layer/screen content can adapt to mode, while the selection list remains shared
+	•	tapping confirms a long-hold selection after the fingers release the chooser
+
+The earlier dynamic-threshold and per-mode configuration tradeoffs are superseded
+for this selector by the amendment above. Proposed ride-time documents that still
+describe a mode-specific Lantern Stack must be reconciled before they are accepted or
+used as implementation authority.
 
 ⸻
 
 Future evolution
 
-The Lantern Screen model enables future customization such as:
-	•	user-configured screen ordering
-	•	filtered POI screens (e.g., food vs toilets)
-	•	multi-metric riding screens
-	•	traffic and environmental intelligence views
-
-These capabilities are not required for initial implementation.
+Future product decisions may change the shared layer list, adapt screen content by
+mode, add filtered POI screens (e.g., food vs toilets), or introduce multi-metric,
+traffic, and environmental intelligence views. User-configured or mode-specific
+screen lists are outside this decision and require an explicit ADR revision.
 
 ⸻
 

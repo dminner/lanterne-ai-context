@@ -834,6 +834,131 @@ These constants came from the audited legacy implementation. They are retained h
 
 ---
 
+## Source File: docs/05-product/list-leader-interaction-contract.md
+
+# List-leader interaction contract
+
+Status: durable design spec. Introduced by issue #420 (Library).
+
+## What it is
+
+For a map-linked list, the row at the **top of the actually visible list** supplies passive scroll
+focus by default. It gets a shared visual treatment, and the map emphasizes that item's exact place.
+As the rider scrolls and a different row becomes the visible leader, the focus follows it.
+
+An explicit choice by tapping a row or a map item takes visual focus immediately, regardless of its
+rank in the list. Layout, resize, rerender, and observer callbacks may update the measured leader,
+but they must not steal focus from that explicit choice. A later genuine user scroll that changes
+the visible leader returns focus to scroll-following. Choosing the same item again is still a new
+explicit focus action, even when its ID did not change.
+
+The shared *focus* is presentation state. It is not:
+
+- explicit row selection;
+- opening, expanding or navigating into a row;
+- loading a route, starting an analysis or changing what is "active";
+- choosing a truth, scoring or evidence result.
+
+Focus is distinct from item identity, result-window membership, camera framing, and open/detail state.
+Explicit selection may take focus, but it does not silently add map-preview membership, change camera
+ownership, open a row, load a route, or enter details. A focused item without exact displayed map
+geometry stays focused in the list and produces no map paint; the map must not fall back to a different
+row or fabricate an approximation. Opening a row never changes focus unless that interaction also
+explicitly selects it.
+
+## Rules every consumer must keep
+
+1. **Actually visible rows only.** The passive leader comes from measured, clipped row rectangles inside every
+   scrolling/clipping ancestor and below sticky occluders. Mounted overscan, spacers and off-screen
+   recycled nodes are never evidence. A row that still has any visible pixels at the top is still the
+   leader (partial clipping). If no row is visible, there is no leader.
+2. **Exact domain identity.** Each row carries the exact identity of its domain record
+   (`data-result-list-item-id`). The consumer resolves the leader to map geometry only through that
+   identity and the record's own persisted facts, such as route IDs or saved route-distance
+   bounds. It never matches by display text, such as a road or route name.
+3. **Bound to one source.** The leader belongs to one exact source generation, such as a collection,
+   filter and sort, or a saved calculation identity. When the source changes, the previous leader
+   and explicit focus are cleared before any new leader binds. The old focus is never carried over,
+   even when IDs coincide. An item removed from the active source also loses explicit focus.
+4. **Never stale.** The map paint is removed when the surface unmounts, the source changes, the
+   route is replaced, or the effective focused item has no exact mapped geometry. "No exact geometry" stays
+   explicit as no paint. It is never approximated.
+5. **Same focus identity.** Row emphasis and map emphasis resolve from the same effective focus ID.
+   Do not style one row while highlighting another route.
+6. **Input provenance.** Only an actual user scroll from this list or one of its clipping/scrolling
+   ancestors that changes the visible leader resumes scroll focus. The gesture must start after the
+   latest explicit focus action, and its measured scroll event must come from the same scroll chain.
+   A completed scroll measurement that leaves the leader unchanged consumes that gesture; later
+   resize, layout, rerender, mutation, and observer measurements cannot borrow it to clear focus.
+7. **Read-only.** Following the leader reads already-presented data. It must not mutate route truth,
+   scoring, evidence authority, caches, history or saved calculations.
+8. **Shared mechanics, domain-owned semantics.** All consumers use the shared visible-list
+   primitives. Each consumer keeps its own small adapter that maps its domain identity to its domain
+   geometry. Do not write a widget-specific scroll listener. Do not write a generic adapter that
+   erases domain identity, for example one that turns everything into "a lat/lng box" chosen by name.
+
+## Shared primitives
+
+| Primitive | File | Role |
+| --- | --- | --- |
+| `readVisibleResultItems` / `resultListViewport` | `src/hooks/useResultListScroll.ts` | Measures clipped row rectangles and returns the leading (and trailing) item ID. |
+| `useResultListScroll` | `src/hooks/useResultListScroll.ts` | Observes the list's clipping/scrolling ancestors, resize, visual-viewport and focus changes. Coalesces work to one frame and reports whether a changed leader followed a fresh gesture from that scroll chain or a layout measurement. An explicit-focus boundary prevents earlier gestures from being reused. The `generation` key restarts it for a new source. |
+| `resultListFocusReducer` / `resolveResultListFocus` | `src/hooks/useResultListFocus.ts` | Shared focus state machine: passive leader by default, explicit choice override, scroll hand-back, and source/item reset. Its monotonic selection revision fences stale scroll intent and same-ID reselects. |
+| `useResultListPage` / `ResultListRowWindow` | `src/hooks/useResultListPage.ts` | Optional bounded row window for long lists (Library uses it). |
+| Library focus presentation | `src/index.css` | The current Library adapter styles the effective focused row with `.vault-map-route-row.is-leading`. A reusable `.result-list-row.is-leading` class belongs to the separate, unmerged #426 branch and is not part of this change. |
+
+Row markup carries `data-result-list-item-id="<exact id>"`. `data-leading-result="true"` reports
+the passive measured leader only. The current Library UI styles the effective focused row, which
+may differ from that measured leader after an explicit choice.
+
+## Adopters
+
+### Current
+
+- **Library** (issue #420). Rows are saved routes, identified by `routeId` within the collection,
+  filter and sort generation. The top visible route is the passive focus; an explicit row or map-item
+  selection takes visual focus regardless of rank. Focus does not change the result window or camera.
+- **Analyze Receipts** (issue #426, separate unmerged branch). Rows are saved road visits in the calculation receipts. Identity
+  is the saved calculation `sourceIdentity` (canonical: the ActiveTruthView id; partial: the
+  accounting digest) plus the saved visit ID (`visit:<saved visit index>`). The geometry is the visit's
+  copied saved `startDistM`–`endDistM` interval along the loaded route
+  (`src/domain/analyze/receipts/receiptLeaderSpan.ts`). It is painted in the existing
+  selected-section map pane, and the map pans to it without zooming in
+  (`src/hooks/useReceiptLeaderSpanPaint.ts`). Its current adapter follows the visible receipt leader;
+  explicit receipt selection remains separate and should adopt the shared override when that work is
+  rebased. Expanding a receipt row stays independent.
+
+### Future (not implemented)
+
+These surfaces are named here so that, when they are built, they adopt this contract. Their UI is
+**not** implemented by #420 or #426.
+
+- **Field Notes.** The leader should resolve by the note's persisted identity and its saved location or
+  route-distance.
+- **Hazards.** The leader should resolve by the hazard's persisted identity and its saved location or
+  route interval, never by hazard label.
+- **Weather measurement points.** The leader should resolve by the measurement's persisted identity
+  and its saved sample position or time. It must not resolve by a displayed place name.
+
+Each future consumer must preserve exact identity, keep the active state presentation-only, and
+use the shared focus state machine rather than reimplementing scroll, tap, and reset behavior. The
+domain adapter still owns how an exact item maps to route geometry or a measurement; the shared model
+does not decide hazard semantics, weather calculations, or Field Note meaning.
+
+## Known limits (Analyze Receipts)
+
+- Saved receipt metres and the map's haversine walk the same ordered route points but may use
+  slightly different earth models. A span whose end exceeds the displayed route length by more than
+  0.5% (+1 m) is treated as unmapped. Within that slack, the end is clamped to the route end.
+- The map is not checked against `routeAxisId`. Binding relies on the host: the span comes only from
+  the open Analyze sheet, it clears whenever the route changes, and the receipt list remounts per
+  source identity.
+- Only the bottom Analyze surface is wired. The legacy side-drawer Receipts tab does not follow
+  scrolling.
+
+
+---
+
 ## Source File: docs/05-product/prod-001-positioning.md
 
 # Product Positioning
