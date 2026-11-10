@@ -963,10 +963,6 @@ does not decide hazard semantics, weather calculations, or Field Note meaning.
 
 # Product Positioning
 
-> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
-
-Lanterne is a bike safety brand. The app is one expression of it.
-
 Lanterne occupies a unique position within the cycling ecosystem.
 
 It does **not compete directly** with most existing cycling platforms.
@@ -983,7 +979,7 @@ Instead, it sits **alongside them**.
 | RideWithGPS  | route planning and sharing             |
 | Garmin       | device ecosystem and ride recording    |
 | Komoot       | recreational route discovery           |
-| **Lanterne** | route safety: the check between planning and riding |
+| **Lanterne** | route intelligence and safety analysis |
 
 ------
 
@@ -1014,19 +1010,13 @@ It reveals things that are otherwise invisible:
 • fatigue accumulation
 • descent risk
 
-These factors matter to anyone choosing a road, and they compound on long rides. They are rarely modeled.
-
-Lanterne is the **safety check between planning and riding**. Riders plan in the tools they already use, bring the route to Lanterne to see how risky it is and where, adjust, then navigate wherever they navigate.
+These factors matter deeply for long-distance cyclists but are rarely modeled.
 
 ------
 
 ## The Rider Lanterne Serves
 
-Lanterne serves any cyclist choosing a road.
-
-The default rider is the everyday rider: commuting, riding errands, doing a weekly loop, and not necessarily knowing what a brevet is. Every new rider-facing feature is designed for this rider first.
-
-Long-distance riders are a served advanced audience, not the definition. Lanterne also serves riders who:
+Lanterne is designed for riders who:
 
 • travel far from home
 • ride alone frequently
@@ -1034,7 +1024,7 @@ Long-distance riders are a served advanced audience, not the definition. Lantern
 • explore unfamiliar terrain
 • plan multi-day routes
 
-For every one of these riders, route choice is not trivial.
+For these riders, route choice is not trivial.
 
 It can be the difference between a great ride and a dangerous one.
 
@@ -1113,42 +1103,13 @@ Cyclists deserve to understand these differences before committing to hundreds o
 
 # Rider Archetypes
 
-> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
-
-Lanterne serves any cyclist choosing a road. The everyday rider is the default; the other archetypes are advanced lenses on the same safety check.
+Lanterne is optimized for a specific set of cyclists.
 
 Understanding these riders helps guide product decisions.
 
 ------
 
-## 1. The Everyday Rider
-
-The default rider. Commutes, runs errands, does the same local loop, rides with family. Assumes no knowledge of brevets, controls or randonneuring vocabulary.
-
-Typical characteristics:
-
-• short and medium rides, often from home
-• routes repeated week after week
-• riding at whatever hour the day allows
-
-Needs from Lanterne:
-
-• which roads are fast and busy, and where
-• where bike infrastructure and shoulder actually are
-• the crossings that matter on a familiar route
-• how the same road changes by the hour
-
-Served by the default **Road** profile.
-
-------
-
-## Advanced lenses
-
-The archetypes below are served through the other ride profiles: Rando, Ultra, Gravel, and Touring/Bikepacking. A rider's profile comes from the type of riding they give at registration, and they can change it. Existing work for these profiles stays; new profile-specific build-out is paused (ADR-068).
-
-------
-
-## 2. The Randonneur
+## 1. The Randonneur
 
 The randonneur rides extremely long distances under time limits.
 
@@ -1167,7 +1128,7 @@ Needs from Lanterne:
 
 ------
 
-## 3. The Bikepacker
+## 2. The Bikepacker
 
 The bikepacker travels for days or weeks across varied terrain.
 
@@ -1185,7 +1146,7 @@ Needs from Lanterne:
 
 ------
 
-## 4. The Endurance Soloist
+## 3. The Endurance Soloist
 
 This rider pushes extreme personal challenges.
 
@@ -1203,7 +1164,7 @@ Needs from Lanterne:
 
 ------
 
-## 5. The Nocturne Rider
+## 4. The Nocturne Rider
 
 Many endurance cyclists ride heavily at night.
 
@@ -1223,13 +1184,14 @@ Needs from Lanterne:
 
 ## Who Lanterne Is Not Designed For
 
-Lanterne does not try to serve these needs:
+Lanterne is not optimized for:
 
+• casual fitness riders
+• short recreational loops
 • group ride coordination
 • social activity tracking
-• performance training
 
-Existing apps serve those well. Lanterne sits beside them.
+Those riders are well served by existing apps.
 
 ---
 
@@ -2812,7 +2774,7 @@ That gives Lanterne a stop system that is simple on the surface, truthful in the
 
 ## Supersession Notice
 
-This v3.1 methodology is historical. The active canonical model is [DS-015 - Safety Scoring Model](../02-architecture/design/ds-015-safety_scoring_model.md) (5.7 as of 2026-10-18).
+This v3.1 methodology is historical. The active canonical model is [DS-015 - Safety Scoring Model 5.5](../02-architecture/design/ds-015-safety_scoring_model.md).
 
 Current doctrine:
 
@@ -2900,8 +2862,6 @@ Sharrows receive no credit at launch.
 ### ShoulderFactor
 
 Shoulder credit applies **only** when there is no dedicated bike facility **and** speed ≥ 30 mph.
-
-> **Historical v3.1 rule — not current.** DS-015 5.7 (2026-10-18) applies shoulder credit at every speed, never over a dedicated bike facility and never for an unknown width. The legacy V3.1 preview pipeline follows the same application rule with its own V3.1 multipliers.
 
 | Shoulder Class | Width           | ShoulderFactor |
 |---------------|-----------------|----------------|
