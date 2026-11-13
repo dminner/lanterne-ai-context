@@ -8132,16 +8132,18 @@ An `uncontrolled_left_across` rider-facing marker and severity context exist onl
 - no governing traffic signal or stop control applies to the rider's incoming approach
 - control status is resolved as `uncontrolled`; unresolved control remains `unknown`
 
-For a P7 source-bound sharp left, a shared route `ref` alone is not a crossing veto. A
-measured left of at least 45 degrees between different named, route-owned motor roads may
-still be a `left_across` event when the selected ways are distinct, meet at the same sealed
-OSM node, and their owner intervals meet exactly at the handoff. A same-name way split,
-near-straight shared-ref continuation, overlapping or unresolved owner-way pair, or
-unproved junction node remains excluded from this exception. A shared ref does not prove
-the physical conflict; the turn angle and source-bound road change do that work. This
-exception does not infer governing control. Unknown control retains the standard
-severity context and explicit `unknown` label. Rejected candidates should retain their
-reason in diagnostic receipts where available.
+**Proposed shared-ref clarification (HOLD; not yet authorized in the compiler):** a
+shared route `ref` alone is not proof that a source-bound sharp left is a non-event.
+Admitting such a crossing requires the selected distinct source ways and adjacent owner
+intervals at the exact shared node **and** complete enough junction-arm geometry to
+prove an opposing-traffic conflict. Different road names and a measured left of at least
+45 degrees are useful filters but are insufficient by themselves; a road can change name
+at a sharp bend. A near-straight continuation, same-name way split, overlapping or
+unresolved owner-way pair, or unproved opposing arm remains excluded. The proposed
+exception does not infer governing control: unknown control keeps standard severity
+and an explicit `unknown` label. Candidate rejection reasons should remain inspectable
+in diagnostic receipts where available. The current draft implementation lacks the
+required complete arm proof and must not be released under this proposal.
 
 **Source-confirmed left-across exception (LEFT-OBS-01, issue #444; pending Derek's human gate).** The generic geometry requirement above is unchanged: a measured `slight_left` (under 45°) is never an `uncontrolled_left_across` by angle alone, and missing OSM stop/signal tags are never proof of absence. The only exception is an administrator-verified turn observation approved as an audited source (ADR-040 `admin_approved`; ADR-043 `observed`). The record states only what its source establishes about the observer's basis; a first-hand ride through the junction is asserted only once the observer confirms it. The record must name the observer and approval reference, observation date, exact OSM node, ordered source way IDs, road names, highway classes, refs, and road-family keys, direction of travel, the measured leftward geometry window, and the control observed on the rider's incoming approach. One shared selector applies it to the existing-scoring adapter and the P7 entered-road path. It confirms the movement only on an owned, ordered route-path handoff at that node, from that way to that way, with distinct motor-road families, no same-ref continuation, no source drift, and incoming, outgoing, and signed bearings within the record's tolerance. Opposite travel, the reverse handoff, same-road continuation, nearby geometry, another node or way, and unresolved ownership do not qualify. Only then may the selected input carry `left_across` with the record's evidence ID. Control becomes `uncontrolled` only when the shared scan of sealed P7 stop/signal material covers the junction and finds no mapped stop or signal within 30 m of the node.
 
@@ -48638,7 +48640,7 @@ A crossing event enters score math when at least one of the following is true:
 
 Signalized and stop-controlled crossings may still be counted and reported even when not every one is score-bearing.
 
-**2026-11-13 source-bound handoff clarification.** A route number is an administrative identity, not proof that a rider continues straight or avoids an opposing-lane conflict. A shared `ref` may suppress a near-straight continuation, but it must not alone erase a measured sharp left between distinct named roads when sealed source ways and adjacent route-owner intervals prove the exact shared-node handoff. Missing owner, node, road-name, or turn-angle proof leaves that same-ref exception unavailable. Unknown stop/signal control stays unknown and receives the standard crossing severity context; this clarification does not certify any junction as uncontrolled.
+**Proposed 2026-11-13 source-bound handoff clarification (HOLD).** A route number is an administrative identity, not proof that a rider continues straight or avoids an opposing-lane conflict. A shared `ref` must not alone erase a measured sharp left when sealed source ways, adjacent route-owner intervals, and the junction's motor-road arm geometry prove an opposing-traffic conflict. Different road names and a sharp angle do not by themselves establish that conflict: a named road can change at a bend. Missing complete arm-incidence, owner, node, or turn-angle proof leaves the exception unavailable. Unknown stop/signal control stays unknown with standard crossing severity. This proposal does not certify any junction as uncontrolled or authorize the draft implementation while the arm proof is unresolved.
 
 ### 5. Route-level crossing share is diagnostic, not a score cap
 The older V3.1 route-level crossing-share cap is superseded.
