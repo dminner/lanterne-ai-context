@@ -55990,3 +55990,49 @@ Planning is paid and free during early access (ADR-069). All voice input is free
 5. **Voice is the primary way to make a note on the bike, but pull-down is universal input.** *"Typing is basically worthless on the bike."* Record-and-submit with transcription in the background is preferred over live dictation, so the rider never looks down to check the words. The 2026-10-24 owner amendment makes pull-down a command-first input that may become a Field Note, correction, supported question, or nothing. **Add note** presets Field Note intent. DS-069 §7 is revised. This does not change the note's place anchor, lifecycle, access, or ADR-040 boundary.
 6. **Phase 1A is author-only and additive.** It has no pre-action confirmation, uses an exact ten-second post-action undo, and keeps mute actor-scoped across reload, new rides, and logout/login until explicit unmute. Fixed confirmations and eligible live readback use Speechify, with device speech only as the availability fallback and with external provider evidence still required. The server dispatcher may enable available `pg_net` only through a new additive Phase 1A migration; the landed Field Notes migration is never edited or replayed, and production deployment remains separately gated.
 
+
+---
+
+## Source File: docs/03-adrs/adr-071-crossing-component-refresh-on-published-routes.md
+
+# ADR-071: Crossing component refresh on published routes
+
+**Status:** Proposed; this draft grants no refresh or publication authority.  
+**Date:** 2026-11-14  
+**Parents:** ADR-059, DS-067, P7 persisted current-route artifact and compiler contracts.
+
+## Problem
+
+The corrected P7 crossing selection must reach published RUSA routes while keeping their certified road results. The existing full artifact does **not** contain the original road input facts or `RigidScoreLedger` body, nor the selected speed/traffic sets and P7 material needed for fresh crossings. It contains an authenticated published result and display/calculation projections. The current RUSA compiler invokes the whole engine and requires `hpms_acquisition_complete=true` before it can attest an artifact, even after crossing telemetry is emitted. There is no implemented crossing-only refresh path.
+
+The public RUSA manifest contains 3,153 routes. Manifest membership alone does not establish hydration, saved-artifact readiness or crossing material for any route. Hydrated source cells are reusable inputs, not already scored route artifacts. This carry lane applies only where a canonical parent artifact was actually published; a source-hydrated route without one still needs an initial route compile under its own readiness rules.
+
+## Proposed authority change
+
+Allow a **one-time published-road-output carry** as a narrowly scoped exception to ADR-059/DS-067. The carry is the road result that the governed publisher previously served, **not** reconstructed road inputs or a rehydrated old road ledger. The importer must obtain the artifact from its authenticated serving path, validate its exact reference, build and route authority, attestations, payload digests, route axis and policy identities, and pin the parent artifact reference. The old calculation detail must have `status=available`, finite unrounded road risk and counted distance, and a reconciled per-segment road sum; otherwise the route is ineligible. It may extract that published road total, denominator and detail solely as the immutable result to preserve. It must say explicitly that the original road inputs cannot be recovered or independently rescored from this artifact. A copied, locally rehashed or merely self-consistent JSON object is insufficient.
+
+This proposal intentionally changes the old rule that `ActiveTruthView` cannot become score authority **only for this one sealed, already published road result**. It does not grant a general projection-to-scorer path. The original road result is never recalculated, repaired, rounded before composition, or presented as if the current crossing producer also selected its road inputs. The new authority records both vintages and both producer identities.
+
+## Crossing refresh lane
+
+For each route, obtain a fresh certified P7 owner/junction solve and source-bound speed/traffic selections for the **crossed roads**. The route axis and geometry must equal the parent. Require the new solve's canonical effective-owner authority receipt and adapted material-set digest to equal the corresponding parent attestation values, with the same partition count, covered/gap distance, source revision and material policy. Saved display ownership spans may help diagnose a mismatch but are not the equality witness: their identities and bounds can be display fallbacks. The new producer retains its raw/query/material/owner digests. A source revision ID alone proves neither owner nor material equality. If the canonical witness cannot be reproduced, the route cannot use this carry lane; a later mixed-vintage policy would need separate review.
+
+The crossing lane acquires the P7 material needed to reproduce the canonical owner witness and certify junctions. It need not prove **whole-route** HPMS acquisition, but must query the relevant official traffic source for every crossed road under a bounded, receipted targeted acquisition. Each crossing's speed and traffic comes from newly selected, source-bound facts under the current ladder. A typed model baseline is allowed only when higher-priority source queries completed and yielded no admissible candidate; a failed or skipped query is incomplete, not absence. A missing value cannot become zero or be described as an official count. Missing owner, ambiguous through road, incomplete selected inputs, and control uncertainty retain their existing blocked/unknown semantics. The old artifact's display values cannot supply missing selected facts.
+
+Define a versioned canonical **composite score ledger** inside the traffic-spine scorer. It accepts the authenticated published-road-output carry plus the newly scored crossing component, checks the original denominator and route axis, and alone emits total risk, risk per mile, new receipts, event markers and presentation. It must not reuse the old `RigidScoreLedger` digest as if the old ledger had been rerun. The composite's schema, digest and attestation bind the parent artifact/ref and old road result, all new crossing selection/calculation receipts, current scorer/policy versions, and both source vintages. Because the old road confidence trace is absent, the composite cannot claim newly computed full-route confidence; it must retain an explicit unavailable/partial confidence state unless a reviewed, separately authenticated component is found.
+
+Publish a **new companion artifact/reference**; never edit the parent. The reader may serve it only under a reviewed cohort pin after validating parent and composite closure. UI, cache and read proxy do not add scores at load time. The parent stays available for exact rollback.
+
+## Required proof before implementation is accepted
+
+1. Demonstrate that the serving-path old artifact can be authenticated against its external cohort pin and that its unrounded published road result and denominator are stable. Document exactly what the old attestation proves and what it does not prove.
+2. Demonstrate an independent crossing-material acquisition that reproduces the parent's canonical effective-owner receipt and adapted material-set digest, supplies certified crossed-road selected speed and traffic plus P7 controls, and completes targeted official traffic queries without the whole-route HPMS gate. Bind its raw/query/material digests. Display ownership spans are diagnostic only.
+3. Specify and test the composite ledger, confidence semantics, calculation detail, artifact schema, publisher and reader validation. Reject a changed axis, owner partition, parent reference, road output/denominator, missing crossing inputs, or forged/mixed provenance.
+4. Verify all road totals, segment calculations, coverage and paint equal the parent; verify crossing events, controls, risk, markers and receipt links equal the new scorer. Reopen a saved RouteX route to check that no diagnostic legacy crossing summary resurfaces.
+5. Compile an **unpublished** Batsto canonical canary. Oahu Loop and Hana Hiatus are currently pinned as **partial**, so assess them next under their existing partial-artifact accounting and unresolved-owner rules; this canonical carry lane must not turn either into a complete score. Keep a per-route before/after receipt with exact road equality where applicable, crossing delta, blockers and artifact hashes. A compiler trace alone does not mark a route refreshed.
+6. Require independent skeptical review, Derek/ChatGPT scoring and safety gate, preview browser readback, production rollback pin, publication and serving readback before a bounded RUSA batch.
+
+## Limits
+
+This is a deliberate new authority rule, not an interpretation of current ADR-059. If the published-road-output carry is rejected at final gate, the old artifacts do not contain enough data for this migration: an independently retained certified road-input checkpoint or a full source/HPMS replay is required. If crossed-road inputs or owner evidence cannot be acquired, that route remains unchanged and explicitly blocked. No existing artifact is refreshed by this document.
+
