@@ -55997,8 +55997,8 @@ Planning is paid and free during early access (ADR-069). All voice input is free
 
 # ADR-071: Crossing component refresh on published routes
 
-**Status:** Proposed; this draft grants no refresh or publication authority.  
-**Date:** 2026-11-14  
+**Status:** Proposed; this draft grants no refresh or publication authority.
+**Date:** 2026-11-14
 **Parents:** ADR-059, DS-067, P7 persisted current-route artifact and compiler contracts.
 
 ## Problem
@@ -56019,7 +56019,9 @@ For each route, obtain a fresh certified P7 owner/junction solve and source-boun
 
 The crossing lane acquires the P7 material needed to reproduce the canonical owner witness and certify junctions. It need not prove **whole-route** HPMS acquisition, but must query the relevant official traffic source for every crossed road under a bounded, receipted targeted acquisition. Each crossing's speed and traffic comes from newly selected, source-bound facts under the current ladder. A typed model baseline is allowed only when higher-priority source queries completed and yielded no admissible candidate; a failed or skipped query is incomplete, not absence. A missing value cannot become zero or be described as an official count. Missing owner, ambiguous through road, incomplete selected inputs, and control uncertainty retain their existing blocked/unknown semantics. The old artifact's display values cannot supply missing selected facts.
 
-Define a versioned canonical **composite score ledger** inside the traffic-spine scorer. It accepts the authenticated published-road-output carry plus the newly scored crossing component, checks the original denominator and route axis, and alone emits total risk, risk per mile, new receipts, event markers and presentation. It must not reuse the old `RigidScoreLedger` digest as if the old ledger had been rerun. The composite's schema, digest and attestation bind the parent artifact/ref and old road result, all new crossing selection/calculation receipts, current scorer/policy versions, and both source vintages. Because the old road confidence trace is absent, the composite cannot claim newly computed full-route confidence; it must retain an explicit unavailable/partial confidence state unless a reviewed, separately authenticated component is found.
+Define a versioned canonical **composite score ledger** inside the traffic-spine scorer. It accepts the authenticated published-road-output carry plus the newly scored crossing component, checks the original denominator and route axis, and alone emits total risk, risk per mile and new receipts. It is the sole stable score authority for the refreshed route: exactly one ActiveScoreLedger consumes it and exactly one mechanical ActiveTruthView projects that ledger. Markers and presentation derive from that chain. No parallel rider-facing ledger or UI arithmetic is permitted. The composite must not reuse the old `RigidScoreLedger` digest as if the old ledger had been rerun. Its schema, digest and attestation bind the parent artifact/ref and old road result, all new crossing selection/calculation receipts, current scorer/policy versions, and both source vintages. Because the old road confidence trace is absent, the composite cannot claim newly computed full-route confidence; it must retain an explicit unavailable/partial confidence state unless a reviewed, separately authenticated component is found.
+
+"One-time" means the carry parent must be an original published canonical artifact, never another composite child. Multiple reviewed crossing-policy/source versions may produce separate children directly from that parent, but an exact parent/ref plus crossing source/policy tuple must mint the same child identity and cannot be appended twice. A child cannot become a carry parent.
 
 Publish a **new companion artifact/reference**; never edit the parent. The reader may serve it only under a reviewed cohort pin after validating parent and composite closure. UI, cache and read proxy do not add scores at load time. The parent stays available for exact rollback.
 
