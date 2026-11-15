@@ -904,13 +904,12 @@ explicitly selects it.
 | `readVisibleResultItems` / `resultListViewport` | `src/hooks/useResultListScroll.ts` | Measures clipped row rectangles and returns the leading (and trailing) item ID. |
 | `useResultListScroll` | `src/hooks/useResultListScroll.ts` | Observes the list's clipping/scrolling ancestors, resize, visual-viewport and focus changes. Coalesces work to one frame and reports whether a changed leader followed a fresh gesture from that scroll chain or a layout measurement. An explicit-focus boundary prevents earlier gestures from being reused. The `generation` key restarts it for a new source. |
 | `resultListFocusReducer` / `resolveResultListFocus` | `src/hooks/useResultListFocus.ts` | Shared focus state machine: passive leader by default, explicit choice override, scroll hand-back, and source/item reset. Its monotonic selection revision fences stale scroll intent and same-ID reselects. |
-| `useResultListFocus(scopeKey, itemIds)` | `src/hooks/useResultListFocus.ts` | Packaged consumer wiring for the reducer (issue #464): dispatches the source and item resets, and returns `focusedItemId`, `leadingItemId`, `explicit`, `focusBoundary`, `onLeadingItemChange` and `select`. Hand `focusBoundary` and `onLeadingItemChange` to `useResultListScroll`. Consumers use this instead of re-wiring the reducer. Library (Vault), Field Notes and Analyze Receipts all use it. |
 | `useResultListPage` / `ResultListRowWindow` | `src/hooks/useResultListPage.ts` | Optional bounded row window for long lists (Library uses it). |
-| Shared row focus presentation | `src/index.css`, `src/components/RouteFunctionSurface.css` | Full-width rows add `.result-list-row` and toggle `.is-leading` on the effective focused row (Library's expanded rows carry both `.vault-map-route-row` and `.result-list-row`). Analyze Receipts road rows also carry `.result-list-row`. Compact rows (`.compact-vault-row`, used by compact Library and Field Notes) mark the effective focused row with `data-focused-result="true"`. |
+| Library focus presentation | `src/index.css` | The current Library adapter styles the effective focused row with `.vault-map-route-row.is-leading`. A reusable `.result-list-row.is-leading` class belongs to the separate, unmerged #426 branch and is not part of this change. |
 
 Row markup carries `data-result-list-item-id="<exact id>"`. `data-leading-result="true"` reports
-the passive measured leader only. `data-focused-result="true"` (or `.is-leading`) marks the effective
-focused row, which may differ from that measured leader after an explicit choice.
+the passive measured leader only. The current Library UI styles the effective focused row, which
+may differ from that measured leader after an explicit choice.
 
 ## Adopters
 
@@ -919,64 +918,27 @@ focused row, which may differ from that measured leader after an explicit choice
 - **Library** (issue #420). Rows are saved routes, identified by `routeId` within the collection,
   filter and sort generation. The top visible route is the passive focus; an explicit row or map-item
   selection takes visual focus regardless of rank. Focus does not change the result window or camera.
-  The controller (`src/hooks/useVaultBrowserPanelController.ts`) uses `useResultListFocus` with the
-  exact preview generation as scope and the exact visible route IDs as items. A map-item focus request
-  becomes `focus.select` only after its generation matches exactly and its route ID is visible; it never
-  opens or selects the route. Row leader reports reach `focus.onLeadingItemChange` with their cause.
-  The bounded result window, hydration and camera still follow the controller's separate
-  generation-stamped leading result, not the focus.
-- **Analyze Receipts** (issue #426, adopted on the #464 line). Rows are the saved road visits in the
-  calculation receipts (`src/components/analyze/tabs/CalculationReceipts.tsx`). Identity is the saved
-  visit ID (`visit:<saved visit index>`) within the saved calculation `sourceIdentity` (canonical: the
-  ActiveTruthView id; partial: the accounting digest). The source generation is that `sourceIdentity`
-  plus the list's current sort, filter and page: a re-sort, filter or page change drops the old focus
-  before a new row binds. Focus comes from `useResultListFocus`, and the leader from `useResultListScroll`.
-  The geometry is the visit's copied saved `startDistM`–`endDistM` interval along the loaded route
-  (`src/domain/analyze/receipts/receiptLeaderSpan.ts`), never the road name or mile text. It is painted
-  in the existing selected-section map pane, and the map pans to it without zooming in
-  (`src/hooks/useReceiptLeaderSpanPaint.ts`). A visit without a usable saved interval stays focused in the
-  list and paints nothing. Unmount, a source change, a route-axis change (id or revision), or no visible
-  row clears the paint. Product behaviour (specified by Derek): as the rider scrolls, the top actually visible receipt
-  stays live and highlighted, and the map pans its frame to that receipt's exact saved interval. This is
-  the receipts surface's camera policy; it is not an open question. Receipts have no explicit focus
-  surface, and none is to be invented: expanding a road row is "open", which neither takes nor moves
-  focus, and focus never opens a row. Only the bottom Analyze sheet is wired.
-- **Field Notes Library** (issue #464). Rows are the notes in the open collection (All, My notes,
-  Saved). Identity is the Library item key: `own:<note id>`, `import:<imported place key>`, or
-  `saved:<ref>` for a saved reference that cannot be read here. The source is the collection, the
-  contribution kind, every filter, and the loaded route's `routeAxisDigest`
-  (`src/lib/field-notes/field-note-library-focus.ts`). The geometry is the record's own stored point,
-  drawn as the record's own pin: `lib:<item key>` for an overlay point, or an on-route imported pin's
-  own key. A row without a stored point, a deleted own note, another account's note, or an unresolved
-  saved reference has no pin, so it can be focused in the list but produces no map emphasis. Focus
-  highlights the pin and never pans. An explicit row tap, pin tap, or "Show on map" may reveal the point
-  through the existing reveal path, which pans without zooming. Opening Details, Save, Attach, and
-  comments are independent of focus. The list keeps its own window-and-paging measure for map framing
-  and older-page reads (result-window membership), separate from focus.
+- **Analyze Receipts** (issue #426, separate unmerged branch). Rows are saved road visits in the calculation receipts. Identity
+  is the saved calculation `sourceIdentity` (canonical: the ActiveTruthView id; partial: the
+  accounting digest) plus the saved visit ID (`visit:<saved visit index>`). The geometry is the visit's
+  copied saved `startDistM`–`endDistM` interval along the loaded route
+  (`src/domain/analyze/receipts/receiptLeaderSpan.ts`). It is painted in the existing
+  selected-section map pane, and the map pans to it without zooming in
+  (`src/hooks/useReceiptLeaderSpanPaint.ts`). Its current adapter follows the visible receipt leader;
+  explicit receipt selection remains separate and should adopt the shared override when that work is
+  rebased. Expanding a receipt row stays independent.
 
 ### Future (not implemented)
 
-These surfaces are named here so that, when they are built, they adopt this contract. As of issue #464,
-none has an eligible list. The exact missing product surface is recorded for each.
+These surfaces are named here so that, when they are built, they adopt this contract. Their UI is
+**not** implemented by #420 or #426.
 
+- **Field Notes.** The leader should resolve by the note's persisted identity and its saved location or
+  route-distance.
 - **Hazards.** The leader should resolve by the hazard's persisted identity and its saved location or
-  route interval, never by hazard label. *Missing surface (audited #464):* no list of hazard instances
-  exists. Hazards appear only as optional rows (`hazard:<id>`, at `distM`) inside the mixed cue-sheet
-  timeline (`src/components/CueSheet.tsx`). That timeline is a navigation list of cues, hazards, and Field
-  Note rows that GPS auto-scrolls. Its hazard rows have no map link today, only a card flip. The events
-  are derived from the current route presentation surface and are not persisted hazard records. A
-  hazard-instance list with a map emphasis would be a new rider-facing safety presentation, which needs
-  the human gate.
+  route interval, never by hazard label.
 - **Weather measurement points.** The leader should resolve by the measurement's persisted identity
-  and its saved sample position or time. It must not resolve by a displayed place name. *Missing
-  surface (audited #464):* no scrolling map-linked list of weather points exists.
-  - The Weather details' "Captured checkpoints" control (`WeatherVisualDetails.tsx`) is a choice group
-    of explicit buttons and is already map-linked through `selectCheckpoint`. It is not a scroll list.
-  - `RouteForecastConditionsSummary` lists checkpoint rows in the scenario panel, but has no map
-    emphasis.
-  - `RouteWeatherSummary`'s checkpoint list is not mounted by any host.
-
-  Adopting either would mean adding a new map paint for a forecast row.
+  and its saved sample position or time. It must not resolve by a displayed place name.
 
 Each future consumer must preserve exact identity, keep the active state presentation-only, and
 use the shared focus state machine rather than reimplementing scroll, tap, and reset behavior. The
@@ -988,23 +950,11 @@ does not decide hazard semantics, weather calculations, or Field Note meaning.
 - Saved receipt metres and the map's haversine walk the same ordered route points but may use
   slightly different earth models. A span whose end exceeds the displayed route length by more than
   0.5% (+1 m) is treated as unmapped. Within that slack, the end is clamped to the route end.
-- The span paints only on its exact route axis. It carries the `routeAxisId` + `routeAxisRevision`
-  copied from the saved calculation: canonical receipts copy them from the same ActiveTruthView, and
-  partial v2 receipts from the accounting's `parent`. It paints only while both fields equal the map's
-  current axis. A receipt without that axis authority (legacy or unavailable) never paints. The span is
-  also shown only while its `sourceIdentity` is the calculation the sheet currently formats. Binding
-  generations follow the exact axis value plus the expected saved-calculation source, not the GPX
-  array, so a rehydrated route with the same axis and calculation keeps its leader. An axis or source
-  that changes and later returns does not revive an older binding.
+- The map is not checked against `routeAxisId`. Binding relies on the host: the span comes only from
+  the open Analyze sheet, it clears whenever the route changes, and the receipt list remounts per
+  source identity.
 - Only the bottom Analyze surface is wired. The legacy side-drawer Receipts tab does not follow
   scrolling.
-- Camera policy is per surface; the list rules above are shared. Receipts: passive focus pans the map
-  (without zooming in) to the focused receipt's exact interval, as Derek specified. Field Notes: passive
-  focus highlights the record's own pin and never pans; an explicit reveal pans through its existing
-  path. Library: focus changes neither the result window nor the camera.
-- Receipts have no explicit row or map selection, and this work adds none (expanding a row is not focus).
-  If one is ever added, it must use the shared `select` override rather than reusing the expand toggle.
-- Not yet verified in a protected full-app preview or a real browser.
 
 
 ---
