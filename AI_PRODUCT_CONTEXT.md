@@ -834,9 +834,138 @@ These constants came from the audited legacy implementation. They are retained h
 
 ---
 
+## Source File: docs/05-product/list-leader-interaction-contract.md
+
+# List-leader interaction contract
+
+Status: durable design spec. Introduced by issue #420 (Library).
+
+## What it is
+
+For a map-linked list, the row at the **top of the actually visible list** supplies passive scroll
+focus by default. It gets a shared visual treatment, and the map emphasizes that item's exact place.
+As the rider scrolls and a different row becomes the visible leader, the focus follows it.
+
+An explicit choice by tapping a row or a map item takes visual focus immediately, regardless of its
+rank in the list. Layout, resize, rerender, and observer callbacks may update the measured leader,
+but they must not steal focus from that explicit choice. A later genuine user scroll that changes
+the visible leader returns focus to scroll-following. Choosing the same item again is still a new
+explicit focus action, even when its ID did not change.
+
+The shared *focus* is presentation state. It is not:
+
+- explicit row selection;
+- opening, expanding or navigating into a row;
+- loading a route, starting an analysis or changing what is "active";
+- choosing a truth, scoring or evidence result.
+
+Focus is distinct from item identity, result-window membership, camera framing, and open/detail state.
+Explicit selection may take focus, but it does not silently add map-preview membership, change camera
+ownership, open a row, load a route, or enter details. A focused item without exact displayed map
+geometry stays focused in the list and produces no map paint; the map must not fall back to a different
+row or fabricate an approximation. Opening a row never changes focus unless that interaction also
+explicitly selects it.
+
+## Rules every consumer must keep
+
+1. **Actually visible rows only.** The passive leader comes from measured, clipped row rectangles inside every
+   scrolling/clipping ancestor and below sticky occluders. Mounted overscan, spacers and off-screen
+   recycled nodes are never evidence. A row that still has any visible pixels at the top is still the
+   leader (partial clipping). If no row is visible, there is no leader.
+2. **Exact domain identity.** Each row carries the exact identity of its domain record
+   (`data-result-list-item-id`). The consumer resolves the leader to map geometry only through that
+   identity and the record's own persisted facts, such as route IDs or saved route-distance
+   bounds. It never matches by display text, such as a road or route name.
+3. **Bound to one source.** The leader belongs to one exact source generation, such as a collection,
+   filter and sort, or a saved calculation identity. When the source changes, the previous leader
+   and explicit focus are cleared before any new leader binds. The old focus is never carried over,
+   even when IDs coincide. An item removed from the active source also loses explicit focus.
+4. **Never stale.** The map paint is removed when the surface unmounts, the source changes, the
+   route is replaced, or the effective focused item has no exact mapped geometry. "No exact geometry" stays
+   explicit as no paint. It is never approximated.
+5. **Same focus identity.** Row emphasis and map emphasis resolve from the same effective focus ID.
+   Do not style one row while highlighting another route.
+6. **Input provenance.** Only an actual user scroll from this list or one of its clipping/scrolling
+   ancestors that changes the visible leader resumes scroll focus. The gesture must start after the
+   latest explicit focus action, and its measured scroll event must come from the same scroll chain.
+   A completed scroll measurement that leaves the leader unchanged consumes that gesture; later
+   resize, layout, rerender, mutation, and observer measurements cannot borrow it to clear focus.
+7. **Read-only.** Following the leader reads already-presented data. It must not mutate route truth,
+   scoring, evidence authority, caches, history or saved calculations.
+8. **Shared mechanics, domain-owned semantics.** All consumers use the shared visible-list
+   primitives. Each consumer keeps its own small adapter that maps its domain identity to its domain
+   geometry. Do not write a widget-specific scroll listener. Do not write a generic adapter that
+   erases domain identity, for example one that turns everything into "a lat/lng box" chosen by name.
+
+## Shared primitives
+
+| Primitive | File | Role |
+| --- | --- | --- |
+| `readVisibleResultItems` / `resultListViewport` | `src/hooks/useResultListScroll.ts` | Measures clipped row rectangles and returns the leading (and trailing) item ID. |
+| `useResultListScroll` | `src/hooks/useResultListScroll.ts` | Observes the list's clipping/scrolling ancestors, resize, visual-viewport and focus changes. Coalesces work to one frame and reports whether a changed leader followed a fresh gesture from that scroll chain or a layout measurement. An explicit-focus boundary prevents earlier gestures from being reused. The `generation` key restarts it for a new source. |
+| `resultListFocusReducer` / `resolveResultListFocus` | `src/hooks/useResultListFocus.ts` | Shared focus state machine: passive leader by default, explicit choice override, scroll hand-back, and source/item reset. Its monotonic selection revision fences stale scroll intent and same-ID reselects. |
+| `useResultListPage` / `ResultListRowWindow` | `src/hooks/useResultListPage.ts` | Optional bounded row window for long lists (Library uses it). |
+| Library focus presentation | `src/index.css` | The current Library adapter styles the effective focused row with `.vault-map-route-row.is-leading`. A reusable `.result-list-row.is-leading` class belongs to the separate, unmerged #426 branch and is not part of this change. |
+
+Row markup carries `data-result-list-item-id="<exact id>"`. `data-leading-result="true"` reports
+the passive measured leader only. The current Library UI styles the effective focused row, which
+may differ from that measured leader after an explicit choice.
+
+## Adopters
+
+### Current
+
+- **Library** (issue #420). Rows are saved routes, identified by `routeId` within the collection,
+  filter and sort generation. The top visible route is the passive focus; an explicit row or map-item
+  selection takes visual focus regardless of rank. Focus does not change the result window or camera.
+- **Analyze Receipts** (issue #426, separate unmerged branch). Rows are saved road visits in the calculation receipts. Identity
+  is the saved calculation `sourceIdentity` (canonical: the ActiveTruthView id; partial: the
+  accounting digest) plus the saved visit ID (`visit:<saved visit index>`). The geometry is the visit's
+  copied saved `startDistM`–`endDistM` interval along the loaded route
+  (`src/domain/analyze/receipts/receiptLeaderSpan.ts`). It is painted in the existing
+  selected-section map pane, and the map pans to it without zooming in
+  (`src/hooks/useReceiptLeaderSpanPaint.ts`). Its current adapter follows the visible receipt leader;
+  explicit receipt selection remains separate and should adopt the shared override when that work is
+  rebased. Expanding a receipt row stays independent.
+
+### Future (not implemented)
+
+These surfaces are named here so that, when they are built, they adopt this contract. Their UI is
+**not** implemented by #420 or #426.
+
+- **Field Notes.** The leader should resolve by the note's persisted identity and its saved location or
+  route-distance.
+- **Hazards.** The leader should resolve by the hazard's persisted identity and its saved location or
+  route interval, never by hazard label.
+- **Weather measurement points.** The leader should resolve by the measurement's persisted identity
+  and its saved sample position or time. It must not resolve by a displayed place name.
+
+Each future consumer must preserve exact identity, keep the active state presentation-only, and
+use the shared focus state machine rather than reimplementing scroll, tap, and reset behavior. The
+domain adapter still owns how an exact item maps to route geometry or a measurement; the shared model
+does not decide hazard semantics, weather calculations, or Field Note meaning.
+
+## Known limits (Analyze Receipts)
+
+- Saved receipt metres and the map's haversine walk the same ordered route points but may use
+  slightly different earth models. A span whose end exceeds the displayed route length by more than
+  0.5% (+1 m) is treated as unmapped. Within that slack, the end is clamped to the route end.
+- The map is not checked against `routeAxisId`. Binding relies on the host: the span comes only from
+  the open Analyze sheet, it clears whenever the route changes, and the receipt list remounts per
+  source identity.
+- Only the bottom Analyze surface is wired. The legacy side-drawer Receipts tab does not follow
+  scrolling.
+
+
+---
+
 ## Source File: docs/05-product/prod-001-positioning.md
 
 # Product Positioning
+
+> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
+
+Lanterne is a bike safety brand. The app is one expression of it.
 
 Lanterne occupies a unique position within the cycling ecosystem.
 
@@ -854,7 +983,7 @@ Instead, it sits **alongside them**.
 | RideWithGPS  | route planning and sharing             |
 | Garmin       | device ecosystem and ride recording    |
 | Komoot       | recreational route discovery           |
-| **Lanterne** | route intelligence and safety analysis |
+| **Lanterne** | route safety: the check between planning and riding |
 
 ------
 
@@ -885,13 +1014,19 @@ It reveals things that are otherwise invisible:
 • fatigue accumulation
 • descent risk
 
-These factors matter deeply for long-distance cyclists but are rarely modeled.
+These factors matter to anyone choosing a road, and they compound on long rides. They are rarely modeled.
+
+Lanterne is the **safety check between planning and riding**. Riders plan in the tools they already use, bring the route to Lanterne to see how risky it is and where, adjust, then navigate wherever they navigate.
 
 ------
 
 ## The Rider Lanterne Serves
 
-Lanterne is designed for riders who:
+Lanterne serves any cyclist choosing a road.
+
+The default rider is the everyday rider: commuting, riding errands, doing a weekly loop, and not necessarily knowing what a brevet is. Every new rider-facing feature is designed for this rider first.
+
+Long-distance riders are a served advanced audience, not the definition. Lanterne also serves riders who:
 
 • travel far from home
 • ride alone frequently
@@ -899,7 +1034,7 @@ Lanterne is designed for riders who:
 • explore unfamiliar terrain
 • plan multi-day routes
 
-For these riders, route choice is not trivial.
+For every one of these riders, route choice is not trivial.
 
 It can be the difference between a great ride and a dangerous one.
 
@@ -978,13 +1113,42 @@ Cyclists deserve to understand these differences before committing to hundreds o
 
 # Rider Archetypes
 
-Lanterne is optimized for a specific set of cyclists.
+> **Revised 2026-10-19 under [ADR-068](../03-adrs/adr-068-safety_first_positioning_everyday_default_and_in_between_layer.md)** (Proposed). These revisions stand or fall with ADR-068 at the owner gate.
+
+Lanterne serves any cyclist choosing a road. The everyday rider is the default; the other archetypes are advanced lenses on the same safety check.
 
 Understanding these riders helps guide product decisions.
 
 ------
 
-## 1. The Randonneur
+## 1. The Everyday Rider
+
+The default rider. Commutes, runs errands, does the same local loop, rides with family. Assumes no knowledge of brevets, controls or randonneuring vocabulary.
+
+Typical characteristics:
+
+• short and medium rides, often from home
+• routes repeated week after week
+• riding at whatever hour the day allows
+
+Needs from Lanterne:
+
+• which roads are fast and busy, and where
+• where bike infrastructure and shoulder actually are
+• the crossings that matter on a familiar route
+• how the same road changes by the hour
+
+Served by the default **Road** profile.
+
+------
+
+## Advanced lenses
+
+The archetypes below are served through the other ride profiles: Rando, Ultra, Gravel, and Touring/Bikepacking. A rider's profile comes from the type of riding they give at registration, and they can change it. Existing work for these profiles stays; new profile-specific build-out is paused (ADR-068).
+
+------
+
+## 2. The Randonneur
 
 The randonneur rides extremely long distances under time limits.
 
@@ -1003,7 +1167,7 @@ Needs from Lanterne:
 
 ------
 
-## 2. The Bikepacker
+## 3. The Bikepacker
 
 The bikepacker travels for days or weeks across varied terrain.
 
@@ -1021,7 +1185,7 @@ Needs from Lanterne:
 
 ------
 
-## 3. The Endurance Soloist
+## 4. The Endurance Soloist
 
 This rider pushes extreme personal challenges.
 
@@ -1039,7 +1203,7 @@ Needs from Lanterne:
 
 ------
 
-## 4. The Nocturne Rider
+## 5. The Nocturne Rider
 
 Many endurance cyclists ride heavily at night.
 
@@ -1059,14 +1223,13 @@ Needs from Lanterne:
 
 ## Who Lanterne Is Not Designed For
 
-Lanterne is not optimized for:
+Lanterne does not try to serve these needs:
 
-• casual fitness riders
-• short recreational loops
 • group ride coordination
 • social activity tracking
+• performance training
 
-Those riders are well served by existing apps.
+Existing apps serve those well. Lanterne sits beside them.
 
 ---
 
