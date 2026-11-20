@@ -11673,6 +11673,8 @@ Route creation must be allowed to suspend background overlay hydration when nece
 Reason:
 - route creation analysis should not compete with non-critical overlay prewarm right before analysis begins
 
+Scope (DRAW-OVERLAYS-01, 2026-11-17): only background prewarm is suspended (no overlay button on). An overlay the rider has switched on keeps its source and keeps acquiring while they draw and pan. An unaccepted draft does not leave free Explore for overlay source selection. While drawing, a tap on overlay paint places a waypoint and opens no road card.
+
 ## 10. Separation of Duties
 
 Overlay hydration must remain distinct from:
