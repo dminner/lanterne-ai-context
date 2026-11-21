@@ -5647,7 +5647,10 @@ While a ride is **recording or paused**, ride mode behaves like a bike computer:
 | Screen-edge zone beside a pane | Swipe inward from the right edge | Whole pane to the next theme | Pane turns sideways |
 | Screen-edge zone beside a pane | Swipe inward from the left edge | Whole pane to the previous theme | Pane turns sideways |
 | Anywhere else, including the gap between two values and the dots | Anything | The map's: pan, zoom, tap as before | — |
-| Keyboard on a value | ↑ / ↓, Page Down / Page Up, Enter or Space | Next / previous figure, next / previous theme, picker | As above |
+| Mouse, keyboard or assistive technology on a value | Click, Enter or Space (it is a native button) | Next figure, once, like a tap | Vertical |
+| Keyboard on a value | ↑ / ↓, Page Down / Page Up | Next / previous figure, next / previous theme | As above |
+| Mouse on a value | Right click | Open the picker | None |
+| Keyboard or screen reader | "Choose what the … pane shows" (hidden until focused) | Open the picker | None |
 
 - **A touch keeps the place it started in.** One that starts on a value or an edge zone never reaches the map wherever it travels; one that starts on the map stays the map's even when it crosses a pane. The ride computer is a fixed overlay outside the map element with `pointer-events: none`; only the values and edge zones take touches (`pointer-events: auto`, `touch-action: none`), so the map's own gestures are untouched everywhere else.
 - **Edge zones** are 52px wide strips at each side of the screen, as tall as their pane plus 12px above and below, inside the safe area. A faint 3px handle at each side marks them; the dots under the pane say which theme of the list it is on. Values stay clear of the zones (a pane is at most the screen width less both zones).
@@ -5656,6 +5659,7 @@ While a ride is **recording or paused**, ride mode behaves like a bike computer:
 - A theme with one figure (Elevation today) has nothing to turn to: a swipe on its value changes nothing and does not turn. Two values never show the same figure: turning one skips the other's.
 - Route is offered only while a route is engaged (ADR-029 "Mode visibility"). A pane left on Route shows the next theme until a route is engaged again, then Route comes back.
 - Thresholds (`tile-gesture.ts`): swipe 30px, tap slop 14px, long press 550ms. Drift past the slop cancels a long press, and the release after a long press is not also a tap.
+- The click a browser sends after a touch is ignored for 800ms, so a tap, swipe or hold turns a value once and never again on release.
 
 **Picker.** A long press on a value opens it, in the Lanterne gear menu's style (the same reference stage, scrim, gear drawing, red selected slice, upright labels, mono captions and disc controls):
 
