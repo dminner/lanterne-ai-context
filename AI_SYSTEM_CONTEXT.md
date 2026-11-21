@@ -5600,6 +5600,92 @@ mph
 
 ---
 
+## Mid-ride ergonomics
+
+**Added:** 2026-11-21 (RIDE-ERGONOMICS-01).
+
+While a ride is **recording or paused**, ride mode behaves like a bike computer: the rider has one hand free, often gloved, on a moving phone, and glances rather than looks. Every touch target grows; nothing changes colour, material or order. Outside a ride every surface keeps its planning size. The numbers live in one place, `src/lib/presentation/ride-ergonomics.ts`.
+
+| Surface | Planning | Mid-ride |
+|---------|----------|----------|
+| Route segment tap width (touch) | 56px | **72px** |
+| Off-route road tap width (speed layer) | the painted core, 4–6px | **44px** transparent line, in a pane below every route pane |
+| Ride strip buttons (Start/Stop, Lap, Pause, Save, Cues) | 44px on phones, 16px glyphs, 10px labels | **56px**, 22px glyphs, 12px labels, 6px gaps |
+| Map control row (six controls beside the lantern) | 40px | **48px** where the row keeps ≥4px between controls, else **44px**, else 40px |
+| Ride computer value | `clamp(56px, 16vw, 120px)` | `clamp(64px, 19vw, 140px)` (always; the screen only shows in ride mode) |
+| Ride computer label | 12px | 14px |
+| Ride computer swipe zone | the numerals only | at least 176px wide, padded |
+
+**Rules:**
+- The route always wins. The widened road lines sit in `rideRoadHitPane` (z 378), below bike inspection (380), the interactive route core (390) and the route hitboxes (400). A road's own painted core keeps its planning tap target, so a tap directly on a road behaves exactly as before; the ride line only catches the near miss.
+- Map controls never grow at the cost of buttons that touch or of the lantern's own target. A narrow phone keeps 40px.
+- Bigger is not denser. No tile, control or metric is added.
+
+**Panes.** The ride computer screen is built from two explicit panes, `top` and `bottom` (`RideComputerPane`). A pane owns where its content sits; the host decides what it shows. "Panes and tiles" below says what each pane shows and how it is changed.
+
+---
+
+## Panes and tiles
+
+**Added:** 2026-11-21 (RIDE-TOP-PANE-01, second pass after owner review). Decisions the build made where this spec was open. Where this section and the Interaction Grammar or Edit Model above differ, this section is the current build.
+
+**Model.** Two panes, top and bottom, centred on the screen's top and bottom thirds. Each pane shows one **theme** (this spec's category: Time, Speed, Distance, Elevation, Route) as one value or two side by side (`HalfLayout` single / double). Both panes work the same way; either can split.
+
+**Themes are an open registry** (`tile-categories.ts`, `RIDE_PANE_CATEGORIES`). A theme is an id, a name, its metrics in order, and whether it needs a route. Adding one (Energy, say) is one entry there plus its metrics in the metric registry; the edge-swipe order, the pane dots and the picker's PANE gear all read that list.
+
+**Each theme keeps its own values.** A pane that turns from Distance to Elevation and back finds Distance as the rider left it: the same figures, one or two. The two panes share this memory, so Distance looks the same in either pane.
+
+**First run.** Time on top showing elapsed time, Speed below showing current speed: the screen riders already had. The four-tile default above waits on owner review. After any change `customized` is true and the rider owns the layout.
+
+**Three places, three jobs** (owner decision, 2026-11-21). The map pans by swipe, a value changes by swipe, and a whole pane changes by swipe, so each owns its own part of the screen:
+
+| Where the finger starts | Gesture | Action | Turn |
+|-------------------------|---------|--------|------|
+| On a value | Tap, or swipe left or up | Next figure of the pane's theme | Follows the finger (`rotateX` / `rotateY`) |
+| On a value | Swipe right or down | Previous figure | Follows the finger |
+| On a value | Long press (550ms, finger still) | Open the picker | None |
+| Screen-edge zone beside a pane | Swipe inward from the right edge | Whole pane to the next theme | Pane turns sideways |
+| Screen-edge zone beside a pane | Swipe inward from the left edge | Whole pane to the previous theme | Pane turns sideways |
+| Anywhere else, including the gap between two values and the dots | Anything | The map's: pan, zoom, tap as before | — |
+| Keyboard on a value | ↑ / ↓, Page Down / Page Up, Enter or Space | Next / previous figure, next / previous theme, picker | As above |
+
+- **A touch keeps the place it started in.** One that starts on a value or an edge zone never reaches the map wherever it travels; one that starts on the map stays the map's even when it crosses a pane. The ride computer is a fixed overlay outside the map element with `pointer-events: none`; only the values and edge zones take touches (`pointer-events: auto`, `touch-action: none`), so the map's own gestures are untouched everywhere else.
+- **Edge zones** are 52px wide strips at each side of the screen, as tall as their pane plus 12px above and below, inside the safe area. A faint 3px handle at each side marks them; the dots under the pane say which theme of the list it is on. Values stay clear of the zones (a pane is at most the screen width less both zones).
+- **The phone's own edge gestures** claim the outer edge first: iOS back (in Safari, and in the app shell, which enables WKWebView's back and forward swipes) when there is a page to go back to, and Android's gesture-navigation back, about 20 to 32px wide by default. 52px leaves a glove-sized band inside them. A swipe that starts at the very edge may still go Back on iOS when there is history; starting a finger's width in is reliable.
+- Only an inward, mostly sideways swipe at an edge turns a pane. A tap, an outward drag or a vertical drag there does nothing.
+- A theme with one figure (Elevation today) has nothing to turn to: a swipe on its value changes nothing and does not turn. Two values never show the same figure: turning one skips the other's.
+- Route is offered only while a route is engaged (ADR-029 "Mode visibility"). A pane left on Route shows the next theme until a route is engaged again, then Route comes back.
+- Thresholds (`tile-gesture.ts`): swipe 30px, tap slop 14px, long press 550ms. Drift past the slop cancels a long press, and the release after a long press is not also a tap.
+
+**Picker.** A long press on a value opens it, in the Lanterne gear menu's style (the same reference stage, scrim, gear drawing, red selected slice, upright labels, mono captions and disc controls):
+
+- the **PANE** gear chooses the pane's theme; themes not offered now are blank slices;
+- the **VALUE** gear chooses what the pressed value shows, from that theme;
+- **1 VALUE / 2 VALUES** discs choose one value or two (two is greyed out for a one-figure theme);
+- the readout at the top shows the pressed value live, its name, and which pane and side it is.
+
+Every choice applies at once; Done, a tap on the dark around the gears, or Escape closes it. This replaces "blind" swiping as the way to see every option at once: the swipes stay as the quick way.
+
+**Figures today.** Only metrics the registry resolves: Time (elapsed, moving, time of day), Speed (current, average), Distance (ridden, remaining), Elevation (gain), Route (progress, next turn). Distance remaining and route progress share one basis (distance ridden against route length). Next turn needs a route with a next cue. Elevation gain is not measured during a ride yet, so it shows `--`, never a false zero. The other V1 figures join their theme when their resolvers exist.
+
+**Turn animation.** A value turns 220ms (`rotateX` for vertical swipes and taps, `rotateY` for sideways swipes) from 90° to flat, the new face arriving from the side the old one left toward. A whole pane turns 260ms `rotateY`. None under `prefers-reduced-motion`.
+
+**Sizes.**
+
+| | One value | Two values |
+|-|----------|-----------|
+| Value | `clamp(64px, 19vw, 140px)` | `clamp(30px, 8.5vw, 96px)` |
+| Label | 14px | 14px |
+| Touch zone | ≥176px wide, ≥96px tall | ≥120px wide each, ≥96px tall, 12px apart |
+| Edge zone | 52px wide, pane height + 24px | same |
+| Picker controls | labels ≥56px, discs 56px, Done 168 × 56px | same |
+
+**Persistence.** The same local record (`lanterne-ride-computer-layout`), now `version: 2`: `panes` (theme per pane), `categoryPanes` (each theme's layout and two values), and `customized`. `topMetric` and `bottomMetric` are kept equal to each pane's first value so an older build reads it. Records from before panes (`{ topMetric, bottomMetric }`) and from the first top-pane build (`{ topPane }`) open on the same figures; unknown themes and metrics fall back to defaults. Account sync is still later.
+
+**Theme.** No card, panel or backdrop on the ride screen. Same Georgia numerals, theme text colour and halo as the rest of the ride computer; the dots and edge handles use the same colour and halo.
+
+---
+
 ## Color Rules
 
 | Map style | Tile text |
@@ -8157,11 +8243,11 @@ Precedence when a mapped control conflicts with the reviewed observation: mapped
 
 **Crossed-road inputs for a source-confirmed left-across (LEFT-OBS-01 Revision 2; pending Derek's human gate).** For a movement the approved record confirms, §9.1 eligibility and the §9.2 speed, traffic and width inputs use the road whose traffic the rider crosses. The record names that road. For the first record it is the departed Indian Mills Road (way 11609171): the rider leaves it to the left across its opposing lane before entering Grassy Lake Road. The record carries no speed, traffic or lane value. Each path selects the crossed way's own route evidence. The existing-scoring adapter uses the draft ridden into the junction, only when that draft is owned solely by the crossed way. The P7 path reads the same selected speed and traffic sets at the last route millimetre of the crossed way's resolved owner atom, which ends exactly at the handoff. Both the traffic interval and the speed fact must be owned by that way. Proxy inputs keep their proxy provenance. If the crossed road cannot be bound, the gap stays explicit: the adapter excludes the event with no marker, and P7 blocks it with typed missing components. The entered road's input is never substituted. This binding follows movement confirmation, so it also applies when mapped control suppresses the uncontrolled assertion; that event is then an ordinary `standard` left across the crossed road. Every other left-across keeps its existing entered-road inputs. The P7 crossing-input policy version is unchanged, and the binding is receipted per event.
 
-**Whole-route-ready selection of a source-confirmed left-across (LEFT-OBS-01 Revision 3; pending Derek's human gate).** ADR-059 makes the ActiveScoreLedger the only rider-facing score truth, so the approved event must be selected and scored on the ordinary complete-owner route, not only by the existing-scoring adapter. On a whole-route-ready P7 route (complete, gap-free owner and owner-capability equivalence ready), the crossing set is the generic `crossing-risk-input-selection.v1` set, which reads `junction_context` evidence only. The P7 entered-road junction builder therefore also runs on that complete owner, restricted to handoffs that an approved record confirms. It reads the authenticated owner partitions and exact handoffs; it does not mint a partial display projection. Its facts are selected by the same P7 selector, with the crossed-road binding above, and bound to the complete-owner selection snapshot. They are then composed onto the generic set, once, under the set policy `crossing-risk-input-selection.v1+approved-left-across-whole-route-composition.v2`. Without an approved event the generic set is unchanged. Every composed fact must be an approved `left_across` with either the original uncontrolled-observation match or an exact reviewed rider-facing stop match. If the generic set already has an event within 30 m, the approved fact is not added: the set carries an explicit `ambiguous_event` blocker instead of a second crossing. A blocked approved fact blocks the set, so the route is not score-ready over an unscored approved crossing. The RigidScoreLedger alone computes its risk under the unchanged §9 formula. The `left_turn` marker for the original approved uncontrolled movement is placed only from exactly one such canonical fact at its node, with a score-bearing RigidScoreLedger trace of positive risk and an ActiveScoreLedger bound to that ledger revision. A reviewed rider-facing stop uses the ordinary stop-control factor and projects a stop marker only from its selected canonical left fact and matching occurrence receipt. The adapter conflict remains compatibility and diagnostic output; it neither places nor withholds the approved marker (LEFT-OBS-01 Revision 4). The marker sits at the record's source node and is placed only when that node projects within 10 m of the canonical fact's route measure; otherwise it is omitted with an explicit diagnostic. When no canonical selected fact exists, there is no marker.
+**Whole-route-ready selection of a source-confirmed left-across (LEFT-OBS-01 Revision 3; pending Derek's human gate).** ADR-059 makes the ActiveScoreLedger the only rider-facing score truth, so the approved event must be selected and scored on the ordinary complete-owner route, not only by the existing-scoring adapter. On a whole-route-ready P7 route (complete, gap-free owner and owner-capability equivalence ready), the crossing set is the generic `crossing-risk-input-selection.v1` set, which reads `junction_context` evidence only. The P7 entered-road junction builder therefore also runs on that complete owner, restricted to handoffs that an approved record confirms. It reads the authenticated owner partitions and exact handoffs; it does not mint a partial display projection. Its facts are selected by the same P7 selector, with the crossed-road binding above, and bound to the complete-owner selection snapshot. They are then composed onto the generic set, once, under the set policy `crossing-risk-input-selection.v1+approved-left-across-whole-route-composition.v1`. Without an approved event the generic set is unchanged. Every composed fact must be an approved `left_across`. If the generic set already has an event within 30 m, the approved fact is not added: the set carries an explicit `ambiguous_event` blocker instead of a second crossing. A blocked approved fact blocks the set, so the route is not score-ready over an unscored approved crossing. The RigidScoreLedger alone computes its risk under the unchanged §9 formula and 2.25 context. The `left_turn` marker for an approved movement is placed only from exactly one such canonical fact at its node, with a score-bearing RigidScoreLedger trace of positive risk and an ActiveScoreLedger bound to that ledger revision. The adapter conflict remains compatibility and diagnostic output; it neither places nor withholds the approved marker (LEFT-OBS-01 Revision 4). The marker sits at the record's source node and is placed only when that node projects within 10 m of the canonical fact's route measure; otherwise it is omitted with an explicit diagnostic. When no canonical scored fact exists, there is no marker. The ActiveScoreLedger's own calculation detail must also count that fact exactly once as `scored`, from the same rigid trace and risk; a blocked route score (for example a partial owner, where the detail is unavailable) therefore carries no approved marker.
 
 **Serving-source port (LEFT-OBS-PROD-PORT-01; amended by UNMAPPED-CONTROLS-UNKNOWN, issue #430; pending Derek's human gate).** On this source a record has effect only when it is `uncontrolled_confirmed`. That outcome alone admits the measured `slight_left` and selects the crossed-road inputs, the uncontrolled 2.25 context and the marker. When mapped control or an incomplete scan contradicts the record, no angle exception is given, so a measured slight left is not a crossing event; a left at a generic angle keeps the path's own resolved control from the next paragraph, with `standard` severity and no marker (the precedence paragraph above). The whole-route builder (complete owner, approved movements only) adds no fact for a contradicted record.
 
-**P7 source-bound road-change amendment (Batsto Middle Road; Derek's scoring direction, 2026-11-13).** For the P7 partial crossing builder, a `slight_left` of at least 15° is an ordinary left-across candidate when a sealed exact shared-node handoff changes between distinct motor-road families, the source ways differ, their route refs do not overlap, and one bidirectional motor road has a through arm at the junction while the other way ends there. A straight or unproved fork, one-way or divided through arm, two through arms, same family/ref continuation, and nonmotor destination remain excluded. If the departed road is through, it supplies the crossing exposure; if the entered road is through, that road supplies it. The selected speed, traffic, and width must belong to the corresponding owner atom immediately before or after the junction, sealed by a per-event binding receipt. This changes movement recognition, never control proof: absent rider-facing control evidence, the event is `unknown` (1.025) with standard severity (1.00), not uncontrolled (2.25). A `direction=backward` stop on the forward-traveled outgoing way is neither a rider-governing stop nor a straight control crossing or map stop for that visit. The P7 hazard point projection now retains `direction`, `stop`, `stop:direction`, and `traffic_signals:direction` under projection policy v2. Old v1 material remains readable but cannot prove a direction. Explicitly opposite control is rejected only with an unambiguous source-way order and route heading. A generic unknown-control marker is projected only from a positive-risk, scored canonical crossing at the same handoff and says control is unverified; it never claims uncontrolled. The exact Indian Mills approved observation and its 2.25 context remain separate. The complete-owner composition path admits exact approved uncontrolled observations and exact reviewed rider-approach stops; broad whole-route movement parity remains a follow-up gate.
+**P7 source-bound road-change amendment (Batsto Middle Road; Derek's scoring direction, 2026-11-13).** For the P7 partial crossing builder, a `slight_left` of at least 15° is an ordinary left-across candidate when a sealed exact shared-node handoff changes between distinct motor-road families, the source ways differ, their route refs do not overlap, and one bidirectional motor road has a through arm at the junction while the other way ends there. A straight or unproved fork, one-way or divided through arm, two through arms, same family/ref continuation, and nonmotor destination remain excluded. If the departed road is through, it supplies the crossing exposure; if the entered road is through, that road supplies it. The selected speed, traffic, and width must belong to the corresponding owner atom immediately before or after the junction, sealed by a per-event binding receipt. This changes movement recognition, never control proof: absent rider-facing control evidence, the event is `unknown` (1.025) with standard severity (1.00), not uncontrolled (2.25). A `direction=backward` stop on the forward-traveled outgoing way is neither a rider-governing stop nor a straight control crossing or map stop for that visit. The P7 hazard point projection now retains `direction`, `stop`, `stop:direction`, and `traffic_signals:direction` under projection policy v2. Old v1 material remains readable but cannot prove a direction. Explicitly opposite control is rejected only with an unambiguous source-way order and route heading. A generic unknown-control marker is projected only from a positive-risk, scored canonical crossing at the same handoff and says control is unverified; it never claims uncontrolled. The exact Indian Mills approved observation and its 2.25 context remain separate. The complete-owner composition path still admits only approved observations, so broad whole-route movement parity remains a follow-up gate.
 
 **Generic left-across control on the serving source (UNMAPPED-CONTROLS-UNKNOWN, issue #430; pending Derek's human gate).** Neither active path (existing-scoring adapter, P7 entered-road junction builder) derives `uncontrolled` (canonical `none`) from the absence of a mapped stop or signal, whatever the hazard coverage. No current source contract supplies an auditable proof that no control governs, so outside an approved observation the `uncontrolled_left_across` class is not produced. A left that otherwise qualifies (proven handoff, `left`/`sharp_left`, distinct motor-road families, no same-ref continuation, motor-road destination) is kept as one ordinary `left_across` crossing with `standard` severity (1.00) and no `left_turn` marker. Its control is resolved as follows:
 
@@ -8169,14 +8255,14 @@ Precedence when a mapped control conflicts with the reviewed observation: mapped
 - a stop or signal proven on the rider's incoming approach and proven to face the rider (P7 path only, see below) → `signed` or `signaled`
 - everything else → `unknown` (ControlFactor 1.025, §9.4)
 
-A stop on the shared node alone stays `unknown`. The P7 v2 point projection retains `direction`, `stop`, `stop:direction`, and `traffic_signals:direction`. An explicit `highway=stop` + `stop=all` on the sealed shared junction node proves all-way stop control when the incoming and entered source ways and ownership are bound; a bare `direction=both` at a multiply incident node does not. A control on another approach is never assigned to the rider.
+A stop on the shared node alone stays `unknown`. P7 point material keeps no `direction=*` or `stop=all`, so a shared node does not prove that the stop faces the rider rather than only cross traffic. A control on another approach is never assigned to the rider.
 
 Approach proof differs by path:
 
-- **P7 path:** the control node is within 30 m of the junction, on the rider's arrival arm of the incoming way (sealed node membership and incidence, at most 30 m along that way with no intervening known junction, at most 10 m off the route line, before the handoff), and on no entered way. Location is not facing. On a uniquely incident approach point, `direction=forward|backward|both` or the corresponding control-specific direction proves facing only with unambiguous source-way node order and rider heading. A direction-less point on a two-way road remains unproved because it may face opposing traffic at a preceding junction; proximity is insufficient. A direction-less point can instead be proven on an incoming one-way traveled in the permitted direction with no directional exception. Any other `oneway*` key, `busway` key, direction-specific access/lane key, cycleway one-way key, or `opposite`/`contraflow` value defeats that fallback proof. A control point with any `crossing` tag governs that crossing and is never assigned. A signal the hazard producer excludes as pedestrian/crosswalk infrastructure (`hazards.ts` `isHazardPedestrianSignalNode`) never governs the left. Other unproven approach controls remain separate straight crossings. A non-pedestrian signal on the junction node governs every approach. Stop-plus-signal conflicts remain `unknown`; a reviewed stop observation cannot override that mapped conflict.
+- **P7 path:** the control node is within 30 m of the junction, on the rider's arrival arm of the incoming way (sealed node membership and incidence, at most 30 m along that way with no intervening known junction, at most 10 m off the route line, before the handoff), and on no entered way. Location is not facing. P7 point material keeps no `direction=*`, `traffic_signals:direction` or `stop=*`, so on a two-way road a direction-less stop or signal 15 m before the turn may face opposing traffic approaching a junction behind it (for example 25 m before the turn). Way membership, the arrival arm and proximity cannot tell these apart, and neither can the absence of a junction behind the control (P7 may not hold every way there). Facing is therefore proven only when the sealed incoming way is a one-way for every road user whose permitted direction is the rider's travel direction (`oneway=yes|true|1` along node order, or `oneway=-1|reverse` against it), with no directional exception; then no opposing traffic exists on that way for it to face. Any of these is an unproven directional exception and defeats the proof: another `oneway*` key (`oneway:bicycle`, `oneway:psv`, `oneway:conditional`, …); any `busway` / `busway:*` key (`busway=opposite_lane`); any direction-specific key, i.e. one with a `forward`, `backward` or `both_ways` part (`lanes:psv:forward`, `lanes:bus:backward`, `access:backward`, `lanes:both_ways`, …), since on a one-way it may grant motor contraflow and P7 does not interpret it; a `cycleway*:oneway` key; or any tag value containing `opposite` or `contraflow`. A control point with any `crossing` tag governs that crossing and is never assigned. A signal the hazard producer excludes as pedestrian/crosswalk infrastructure (`hazards.ts` `isHazardPedestrianSignalNode`, the same predicate that withholds its `signal_crossing`: `crossing=traffic_signals`, `crossing:signals=yes`, `traffic_signals:sound=yes`, `button_operated=yes`, `highway=crossing`, `crossing:island=yes`, `foot=designated`, `bicycle=dismount`) never governs the left, on the approach or on the junction node; absent another control the left is `unknown` (basis `pedestrian_signal_not_turn_control`). Every other approach control is `unknown` (basis `approach_control_facing_unproven`), is not represented by the left, and keeps its own straight controlled crossing. A (non-pedestrian) signal on the junction node itself is unaffected: it governs every approach. Consequence: on two-way roads, which are most roads, an approach-mapped stop or signal now scores as an `unknown` left (1.025) plus its separate straight controlled crossing; that may double count a stop that really does govern the left, the conservative trade for not asserting a control the source cannot prove.
 - **Existing-scoring adapter:** none. Its route handoffs list only the junctions where the rider changes road; a side street ridden straight through produces no handoff, and the adapter has no sealed way node lists or per-node incidence. It therefore cannot prove that no junction lies between an off-node control and the turn: a stop 5 m before a side street that is itself 5 m before the turn governs the side street, not the left. Route proximity (formerly a route-indexed control within 8 m, or a sealed P7 control within 30 m with no other route handoff between) is not proof of governance. The adapter assigns only a signal on the junction node itself with a proven boundary (a route-indexed signal on the handoff node, or a P7 signal whose sealed shared node is the handoff node and whose incidence includes both the incoming and entered ways). Every other left is `unknown`, and an off-node control keeps its own straight crossing. Consequence: where the P7 path proves an approach control governs the left (rider-direction one-way only), the adapter reports the same left as `unknown` plus a separate straight controlled crossing. The adapter is compatibility and diagnostic output; the P7 path is authoritative for this proof.
 
-The P7 selector (`p7-entered-road-crossing-inputs.v6`) scores `unknown` control with the §9.4 factor instead of blocking on it. Its input receipt carries an explicit `p7-unknown-control-ds015-factor.v1` component and the `p7-left-junction-control-resolution.v8` receipt (v8 records a central mapped stop that passes the likely-stop checks as `junction_node_mapped_stop_likely_unconfirmed` with control `unknown` and a display-only likely-stop receipt, never signed control; v7 additionally binds the source bodies used for split-way incidence and distinguishes a mapped junction stop with unresolved rider applicability; v6 includes the reviewed-control outcome and source-bound likely-stop receipt while retaining the earlier facing, contraflow and pedestrian-signal rules). Missing speed, traffic, width or road identity still block the event. Crossing-risk confidence stays `unresolved`/`partial` (§9A). A left represents the controls at its own junction occurrence (on the shared node, or proven on the incoming approach and proven to face the rider). Their straight controlled-node crossings are not scored again only when that left is itself score-bearing; the left's receipt then carries a `p7-represented-junction-control.v1` component. A below-threshold or blocked left represents nothing, so the straight control keeps its own selection and score. A straight crossing of the same node on another visit of the route is never represented. Other controlled crossings are unchanged. The existing-scoring adapter applies the same rule to its junction-node controls only (the handoff node, within 30 m of that occurrence): only a score-eligible left suppresses them. It dedupes lefts by node within one route occurrence (30 m), so a later visit to the same node is its own left. The generic `crossing-risk-input-selection.v1` selector, used when the server-compiler P7 crossing builder does not run, still treats unknown control as a missing component; this amendment does not change it.
+The P7 selector (`p7-entered-road-crossing-inputs.v5`) scores `unknown` control with the §9.4 factor instead of blocking on it. Its input receipt carries an explicit `p7-unknown-control-ds015-factor.v1` component and the `p7-left-junction-control-resolution.v3` receipt (v2 added the facing rule, the facing-unproven control IDs and, for an assigned approach control, the one-way way ID, body digest, `oneway` value and rider direction; v3 tightens the facing rule to reject motor contraflow and any other directional exception, and adds the pedestrian-signal rule and the excluded pedestrian-signal node IDs). Missing speed, traffic, width or road identity still block the event. Crossing-risk confidence stays `unresolved`/`partial` (§9A). A left represents the controls at its own junction occurrence (on the shared node, or proven on the incoming approach and proven to face the rider). Their straight controlled-node crossings are not scored again only when that left is itself score-bearing; the left's receipt then carries a `p7-represented-junction-control.v1` component. A below-threshold or blocked left represents nothing, so the straight control keeps its own selection and score. A straight crossing of the same node on another visit of the route is never represented. Other controlled crossings are unchanged. The existing-scoring adapter applies the same rule to its junction-node controls only (the handoff node, within 30 m of that occurrence): only a score-eligible left suppresses them. It dedupes lefts by node within one route occurrence (30 m), so a later visit to the same node is its own left. The generic `crossing-risk-input-selection.v1` selector, used when the server-compiler P7 crossing builder does not run, still treats unknown control as a missing component; this amendment does not change it.
 
 This factor is applied after the crossing-likelihood cap. It represents residual operating-speed/severity context at confidently uncontrolled left-across locations, not an additional claim about crash likelihood. Do not multiply it into `MovementFactor`, `ControlFactor`, or both.
 
@@ -8652,56 +8738,6 @@ Before freezing this as production canon:
 - Version every calibration table and cache output.
 
 The desired launch state is not a prettier display. It is one score-bearing contract with traceable inputs, explicit projections, and enough provenance to explain why the system believes what it believes.
-
-
-### Local candidate: physical control incidence (2026-11-17)
-
-A control node shared by source ways is not automatically a branching junction. Two distinct,
-opposing physical road arms can form a continuous corridor across an OSM way split. When every
-declared incident way is available, each has a unique occurrence of the node and valid geometry,
-and there are exactly two opposing motor-road arms, `direction=both` may govern both corridor
-traversals. `forward`/`backward` additionally requires consistent source node order across every
-incident segment. Missing incidence, loops, duplicate arms, real branches, conflicting direction
-and pedestrian spurs do not gain this exception. The incoming approach must still satisfy the
-existing distance, route arm and occurrence checks. Proof receipts bind all contributing way bodies.
-
-A central mapped `highway=stop` with compatible generic or stop-specific `both` direction can
-support **inferred rider applicability**, not verified all-way control. The new rule requires complete
-declared motor-way incidence, coherent shared-node geometry, three or four distinct well-separated
-arms with a through pair (two opposing pairs for four arms), and a unique arrival and departure arm
-bound to the route. Missing incident material, pedestrian spur, minor-road stop, restrictive or
-contradictory direction, crossing-specific control, nearby signal conflict, loop, duplicate arm,
-roundabout or grade-separated way receives no inference. `direction=both` alone is insufficient.
-
-**Correction (Derek via architect, 2026-11-18): likely-stop inference is display-only.** An
-accepted inference does **not** select `stop_controlled` and does not receive the signed factor 1.0.
-A generic central stop tagged `direction=both` is not proof that every approach is controlled (the
-mapper may mean both directions of the minor road only). Unconfirmed control therefore keeps canonical
-`unknown` with ControlFactor 1.025 and unresolved confidence, under resolution basis
-`junction_node_mapped_stop_likely_unconfirmed` (`p7-left-junction-control-resolution.v8`). The only
-output is a display-only `p7-mapped-junction-likely-stop.v1` receipt (bound to source revision, route
-occurrence, node body and incident way bodies; `scoreControl: unknown`) that labels the rider's
-left marker "Likely stop · sign unverified" with the question-mark stop icon; the popup says crossing
-risk retains the unknown-control factor. It is never an uncontrolled marker and never a plain stop
-sign. No canonical fact, receipt component or calculation detail carries inferred control; persisted
-calculation detail with `evidenceBasis`/`inferenceReceiptId` is rejected, and a hazard event claiming
-`control_evidence_source=mapped_junction_inference` is not drawn as a stop sign. Signed control still
-comes only from explicit `stop=all`, a stop proven on and facing the rider's own approach, a
-non-pedestrian junction signal, or an exact, independently reviewed rider-approach record. The
-reviewed record list contains one candidate-only record: Derek's Carranza four-way stop, bound to
-Batsto's exact rider approach at node `103526319`, visit `87179009` mm, source revision, route
-axis and incident way bodies. Its immutable evidence and candidate-only approval are recorded in
-`docs/04-execution/reports/evidence/carranza-observation-20261118/`. On that exact bound visit,
-the candidate source selects `stop_controlled` with factor 1.0. It is not yet production scoring
-authority: a corrected compile, independent release gate, merge, publication and readback remain.
-Derek's corrected Airport-to-Nesco physical stop is a known report, not scoring evidence; it has
-no reviewed rider-approach record. The earlier unpublished candidate (`ce7eda09b`) that scored
-generic inferences at 1.0 is superseded and its artifact must not be published.
-
-When these applicability checks fail, the mapped junction remains explicitly unresolved and retains
-the unknown factor 1.025. Missing control evidence likewise remains unknown and does not block an
-otherwise eligible crossing. The exact Carranza record is the sole location-specific stop override
-in this candidate; no general junction inference receives that authority.
 
 
 ---
