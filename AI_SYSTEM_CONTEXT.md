@@ -5600,6 +5600,31 @@ mph
 
 ---
 
+## Mid-ride ergonomics
+
+**Added:** 2026-11-21 (RIDE-ERGONOMICS-01).
+
+While a ride is **recording or paused**, ride mode behaves like a bike computer: the rider has one hand free, often gloved, on a moving phone, and glances rather than looks. Every touch target grows; nothing changes colour, material or order. Outside a ride every surface keeps its planning size. The numbers live in one place, `src/lib/presentation/ride-ergonomics.ts`.
+
+| Surface | Planning | Mid-ride |
+|---------|----------|----------|
+| Route segment tap width (touch) | 56px | **72px** |
+| Off-route road tap width (speed layer) | the painted core, 4–6px | **44px** transparent line, in a pane below every route pane |
+| Ride strip buttons (Start/Stop, Lap, Pause, Save, Cues) | 44px on phones, 16px glyphs, 10px labels | **56px**, 22px glyphs, 12px labels, 6px gaps |
+| Map control row (six controls beside the lantern) | 40px | **48px** where the row keeps ≥4px between controls, else **44px**, else 40px |
+| Ride computer value | `clamp(56px, 16vw, 120px)` | `clamp(64px, 19vw, 140px)` (always; the screen only shows in ride mode) |
+| Ride computer label | 12px | 14px |
+| Ride computer swipe zone | the numerals only | at least 176px wide, padded |
+
+**Rules:**
+- The route always wins. The widened road lines sit in `rideRoadHitPane` (z 378), below bike inspection (380), the interactive route core (390) and the route hitboxes (400). A road's own painted core keeps its planning tap target, so a tap directly on a road behaves exactly as before; the ride line only catches the near miss.
+- Map controls never grow at the cost of buttons that touch or of the lantern's own target. A narrow phone keeps 40px.
+- Bigger is not denser. No tile, control or metric is added.
+
+**Panes.** The ride computer screen is built from two explicit panes, `top` and `bottom` (`RideComputerPane`). A pane owns where its content sits; the host decides what it shows. A future configurable top pane replaces the top pane's content alone.
+
+---
+
 ## Color Rules
 
 | Map style | Tile text |
