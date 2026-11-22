@@ -63901,7 +63901,7 @@ It should feel glanceable, calm, and useful enough that a rider could plausibly 
 ## What is not done yet
 
 - full on-bike interaction model is not finished
-- keep-awake / power realities still need deliberate handling
+- keep-awake: the screen is held on while a ride is recording or rider-paused (RIDE-KEEP-AWAKE-01, `src/lib/ride-keep-awake.ts`): Screen Wake Lock API on the website, re-requested whenever the page becomes visible again; `@capacitor-community/keep-awake` in the iOS and Android apps. It does not keep GPS running with the screen locked; that needs native background location. Power cost on long rides is not measured.
 - sensor strategy is not fully settled
 - radar integration path is not complete
 - the product still needs real-world riding polish before this can be trusted as a primary bike computer
