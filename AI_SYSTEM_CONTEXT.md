@@ -42868,11 +42868,12 @@ Lanterne will detect and flag **sun glare risk windows** along the route based o
 
 **Glare risk is flagged when all three conditions are met:**
 - Sun elevation is between approximately **0° and 6° above the horizon** (peak blind-driver zone)
-- The sun azimuth is within approximately **±30° of the rider's direction of travel** (driver approaching from behind is facing the sun)
+- The sun azimuth is within approximately **±30° of the rider's direction of travel** (driver approaching from behind is facing the sun) or within **±30° of the opposite bearing** (oncoming traffic is sun-blinded)
 - The rider is estimated to be on that slice during the relevant glare window
 
 **Output per slice:**
 - `glare_flag` boolean
+- `glare_direction` — `behind` (drivers overtaking) / `oncoming` / `both`
 - `glare_severity` — based on sun elevation within the window and bearing alignment tightness
 
 ---
@@ -42921,14 +42922,6 @@ These values may be tuned based on real-world validation. The 6° upper bound is
 ## Design Principle
 
 Sun glare is a driver behavior problem that creates a cyclist safety problem. Lanterne can predict it. Flag it.
-
----
-
-## Amendment (Nov 22, 2026): no oncoming case
-
-Derek: "oncoming glare isn't a thing. If a car is going to hit you because of glare its either at an intersection or from behind, not from ahead."
-
-The oncoming-traffic case (the Sun within ±30° of the opposite bearing) and the `glare_direction` output are removed. Glare is flagged only for drivers behind the rider, which is what the app has always computed (`sky-light.ts`). Drivers crossing or turning at intersections while facing the Sun are a real case that is not modelled yet. The lower bound in the app is the visible horizon (−0.8333°, allowing for refraction and the Sun's disk) rather than exactly 0°. Current values and where they live: `docs/weather.md`, section 4.
 
 
 ---
