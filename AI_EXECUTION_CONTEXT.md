@@ -63901,8 +63901,7 @@ It should feel glanceable, calm, and useful enough that a rider could plausibly 
 ## What is not done yet
 
 - full on-bike interaction model is not finished
-- keep-awake: the screen is held on while a ride is recording or rider-paused (RIDE-KEEP-AWAKE-01, `src/lib/ride-keep-awake.ts`): Screen Wake Lock API on the website, re-requested whenever the page becomes visible again; `@capacitor-community/keep-awake` in the iOS and Android apps. It does not keep GPS running with the screen locked on the website.
-- background GPS in the apps (RIDE-BG-LOCATION-01, `src/lib/native/native-rider-position.ts`): a recording ride's GPS watch runs through `@capgo/background-geolocation`, so it keeps recording with the screen locked. Only While Using location is requested, the first time GPS or a ride starts. Android shows a "Recording your ride" notification while recording. The website keeps the browser's watch and still stops when the page is hidden. Power cost on long rides is not measured.
+- keep-awake / power realities still need deliberate handling
 - sensor strategy is not fully settled
 - radar integration path is not complete
 - the product still needs real-world riding polish before this can be trusted as a primary bike computer
