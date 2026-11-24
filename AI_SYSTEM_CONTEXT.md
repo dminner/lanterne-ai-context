@@ -42930,6 +42930,10 @@ Derek ruled the oncoming case out: a driver ahead of the rider doesn't hit them 
 
 The oncoming-traffic case (the Sun within ±30° of the opposite bearing) and the `glare_direction` output are removed. Glare is flagged only for drivers behind the rider, which is what the app has always computed (`sky-light.ts`). The lower bound in the app is the visible horizon (−0.8333°, allowing for refraction and the Sun's disk) rather than exactly 0°. Current values and where they live: `docs/weather.md`, section 4.
 
+## Amendment (Nov 24, 2026): 20° window, clear skies only
+
+Derek: "within 20 degrees of where the sun is. right now it's 30 and i think that's too much", and "it shouldn't fire on cloudy/overcast days. the only time its an issue is clear skies full sun". The bearing window is now ±20° of the direction of travel. Glare is flagged only where that stretch's checkpoint forecast is current and clear (under 30% cloud, weather code clear or mainly clear); an overcast, foggy, wet or unknown sky flags none, replacing the earlier "flag potential glare, note cloud cover unknown" fallback. The 6° height stays: Derek floated 10° and then asked to keep 6° if it is better, and nothing since has argued for a wider band. Current values: `docs/weather.md`, section 4.
+
 
 ---
 
